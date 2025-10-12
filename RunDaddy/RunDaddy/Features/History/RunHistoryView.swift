@@ -115,6 +115,9 @@ struct RunHistoryView: View {
                                                   name: item.name,
                                                   count: item.count,
                                                   category: item.category,
+                                                  checked: item.checked,
+                                                  dateAdded: item.dateAdded,
+                                                  dateChecked: item.dateChecked,
                                                   run: run)
                 modelContext.insert(inventoryItem)
             }

@@ -11,6 +11,7 @@ struct CSVRunImporter {
     struct RunPayload {
         let name: String
         let items: [InventoryItemPayload]
+        let importedAt: Date
     }
 
     struct InventoryItemPayload {
@@ -18,6 +19,9 @@ struct CSVRunImporter {
         let name: String
         let count: Int
         let category: String
+        let checked: Bool
+        let dateAdded: Date
+        let dateChecked: Date?
     }
 
     enum ImportError: LocalizedError {
@@ -47,12 +51,14 @@ struct CSVRunImporter {
 
     private let expectedHeader = ["ItemCode", "ItemName", "Need", "Count", "Cases", "Category"]
 
-    func loadRun(from url: URL) throws -> RunPayload {
+    func loadRun(from url: URL, importedAt: Date = Date()) throws -> RunPayload {
         let contents = try String(contentsOf: url, encoding: .utf8)
-        return try parse(contents: contents, runName: url.deletingPathExtension().lastPathComponent)
+        return try parse(contents: contents,
+                         runName: url.deletingPathExtension().lastPathComponent,
+                         importedAt: importedAt)
     }
 
-    private func parse(contents: String, runName: String) throws -> RunPayload {
+    private func parse(contents: String, runName: String, importedAt: Date) throws -> RunPayload {
         let rows = parseCSVRows(from: contents)
         guard let headerRow = rows.first else {
             throw ImportError.emptyFile
@@ -94,7 +100,10 @@ struct CSVRunImporter {
             let payload = InventoryItemPayload(code: code,
                                                name: name,
                                                count: count,
-                                               category: category)
+                                               category: category,
+                                               checked: false,
+                                               dateAdded: importedAt,
+                                               dateChecked: nil)
             items.append(payload)
         }
 
@@ -105,7 +114,7 @@ struct CSVRunImporter {
         let normalizedRunName = sanitize(runName)
         let resolvedRunName = normalizedRunName.isEmpty ? runName : normalizedRunName
 
-        return RunPayload(name: resolvedRunName, items: items)
+        return RunPayload(name: resolvedRunName, items: items, importedAt: importedAt)
     }
 
     private func parseCount(from value: String, line: Int) throws -> Int {
