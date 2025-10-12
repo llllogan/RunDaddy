@@ -83,12 +83,40 @@ struct RunDetailView: View {
         }
     }
 
+    private var pendingItems: [InventoryItem] {
+        sortedItems.filter { !$0.checked }
+    }
+
+    private var completedItems: [InventoryItem] {
+        sortedItems.filter(\.checked)
+    }
+
+    private var completedItemCount: Int {
+        completedItems.count
+    }
+
+    private var completedFraction: Double {
+        guard totalUniqueItems > 0 else { return 0 }
+        return Double(completedItemCount) / Double(totalUniqueItems)
+    }
+
+    private var completionPercentageText: String {
+        completedFraction.formatted(.percent.precision(.fractionLength(0)))
+    }
+
+    private func toggleCompletion(for item: InventoryItem, isComplete: Bool) {
+        withAnimation {
+            item.checked = isComplete
+            item.dateChecked = isComplete ? Date() : nil
+        }
+    }
+
     var body: some View {
         List {
             Section("Overview") {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading) {
-                        Text("Total Items")
+                        Text("Items")
                             .font(.headline)
                         Text("\(totalUniqueItems)")
                             .font(.title3)
@@ -98,11 +126,26 @@ struct RunDetailView: View {
                     Divider()
 
                     VStack(alignment: .leading) {
-                        Text("Total Quantity")
+                        Text("Quantity")
                             .font(.headline)
                         Text("\(totalItemCount)")
                             .font(.title3)
                             .bold()
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Completed")
+                            .font(.headline)
+                        HStack {
+                            Text("\(completedItemCount)")
+                                .font(.title3)
+                                .bold()
+                            Text(completionPercentageText)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -140,11 +183,11 @@ struct RunDetailView: View {
             }
 
             Section("Items") {
-                if sortedItems.isEmpty {
-                    Text("No items have been imported for this run.")
+                if pendingItems.isEmpty {
+                    Text(sortedItems.isEmpty ? "No items have been imported for this run." : "All items are completed.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(sortedItems) { item in
+                    ForEach(pendingItems) { item in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.name)
@@ -168,6 +211,56 @@ struct RunDetailView: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                toggleCompletion(for: item, isComplete: true)
+                            } label: {
+                                Label("Complete", systemImage: "checkmark.circle.fill")
+                            }
+                            .tint(.green)
+                        }
+                    }
+                }
+            }
+
+            if !completedItems.isEmpty {
+                Section("Completed") {
+                    ForEach(completedItems) { item in
+                        HStack {
+                            Label {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.name)
+                                        .font(.headline)
+                                    if !item.code.isEmpty {
+                                        Text(item.code)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text(item.category.isEmpty ? "Uncategorized" : item.category)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("Count")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("\(item.count)")
+                                    .font(.headline)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                toggleCompletion(for: item, isComplete: false)
+                            } label: {
+                                Label("Mark Incomplete", systemImage: "arrow.uturn.left.circle")
+                            }
+                        }
                     }
                 }
             }
