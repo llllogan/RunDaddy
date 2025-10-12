@@ -104,6 +104,10 @@ struct RunDetailView: View {
         completedFraction.formatted(.percent.precision(.fractionLength(0)))
     }
 
+    private var sessionButtonTitle: String {
+        completedItemCount > 0 ? "Continue Bagging" : "Start Bagging"
+    }
+
     private func toggleCompletion(for item: InventoryItem, isComplete: Bool) {
         withAnimation {
             item.checked = isComplete
@@ -219,6 +223,14 @@ struct RunDetailView: View {
                             }
                             .tint(.green)
                         }
+                        .swipeActions {
+                            Button {
+                                // TODO: Start bagging session from this item.
+                            } label: {
+                                Label("Start Bagging From Here", systemImage: "play.rectangle.on.rectangle")
+                            }
+                            .tint(.accentColor)
+                        }
                     }
                 }
             }
@@ -267,6 +279,22 @@ struct RunDetailView: View {
         }
         .navigationTitle(run.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    // TODO: Wire up to start the packing session for this run.
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                        Text(sessionButtonTitle)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .accessibilityLabel(sessionButtonTitle)
+            }
+        }
     }
 }
 
