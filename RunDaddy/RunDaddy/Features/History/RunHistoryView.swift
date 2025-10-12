@@ -24,15 +24,19 @@ struct RunHistoryView: View {
         NavigationStack {
             List {
                 ForEach(runs) { run in
-                    Text(run.name)
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                runPendingDeletion = run
-                                isConfirmingDeletion = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
+                    NavigationLink {
+                        RunDetailView(run: run)
+                    } label: {
+                        Text(run.name)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            runPendingDeletion = run
+                            isConfirmingDeletion = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
+                    }
                 }
             }
             .alert("Delete Run?", isPresented: $isConfirmingDeletion, presenting: runPendingDeletion) { run in
