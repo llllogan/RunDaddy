@@ -12,6 +12,19 @@ import SwiftUI
 struct RunDetailView: View {
     @Bindable var run: Run
 
+    private static let categoryPalette: [Color] = [
+        .accentColor,
+        .mint,
+        .indigo,
+        .orange,
+        .teal,
+        .pink,
+        .purple,
+        .brown,
+        .cyan,
+        .gray
+    ]
+
     private struct CategorySlice: Identifiable {
         let category: String
         let totalCount: Int
@@ -46,6 +59,19 @@ struct RunDetailView: View {
                 }
                 return lhs.totalCount > rhs.totalCount
             }
+    }
+
+    private var categoryColorLookup: [String: Color] {
+        var mapping: [String: Color] = [:]
+        for (index, slice) in categorySlices.enumerated() {
+            let color = Self.categoryPalette[index % Self.categoryPalette.count]
+            mapping[slice.category] = color
+        }
+        return mapping
+    }
+
+    private func color(for category: String) -> Color {
+        categoryColorLookup[category] ?? .accentColor
     }
 
     private var sortedItems: [InventoryItem] {
@@ -87,12 +113,29 @@ struct RunDetailView: View {
                     Text("No category data available yet.")
                         .foregroundStyle(.secondary)
                 } else {
-                    Chart(categorySlices) { slice in
-                        SectorMark(angle: .value("Count", slice.totalCount))
-                            .foregroundStyle(by: .value("Category", slice.category))
+                    VStack(alignment: .leading, spacing: 16) {
+                        Chart(categorySlices) { slice in
+                            SectorMark(angle: .value("Count", slice.totalCount))
+                                .foregroundStyle(color(for: slice.category))
+                        }
+                        .frame(height: 240)
+
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], alignment: .leading, spacing: 12) {
+                            ForEach(categorySlices) { slice in
+                                HStack(spacing: 8) {
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(color(for: slice.category))
+                                        .frame(width: 14, height: 14)
+
+                                    Text("\(slice.category) (\(slice.totalCount))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
-                    .chartLegend(.visible)
-                    .frame(height: 240)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
                 }
             }
 
@@ -135,24 +178,8 @@ struct RunDetailView: View {
 }
 
 #Preview {
-    let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Run.self, InventoryItem.self, configurations: configuration)
-
-    let context = container.mainContext
-
-    let run = Run(name: "Sample Run")
-    context.insert(run)
-
-    let sampleItems = [
-        InventoryItem(code: "A1", name: "Item A", count: 2, category: "Socks", run: run),
-        InventoryItem(code: "B1", name: "Item B", count: 5, category: "Snacks", run: run),
-        InventoryItem(code: "C1", name: "Item C", count: 1, category: "", run: run)
-    ]
-
-    sampleItems.forEach { context.insert($0) }
-
-    return NavigationStack {
-        RunDetailView(run: run)
+    NavigationStack {
+        RunDetailView(run: PreviewFixtures.sampleRun)
     }
-    .modelContainer(container)
+    .modelContainer(PreviewFixtures.container)
 }

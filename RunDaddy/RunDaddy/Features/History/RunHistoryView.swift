@@ -137,5 +137,5 @@ struct RunHistoryView: View {
 
 #Preview {
     RunHistoryView()
-        .modelContainer(for: [Run.self, InventoryItem.self], inMemory: true)
+        .modelContainer(PreviewFixtures.container)
 }
