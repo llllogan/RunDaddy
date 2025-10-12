@@ -135,15 +135,15 @@ struct CSVRunImporter {
         var currentField = ""
         var isQuoted = false
 
-        let characters = Array(text)
+        let scalars = Array(text.unicodeScalars)
         var index = 0
 
-        while index < characters.count {
-            let character = characters[index]
+        while index < scalars.count {
+            let scalar = scalars[index]
 
-            switch character {
+            switch scalar {
             case "\"":
-                if isQuoted, (index + 1) < characters.count, characters[index + 1] == "\"" {
+                if isQuoted, (index + 1) < scalars.count, scalars[index + 1] == "\"" {
                     currentField.append("\"")
                     index += 1
                 } else {
@@ -151,14 +151,14 @@ struct CSVRunImporter {
                 }
             case ",":
                 if isQuoted {
-                    currentField.append(character)
+                    currentField.append(Character(scalar))
                 } else {
                     currentRow.append(currentField)
                     currentField.removeAll(keepingCapacity: false)
                 }
             case "\n":
                 if isQuoted {
-                    currentField.append(character)
+                    currentField.append(Character(scalar))
                 } else {
                     currentRow.append(currentField)
                     rows.append(currentRow)
@@ -166,9 +166,20 @@ struct CSVRunImporter {
                     currentField.removeAll(keepingCapacity: false)
                 }
             case "\r":
-                break
+                if isQuoted {
+                    currentField.append(Character(scalar))
+                } else {
+                    currentRow.append(currentField)
+                    rows.append(currentRow)
+                    currentRow.removeAll(keepingCapacity: false)
+                    currentField.removeAll(keepingCapacity: false)
+
+                    if (index + 1) < scalars.count, scalars[index + 1] == "\n" {
+                        index += 1
+                    }
+                }
             default:
-                currentField.append(character)
+                currentField.append(Character(scalar))
             }
 
             index += 1
