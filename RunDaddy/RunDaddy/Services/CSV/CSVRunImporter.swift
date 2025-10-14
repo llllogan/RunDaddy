@@ -258,12 +258,14 @@ struct CSVRunImporter {
                     coilsByID[coilID] = coilPayload
                 }
 
-                packOrder += 1
-                let runCoilPayload = RunCoilPayload(id: UUID().uuidString,
-                                                    coilID: coilID,
-                                                    pick: needValue,
-                                                    packOrder: packOrder)
-                runCoils.append(runCoilPayload)
+                if needValue > 0 {
+                    packOrder += 1
+                    let runCoilPayload = RunCoilPayload(id: UUID().uuidString,
+                                                        coilID: coilID,
+                                                        pick: needValue,
+                                                        packOrder: packOrder)
+                    runCoils.append(runCoilPayload)
+                }
 
                 index += 1
             }
@@ -271,10 +273,6 @@ struct CSVRunImporter {
 
         guard !machines.isEmpty else {
             throw ImportError.missingMachineHeader
-        }
-
-        guard !runCoils.isEmpty else {
-            throw ImportError.noRunData
         }
 
         return RunLocationPayload(runner: runner,

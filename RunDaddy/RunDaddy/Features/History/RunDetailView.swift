@@ -29,6 +29,10 @@ struct RunDetailView: View {
     @Bindable var run: Run
 
     private var locationSections: [RunLocationSection] {
+        Self.locationSections(for: run)
+    }
+
+    fileprivate static func locationSections(for run: Run) -> [RunLocationSection] {
         var byLocation: [String: [RunCoil]] = [:]
 
         for runCoil in run.runCoils {
@@ -191,8 +195,8 @@ fileprivate struct CoilRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.id)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -203,12 +207,9 @@ fileprivate struct CoilRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
-                labelValue(title: "Need", value: runCoil.pick)
-                labelValue(title: "Par", value: coil.stockLimit)
-            }
+            labelValue(title: "Need", value: runCoil.pick)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -227,6 +228,17 @@ fileprivate struct CoilRow: View {
 #Preview {
     NavigationStack {
         RunDetailView(run: PreviewFixtures.sampleRun)
+    }
+    .modelContainer(PreviewFixtures.container)
+}
+
+#Preview("Location Detail") {
+    NavigationStack {
+        if let locationSection = RunDetailView.locationSections(for: PreviewFixtures.sampleRun).first {
+            RunLocationDetailView(section: locationSection)
+        } else {
+            Text("Missing preview data")
+        }
     }
     .modelContainer(PreviewFixtures.container)
 }
