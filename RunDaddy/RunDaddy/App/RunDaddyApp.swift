@@ -13,7 +13,11 @@ struct RunDaddyApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Run.self,
-            InventoryItem.self,
+            RunCoil.self,
+            Coil.self,
+            Machine.self,
+            Location.self,
+            Item.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
