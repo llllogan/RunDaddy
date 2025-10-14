@@ -26,6 +26,14 @@ fileprivate struct RunLocationSection: Identifiable {
     var coilCount: Int { machines.reduce(into: 0) { $0 += $1.coilCount } }
 }
 
+fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
+    guard packOrder > 0 else { return "Unscheduled" }
+    if packOrder == 1 {
+        return "1 (deliver last)"
+    }
+    return "\(packOrder)"
+}
+
 struct RunDetailView: View {
     @Bindable var run: Run
     @State private var isPresentingOrderEditor = false
@@ -154,7 +162,7 @@ struct RunDetailView: View {
                             RunLocationDetailView(section: section)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Order \(section.packOrder)")
+                                Text("Order \(formattedOrderDescription(for: section.packOrder))")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 Text(section.location.name)
@@ -202,9 +210,6 @@ fileprivate struct RunLocationDetailView: View {
     var body: some View {
         List {
             Section("Location Details") {
-                LabeledContent("Order") {
-                    Text("\(section.packOrder)")
-                }
                 LabeledContent("Name") {
                     Text(section.location.name)
                 }
@@ -218,6 +223,9 @@ fileprivate struct RunLocationDetailView: View {
                 }
                 LabeledContent("Total Coils") {
                     Text("\(section.coilCount)")
+                }
+                LabeledContent("Order") {
+                    Text(formattedOrderDescription(for: section.packOrder))
                 }
             }
 
