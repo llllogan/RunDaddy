@@ -256,6 +256,7 @@ private struct CoilDetailView: View {
                             HStack(spacing: 16) {
                                 LabeledValue(title: "Need", value: "\(runCoil.pick)")
                                 LabeledValue(title: "Order", value: "\(runCoil.packOrder)")
+                                LabeledValue(title: "Packed", value: runCoil.packed ? "Yes" : "No")
                             }
                         }
                         .padding(.vertical, 4)

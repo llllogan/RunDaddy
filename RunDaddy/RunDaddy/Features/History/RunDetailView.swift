@@ -37,6 +37,7 @@ fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
 struct RunDetailView: View {
     @Bindable var run: Run
     @State private var isPresentingOrderEditor = false
+    @State private var isPresentingPackingSession = false
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
@@ -115,6 +116,10 @@ struct RunDetailView: View {
         run.runCoils.count
     }
 
+    private var packedCount: Int {
+        run.runCoils.filter(\.packed).count
+    }
+
     private var navigationTitle: String {
         run.date.formatted(.dateTime.day().month().year())
     }
@@ -149,6 +154,9 @@ struct RunDetailView: View {
                 }
                 LabeledContent("Total Coils") {
                     Text("\(totalCoils)")
+                }
+                LabeledContent("Packed") {
+                    Text("\(packedCount) / \(totalCoils)")
                 }
             }
 
@@ -194,12 +202,16 @@ struct RunDetailView: View {
                 .accessibilityLabel("Reorder locations")
 
                 Button {
-                    // TODO: Hook up basket action.
+                    isPresentingPackingSession = true
                 } label: {
                     Image(systemName: "basket")
                 }
-                .accessibilityLabel("Basket")
+                .disabled(run.runCoils.isEmpty)
+                .accessibilityLabel("Start packing session")
             }
+        }
+        .sheet(isPresented: $isPresentingPackingSession) {
+            PackingSessionView(run: run)
         }
         .sheet(isPresented: $isPresentingOrderEditor) {
             let items = locationSections.map { section in
@@ -243,6 +255,7 @@ fileprivate struct RunLocationDetailView: View {
                 Section(machineSection.machine.name) {
                     ForEach(machineSection.coils) { runCoil in
                         CoilRow(runCoil: runCoil)
+                            .listRowBackground(runCoil.packed ? Color.green.opacity(0.08) : Color.clear)
                     }
                 }
             }

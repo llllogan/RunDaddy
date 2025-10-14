@@ -38,8 +38,8 @@ enum PreviewFixtures {
         let coilB = Coil(id: "M002-04", machinePointer: 4, stockLimit: 8, machine: machineB, item: itemB)
 
         let run = Run(id: "RUN-PREVIEW", runner: "Preview Runner", date: Date())
-        let runCoilA = RunCoil(id: "RUNCOIL-A", pick: 3, packOrder: 1, run: run, coil: coilA)
-        let runCoilB = RunCoil(id: "RUNCOIL-B", pick: 2, packOrder: 2, run: run, coil: coilB)
+        let runCoilA = RunCoil(id: "RUNCOIL-A", pick: 3, packOrder: 1, packed: false, run: run, coil: coilA)
+        let runCoilB = RunCoil(id: "RUNCOIL-B", pick: 2, packOrder: 2, packed: false, run: run, coil: coilB)
 
         locationA.machines = [machineA]
         locationB.machines = [machineB]

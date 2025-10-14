@@ -157,6 +157,7 @@ struct RunHistoryView: View {
                 let runCoil = RunCoil(id: runCoilPayload.id,
                                       pick: runCoilPayload.pick,
                                       packOrder: Int64(nextLocationOrder),
+                                      packed: false,
                                       run: run,
                                       coil: coil)
                 modelContext.insert(runCoil)
