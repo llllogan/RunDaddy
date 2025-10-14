@@ -85,7 +85,6 @@ private struct LocationMachinesView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -142,7 +141,6 @@ private struct MachineCoilsView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 6)
                 }
             }
         }
@@ -151,7 +149,31 @@ private struct MachineCoilsView: View {
     }
 }
 
-#Preview {
-    MachinesView()
-        .modelContainer(PreviewFixtures.container)
+#Preview("Locations") {
+    NavigationStack {
+        MachinesView()
+    }
+    .modelContainer(PreviewFixtures.container)
+}
+
+#Preview("Machines") {
+    NavigationStack {
+        if let run = PreviewFixtures.sampleRunOptional,
+           let location = run.runCoils.first?.coil.machine.location {
+            LocationMachinesView(location: location)
+        } else {
+            Text("Missing preview data")
+        }
+    }
+}
+
+#Preview("Coils") {
+    NavigationStack {
+        if let run = PreviewFixtures.sampleRunOptional,
+           let machine = run.runCoils.first?.coil.machine {
+            MachineCoilsView(machine: machine)
+        } else {
+            Text("Missing preview data")
+        }
+    }
 }

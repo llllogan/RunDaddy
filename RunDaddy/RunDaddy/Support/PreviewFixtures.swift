@@ -77,4 +77,7 @@ enum PreviewFixtures {
     static var sampleRun: Run {
         shared.runs.first ?? Run(id: UUID().uuidString, runner: "Preview", date: Date())
     }
+    static var sampleRunOptional: Run? {
+        shared.runs.first
+    }
 }
