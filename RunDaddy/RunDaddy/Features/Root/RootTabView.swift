@@ -31,8 +31,32 @@ struct RootTabView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
         }
+        .tabViewStyle(.automatic)
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory {
+            PackingSessionBar()
+        }
     }
 }
+
+struct PackingSessionBar: View {
+    @Environment(\.tabViewBottomAccessoryPlacement) var placement
+
+
+    var body: some View {
+        switch placement {
+        case .inline:
+            Text("Inline")
+        case .expanded:
+            Text("Expanded")
+        case .none:
+            Text("AAHHH")
+        case .some(_):
+            Text("AAHHH")
+        }
+    }
+}
+
 
 #Preview {
     RootTabView()
