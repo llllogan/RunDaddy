@@ -18,6 +18,7 @@ fileprivate struct RunMachineSection: Identifiable {
 
 fileprivate struct RunLocationSection: Identifiable {
     let location: Location
+    let packOrder: Int
     let machines: [RunMachineSection]
 
     var id: String { location.id }
@@ -27,6 +28,7 @@ fileprivate struct RunLocationSection: Identifiable {
 
 struct RunDetailView: View {
     @Bindable var run: Run
+    @State private var isPresentingOrderEditor = false
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
@@ -58,10 +60,38 @@ struct RunDetailView: View {
                     $0.machine.name.localizedCaseInsensitiveCompare($1.machine.name) == .orderedAscending
                 }
 
-            return RunLocationSection(location: location, machines: machines)
+            let locationOrder = runCoils.map { Int($0.packOrder) }.min() ?? Int.max
+            let safeOrder = locationOrder == Int.max ? 0 : locationOrder
+            return RunLocationSection(location: location,
+                                      packOrder: safeOrder,
+                                      machines: machines)
         }
         .sorted {
-            $0.location.name.localizedCaseInsensitiveCompare($1.location.name) == .orderedAscending
+            if $0.packOrder == $1.packOrder {
+                return $0.location.name.localizedCaseInsensitiveCompare($1.location.name) == .orderedAscending
+            }
+            return $0.packOrder < $1.packOrder
+        }
+    }
+
+    private func applyLocationOrder(_ items: [LocationOrderEditor.Item]) {
+        let orderMap = Dictionary(uniqueKeysWithValues: items.enumerated().map { ($0.element.id, $0.offset + 1) })
+
+        withAnimation {
+            for runCoil in run.runCoils {
+                guard let locationID = runCoil.coil.machine.location?.id,
+                      let newOrder = orderMap[locationID] else {
+                    continue
+                }
+                runCoil.packOrder = Int64(newOrder)
+            }
+
+            run.runCoils.sort { lhs, rhs in
+                if lhs.packOrder == rhs.packOrder {
+                    return lhs.coil.machinePointer < rhs.coil.machinePointer
+                }
+                return lhs.packOrder < rhs.packOrder
+            }
         }
     }
 
@@ -124,6 +154,9 @@ struct RunDetailView: View {
                             RunLocationDetailView(section: section)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
+                                Text("Order \(section.packOrder)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                                 Text(section.location.name)
                                     .font(.headline)
                                 if !section.location.address.isEmpty {
@@ -142,6 +175,24 @@ struct RunDetailView: View {
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Reorder") {
+                    isPresentingOrderEditor = true
+                }
+                .disabled(locationSections.count <= 1)
+            }
+        }
+        .sheet(isPresented: $isPresentingOrderEditor) {
+            let items = locationSections.map { section in
+                LocationOrderEditor.Item(id: section.id,
+                                         name: section.location.name,
+                                         packOrder: section.packOrder)
+            }
+            LocationOrderEditor(items: items) { updatedItems in
+                applyLocationOrder(updatedItems)
+            }
+        }
     }
 }
 
@@ -151,6 +202,9 @@ fileprivate struct RunLocationDetailView: View {
     var body: some View {
         List {
             Section("Location Details") {
+                LabeledContent("Order") {
+                    Text("\(section.packOrder)")
+                }
                 LabeledContent("Name") {
                     Text(section.location.name)
                 }
@@ -196,7 +250,7 @@ fileprivate struct CoilRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.id)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -222,6 +276,71 @@ fileprivate struct CoilRow: View {
                 .font(.subheadline)
                 .bold()
         }
+    }
+}
+
+fileprivate struct LocationOrderEditor: View {
+    struct Item: Identifiable, Equatable {
+        let id: String
+        let name: String
+        var packOrder: Int
+    }
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var items: [Item]
+    private let onSave: ([Item]) -> Void
+
+    init(items: [Item], onSave: @escaping ([Item]) -> Void) {
+        let sorted = items.sorted { lhs, rhs in
+            if lhs.packOrder == rhs.packOrder {
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            return lhs.packOrder < rhs.packOrder
+        }
+        _items = State(initialValue: sorted)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    HStack {
+                        Text("\(index + 1)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, alignment: .leading)
+                        Text(item.name)
+                    }
+                }
+                .onMove { indices, newOffset in
+                    items.move(fromOffsets: indices, toOffset: newOffset)
+                }
+            }
+            .navigationTitle("Reorder Locations")
+            .environment(\.editMode, .constant(.active))
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        saveAndDismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveAndDismiss() {
+        var updated = items
+        for index in updated.indices {
+            updated[index].packOrder = index + 1
+        }
+        onSave(updated)
+        dismiss()
     }
 }
 

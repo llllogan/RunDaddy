@@ -134,6 +134,8 @@ struct RunHistoryView: View {
         var itemsByID: [String: Item] = [:]
         var coilsByID: [String: Coil] = [:]
 
+        var nextLocationOrder = 1
+
         for payload in payloads {
             let location = try upsertLocation(payload.location)
             let machineResults = try upsertMachines(payload.machines, location: location)
@@ -145,17 +147,19 @@ struct RunHistoryView: View {
             let coilResults = try upsertCoils(payload.coils, machines: machinesByID, items: itemsByID)
             coilsByID.merge(coilResults) { _, new in new }
 
+            var didCreateRunCoil = false
             for runCoilPayload in payload.runCoils {
-                guard let coil = coilsByID[runCoilPayload.coilID] ?? coilResults[runCoilPayload.coilID] else {
+                guard let coil = coilsByID[runCoilPayload.coilID] else {
                     continue
                 }
 
                 let runCoil = RunCoil(id: runCoilPayload.id,
                                       pick: runCoilPayload.pick,
-                                      packOrder: runCoilPayload.packOrder,
+                                      packOrder: Int64(nextLocationOrder),
                                       run: run,
                                       coil: coil)
                 modelContext.insert(runCoil)
+                didCreateRunCoil = true
 
                 if !run.runCoils.contains(where: { $0.id == runCoil.id }) {
                     run.runCoils.append(runCoil)
@@ -164,6 +168,17 @@ struct RunHistoryView: View {
                     coil.runCoils.append(runCoil)
                 }
             }
+
+            if didCreateRunCoil {
+                nextLocationOrder += 1
+            }
+        }
+
+        run.runCoils.sort { lhs, rhs in
+            if lhs.packOrder == rhs.packOrder {
+                return lhs.coil.machinePointer < rhs.coil.machinePointer
+            }
+            return lhs.packOrder < rhs.packOrder
         }
     }
 

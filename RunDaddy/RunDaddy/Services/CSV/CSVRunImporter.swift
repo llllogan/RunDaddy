@@ -49,7 +49,6 @@ struct CSVRunImporter {
         let id: String
         let coilID: String
         let pick: Int64
-        let packOrder: Int64
     }
 
     enum ImportError: LocalizedError {
@@ -62,7 +61,6 @@ struct CSVRunImporter {
         case invalidMachineHeader(String)
         case missingMachineName(String)
         case missingItemTable(String)
-        case noRunData
 
         var errorDescription: String? {
             switch self {
@@ -84,8 +82,6 @@ struct CSVRunImporter {
                 return "The CSV does not include a machine name for \(machineID)."
             case let .missingItemTable(machineID):
                 return "Missing the item table for machine \(machineID)."
-            case .noRunData:
-                return "No run coils could be created from the CSV."
             }
         }
     }
@@ -147,7 +143,6 @@ struct CSVRunImporter {
         var coilsByID: [String: CoilPayload] = [:]
         var runCoils: [RunCoilPayload] = []
 
-        var packOrder: Int64 = 0
         let sanitizedRunner = sanitize(fileName)
         let runner = sanitizedRunner.isEmpty ? fileName : sanitizedRunner
 
@@ -259,11 +254,9 @@ struct CSVRunImporter {
                 }
 
                 if needValue > 0 {
-                    packOrder += 1
                     let runCoilPayload = RunCoilPayload(id: UUID().uuidString,
                                                         coilID: coilID,
-                                                        pick: needValue,
-                                                        packOrder: packOrder)
+                                                        pick: needValue)
                     runCoils.append(runCoilPayload)
                 }
 
