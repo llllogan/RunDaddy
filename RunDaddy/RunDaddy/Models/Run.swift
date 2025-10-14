@@ -10,11 +10,15 @@ import SwiftData
 
 @Model
 final class Run {
-    var name: String
-    @Relationship(deleteRule: .cascade)
-    var items: [InventoryItem] = []
+    @Attribute(.unique) var id: String
+    var runner: String
+    var date: Date
+    @Relationship(deleteRule: .cascade) var runCoils: [RunCoil] = []
 
-    init(name: String) {
-        self.name = name
+    init(id: String, runner: String, date: Date, runCoils: [RunCoil] = []) {
+        self.id = id
+        self.runner = runner
+        self.date = date
+        self.runCoils = runCoils
     }
 }
