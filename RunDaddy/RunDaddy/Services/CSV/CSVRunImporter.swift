@@ -8,8 +8,7 @@
 import Foundation
 
 struct CSVRunImporter {
-    struct RunPayload {
-        let runID: String
+    struct RunLocationPayload {
         let runner: String
         let date: Date
         let location: LocationPayload
@@ -48,7 +47,6 @@ struct CSVRunImporter {
 
     struct RunCoilPayload {
         let id: String
-        let runID: String
         let coilID: String
         let pick: Int64
         let packOrder: Int64
@@ -100,12 +98,12 @@ struct CSVRunImporter {
         return formatter
     }()
 
-    func loadRun(from url: URL) throws -> RunPayload {
+    func loadLocation(from url: URL) throws -> RunLocationPayload {
         let contents = try String(contentsOf: url, encoding: .utf8)
-        return try parse(contents: contents, fileName: url.deletingPathExtension().lastPathComponent)
+        return try parseLocation(contents: contents, fileName: url.deletingPathExtension().lastPathComponent)
     }
 
-    private func parse(contents: String, fileName: String) throws -> RunPayload {
+    private func parseLocation(contents: String, fileName: String) throws -> RunLocationPayload {
         let rows = parseCSVRows(from: contents)
         guard !rows.isEmpty else {
             throw ImportError.emptyFile
@@ -150,8 +148,8 @@ struct CSVRunImporter {
         var runCoils: [RunCoilPayload] = []
 
         var packOrder: Int64 = 0
-        let runID = UUID().uuidString
-        let runner = fileName
+        let sanitizedRunner = sanitize(fileName)
+        let runner = sanitizedRunner.isEmpty ? fileName : sanitizedRunner
 
         parsingLoop: while index < rows.count {
             guard let machineHeaderIndex = nextMachineHeaderIndex(startingAt: index, in: rows) else {
@@ -262,7 +260,6 @@ struct CSVRunImporter {
 
                 packOrder += 1
                 let runCoilPayload = RunCoilPayload(id: UUID().uuidString,
-                                                    runID: runID,
                                                     coilID: coilID,
                                                     pick: needValue,
                                                     packOrder: packOrder)
@@ -280,14 +277,13 @@ struct CSVRunImporter {
             throw ImportError.noRunData
         }
 
-        return RunPayload(runID: runID,
-                          runner: runner,
-                          date: runDate,
-                          location: locationPayload,
-                          machines: machines,
-                          items: Array(itemsByID.values),
-                          coils: Array(coilsByID.values),
-                          runCoils: runCoils)
+        return RunLocationPayload(runner: runner,
+                                  date: runDate,
+                                  location: locationPayload,
+                                  machines: machines,
+                                  items: Array(itemsByID.values),
+                                  coils: Array(coilsByID.values),
+                                  runCoils: runCoils)
     }
 
     private func parseLocationHeader(_ value: String) throws -> (name: String, date: String) {

@@ -66,12 +66,14 @@ struct RunHistoryView: View {
                     }
                 }
             }
-            .fileImporter(isPresented: $isImportingCSV, allowedContentTypes: [.commaSeparatedText]) { result in
+            .fileImporter(isPresented: $isImportingCSV,
+                          allowedContentTypes: [.commaSeparatedText],
+                          allowsMultipleSelection: true) { result in
                 switch result {
                 case .failure(let error):
                     importErrorMessage = error.localizedDescription
-                case .success(let url):
-                    importRun(from: url)
+                case .success(let urls):
+                    importRun(from: urls)
                 }
             }
             .alert("Import Failed", isPresented: Binding(get: {
@@ -90,44 +92,77 @@ struct RunHistoryView: View {
         }
     }
 
-    private func importRun(from url: URL) {
-        guard url.startAccessingSecurityScopedResource() else {
-            importErrorMessage = "Unable to access the selected file."
+    private func importRun(from urls: [URL]) {
+        guard !urls.isEmpty else {
+            importErrorMessage = "No files were selected."
             return
         }
-        defer { url.stopAccessingSecurityScopedResource() }
+
+        var securedURLs: [URL] = []
+        securedURLs.reserveCapacity(urls.count)
+        defer {
+            securedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+        }
 
         do {
-            let payload = try csvImporter.loadRun(from: url)
-            try persistRun(payload)
+            var payloads: [CSVRunImporter.RunLocationPayload] = []
+            for url in urls {
+                guard url.startAccessingSecurityScopedResource() else {
+                    importErrorMessage = "Unable to access \(url.lastPathComponent)."
+                    return
+                }
+                securedURLs.append(url)
+                let payload = try csvImporter.loadLocation(from: url)
+                payloads.append(payload)
+            }
+
+            try persistRun(using: payloads)
         } catch {
             importErrorMessage = error.localizedDescription
         }
     }
 
-    private func persistRun(_ payload: CSVRunImporter.RunPayload) throws {
-        let location = try upsertLocation(payload.location)
-        let machines = try upsertMachines(payload.machines, location: location)
-        let items = try upsertItems(payload.items)
-        let coils = try upsertCoils(payload.coils, machines: machines, items: items)
+    private func persistRun(using payloads: [CSVRunImporter.RunLocationPayload]) throws {
+        guard let first = payloads.first else { return }
 
-        let run = Run(id: payload.runID, runner: payload.runner, date: payload.date)
+        let runnerName = first.runner
+        let runDate = payloads.map(\.date).min() ?? first.date
+        let run = Run(id: UUID().uuidString, runner: runnerName, date: runDate)
         modelContext.insert(run)
 
-        for payload in payload.runCoils {
-            guard let coil = coils[payload.coilID] else { continue }
+        var machinesByID: [String: Machine] = [:]
+        var itemsByID: [String: Item] = [:]
+        var coilsByID: [String: Coil] = [:]
 
-            let runCoil = RunCoil(id: payload.id,
-                                  pick: payload.pick,
-                                  packOrder: payload.packOrder,
-                                  run: run,
-                                  coil: coil)
-            modelContext.insert(runCoil)
-            if !run.runCoils.contains(where: { $0.id == runCoil.id }) {
-                run.runCoils.append(runCoil)
-            }
-            if !coil.runCoils.contains(where: { $0.id == runCoil.id }) {
-                coil.runCoils.append(runCoil)
+        for payload in payloads {
+            let location = try upsertLocation(payload.location)
+            let machineResults = try upsertMachines(payload.machines, location: location)
+            machinesByID.merge(machineResults) { _, new in new }
+
+            let itemResults = try upsertItems(payload.items)
+            itemsByID.merge(itemResults) { _, new in new }
+
+            let coilResults = try upsertCoils(payload.coils, machines: machinesByID, items: itemsByID)
+            coilsByID.merge(coilResults) { _, new in new }
+
+            for runCoilPayload in payload.runCoils {
+                guard let coil = coilsByID[runCoilPayload.coilID] ?? coilResults[runCoilPayload.coilID] else {
+                    continue
+                }
+
+                let runCoil = RunCoil(id: runCoilPayload.id,
+                                      pick: runCoilPayload.pick,
+                                      packOrder: runCoilPayload.packOrder,
+                                      run: run,
+                                      coil: coil)
+                modelContext.insert(runCoil)
+
+                if !run.runCoils.contains(where: { $0.id == runCoil.id }) {
+                    run.runCoils.append(runCoil)
+                }
+                if !coil.runCoils.contains(where: { $0.id == runCoil.id }) {
+                    coil.runCoils.append(runCoil)
+                }
             }
         }
     }
@@ -246,19 +281,31 @@ struct RunHistoryView: View {
 
     private func runTitle(for run: Run) -> String {
         let dateText = run.date.formatted(.dateTime.day().month().year())
-        if let location = run.runCoils.first?.coil.machine.location?.name, !location.isEmpty {
-            return "\(location) - \(dateText)"
+        let locationNames = Set(run.runCoils.compactMap { $0.coil.machine.location?.name })
+        if locationNames.count == 1, let name = locationNames.first {
+            return "\(name) - \(dateText)"
+        }
+        if locationNames.count > 1 {
+            return "\(dateText) - \(locationNames.count) locations"
         }
         return dateText
     }
 
     private func runSubtitle(for run: Run) -> String {
-        let machineIDs = Set(run.runCoils.compactMap { $0.coil.machine.id })
-        let machineText = machineIDs.isEmpty ? "No machines" : "\(machineIDs.count) machines"
+        let locationIDs = Set(run.runCoils.compactMap { $0.coil.machine.location?.id })
+        let machineIDs = Set(run.runCoils.map { $0.coil.machine.id })
+
+        let locationCount = locationIDs.count
+        let machineCount = machineIDs.count
+
+        let locationText = "\(locationCount) \(locationCount == 1 ? "location" : "locations")"
+        let machineText = "\(machineCount) \(machineCount == 1 ? "machine" : "machines")"
+
         if run.runner.isEmpty {
-            return machineText
+            return "\(locationText) - \(machineText)"
         }
-        return "\(run.runner) - \(machineText)"
+
+        return "\(run.runner) - \(locationText) - \(machineText)"
     }
 }
 

@@ -8,48 +8,65 @@
 import SwiftData
 import SwiftUI
 
+fileprivate struct RunMachineSection: Identifiable {
+    let machine: Machine
+    let coils: [RunCoil]
+
+    var id: String { machine.id }
+    var coilCount: Int { coils.count }
+}
+
+fileprivate struct RunLocationSection: Identifiable {
+    let location: Location
+    let machines: [RunMachineSection]
+
+    var id: String { location.id }
+    var machineCount: Int { machines.count }
+    var coilCount: Int { machines.reduce(into: 0) { $0 += $1.coilCount } }
+}
+
 struct RunDetailView: View {
     @Bindable var run: Run
 
-    private struct MachineSection: Identifiable {
-        let id: String
-        let machine: Machine
-        let coils: [RunCoil]
-    }
-
-    private var machineSections: [MachineSection] {
-        var grouped: [String: [RunCoil]] = [:]
+    private var locationSections: [RunLocationSection] {
+        var byLocation: [String: [RunCoil]] = [:]
 
         for runCoil in run.runCoils {
-            let machineID = runCoil.coil.machine.id
-            grouped[machineID, default: []].append(runCoil)
+            guard let location = runCoil.coil.machine.location else { continue }
+            byLocation[location.id, default: []].append(runCoil)
         }
 
-        return grouped.compactMap { key, value in
-            guard let machine = value.first?.coil.machine else { return nil }
-            let sorted = value.sorted { lhs, rhs in
-                if lhs.packOrder == rhs.packOrder {
-                    return lhs.coil.machinePointer < rhs.coil.machinePointer
+        return byLocation.compactMap { _, runCoils in
+            guard let location = runCoils.first?.coil.machine.location else { return nil }
+
+            let machines = Dictionary(grouping: runCoils) { $0.coil.machine.id }
+                .compactMap { _, machineCoils -> RunMachineSection? in
+                    guard let machine = machineCoils.first?.coil.machine else { return nil }
+                    let sortedCoils = machineCoils.sorted { lhs, rhs in
+                        if lhs.packOrder == rhs.packOrder {
+                            return lhs.coil.machinePointer < rhs.coil.machinePointer
+                        }
+                        return lhs.packOrder < rhs.packOrder
+                    }
+                    return RunMachineSection(machine: machine, coils: sortedCoils)
                 }
-                return lhs.packOrder < rhs.packOrder
-            }
-            return MachineSection(id: key, machine: machine, coils: sorted)
+                .sorted {
+                    $0.machine.name.localizedCaseInsensitiveCompare($1.machine.name) == .orderedAscending
+                }
+
+            return RunLocationSection(location: location, machines: machines)
         }
-        .sorted { lhs, rhs in
-            lhs.machine.name.localizedCaseInsensitiveCompare(rhs.machine.name) == .orderedAscending
+        .sorted {
+            $0.location.name.localizedCaseInsensitiveCompare($1.location.name) == .orderedAscending
         }
     }
 
-    private var locationName: String {
-        run.runCoils.first?.coil.machine.location?.name ?? "Unknown Location"
-    }
-
-    private var locationAddress: String {
-        run.runCoils.first?.coil.machine.location?.address ?? ""
+    private var locationCount: Int {
+        locationSections.count
     }
 
     private var machineCount: Int {
-        Set(run.runCoils.map { $0.coil.machine.id }).count
+        locationSections.reduce(into: 0) { $0 += $1.machineCount }
     }
 
     private var totalCoils: Int {
@@ -71,14 +88,18 @@ struct RunDetailView: View {
                         Text(run.runner)
                     }
                 }
-                LabeledContent("Location") {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(locationName)
-                        if !locationAddress.isEmpty {
-                            Text(locationAddress)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                LabeledContent("Locations") {
+                    if locationCount == 1, let section = locationSections.first {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(section.location.name)
+                            if !section.location.address.isEmpty {
+                                Text(section.location.address)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                    } else {
+                        Text("\(locationCount)")
                     }
                 }
                 LabeledContent("Machines") {
@@ -89,10 +110,28 @@ struct RunDetailView: View {
                 }
             }
 
-            ForEach(machineSections) { section in
-                Section(section.machine.name) {
-                    ForEach(section.coils) { runCoil in
-                        CoilRow(runCoil: runCoil)
+            Section("Locations") {
+                if locationSections.isEmpty {
+                    Text("No locations were imported for this run.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(locationSections) { section in
+                        NavigationLink {
+                            RunLocationDetailView(section: section)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(section.location.name)
+                                    .font(.headline)
+                                if !section.location.address.isEmpty {
+                                    Text(section.location.address)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text("\(section.machineCount) \(section.machineCount == 1 ? "machine" : "machines") - \(section.coilCount) \(section.coilCount == 1 ? "coil" : "coils")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
@@ -102,7 +141,42 @@ struct RunDetailView: View {
     }
 }
 
-private struct CoilRow: View {
+fileprivate struct RunLocationDetailView: View {
+    let section: RunLocationSection
+
+    var body: some View {
+        List {
+            Section("Location Details") {
+                LabeledContent("Name") {
+                    Text(section.location.name)
+                }
+                if !section.location.address.isEmpty {
+                    LabeledContent("Address") {
+                        Text(section.location.address)
+                    }
+                }
+                LabeledContent("Machines") {
+                    Text("\(section.machineCount)")
+                }
+                LabeledContent("Total Coils") {
+                    Text("\(section.coilCount)")
+                }
+            }
+
+            ForEach(section.machines) { machineSection in
+                Section(machineSection.machine.name) {
+                    ForEach(machineSection.coils) { runCoil in
+                        CoilRow(runCoil: runCoil)
+                    }
+                }
+            }
+        }
+        .navigationTitle(section.location.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+fileprivate struct CoilRow: View {
     let runCoil: RunCoil
 
     private var coil: Coil { runCoil.coil }
@@ -129,10 +203,9 @@ private struct CoilRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 8) {
                 labelValue(title: "Need", value: runCoil.pick)
                 labelValue(title: "Par", value: coil.stockLimit)
-                labelValue(title: "Order", value: runCoil.packOrder)
             }
         }
         .padding(.vertical, 6)
