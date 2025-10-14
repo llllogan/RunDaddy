@@ -184,11 +184,21 @@ struct RunDetailView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Reorder") {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
                     isPresentingOrderEditor = true
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
                 }
                 .disabled(locationSections.count <= 1)
+                .accessibilityLabel("Reorder locations")
+
+                Button {
+                    // TODO: Hook up basket action.
+                } label: {
+                    Image(systemName: "basket")
+                }
+                .accessibilityLabel("Basket")
             }
         }
         .sheet(isPresented: $isPresentingOrderEditor) {
