@@ -125,7 +125,8 @@ struct RunHistoryView: View {
     private func persistRun(using payloads: [CSVRunImporter.RunLocationPayload]) throws {
         guard let first = payloads.first else { return }
 
-        let runnerName = first.runner
+        let storedName = UserDefaults.standard.string(forKey: "settings.username")
+        let runnerName = (storedName?.isEmpty == false) ? storedName! : first.runner
         let runDate = payloads.map(\.date).min() ?? first.date
         let run = Run(id: UUID().uuidString, runner: runnerName, date: runDate)
         modelContext.insert(run)

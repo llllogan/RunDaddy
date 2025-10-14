@@ -7,17 +7,20 @@
 
 import SwiftUI
 
+private enum SettingsKeys {
+    static let userName = "settings.username"
+}
+
 struct SettingsView: View {
+    @AppStorage(SettingsKeys.userName) private var userName: String = ""
+
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle("Enable Notifications", isOn: .constant(true))
-                    Toggle("Use Cellular Data", isOn: .constant(false))
-                }
-                Section {
-                    Button("Manage Permissions") {}
-                    Button("About RunDaddy") {}
+                Section("Profile") {
+                    TextField("Your name", text: $userName)
+                        .textContentType(.name)
+                        .autocapitalization(.words)
                 }
             }
             .navigationTitle("Settings")
