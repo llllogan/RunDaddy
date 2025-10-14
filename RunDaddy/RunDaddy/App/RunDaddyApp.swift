@@ -30,7 +30,7 @@ struct RunDaddyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RunHistoryView()
+            RootTabView()
         }
         .modelContainer(sharedModelContainer)
     }
