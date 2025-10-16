@@ -255,7 +255,6 @@ fileprivate struct RunLocationDetailView: View {
                 Section(machineSection.machine.name) {
                     ForEach(machineSection.coils) { runCoil in
                         CoilRow(runCoil: runCoil)
-                            .listRowBackground(runCoil.packed ? Color.green.opacity(0.08) : Color.clear)
                     }
                 }
             }
@@ -280,7 +279,10 @@ fileprivate struct CoilRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: runCoil.packed ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(runCoil.packed ? Color.green : Color(.tertiaryLabel))
+                .font(.title3.weight(.semibold))
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.id)
                     .font(.caption)
