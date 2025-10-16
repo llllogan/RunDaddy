@@ -262,7 +262,10 @@ fileprivate struct RunLocationDetailView: View {
 }
 
 fileprivate struct CoilRow: View {
-    let runCoil: RunCoil
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var sessionController: PackingSessionController
+    @Bindable var runCoil: RunCoil
+    @State private var isConfirmingDeletion = false
 
     private var coil: Coil { runCoil.coil }
     private var item: Item { coil.item }
@@ -275,11 +278,19 @@ fileprivate struct CoilRow: View {
         return "\(item.type) - \(item.name)"
     }
 
+    private var isAnnouncing: Bool {
+        guard let session = sessionController.activeSession,
+              session.run.id == runCoil.run.id else {
+            return false
+        }
+        let viewModel = session.viewModel
+        guard viewModel.isSessionRunning else { return false }
+        return viewModel.currentRunCoilID == runCoil.id
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: runCoil.packed ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(runCoil.packed ? Color.green : Color(.tertiaryLabel))
-                .font(.title3.weight(.semibold))
+            toggleButton
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.id)
                     .font(.caption)
@@ -294,6 +305,40 @@ fileprivate struct CoilRow: View {
             labelValue(title: "Need", value: runCoil.pick)
         }
         .padding(.vertical, 2)
+        .swipeActions(edge: .leading) {
+            Button(role: .destructive) {
+                isConfirmingDeletion = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .alert("Remove Item?", isPresented: $isConfirmingDeletion) {
+            Button("Delete", role: .destructive) {
+                deleteRunCoil()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to remove \(itemDescriptor) from this run?")
+        }
+    }
+
+    private var toggleButton: some View {
+        Button {
+            togglePackedState()
+        } label: {
+            ZStack {
+                Image(systemName: runCoil.packed ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(runCoil.packed ? Color.green : Color(.tertiaryLabel))
+                    .opacity(isAnnouncing ? 0 : 1)
+                if isAnnouncing {
+                    Image(systemName: "speaker.wave.2.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .font(.title3.weight(.semibold))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(runCoil.packed ? "Mark as unpacked" : "Mark as packed")
     }
 
     @ViewBuilder
@@ -306,6 +351,27 @@ fileprivate struct CoilRow: View {
                 .font(.subheadline)
                 .bold()
         }
+    }
+
+    private func togglePackedState() {
+        withAnimation {
+            runCoil.packed.toggle()
+        }
+    }
+
+    private func deleteRunCoil() {
+        let run = runCoil.run
+        let identifier = runCoil.id
+        if isAnnouncing {
+            sessionController.activeSession?.viewModel.stepForward()
+        }
+        withAnimation {
+            if let index = run.runCoils.firstIndex(where: { $0.id == identifier }) {
+                run.runCoils.remove(at: index)
+            }
+            modelContext.delete(runCoil)
+        }
+        isConfirmingDeletion = false
     }
 }
 

@@ -59,14 +59,17 @@ struct PackingSessionView: View {
             .navigationTitle("Packing Session")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
+                    Button {
                         if let sessionController {
                             sessionController.endSession()
                         } else {
                             viewModel.stopSession()
                         }
                         dismiss()
+                    } label: {
+                        Label("Stop", systemImage: "xmark")
                     }
+                    .accessibilityLabel("Stop packing session")
                 }
                 if let sessionController {
                     ToolbarItem(placement: .confirmationAction) {
@@ -81,7 +84,6 @@ struct PackingSessionView: View {
                 }
             }
         }
-        .interactiveDismissDisabled()
         .onAppear {
             viewModel.startSession()
         }
@@ -206,6 +208,8 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     @Published private(set) var isSessionComplete: Bool = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var isSpeechInProgress: Bool = false
+    @Published private(set) var isSessionRunning: Bool = false
+    @Published private(set) var currentRunCoilID: String?
 
     let run: Run
     private let runCoils: [RunCoil]
@@ -214,7 +218,6 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     private lazy var sessionVoice: AVSpeechSynthesisVoice? = AVSpeechSynthesisVoice.preferredSiriVoice(forLanguage: "en-AU")
 
     private var audioSessionConfigured = false
-    private var isSessionRunning = false
     private let silentLoop = SilentLoopPlayer()
     private var remoteCommandTokens: [RemoteCommandToken] = []
     private let commandCenter = MPRemoteCommandCenter.shared()
@@ -305,6 +308,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         configureAudioSessionIfNeeded()
         silentLoop.start()
         isSessionRunning = true
+        refreshCurrentRunCoilMarker()
         configureRemoteCommandsIfNeeded()
         updateNowPlayingInfo()
         updatePlaybackState()
@@ -316,6 +320,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         isSpeechInProgress = false
         silentLoop.stop()
         isSessionRunning = false
+        currentRunCoilID = nil
         tearDownRemoteCommands()
         deactivateAudioSession()
         updatePlaybackState()
@@ -355,6 +360,13 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
 
     private var packedItemCount: Int {
         runCoils.filter(\.packed).count
+    }
+
+    private var activeRunCoil: RunCoil? {
+        guard let step = currentStep, case let .runCoil(runCoil) = step else {
+            return nil
+        }
+        return runCoil
     }
 
     private static func machineOrder(for runCoils: [RunCoil]) -> [String: Int] {
@@ -399,6 +411,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             currentIndex = nextIndex
             updateNowPlayingInfo()
             speakCurrentStep()
+            refreshCurrentRunCoilMarker()
         }
     }
 
@@ -417,6 +430,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
 
         updateNowPlayingInfo()
         speakCurrentStep()
+        refreshCurrentRunCoilMarker()
     }
 
     // MARK: - Speech
@@ -458,6 +472,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     private func completeSession() {
         isSessionComplete = true
         currentIndex = steps.count
+        refreshCurrentRunCoilMarker()
         updateNowPlayingInfoForCompletion()
         updatePlaybackState()
         announceCompletion()
@@ -613,6 +628,14 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
 
     private var runDisplayTitle: String {
         run.runner
+    }
+
+    private func refreshCurrentRunCoilMarker() {
+        guard !isSessionComplete else {
+            currentRunCoilID = nil
+            return
+        }
+        currentRunCoilID = activeRunCoil?.id
     }
 }
 

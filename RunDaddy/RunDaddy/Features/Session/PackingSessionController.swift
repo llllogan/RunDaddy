@@ -12,6 +12,7 @@ import SwiftUI
 final class PackingSessionController: ObservableObject {
     @Published private(set) var activeSession: ActiveSession?
     @Published var isSheetPresented: Bool = false
+    private var sessionObservation: AnyCancellable?
 
     var activeViewModel: PackingSessionViewModel? {
         activeSession?.viewModel
@@ -33,6 +34,9 @@ final class PackingSessionController: ObservableObject {
 
         let viewModel = PackingSessionViewModel(run: run)
         activeSession = ActiveSession(run: run, viewModel: viewModel)
+        sessionObservation = viewModel.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         isSheetPresented = true
         viewModel.startSession()
     }
@@ -54,6 +58,7 @@ final class PackingSessionController: ObservableObject {
         }
         session.viewModel.stopSession()
         activeSession = nil
+        sessionObservation = nil
         isSheetPresented = false
     }
 
