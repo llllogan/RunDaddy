@@ -6,11 +6,10 @@
 //
 
 import AVFoundation
-import AVFAudio
-import Combine
-import Speech
+import MediaPlayer
 import SwiftData
 import SwiftUI
+import Combine
 
 struct PackingSessionView: View {
     @Environment(\.dismiss) private var dismiss
@@ -34,13 +33,6 @@ struct PackingSessionView: View {
                 ControlBar(viewModel: viewModel) {
                     viewModel.stopSession()
                     dismiss()
-                }
-
-                if !viewModel.lastHeardPhrase.isEmpty {
-                    Label("Heard: \(viewModel.lastHeardPhrase)", systemImage: "waveform")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if let message = viewModel.errorMessage {
@@ -104,7 +96,7 @@ private struct SessionContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("Get ready to pack this machine.")
+                    Text("Use the buttons below or your headset controls to navigate.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -146,18 +138,26 @@ private struct ControlBar: View {
     var body: some View {
         HStack(spacing: 16) {
             Button {
+                viewModel.stepBackward()
+            } label: {
+                Label("Previous", systemImage: "backward.fill")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.canStepBackward)
+
+            Button {
                 viewModel.repeatCurrent()
             } label: {
                 Label("Repeat", systemImage: "arrow.uturn.left")
             }
             .buttonStyle(.bordered)
-            .disabled(viewModel.isSessionComplete || !viewModel.hasActiveStep)
+            .disabled(!viewModel.hasActiveStep)
 
             Button {
                 if viewModel.isSessionComplete {
                     finishAction()
                 } else {
-                    viewModel.advanceManually()
+                    viewModel.stepForward()
                 }
             } label: {
                 Label(viewModel.isSessionComplete ? "Finish" : "Next",
@@ -170,52 +170,26 @@ private struct ControlBar: View {
     }
 }
 
+// MARK: - View model
 
 @MainActor
 final class PackingSessionViewModel: NSObject, ObservableObject {
-    @Published var currentIndex: Int = 0
-    @Published var isListening: Bool = false
-    @Published var errorMessage: String?
-    @Published var lastHeardPhrase: String = ""
-    @Published var isSessionComplete: Bool = false
+    @Published private(set) var currentIndex: Int = 0
+    @Published private(set) var isSessionComplete: Bool = false
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var isSpeechInProgress: Bool = false
 
     let run: Run
     private let runCoils: [RunCoil]
     private let steps: [SessionStep]
     private let synthesizer = AVSpeechSynthesizer()
-    // Prefer the modern Siri voice when available, fallback to the locale default.
     private lazy var sessionVoice: AVSpeechSynthesisVoice? = AVSpeechSynthesisVoice.preferredSiriVoice(forLanguage: "en-AU")
-    private let audioEngine = AVAudioEngine()
+
     private var audioSessionConfigured = false
-
-    private var transcriber: DictationTranscriber?
-    private var speechAnalyzer: SpeechAnalyzer?
-    private var analyzerTask: Task<Void, Never>?
-    private var transcriberResultsTask: Task<Void, Never>?
-    private var analyzerInputContinuation: AsyncThrowingStream<Speech.AnalyzerInput, Error>.Continuation?
-    private var dictationSetupTask: Task<Void, Never>?
-    private var reservedLocale: Locale?
-    private var analyzerAudioFormat: AVAudioFormat?
-    private var audioConverter: AVAudioConverter?
-    private var audioTapInstalled = false
-    private var commandHandledForCurrentItem = false
-    private var sessionStarted = false
-    private var shouldResumeRecognitionAfterSpeech = true
-    private var isSpeechInProgress = false
-    private var shouldAutoAdvanceAfterSpeech = false
-
-
-    private enum SessionStep {
-        case machine(Machine)
-        case runCoil(RunCoil)
-
-        var isRunCoil: Bool {
-            if case .runCoil = self {
-                return true
-            }
-            return false
-        }
-    }
+    private var isSessionRunning = false
+    private let silentLoop = SilentLoopPlayer()
+    private var remoteCommandTokens: [RemoteCommandToken] = []
+    private let commandCenter = MPRemoteCommandCenter.shared()
 
     init(run: Run) {
         self.run = run
@@ -239,22 +213,20 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         synthesizer.delegate = self
     }
 
-    deinit {
-        if let reservedLocale {
-            Task {
-                await AssetInventory.release(reservedLocale: reservedLocale)
-            }
-        }
-    }
+    // MARK: - Public surface
 
     var hasActiveStep: Bool {
-        currentStep != nil
+        !isSessionComplete && currentStep != nil
+    }
+
+    var canStepBackward: Bool {
+        isSessionComplete ? !steps.isEmpty : currentIndex > 0
     }
 
     var progress: Double {
         guard totalItemCount > 0 else { return 0 }
         if isSessionComplete { return 1 }
-        return Double(completedItemCount) / Double(totalItemCount)
+        return Double(packedItemCount) / Double(totalItemCount)
     }
 
     var progressDescription: String {
@@ -263,104 +235,94 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         if let machine = currentMachineDescriptor {
             return "Machine \(machine.name)"
         }
-        let nextIndex = completedItemCount + 1
+        let nextIndex = packedItemCount + 1
         return "Item \(min(nextIndex, totalItemCount)) of \(totalItemCount)"
     }
 
-    fileprivate var currentMachineDescriptor: MachineDescriptor? {
+    var currentMachineDescriptor: MachineDescriptor? {
         guard let step = currentStep else { return nil }
-        switch step {
-        case .machine(let machine):
-            let location = machine.locationLabel ?? machine.location?.name
-            return MachineDescriptor(name: machine.name, location: location)
-        case .runCoil:
-            return nil
+        if case .machine(let machine) = step {
+            return MachineDescriptor(name: machine.name, location: machine.locationLabel ?? machine.location?.name)
         }
+        return nil
     }
 
-    fileprivate var currentItemDescriptor: CoilDescriptor? {
-        guard let runCoil = currentRunCoil else { return nil }
-        let coil = runCoil.coil
-        let item = coil.item
-        return CoilDescriptor(title: item.name,
-                              subtitle: item.type.isEmpty ? item.id : "\(item.type) • \(item.id)",
-                              machine: coil.machine.name,
-                              pick: runCoil.pick,
-                              pointer: coil.machinePointer)
+    var currentItemDescriptor: CoilDescriptor? {
+        guard let step = currentStep else { return nil }
+        if case .runCoil(let runCoil) = step {
+            let coil = runCoil.coil
+            let item = coil.item
+            return CoilDescriptor(title: item.name,
+                                  subtitle: item.type.isEmpty ? item.id : "\(item.type) • \(item.id)",
+                                  machine: coil.machine.name,
+                                  pick: runCoil.pick,
+                                  pointer: coil.machinePointer)
+        }
+        return nil
     }
 
     func startSession() {
-        guard !sessionStarted else { return }
-        sessionStarted = true
-        shouldResumeRecognitionAfterSpeech = true
-        shouldAutoAdvanceAfterSpeech = false
-        isSpeechInProgress = false
-        isSessionComplete = false
-        errorMessage = nil
-
         guard !steps.isEmpty else {
-            shouldResumeRecognitionAfterSpeech = false
-            isSpeechInProgress = false
             isSessionComplete = true
             errorMessage = "This run has no items to pack."
             return
         }
 
-        requestPermissions()
-        commandHandledForCurrentItem = false
+        errorMessage = nil
+        guard !isSessionRunning else { return }
+        configureAudioSessionIfNeeded()
+        silentLoop.start()
+        isSessionRunning = true
+        configureRemoteCommandsIfNeeded()
+        updateNowPlayingInfo()
+        updatePlaybackState()
         speakCurrentStep()
     }
 
     func stopSession() {
-        shouldResumeRecognitionAfterSpeech = false
-        shouldAutoAdvanceAfterSpeech = false
-        isSpeechInProgress = false
-        cancelRecognition(releaseLocale: true)
         synthesizer.stopSpeaking(at: .immediate)
+        isSpeechInProgress = false
+        silentLoop.stop()
+        isSessionRunning = false
+        tearDownRemoteCommands()
+        deactivateAudioSession()
+        updatePlaybackState()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    func advanceManually() {
-        if isSessionComplete {
-            stopSession()
-        } else {
-            shouldResumeRecognitionAfterSpeech = false
-            shouldAutoAdvanceAfterSpeech = false
-            synthesizer.stopSpeaking(at: .immediate)
-            advanceToNextStep()
-        }
+    func stepForward() {
+        guard !isSessionComplete else { return }
+        synthesizer.stopSpeaking(at: .immediate)
+        advanceToNextStep()
+    }
+
+    func stepBackward() {
+        synthesizer.stopSpeaking(at: .immediate)
+        moveToPreviousStep()
     }
 
     func repeatCurrent() {
-        guard hasActiveStep else { return }
-        shouldResumeRecognitionAfterSpeech = false
-        shouldAutoAdvanceAfterSpeech = false
         synthesizer.stopSpeaking(at: .immediate)
-        commandHandledForCurrentItem = false
-        speakCurrentStep()
+        if isSessionComplete {
+            announceCompletion()
+        } else {
+            speakCurrentStep()
+        }
     }
+
+    // MARK: - Step management
 
     private var currentStep: SessionStep? {
-        guard currentIndex < steps.count else { return nil }
+        guard currentIndex >= 0, currentIndex < steps.count else { return nil }
         return steps[currentIndex]
-    }
-
-    private var currentRunCoil: RunCoil? {
-        guard let step = currentStep else { return nil }
-        if case .runCoil(let runCoil) = step {
-            return runCoil
-        }
-        return nil
     }
 
     private var totalItemCount: Int {
         runCoils.count
     }
 
-    private var completedItemCount: Int {
-        guard currentIndex > 0 else { return 0 }
-        return steps.prefix(min(currentIndex, steps.count)).reduce(0) { count, step in
-            count + (step.isRunCoil ? 1 : 0)
-        }
+    private var packedItemCount: Int {
+        runCoils.filter(\.packed).count
     }
 
     private static func machineOrder(for runCoils: [RunCoil]) -> [String: Int] {
@@ -372,9 +334,8 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         }
         var order: [String: Int] = [:]
         for (index, runCoil) in sorted.enumerated() {
-            let machineID = runCoil.coil.machine.id
-            if order[machineID] == nil {
-                order[machineID] = index
+            if order[runCoil.coil.machine.id] == nil {
+                order[runCoil.coil.machine.id] = index
             }
         }
         return order
@@ -394,424 +355,264 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         return steps
     }
 
-    private func handleRecognitionResult(_ result: DictationTranscriber.Result) {
-        let transcript = String(result.text.characters).lowercased()
-        lastHeardPhrase = transcript
-
-        if transcript.contains("next item") {
-            handleNextCommand()
-        } else if transcript.contains("repeat item") {
-            repeatCurrent()
-        }
-
-        if result.isFinal && shouldResumeRecognitionAfterSpeech && !isSpeechInProgress {
-            restartRecognition()
-        }
-    }
-
-    private func handleNextCommand() {
-        guard !isSessionComplete else { return }
-        if case .runCoil = currentStep {
-            guard !commandHandledForCurrentItem else { return }
-            commandHandledForCurrentItem = true
-        }
-        advanceToNextStep()
-    }
-
     private func advanceToNextStep() {
-        guard !isSessionComplete else { return }
-        if let step = currentStep, case let .runCoil(runCoil) = step, !runCoil.packed {
+        if let step = currentStep, case let .runCoil(runCoil) = step {
             runCoil.packed = true
         }
 
-        currentIndex += 1
-        commandHandledForCurrentItem = false
-        shouldAutoAdvanceAfterSpeech = false
-
-        if currentIndex < steps.count {
-            speakCurrentStep()
-        } else {
+        let nextIndex = currentIndex + 1
+        if nextIndex >= steps.count {
             completeSession()
+        } else {
+            currentIndex = nextIndex
+            updateNowPlayingInfo()
+            speakCurrentStep()
         }
     }
 
-    private func speakCurrentStep() {
-        guard let step = currentStep else { return }
-
-        shouldResumeRecognitionAfterSpeech = false
-        shouldAutoAdvanceAfterSpeech = false
-        cancelRecognition()
-        errorMessage = nil
-
-        do {
-            try configureAudioSessionIfNeeded()
-            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            errorMessage = error.localizedDescription
+    private func moveToPreviousStep() {
+        if isSessionComplete {
+            isSessionComplete = false
+            currentIndex = max(steps.count - 1, 0)
+        } else {
+            guard currentIndex > 0 else { return }
+            currentIndex -= 1
         }
 
-        commandHandledForCurrentItem = false
-        isSpeechInProgress = true
+        if let step = currentStep, case let .runCoil(runCoil) = step {
+            runCoil.packed = false
+        }
 
+        updateNowPlayingInfo()
+        speakCurrentStep()
+    }
+
+    // MARK: - Speech
+
+    private func speakCurrentStep() {
+        guard let step = currentStep else {
+            announceCompletion()
+            return
+        }
+
+        let utterance: AVSpeechUtterance
         switch step {
         case .machine(let machine):
-            shouldAutoAdvanceAfterSpeech = true
-            let utterance = AVSpeechUtterance(string: "Machine \(machine.name).")
-            if let sessionVoice {
-                utterance.voice = sessionVoice
-            }
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
-            synthesizer.speak(utterance)
+            utterance = AVSpeechUtterance(string: "Machine \(machine.name).")
         case .runCoil(let runCoil):
-            shouldResumeRecognitionAfterSpeech = true
             let item = runCoil.coil.item
             let need = max(runCoil.pick, 0)
             let needPhrase = need == 1 ? "Need one." : "Need \(need)."
-            let utterance = AVSpeechUtterance(string: "\(item.name). \(needPhrase)")
-            if let sessionVoice {
-                utterance.voice = sessionVoice
-            }
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
-            synthesizer.speak(utterance)
+            utterance = AVSpeechUtterance(string: "\(item.name). \(needPhrase)")
         }
+
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
+        if let sessionVoice {
+            utterance.voice = sessionVoice
+        }
+        synthesizer.speak(utterance)
+        updatePlaybackState()
     }
 
-    private func requestPermissions() {
-        let recordPermissionHandler: @Sendable (Bool) -> Void = { granted in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                if !granted {
-                    self.shouldResumeRecognitionAfterSpeech = false
-                    self.errorMessage = "Microphone access is required for packing sessions."
-                    return
-                }
-
-                SFSpeechRecognizer.requestAuthorization { status in
-                    Task { @MainActor [weak self] in
-                        guard let self = self else { return }
-                        switch status {
-                        case .authorized:
-                            if !self.synthesizer.isSpeaking {
-                                self.restartRecognition()
-                            }
-                        case .denied:
-                            self.errorMessage = "Speech recognition access denied."
-                        case .restricted:
-                            self.errorMessage = "Speech recognition is restricted on this device."
-                        case .notDetermined:
-                            self.errorMessage = "Speech recognition permission not determined."
-                        @unknown default:
-                            self.errorMessage = "Unknown speech recognition authorization state."
-                        }
-                    }
-                }
-            }
-        }
-
-        if #available(iOS 17, *) {
-            AVAudioApplication.requestRecordPermission { granted in
-                recordPermissionHandler(granted)
-            }
-        } else {
-            AVAudioSession.sharedInstance().requestRecordPermission(recordPermissionHandler)
-        }
-    }
-
-    private func startListening() {
-        guard #available(iOS 26, *) else {
-            errorMessage = "Dictation requires iOS 26 or later."
-            return
-        }
-
-        cancelRecognition()
-        shouldAutoAdvanceAfterSpeech = false
-        isSpeechInProgress = false
-
-        dictationSetupTask?.cancel()
-        dictationSetupTask = Task { [weak self] in
-            guard let self else { return }
-            await self.beginDictationSession()
-            await MainActor.run {
-                self.dictationSetupTask = nil
-            }
-        }
-    }
-
-    @MainActor
-    @available(iOS 26, *)
-    private func beginDictationSession() async {
-        guard !Task.isCancelled else { return }
-        do {
-            try configureAudioSessionIfNeeded()
-            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-
-            var locale = Locale(identifier: "en-AU")
-            if let normalized = await DictationTranscriber.supportedLocale(equivalentTo: locale) {
-                locale = normalized
-            }
-            if reservedLocale != locale {
-                if let reservedLocale {
-                    await AssetInventory.release(reservedLocale: reservedLocale)
-                    self.reservedLocale = nil
-                }
-                _ = try await AssetInventory.reserve(locale: locale)
-                reservedLocale = locale
-            }
-
-            let transcriber = DictationTranscriber(
-                locale: locale,
-                contentHints: Set<DictationTranscriber.ContentHint>([.shortForm]),
-                transcriptionOptions: Set<DictationTranscriber.TranscriptionOption>([.etiquetteReplacements]),
-                reportingOptions: Set<DictationTranscriber.ReportingOption>([.volatileResults, .frequentFinalization]),
-                attributeOptions: Set<DictationTranscriber.ResultAttributeOption>()
-            )
-            self.transcriber = transcriber
-
-            let analyzer = SpeechAnalyzer(modules: [transcriber])
-            speechAnalyzer = analyzer
-
-            let inputNode = audioEngine.inputNode
-            let recordingFormat = inputNode.outputFormat(forBus: 0)
-            let compatibleFormats = await transcriber.availableCompatibleAudioFormats
-            let preferredCompatibleFormat = compatibleFormats.first(where: { $0.commonFormat == .pcmFormatInt16 }) ?? compatibleFormats.first
-            let preferredFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber], considering: preferredCompatibleFormat ?? recordingFormat)
-                ?? preferredCompatibleFormat
-                ?? recordingFormat
-            let targetFormat: AVAudioFormat
-            if preferredFormat.commonFormat == .pcmFormatInt16 {
-                targetFormat = preferredFormat
-            } else if let int16Format = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                                      sampleRate: preferredFormat.sampleRate,
-                                                      channels: preferredFormat.channelCount,
-                                                      interleaved: true) {
-                targetFormat = int16Format
-            } else {
-                targetFormat = preferredFormat
-            }
-            analyzerAudioFormat = targetFormat
-            if let analyzerAudioFormat, !analyzerAudioFormat.matches(recordingFormat) {
-                audioConverter = AVAudioConverter(from: recordingFormat, to: analyzerAudioFormat)
-            } else {
-                audioConverter = nil
-            }
-
-            let weakSelf = WeakViewModel(value: self)
-
-            let inputStream = AsyncThrowingStream<Speech.AnalyzerInput, Error> { continuation in
-                continuation.onTermination = { _ in
-                    Task { @MainActor in
-                        weakSelf.value?.analyzerInputContinuation = nil
-                    }
-                }
-                Task { @MainActor in
-                    weakSelf.value?.analyzerInputContinuation = continuation
-                }
-            }
-
-            if audioTapInstalled {
-                inputNode.removeTap(onBus: 0)
-                audioTapInstalled = false
-            }
-
-            inputNode.installTap(onBus: 0,
-                                 bufferSize: 1024,
-                                 format: recordingFormat) { buffer, _ in
-                guard let bufferCopy = buffer.makeCopy() else { return }
-                Task { @MainActor in
-                    guard let viewModel = weakSelf.value else { return }
-                    if let converter = viewModel.audioConverter, let format = viewModel.analyzerAudioFormat,
-                       let convertedBuffer = AVAudioPCMBuffer(
-                        pcmFormat: format,
-                        frameCapacity: bufferCopy.estimatedFrameCapacity(for: format)
-                       ) {
-                        convertedBuffer.frameLength = 0
-                        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-                            outStatus.pointee = .haveData
-                            return bufferCopy
-                        }
-                        var conversionError: NSError?
-                        let status = converter.convert(to: convertedBuffer, error: &conversionError, withInputFrom: inputBlock)
-                        switch status {
-                        case .haveData:
-                            viewModel.analyzerInputContinuation?.yield(Speech.AnalyzerInput(buffer: convertedBuffer))
-                        case .inputRanDry:
-                            break
-                        case .endOfStream:
-                            viewModel.analyzerInputContinuation?.finish()
-                        case .error:
-                            if let error = conversionError {
-                                viewModel.errorMessage = error.localizedDescription
-                            }
-                        @unknown default:
-                            break
-                        }
-                    } else {
-                        viewModel.analyzerInputContinuation?.yield(Speech.AnalyzerInput(buffer: bufferCopy))
-                    }
-                }
-            }
-            audioTapInstalled = true
-
-            audioEngine.prepare()
-            try audioEngine.start()
-            isListening = true
-            errorMessage = nil
-            lastHeardPhrase = ""
-
-            analyzerTask?.cancel()
-            analyzerTask = Task { [weakSelf] in
-                do {
-                    let analysisFormat = await MainActor.run { weakSelf.value?.analyzerAudioFormat }
-                    try await analyzer.prepareToAnalyze(in: analysisFormat)
-                    try await analyzer.start(inputSequence: inputStream)
-                } catch is CancellationError {
-                } catch {
-                    await MainActor.run {
-                        guard let viewModel = weakSelf.value else { return }
-                        viewModel.errorMessage = error.localizedDescription
-                        viewModel.isListening = false
-                    }
-                }
-            }
-
-            transcriberResultsTask?.cancel()
-            transcriberResultsTask = Task { [weakSelf] in
-                do {
-                    for try await result in transcriber.results {
-                        if Task.isCancelled { break }
-                        await MainActor.run {
-                            guard let viewModel = weakSelf.value else { return }
-                            viewModel.handleRecognitionResult(result)
-                        }
-                    }
-                } catch is CancellationError {
-                } catch {
-                    await MainActor.run {
-                        guard let viewModel = weakSelf.value else { return }
-                        viewModel.errorMessage = error.localizedDescription
-                        viewModel.isListening = false
-                        if viewModel.shouldResumeRecognitionAfterSpeech && !viewModel.isSpeechInProgress {
-                            viewModel.restartRecognition()
-                        }
-                    }
-                }
-            }
-        } catch is CancellationError {
-            cleanupDictationSession()
-        } catch {
-            cleanupDictationSession(releaseLocale: true)
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    @MainActor
-    private func cleanupDictationSession(releaseLocale: Bool = false) {
-        dictationSetupTask?.cancel()
-        dictationSetupTask = nil
-        analyzerTask?.cancel()
-        analyzerTask = nil
-        transcriberResultsTask?.cancel()
-        transcriberResultsTask = nil
-        analyzerInputContinuation?.finish()
-        analyzerInputContinuation = nil
-        speechAnalyzer = nil
-        transcriber = nil
-        audioConverter = nil
-        analyzerAudioFormat = nil
-        if releaseLocale, let reservedLocale {
-            Task {
-                await AssetInventory.release(reservedLocale: reservedLocale)
-            }
-            self.reservedLocale = nil
-        }
-        if audioTapInstalled {
-            audioEngine.inputNode.removeTap(onBus: 0)
-            audioTapInstalled = false
-        }
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        isListening = false
-    }
-
-    private func restartRecognition() {
-        guard shouldResumeRecognitionAfterSpeech,
-              !shouldAutoAdvanceAfterSpeech,
-              !isSpeechInProgress,
-              !isSessionComplete,
-              totalItemCount > 0,
-              isMicrophoneAuthorized,
-              isSpeechAuthorized else {
-            if isListening {
-                cancelRecognition()
-            }
-            return
-        }
-
-        startListening()
-    }
-
-    private func cancelRecognition(releaseLocale: Bool = false) {
-        cleanupDictationSession(releaseLocale: releaseLocale)
-        isSpeechInProgress = false
-        lastHeardPhrase = ""
-    }
-
-    private var isMicrophoneAuthorized: Bool {
-        if #available(iOS 17, *) {
-            return AVAudioApplication.shared.recordPermission == .granted
-        } else {
-            return AVAudioSession.sharedInstance().recordPermission == .granted
-        }
-    }
-
-    private var isSpeechAuthorized: Bool {
-        SFSpeechRecognizer.authorizationStatus() == .authorized
-    }
-
-    private func configureAudioSessionIfNeeded() throws {
-        guard !audioSessionConfigured else { return }
-        let audioSession = AVAudioSession.sharedInstance()
-        var options: AVAudioSession.CategoryOptions = [.duckOthers, .defaultToSpeaker]
-        if #available(iOS 13.0, *) {
-            options.insert(.allowBluetoothHFP)
-            options.insert(.allowBluetoothA2DP)
-        }
-        try audioSession.setCategory(.playAndRecord,
-                                     mode: .spokenAudio,
-                                     options: options)
-        audioSessionConfigured = true
-    }
-
-    private func completeSession() {
-        isSessionComplete = true
-        currentIndex = steps.count
-        shouldResumeRecognitionAfterSpeech = false
-        shouldAutoAdvanceAfterSpeech = false
-        cancelRecognition()
-        isSpeechInProgress = true
-        errorMessage = nil
+    private func announceCompletion() {
         let utterance = AVSpeechUtterance(string: "Packing session complete. Great job.")
         if let sessionVoice {
             utterance.voice = sessionVoice
         }
         synthesizer.speak(utterance)
+        updatePlaybackState()
+    }
+
+    private func completeSession() {
+        isSessionComplete = true
+        currentIndex = steps.count
+        updateNowPlayingInfoForCompletion()
+        updatePlaybackState()
+        announceCompletion()
+    }
+
+    // MARK: - Audio session & media remote
+
+    private func configureAudioSessionIfNeeded() {
+        guard !audioSessionConfigured else { return }
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playback,
+                                         mode: .spokenAudio,
+                                         options: [.duckOthers,
+                                                   .interruptSpokenAudioAndMixWithOthers,
+                                                   .allowBluetooth,
+                                                   .allowBluetoothA2DP,
+                                                   .allowAirPlay])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            audioSessionConfigured = true
+            if errorMessage != nil {
+                errorMessage = nil
+            }
+        } catch {
+            if !error.shouldSuppressForAudioSession {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func deactivateAudioSession() {
+        guard audioSessionConfigured else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            // keep the last shown error if any
+        }
+        audioSessionConfigured = false
+    }
+
+    private func configureRemoteCommandsIfNeeded() {
+        guard remoteCommandTokens.isEmpty else { return }
+
+        let nextToken = commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            if !self.isSessionComplete {
+                self.stepForward()
+            }
+            return .success
+        }
+
+        let previousToken = commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.repeatCurrent()
+            return .success
+        }
+
+        let playToken = commandCenter.playCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.repeatCurrent()
+            return .success
+        }
+
+        let pauseToken = commandCenter.pauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.synthesizer.stopSpeaking(at: .immediate)
+            self.updatePlaybackState()
+            return .success
+        }
+
+        let toggleToken = commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            if self.isSpeechInProgress {
+                self.synthesizer.stopSpeaking(at: .immediate)
+                self.updatePlaybackState()
+            } else {
+                self.repeatCurrent()
+            }
+            return .success
+        }
+
+        remoteCommandTokens = [
+            RemoteCommandToken(command: commandCenter.nextTrackCommand, token: nextToken),
+            RemoteCommandToken(command: commandCenter.previousTrackCommand, token: previousToken),
+            RemoteCommandToken(command: commandCenter.playCommand, token: playToken),
+            RemoteCommandToken(command: commandCenter.pauseCommand, token: pauseToken),
+            RemoteCommandToken(command: commandCenter.togglePlayPauseCommand, token: toggleToken)
+        ]
+
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        updatePlaybackState()
+    }
+
+    private func tearDownRemoteCommands() {
+        guard !remoteCommandTokens.isEmpty else { return }
+        remoteCommandTokens.forEach { token in
+            token.command.removeTarget(token.token)
+        }
+        remoteCommandTokens.removeAll()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    private func updateNowPlayingInfo() {
+        var info: [String: Any] = [:]
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isSessionRunning ? 1 : 0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        info[MPNowPlayingInfoPropertyPlaybackQueueCount] = steps.count
+        info[MPNowPlayingInfoPropertyPlaybackQueueIndex] = min(currentIndex, max(steps.count - 1, 0))
+
+        if let descriptor = currentItemDescriptor {
+            info[MPMediaItemPropertyTitle] = descriptor.title
+            info[MPMediaItemPropertyArtist] = descriptor.machine
+        } else if let machine = currentMachineDescriptor {
+            info[MPMediaItemPropertyTitle] = machine.name
+            info[MPMediaItemPropertyArtist] = machine.location ?? "Packing"
+        } else {
+            info[MPMediaItemPropertyTitle] = "Packing Session"
+            info[MPMediaItemPropertyArtist] = runDisplayTitle
+        }
+
+        info[MPMediaItemPropertyAlbumTitle] = runDisplayTitle
+        info[MPMediaItemPropertyPlaybackDuration] = 3600
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func updateNowPlayingInfoForCompletion() {
+        var info: [String: Any] = [:]
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isSessionRunning ? 1 : 0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        info[MPMediaItemPropertyTitle] = "Session Complete"
+        info[MPMediaItemPropertyArtist] = runDisplayTitle
+        info[MPMediaItemPropertyAlbumTitle] = runDisplayTitle
+        info[MPMediaItemPropertyPlaybackDuration] = 3600
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func updatePlaybackState() {
+        MPNowPlayingInfoCenter.default().playbackState = isSessionRunning ? .playing : .paused
+        guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isSessionRunning ? 1 : 0
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private var runDisplayTitle: String {
+        run.runner
     }
 }
 
-private struct MachineDescriptor {
-    let name: String
-    let location: String?
+// MARK: - Speech synthesizer delegate
+
+extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            isSpeechInProgress = true
+            updateNowPlayingInfo()
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            isSpeechInProgress = false
+            updateNowPlayingInfo()
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            isSpeechInProgress = false
+            updateNowPlayingInfo()
+        }
+    }
 }
 
-private struct CoilDescriptor {
-    let title: String
-    let subtitle: String
-    let machine: String
-    let pick: Int64
-    let pointer: Int64
-}
+// MARK: - Supporting types
 
 private struct SessionLabeledValue: View {
     let title: String
@@ -829,40 +630,83 @@ private struct SessionLabeledValue: View {
     }
 }
 
-extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        Task { @MainActor [weak self] in
-            self?.isSpeechInProgress = true
+struct MachineDescriptor {
+    let name: String
+    let location: String?
+}
+
+struct CoilDescriptor {
+    let title: String
+    let subtitle: String
+    let machine: String
+    let pick: Int64
+    let pointer: Int64
+}
+
+private final class SilentLoopPlayer {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private let format: AVAudioFormat
+    private let buffer: AVAudioPCMBuffer
+    private(set) var isRunning = false
+
+    init() {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) else {
+            fatalError("Unable to create audio format for silent loop")
         }
+        self.format = format
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44100) else {
+            fatalError("Unable to allocate silent audio buffer")
+        }
+        buffer.frameLength = buffer.frameCapacity
+        self.buffer = buffer
+
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        player.volume = 0
+        engine.prepare()
     }
 
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.isSpeechInProgress = false
-            if self.shouldAutoAdvanceAfterSpeech {
-                self.shouldAutoAdvanceAfterSpeech = false
-                self.advanceToNextStep()
-                return
-            }
-            guard self.shouldResumeRecognitionAfterSpeech, !self.isSessionComplete else { return }
-            self.restartRecognition()
-        }
+    deinit {
+        stop()
     }
 
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.isSpeechInProgress = false
-            if self.shouldAutoAdvanceAfterSpeech {
-                self.shouldAutoAdvanceAfterSpeech = false
-                self.advanceToNextStep()
-                return
-            }
-            guard self.shouldResumeRecognitionAfterSpeech, !self.isSessionComplete else { return }
-            self.restartRecognition()
+    func start() {
+        guard !isRunning else { return }
+        do {
+            try engine.start()
+        } catch {
+            return
         }
+        player.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
+        player.play()
+        isRunning = true
     }
+
+    func stop() {
+        guard isRunning else { return }
+        player.stop()
+        player.reset()
+        engine.stop()
+        engine.reset()
+        isRunning = false
+    }
+
+    var currentTime: TimeInterval {
+        guard let nodeTime = player.lastRenderTime,
+              let playerTime = player.playerTime(forNodeTime: nodeTime) else { return 0 }
+        return TimeInterval(playerTime.sampleTime) / format.sampleRate
+    }
+}
+
+private struct RemoteCommandToken {
+    let command: MPRemoteCommand
+    let token: Any
+}
+
+private enum SessionStep {
+    case machine(Machine)
+    case runCoil(RunCoil)
 }
 
 private extension AVSpeechSynthesisVoice {
@@ -876,62 +720,16 @@ private extension AVSpeechSynthesisVoice {
         if let enhancedVoice = matchingVoices.first(where: { $0.quality == .enhanced }) {
             return enhancedVoice
         }
-        if let fallback = matchingVoices.first {
-            return fallback
+        return matchingVoices.first ?? AVSpeechSynthesisVoice(language: language)
+    }
+}
+
+private extension Error {
+    var shouldSuppressForAudioSession: Bool {
+        let nsError = self as NSError
+        if nsError.domain == NSOSStatusErrorDomain && nsError.code == -50 {
+            return true
         }
-        return AVSpeechSynthesisVoice(language: language)
+        return false
     }
-}
-
-private extension AVAudioFormat {
-    func matches(_ other: AVAudioFormat) -> Bool {
-        sampleRate == other.sampleRate &&
-        channelCount == other.channelCount &&
-        commonFormat == other.commonFormat &&
-        isInterleaved == other.isInterleaved
-    }
-}
-
-private extension AVAudioPCMBuffer {
-    func makeCopy() -> AVAudioPCMBuffer? {
-        guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameLength) else { return nil }
-        copy.frameLength = frameLength
-        let frames = Int(frameLength)
-        let channels = Int(format.channelCount)
-
-        switch format.commonFormat {
-        case .pcmFormatFloat32:
-            guard let src = floatChannelData, let dst = copy.floatChannelData else { return nil }
-            for channel in 0..<channels {
-                memcpy(dst[channel], src[channel], frames * MemoryLayout<Float>.size)
-            }
-        case .pcmFormatInt16:
-            guard let src = int16ChannelData, let dst = copy.int16ChannelData else { return nil }
-            for channel in 0..<channels {
-                memcpy(dst[channel], src[channel], frames * MemoryLayout<Int16>.size)
-            }
-        case .pcmFormatInt32:
-            guard let src = int32ChannelData, let dst = copy.int32ChannelData else { return nil }
-            for channel in 0..<channels {
-                memcpy(dst[channel], src[channel], frames * MemoryLayout<Int32>.size)
-            }
-        default:
-            return nil
-        }
-        return copy
-    }
-
-    func estimatedFrameCapacity(for format: AVAudioFormat) -> AVAudioFrameCount {
-        let sourceFrames = Double(frameLength)
-        let sourceRate = max(self.format.sampleRate, 1)
-        let targetRate = max(format.sampleRate, 1)
-        let ratio = targetRate / sourceRate
-        let adjusted = sourceFrames * max(1.0, ratio) + 256.0
-        let clamped = min(Double(UInt32.max), max(1.0, adjusted))
-        return AVAudioFrameCount(UInt32(clamped.rounded(.down)))
-    }
-}
-
-private struct WeakViewModel: @unchecked Sendable {
-    weak var value: PackingSessionViewModel?
 }
