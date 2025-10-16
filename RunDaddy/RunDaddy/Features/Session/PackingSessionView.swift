@@ -183,12 +183,20 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     private let runCoils: [RunCoil]
     private let steps: [SessionStep]
     private let synthesizer = AVSpeechSynthesizer()
+    // Prefer the modern Siri voice when available, fallback to the locale default.
+    private lazy var sessionVoice: AVSpeechSynthesisVoice? = AVSpeechSynthesisVoice.preferredSiriVoice(forLanguage: "en-AU")
     private let audioEngine = AVAudioEngine()
-    private let speechRecognizer: SFSpeechRecognizer?
     private var audioSessionConfigured = false
 
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
+    private var transcriber: DictationTranscriber?
+    private var speechAnalyzer: SpeechAnalyzer?
+    private var analyzerTask: Task<Void, Never>?
+    private var transcriberResultsTask: Task<Void, Never>?
+    private var analyzerInputContinuation: AsyncThrowingStream<Speech.AnalyzerInput, Error>.Continuation?
+    private var dictationSetupTask: Task<Void, Never>?
+    private var reservedLocale: Locale?
+    private var analyzerAudioFormat: AVAudioFormat?
+    private var audioConverter: AVAudioConverter?
     private var audioTapInstalled = false
     private var commandHandledForCurrentItem = false
     private var sessionStarted = false
@@ -196,16 +204,6 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     private var isSpeechInProgress = false
     private var shouldAutoAdvanceAfterSpeech = false
 
-    private static let cancellationDomain = "kLSRErrorDomain"
-    private static let cancellationCode = 301
-    private static let assistantDomain = "kAFAssistantErrorDomain"
-    private static let benignSpeechErrors: Set<SpeechErrorSignature> = [
-        SpeechErrorSignature(domain: cancellationDomain, code: cancellationCode),
-        SpeechErrorSignature(domain: assistantDomain, code: 1100),
-        SpeechErrorSignature(domain: assistantDomain, code: 1101),
-        SpeechErrorSignature(domain: assistantDomain, code: 1107),
-        SpeechErrorSignature(domain: assistantDomain, code: 1110)
-    ]
 
     private enum SessionStep {
         case machine(Machine)
@@ -237,9 +235,16 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             }
         self.runCoils = filtered
         self.steps = PackingSessionViewModel.buildSteps(from: filtered)
-        self.speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-AU")) ?? SFSpeechRecognizer()
         super.init()
         synthesizer.delegate = self
+    }
+
+    deinit {
+        if let reservedLocale {
+            Task {
+                await AssetInventory.release(reservedLocale: reservedLocale)
+            }
+        }
     }
 
     var hasActiveStep: Bool {
@@ -310,7 +315,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         shouldResumeRecognitionAfterSpeech = false
         shouldAutoAdvanceAfterSpeech = false
         isSpeechInProgress = false
-        cancelRecognition()
+        cancelRecognition(releaseLocale: true)
         synthesizer.stopSpeaking(at: .immediate)
     }
 
@@ -389,8 +394,8 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         return steps
     }
 
-    private func handleRecognitionResult(_ result: SFSpeechRecognitionResult) {
-        let transcript = result.bestTranscription.formattedString.lowercased()
+    private func handleRecognitionResult(_ result: DictationTranscriber.Result) {
+        let transcript = String(result.text.characters).lowercased()
         lastHeardPhrase = transcript
 
         if transcript.contains("next item") {
@@ -452,7 +457,9 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         case .machine(let machine):
             shouldAutoAdvanceAfterSpeech = true
             let utterance = AVSpeechUtterance(string: "Machine \(machine.name).")
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-AU")
+            if let sessionVoice {
+                utterance.voice = sessionVoice
+            }
             utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
             synthesizer.speak(utterance)
         case .runCoil(let runCoil):
@@ -461,7 +468,9 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             let need = max(runCoil.pick, 0)
             let needPhrase = need == 1 ? "Need one." : "Need \(need)."
             let utterance = AVSpeechUtterance(string: "\(item.name). \(needPhrase)")
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-AU")
+            if let sessionVoice {
+                utterance.voice = sessionVoice
+            }
             utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
             synthesizer.speak(utterance)
         }
@@ -508,9 +517,9 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         }
     }
 
-    private func startListening() throws {
-        guard let speechRecognizer, speechRecognizer.isAvailable else {
-            errorMessage = "Speech recognizer is unavailable."
+    private func startListening() {
+        guard #available(iOS 26, *) else {
+            errorMessage = "Dictation requires iOS 26 or later."
             return
         }
 
@@ -518,46 +527,212 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         shouldAutoAdvanceAfterSpeech = false
         isSpeechInProgress = false
 
-        try configureAudioSessionIfNeeded()
-        try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        recognitionRequest = request
-
-        let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            request.append(buffer)
+        dictationSetupTask?.cancel()
+        dictationSetupTask = Task { [weak self] in
+            guard let self else { return }
+            await self.beginDictationSession()
+            await MainActor.run {
+                self.dictationSetupTask = nil
+            }
         }
-        audioTapInstalled = true
+    }
 
-        audioEngine.prepare()
-        try audioEngine.start()
-        isListening = true
+    @MainActor
+    @available(iOS 26, *)
+    private func beginDictationSession() async {
+        guard !Task.isCancelled else { return }
+        do {
+            try configureAudioSessionIfNeeded()
+            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
 
-        recognitionTask = speechRecognizer.recognitionTask(with: request, resultHandler: { [weak self] result, error in
-            guard let self = self else { return }
-            if let result = result {
-                Task { @MainActor [weak self] in
-                    self?.handleRecognitionResult(result)
-                }
+            var locale = Locale(identifier: "en-AU")
+            if let normalized = await DictationTranscriber.supportedLocale(equivalentTo: locale) {
+                locale = normalized
             }
-            if let error = error as NSError? {
+            if reservedLocale != locale {
+                if let reservedLocale {
+                    await AssetInventory.release(reservedLocale: reservedLocale)
+                    self.reservedLocale = nil
+                }
+                _ = try await AssetInventory.reserve(locale: locale)
+                reservedLocale = locale
+            }
+
+            let transcriber = DictationTranscriber(
+                locale: locale,
+                contentHints: Set<DictationTranscriber.ContentHint>([.shortForm]),
+                transcriptionOptions: Set<DictationTranscriber.TranscriptionOption>([.etiquetteReplacements]),
+                reportingOptions: Set<DictationTranscriber.ReportingOption>([.volatileResults, .frequentFinalization]),
+                attributeOptions: Set<DictationTranscriber.ResultAttributeOption>()
+            )
+            self.transcriber = transcriber
+
+            let analyzer = SpeechAnalyzer(modules: [transcriber])
+            speechAnalyzer = analyzer
+
+            let inputNode = audioEngine.inputNode
+            let recordingFormat = inputNode.outputFormat(forBus: 0)
+            let compatibleFormats = await transcriber.availableCompatibleAudioFormats
+            let preferredCompatibleFormat = compatibleFormats.first(where: { $0.commonFormat == .pcmFormatInt16 }) ?? compatibleFormats.first
+            let preferredFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber], considering: preferredCompatibleFormat ?? recordingFormat)
+                ?? preferredCompatibleFormat
+                ?? recordingFormat
+            let targetFormat: AVAudioFormat
+            if preferredFormat.commonFormat == .pcmFormatInt16 {
+                targetFormat = preferredFormat
+            } else if let int16Format = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                                      sampleRate: preferredFormat.sampleRate,
+                                                      channels: preferredFormat.channelCount,
+                                                      interleaved: true) {
+                targetFormat = int16Format
+            } else {
+                targetFormat = preferredFormat
+            }
+            analyzerAudioFormat = targetFormat
+            if let analyzerAudioFormat, !analyzerAudioFormat.matches(recordingFormat) {
+                audioConverter = AVAudioConverter(from: recordingFormat, to: analyzerAudioFormat)
+            } else {
+                audioConverter = nil
+            }
+
+            let weakSelf = WeakViewModel(value: self)
+
+            let inputStream = AsyncThrowingStream<Speech.AnalyzerInput, Error> { continuation in
+                continuation.onTermination = { _ in
+                    Task { @MainActor in
+                        weakSelf.value?.analyzerInputContinuation = nil
+                    }
+                }
                 Task { @MainActor in
-                    guard !self.isSpeechInProgress else { return }
-                    let signature = SpeechErrorSignature(domain: error.domain, code: error.code)
-                    if Self.benignSpeechErrors.contains(signature) {
-                        self.errorMessage = nil
+                    weakSelf.value?.analyzerInputContinuation = continuation
+                }
+            }
+
+            if audioTapInstalled {
+                inputNode.removeTap(onBus: 0)
+                audioTapInstalled = false
+            }
+
+            inputNode.installTap(onBus: 0,
+                                 bufferSize: 1024,
+                                 format: recordingFormat) { buffer, _ in
+                guard let bufferCopy = buffer.makeCopy() else { return }
+                Task { @MainActor in
+                    guard let viewModel = weakSelf.value else { return }
+                    if let converter = viewModel.audioConverter, let format = viewModel.analyzerAudioFormat,
+                       let convertedBuffer = AVAudioPCMBuffer(
+                        pcmFormat: format,
+                        frameCapacity: bufferCopy.estimatedFrameCapacity(for: format)
+                       ) {
+                        convertedBuffer.frameLength = 0
+                        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+                            outStatus.pointee = .haveData
+                            return bufferCopy
+                        }
+                        var conversionError: NSError?
+                        let status = converter.convert(to: convertedBuffer, error: &conversionError, withInputFrom: inputBlock)
+                        switch status {
+                        case .haveData:
+                            viewModel.analyzerInputContinuation?.yield(Speech.AnalyzerInput(buffer: convertedBuffer))
+                        case .inputRanDry:
+                            break
+                        case .endOfStream:
+                            viewModel.analyzerInputContinuation?.finish()
+                        case .error:
+                            if let error = conversionError {
+                                viewModel.errorMessage = error.localizedDescription
+                            }
+                        @unknown default:
+                            break
+                        }
                     } else {
-                        self.errorMessage = error.localizedDescription
-                    }
-                    if self.shouldResumeRecognitionAfterSpeech && !self.isSpeechInProgress {
-                        self.restartRecognition()
+                        viewModel.analyzerInputContinuation?.yield(Speech.AnalyzerInput(buffer: bufferCopy))
                     }
                 }
             }
-        })
+            audioTapInstalled = true
+
+            audioEngine.prepare()
+            try audioEngine.start()
+            isListening = true
+            errorMessage = nil
+            lastHeardPhrase = ""
+
+            analyzerTask?.cancel()
+            analyzerTask = Task { [weakSelf] in
+                do {
+                    let analysisFormat = await MainActor.run { weakSelf.value?.analyzerAudioFormat }
+                    try await analyzer.prepareToAnalyze(in: analysisFormat)
+                    try await analyzer.start(inputSequence: inputStream)
+                } catch is CancellationError {
+                } catch {
+                    await MainActor.run {
+                        guard let viewModel = weakSelf.value else { return }
+                        viewModel.errorMessage = error.localizedDescription
+                        viewModel.isListening = false
+                    }
+                }
+            }
+
+            transcriberResultsTask?.cancel()
+            transcriberResultsTask = Task { [weakSelf] in
+                do {
+                    for try await result in transcriber.results {
+                        if Task.isCancelled { break }
+                        await MainActor.run {
+                            guard let viewModel = weakSelf.value else { return }
+                            viewModel.handleRecognitionResult(result)
+                        }
+                    }
+                } catch is CancellationError {
+                } catch {
+                    await MainActor.run {
+                        guard let viewModel = weakSelf.value else { return }
+                        viewModel.errorMessage = error.localizedDescription
+                        viewModel.isListening = false
+                        if viewModel.shouldResumeRecognitionAfterSpeech && !viewModel.isSpeechInProgress {
+                            viewModel.restartRecognition()
+                        }
+                    }
+                }
+            }
+        } catch is CancellationError {
+            cleanupDictationSession()
+        } catch {
+            cleanupDictationSession(releaseLocale: true)
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func cleanupDictationSession(releaseLocale: Bool = false) {
+        dictationSetupTask?.cancel()
+        dictationSetupTask = nil
+        analyzerTask?.cancel()
+        analyzerTask = nil
+        transcriberResultsTask?.cancel()
+        transcriberResultsTask = nil
+        analyzerInputContinuation?.finish()
+        analyzerInputContinuation = nil
+        speechAnalyzer = nil
+        transcriber = nil
+        audioConverter = nil
+        analyzerAudioFormat = nil
+        if releaseLocale, let reservedLocale {
+            Task {
+                await AssetInventory.release(reservedLocale: reservedLocale)
+            }
+            self.reservedLocale = nil
+        }
+        if audioTapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            audioTapInstalled = false
+        }
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        isListening = false
     }
 
     private func restartRecognition() {
@@ -574,27 +749,11 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             return
         }
 
-        do {
-            try startListening()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        startListening()
     }
 
-    private func cancelRecognition() {
-        recognitionTask?.cancel()
-        recognitionTask = nil
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
-        if audioTapInstalled {
-            audioEngine.inputNode.removeTap(onBus: 0)
-            audioTapInstalled = false
-        }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        isListening = false
+    private func cancelRecognition(releaseLocale: Bool = false) {
+        cleanupDictationSession(releaseLocale: releaseLocale)
         isSpeechInProgress = false
         lastHeardPhrase = ""
     }
@@ -634,7 +793,9 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         isSpeechInProgress = true
         errorMessage = nil
         let utterance = AVSpeechUtterance(string: "Packing session complete. Great job.")
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-AU")
+        if let sessionVoice {
+            utterance.voice = sessionVoice
+        }
         synthesizer.speak(utterance)
     }
 }
@@ -650,11 +811,6 @@ private struct CoilDescriptor {
     let machine: String
     let pick: Int64
     let pointer: Int64
-}
-
-private struct SpeechErrorSignature: Hashable {
-    let domain: String
-    let code: Int
 }
 
 private struct SessionLabeledValue: View {
@@ -707,4 +863,75 @@ extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
             self.restartRecognition()
         }
     }
+}
+
+private extension AVSpeechSynthesisVoice {
+    static func preferredSiriVoice(forLanguage language: String) -> AVSpeechSynthesisVoice? {
+        let matchingVoices = speechVoices().filter { $0.language == language }
+        if let siriVoice = matchingVoices.first(where: { voice in
+            voice.identifier.contains(".Siri_") || voice.name.lowercased().contains("siri")
+        }) {
+            return siriVoice
+        }
+        if let enhancedVoice = matchingVoices.first(where: { $0.quality == .enhanced }) {
+            return enhancedVoice
+        }
+        if let fallback = matchingVoices.first {
+            return fallback
+        }
+        return AVSpeechSynthesisVoice(language: language)
+    }
+}
+
+private extension AVAudioFormat {
+    func matches(_ other: AVAudioFormat) -> Bool {
+        sampleRate == other.sampleRate &&
+        channelCount == other.channelCount &&
+        commonFormat == other.commonFormat &&
+        isInterleaved == other.isInterleaved
+    }
+}
+
+private extension AVAudioPCMBuffer {
+    func makeCopy() -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameLength) else { return nil }
+        copy.frameLength = frameLength
+        let frames = Int(frameLength)
+        let channels = Int(format.channelCount)
+
+        switch format.commonFormat {
+        case .pcmFormatFloat32:
+            guard let src = floatChannelData, let dst = copy.floatChannelData else { return nil }
+            for channel in 0..<channels {
+                memcpy(dst[channel], src[channel], frames * MemoryLayout<Float>.size)
+            }
+        case .pcmFormatInt16:
+            guard let src = int16ChannelData, let dst = copy.int16ChannelData else { return nil }
+            for channel in 0..<channels {
+                memcpy(dst[channel], src[channel], frames * MemoryLayout<Int16>.size)
+            }
+        case .pcmFormatInt32:
+            guard let src = int32ChannelData, let dst = copy.int32ChannelData else { return nil }
+            for channel in 0..<channels {
+                memcpy(dst[channel], src[channel], frames * MemoryLayout<Int32>.size)
+            }
+        default:
+            return nil
+        }
+        return copy
+    }
+
+    func estimatedFrameCapacity(for format: AVAudioFormat) -> AVAudioFrameCount {
+        let sourceFrames = Double(frameLength)
+        let sourceRate = max(self.format.sampleRate, 1)
+        let targetRate = max(format.sampleRate, 1)
+        let ratio = targetRate / sourceRate
+        let adjusted = sourceFrames * max(1.0, ratio) + 256.0
+        let clamped = min(Double(UInt32.max), max(1.0, adjusted))
+        return AVAudioFrameCount(UInt32(clamped.rounded(.down)))
+    }
+}
+
+private struct WeakViewModel: @unchecked Sendable {
+    weak var value: PackingSessionViewModel?
 }
