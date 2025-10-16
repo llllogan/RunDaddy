@@ -195,7 +195,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         self.run = run
         let machineOrder = Self.machineOrder(for: Array(run.runCoils))
         let filtered = run.runCoils
-            .filter { $0.pick > 0 }
+            .filter { $0.pick > 0 && !$0.packed }
             .sorted { lhs, rhs in
                 if lhs.packOrder != rhs.packOrder {
                     return lhs.packOrder < rhs.packOrder
@@ -264,7 +264,11 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     func startSession() {
         guard !steps.isEmpty else {
             isSessionComplete = true
-            errorMessage = "This run has no items to pack."
+            if run.runCoils.contains(where: { $0.pick > 0 }) {
+                errorMessage = "All items are already packed."
+            } else {
+                errorMessage = "This run has no items to pack."
+            }
             return
         }
 
