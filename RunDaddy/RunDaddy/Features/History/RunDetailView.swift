@@ -36,8 +36,8 @@ fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
 
 struct RunDetailView: View {
     @Bindable var run: Run
+    @EnvironmentObject private var sessionController: PackingSessionController
     @State private var isPresentingOrderEditor = false
-    @State private var isPresentingPackingSession = false
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
@@ -202,16 +202,13 @@ struct RunDetailView: View {
                 .accessibilityLabel("Reorder locations")
 
                 Button {
-                    isPresentingPackingSession = true
+                    sessionController.beginSession(for: run)
                 } label: {
                     Image(systemName: "basket")
                 }
                 .disabled(run.runCoils.isEmpty)
                 .accessibilityLabel("Start packing session")
             }
-        }
-        .sheet(isPresented: $isPresentingPackingSession) {
-            PackingSessionView(run: run)
         }
         .sheet(isPresented: $isPresentingOrderEditor) {
             let items = locationSections.map { section in
@@ -381,6 +378,7 @@ fileprivate struct LocationOrderEditor: View {
     NavigationStack {
         RunDetailView(run: PreviewFixtures.sampleRun)
     }
+    .environmentObject(PackingSessionController())
     .modelContainer(PreviewFixtures.container)
 }
 

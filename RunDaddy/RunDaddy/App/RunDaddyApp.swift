@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct RunDaddyApp: App {
+    @StateObject private var sessionController = PackingSessionController()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Run.self,
@@ -31,6 +33,7 @@ struct RunDaddyApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView()
+                .environmentObject(sessionController)
         }
         .modelContainer(sharedModelContainer)
     }

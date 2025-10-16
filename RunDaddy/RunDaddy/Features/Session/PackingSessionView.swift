@@ -13,10 +13,17 @@ import Combine
 
 struct PackingSessionView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel: PackingSessionViewModel
+    private let sessionController: PackingSessionController?
+    @ObservedObject private var viewModel: PackingSessionViewModel
 
-    init(run: Run) {
-        _viewModel = StateObject(wrappedValue: PackingSessionViewModel(run: run))
+    init(run: Run, controller: PackingSessionController? = nil) {
+        self.sessionController = controller
+        _viewModel = ObservedObject(wrappedValue: PackingSessionViewModel(run: run))
+    }
+
+    init(viewModel: PackingSessionViewModel, controller: PackingSessionController? = nil) {
+        self.sessionController = controller
+        _viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -31,7 +38,11 @@ struct PackingSessionView: View {
                 SessionContentView(viewModel: viewModel)
 
                 ControlBar(viewModel: viewModel) {
-                    viewModel.stopSession()
+                    if let sessionController {
+                        sessionController.endSession()
+                    } else {
+                        viewModel.stopSession()
+                    }
                     dismiss()
                 }
 
@@ -49,8 +60,23 @@ struct PackingSessionView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
-                        viewModel.stopSession()
+                        if let sessionController {
+                            sessionController.endSession()
+                        } else {
+                            viewModel.stopSession()
+                        }
                         dismiss()
+                    }
+                }
+                if let sessionController {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            sessionController.minimizeSession()
+                            dismiss()
+                        } label: {
+                            Label("Minimize", systemImage: "arrow.down.right.and.arrow.up.left")
+                        }
+                        .accessibilityLabel("Minimize packing session")
                     }
                 }
             }
@@ -60,7 +86,9 @@ struct PackingSessionView: View {
             viewModel.startSession()
         }
         .onDisappear {
-            viewModel.stopSession()
+            if sessionController == nil {
+                viewModel.stopSession()
+            }
         }
     }
 }
@@ -712,6 +740,18 @@ private enum SessionStep {
     case machine(Machine)
     case runCoil(RunCoil)
 }
+
+#if DEBUG
+extension PackingSessionViewModel {
+    func previewSelectFirstItem() {
+        guard let index = steps.firstIndex(where: { step in
+            if case .runCoil = step { return true }
+            return false
+        }) else { return }
+        currentIndex = index
+    }
+}
+#endif
 
 private extension AVSpeechSynthesisVoice {
     static func preferredSiriVoice(forLanguage language: String) -> AVSpeechSynthesisVoice? {
