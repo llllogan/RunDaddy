@@ -265,7 +265,8 @@ fileprivate struct CoilRow: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var sessionController: PackingSessionController
     @Bindable var runCoil: RunCoil
-    @State private var isConfirmingDeletion = false
+    @State private var presentedAlert: AlertKind?
+    @State private var pendingPackedValue: Bool = false
 
     private var coil: Coil { runCoil.coil }
     private var item: Item { coil.item }
@@ -307,24 +308,30 @@ fileprivate struct CoilRow: View {
         .padding(.vertical, 2)
         .swipeActions(edge: .leading) {
             Button(role: .destructive) {
-                isConfirmingDeletion = true
+                presentedAlert = .delete
             } label: {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .alert("Remove Item?", isPresented: $isConfirmingDeletion) {
-            Button("Delete", role: .destructive) {
-                deleteRunCoil()
+        .alert(item: $presentedAlert) { kind in
+            switch kind {
+            case .delete:
+                return Alert(title: Text("Remove Item?"),
+                             message: Text("Are you sure you want to remove \(itemDescriptor) from this run?"),
+                             primaryButton: .destructive(Text("Delete"), action: deleteRunCoil),
+                             secondaryButton: .cancel(Text("Cancel")))
+            case .sessionRestart:
+                return Alert(title: Text("Packing Session Active"),
+                             message: Text("To manually check this item off, your packing session has to be stopped and restarted, continue?"),
+                             primaryButton: .cancel(Text("No")),
+                             secondaryButton: .default(Text("Continue"), action: handleSessionRestartContinue))
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to remove \(itemDescriptor) from this run?")
         }
     }
 
     private var toggleButton: some View {
         Button {
-            togglePackedState()
+            handleToggleTap()
         } label: {
             ZStack {
                 Image(systemName: runCoil.packed ? "checkmark.circle.fill" : "circle")
@@ -353,9 +360,27 @@ fileprivate struct CoilRow: View {
         }
     }
 
-    private func togglePackedState() {
+    private var isSessionRunningForRun: Bool {
+        guard let session = sessionController.activeSession,
+              session.run.id == runCoil.run.id else {
+            return false
+        }
+        return session.viewModel.isSessionRunning
+    }
+
+    private func handleToggleTap() {
+        let newValue = !runCoil.packed
+        if newValue && isSessionRunningForRun {
+            pendingPackedValue = newValue
+            presentedAlert = .sessionRestart
+        } else {
+            applyToggle(newValue)
+        }
+    }
+
+    private func applyToggle(_ newValue: Bool) {
         withAnimation {
-            runCoil.packed.toggle()
+            runCoil.packed = newValue
         }
     }
 
@@ -371,7 +396,34 @@ fileprivate struct CoilRow: View {
             }
             modelContext.delete(runCoil)
         }
-        isConfirmingDeletion = false
+        presentedAlert = nil
+    }
+
+    private func handleSessionRestartContinue() {
+        guard isSessionRunningForRun else {
+            applyToggle(pendingPackedValue)
+            presentedAlert = nil
+            pendingPackedValue = false
+            return
+        }
+        let run = runCoil.run
+        applyToggle(pendingPackedValue)
+        sessionController.endSession()
+        sessionController.beginSession(for: run)
+        presentedAlert = nil
+        pendingPackedValue = false
+    }
+
+    private enum AlertKind: Identifiable {
+        case delete
+        case sessionRestart
+
+        var id: Int {
+            switch self {
+            case .delete: return 0
+            case .sessionRestart: return 1
+            }
+        }
     }
 }
 
