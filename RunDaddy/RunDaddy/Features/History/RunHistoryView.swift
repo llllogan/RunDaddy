@@ -12,10 +12,14 @@ import UniformTypeIdentifiers
 struct RunHistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Run.date, order: .reverse) private var runs: [Run]
+    @AppStorage("settings.webhookURL") private var webhookURL: String = ""
+    @AppStorage("settings.apiKey") private var apiKey: String = ""
+    @StateObject private var mailIntegrationViewModel = MailIntegrationViewModel()
 
     @State private var runPendingDeletion: Run?
     @State private var isConfirmingDeletion = false
     @State private var isImportingCSV = false
+    @State private var isMailSheetPresented = false
     @State private var importErrorMessage: String?
 
     private let csvImporter = CSVRunImporter()
@@ -60,7 +64,7 @@ struct RunHistoryView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button {
-                        
+                        isMailSheetPresented = true
                     } label: {
                         Label("Compose Email", systemImage: "envelope.badge.plus")
                     }
@@ -94,6 +98,11 @@ struct RunHistoryView: View {
                 }
             } message: {
                 Text(importErrorMessage ?? "")
+            }
+            .sheet(isPresented: $isMailSheetPresented) {
+                MailIntegrationSheet(viewModel: mailIntegrationViewModel,
+                                     webhookURL: webhookURL,
+                                     apiKey: apiKey)
             }
         }
     }

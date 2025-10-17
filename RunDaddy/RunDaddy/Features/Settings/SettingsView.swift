@@ -11,12 +11,14 @@ private enum SettingsKeys {
     static let userName = "settings.username"
     static let userEmail = "settings.email"
     static let webhookURL = "settings.webhookURL"
+    static let apiKey = "settings.apiKey"
 }
 
 struct SettingsView: View {
     @AppStorage(SettingsKeys.userName) private var userName: String = ""
     @AppStorage(SettingsKeys.userEmail) private var userEmail: String = ""
     @AppStorage(SettingsKeys.webhookURL) private var webhookURL: String = ""
+    @AppStorage(SettingsKeys.apiKey) private var apiKey: String = ""
 
     var body: some View {
         NavigationStack {
@@ -36,6 +38,11 @@ struct SettingsView: View {
                     TextField("Google Webhook URL", text: $webhookURL)
                         .textContentType(.URL)
                         .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+
+                    SecureField("API Key", text: $apiKey)
+                        .textContentType(.password)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                 }
