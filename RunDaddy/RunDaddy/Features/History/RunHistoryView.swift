@@ -58,7 +58,13 @@ struct RunHistoryView: View {
             }
             .navigationTitle("Runs")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button {
+                        
+                    } label: {
+                        Label("Compose Email", systemImage: "envelope.badge.plus")
+                    }
+
                     Button {
                         isImportingCSV = true
                     } label: {
