@@ -55,7 +55,6 @@ struct CSVRunImporter {
         case emptyFile
         case missingLocationHeader
         case invalidLocationHeader(String)
-        case missingAddress
         case invalidDate(String)
         case missingMachineHeader
         case invalidMachineHeader(String)
@@ -70,8 +69,6 @@ struct CSVRunImporter {
                 return "The CSV does not contain a location header."
             case let .invalidLocationHeader(value):
                 return "Unable to parse the location information from \"\(value)\"."
-            case .missingAddress:
-                return "The CSV is missing the location address."
             case let .invalidDate(value):
                 return "Unable to parse the date \"\(value)\" in the CSV."
             case .missingMachineHeader:
@@ -122,17 +119,24 @@ struct CSVRunImporter {
             throw ImportError.invalidDate(dateString)
         }
 
-        guard let addressIndex = nextNonEmptyIndex(startingAt: index + 1, in: rows) else {
-            throw ImportError.missingAddress
-        }
+        let addressCandidateIndex = nextNonEmptyIndex(startingAt: index + 1, in: rows)
+        var locationAddress = ""
 
-        index = addressIndex
-        let locationAddress = stripQuotes(from: sanitize(rows[index].first ?? ""))
-        guard !locationAddress.isEmpty else {
-            throw ImportError.missingAddress
-        }
+        if let candidateIndex = addressCandidateIndex {
+            index = candidateIndex
+            let candidateRow = rows[candidateIndex]
+            let candidateValue = stripQuotes(from: sanitize(candidateRow.first(where: { !sanitize($0).isEmpty }) ?? ""))
 
-        index += 1
+            let isMachineHeader = parseMachineID(from: candidateValue) != nil
+            let isNextLocationHeader = candidateValue.lowercased().hasPrefix("location:")
+
+            if !candidateValue.isEmpty, !isMachineHeader, !isNextLocationHeader {
+                locationAddress = candidateValue
+                index = candidateIndex + 1
+            }
+        } else {
+            index = locationIndex + 1
+        }
 
         let locationPayload = LocationPayload(id: slug(from: locationName),
                                               name: locationName,
