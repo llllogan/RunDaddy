@@ -15,23 +15,28 @@ struct MailIntegrationSheet: View {
     let recipientEmail: String
 
     @Environment(\.dismiss) private var dismiss
+    @State private var navigationPath: [GoogleSpreadsheet] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             content
                 .navigationTitle("Google Sheets")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") {
+                        Button {
                             dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
                         }
                     }
 
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Refresh") {
+                        Button {
                             Task {
                                 await viewModel.refresh(webhookURL: webhookURL, apiKey: apiKey)
                             }
+                        } label: {
+                            Image(systemName: "repeat")
                         }
                         .disabled(viewModel.isLoading)
                     }
@@ -39,19 +44,13 @@ struct MailIntegrationSheet: View {
                 .task {
                     await viewModel.refresh(webhookURL: webhookURL, apiKey: apiKey)
                 }
-        }
-        .alert("Export Failed", isPresented: Binding(get: {
-            viewModel.exportErrorMessage != nil
-        }, set: { newValue in
-            if !newValue {
-                viewModel.clearExportState()
-            }
-        })) {
-            Button("OK", role: .cancel) {
-                viewModel.clearExportState()
-            }
-        } message: {
-            Text(viewModel.exportErrorMessage ?? "")
+                .navigationDestination(for: GoogleSpreadsheet.self) { spreadsheet in
+                    MailIntegrationSendView(viewModel: viewModel,
+                                            spreadsheet: spreadsheet,
+                                            webhookURL: webhookURL,
+                                            apiKey: apiKey,
+                                            recipientEmail: recipientEmail)
+                }
         }
     }
 
@@ -78,34 +77,10 @@ struct MailIntegrationSheet: View {
                                    systemImage: "tablecells",
                                    description: Text("Try refreshing or check your integration settings."))
         } else {
-            List {
-                if viewModel.exportResult != nil {
-                    Section {
-                        Label {
-                            Text("Please check your emails.")
-                                .font(.headline)
-                        } icon: {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        }
-                        .symbolRenderingMode(.hierarchical)
-                    }
-                }
-
-                ForEach(viewModel.spreadsheets, id: \.id) { spreadsheet in
-                    Button {
-                        Task {
-                            await viewModel.export(spreadsheet: spreadsheet,
-                                                   webhookURL: webhookURL,
-                                                   apiKey: apiKey,
-                                                   recipientEmail: recipientEmail)
-                        }
-                    } label: {
-                        GoogleSpreadsheetRow(spreadsheet: spreadsheet)
-                            .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isExporting)
+            List(viewModel.spreadsheets, id: \.id) { spreadsheet in
+                NavigationLink(value: spreadsheet) {
+                    GoogleSpreadsheetRow(spreadsheet: spreadsheet)
+                        .padding(.vertical, 8)
                 }
             }
             .listStyle(.insetGrouped)
@@ -146,6 +121,79 @@ private struct GoogleSpreadsheetRow: View {
         GoogleSpreadsheetRow(spreadsheet: .preview)
     }
     .listStyle(.insetGrouped)
+}
+
+private struct MailIntegrationSendView: View {
+    @ObservedObject var viewModel: MailIntegrationViewModel
+    let spreadsheet: GoogleSpreadsheet
+    let webhookURL: String
+    let apiKey: String
+    let recipientEmail: String
+
+    @State private var didStartSending = false
+
+    var body: some View {
+        VStack(spacing: 28) {
+            if let export = viewModel.exportResult,
+               export.spreadsheet.id == spreadsheet.id && !viewModel.isExporting {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(.green)
+                    .symbolRenderingMode(.hierarchical)
+
+                Text("Please check your emails.")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                Text("We sent \(spreadsheet.name) to \(export.recipient).")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else if let error = viewModel.exportErrorMessage, !error.isEmpty, !viewModel.isExporting {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.orange)
+                    .symbolRenderingMode(.hierarchical)
+
+                Text(error)
+                    .multilineTextAlignment(.center)
+
+                Button("Try Again") {
+                    Task {
+                        await sendExport()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(1.2)
+
+                Text("Sending email…")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle(spreadsheet.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard !didStartSending else { return }
+            didStartSending = true
+            await sendExport()
+        }
+        .onDisappear {
+            viewModel.clearExportState()
+        }
+    }
+
+    private func sendExport() async {
+        await viewModel.export(spreadsheet: spreadsheet,
+                               webhookURL: webhookURL,
+                               apiKey: apiKey,
+                               recipientEmail: recipientEmail)
+    }
 }
 
 private extension GoogleSpreadsheet {
