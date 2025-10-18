@@ -167,7 +167,7 @@ struct RunDetailView: View {
                 } else {
                     ForEach(locationSections) { section in
                         NavigationLink {
-                            RunLocationDetailView(section: section)
+                            RunLocationDetailView(run: run, section: section)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Order \(formattedOrderDescription(for: section.packOrder))")
@@ -224,7 +224,17 @@ struct RunDetailView: View {
 }
 
 fileprivate struct RunLocationDetailView: View {
+    @EnvironmentObject private var sessionController: PackingSessionController
+    let run: Run
     let section: RunLocationSection
+
+    private var locationRunCoils: [RunCoil] {
+        section.machines.flatMap(\.coils)
+    }
+
+    private var hasPackedItems: Bool {
+        locationRunCoils.contains(where: \.packed)
+    }
 
     var body: some View {
         List {
@@ -258,6 +268,39 @@ fileprivate struct RunLocationDetailView: View {
         }
         .navigationTitle(section.location.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    sessionController.beginSession(for: run)
+                } label: {
+                    Image(systemName: "tray.and.arrow.down")
+                }
+                .disabled(locationRunCoils.isEmpty)
+                .accessibilityLabel("Start packing session")
+
+                Menu {
+                    Button {
+                        markAllItemsAsUnpacked()
+                    } label: {
+                        Label("Mark All Unpacked", systemImage: "arrow.counterclockwise")
+                    }
+                    .disabled(!hasPackedItems)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .disabled(locationRunCoils.isEmpty)
+                .accessibilityLabel("Location actions")
+            }
+        }
+    }
+
+    private func markAllItemsAsUnpacked() {
+        guard hasPackedItems else { return }
+        withAnimation {
+            for runCoil in locationRunCoils {
+                runCoil.packed = false
+            }
+        }
     }
 }
 
@@ -503,10 +546,11 @@ fileprivate struct LocationOrderEditor: View {
 #Preview("Location Detail") {
     NavigationStack {
         if let locationSection = RunDetailView.locationSections(for: PreviewFixtures.sampleRun).first {
-            RunLocationDetailView(section: locationSection)
+            RunLocationDetailView(run: PreviewFixtures.sampleRun, section: locationSection)
         } else {
             Text("Missing preview data")
         }
     }
+    .environmentObject(PackingSessionController())
     .modelContainer(PreviewFixtures.container)
 }
