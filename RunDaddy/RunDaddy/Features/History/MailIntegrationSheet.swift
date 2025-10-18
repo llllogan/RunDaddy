@@ -16,6 +16,7 @@ struct MailIntegrationSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var navigationPath: [GoogleSpreadsheet] = []
+    @State private var previousNavigationPath: [GoogleSpreadsheet] = []
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -51,6 +52,25 @@ struct MailIntegrationSheet: View {
                                             apiKey: apiKey,
                                             recipientEmail: recipientEmail)
                 }
+        }
+        .interactiveDismissDisabled(viewModel.isExporting)
+        .onAppear {
+            previousNavigationPath = navigationPath
+        }
+        .onChange(of: navigationPath) { _, newValue in
+            guard viewModel.isExporting else {
+                previousNavigationPath = newValue
+                return
+            }
+
+            guard newValue.count >= previousNavigationPath.count else {
+                DispatchQueue.main.async {
+                    navigationPath = previousNavigationPath
+                }
+                return
+            }
+
+            previousNavigationPath = newValue
         }
     }
 
@@ -130,6 +150,7 @@ private struct MailIntegrationSendView: View {
     let apiKey: String
     let recipientEmail: String
 
+    @Environment(\.dismiss) private var dismiss
     @State private var didStartSending = false
 
     var body: some View {
@@ -178,6 +199,17 @@ private struct MailIntegrationSendView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(spreadsheet.name)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Close", systemImage: "xmark")
+                }
+                .disabled(viewModel.isExporting)
+            }
+        }
         .task {
             guard !didStartSending else { return }
             didStartSending = true
