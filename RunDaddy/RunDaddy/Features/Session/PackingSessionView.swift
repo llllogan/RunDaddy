@@ -168,26 +168,10 @@ private struct SessionContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            } else if !viewModel.visibleItemDescriptors.isEmpty {
+                SessionItemCarousel(items: viewModel.visibleItemDescriptors)
             } else if let descriptor = viewModel.currentItemDescriptor {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(descriptor.title)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-
-                    Text(descriptor.subtitle)
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    HStack(alignment: .top, spacing: 16) {
-                        SessionLabeledValue(title: "Machine", value: descriptor.machine)
-                        SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
-                        SessionLabeledValue(title: "Pointer", value: "\(descriptor.pointer)")
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                SessionItemCard(descriptor: descriptor, position: .current)
             } else {
                 ProgressView("Preparing session…")
                     .frame(maxWidth: .infinity)
@@ -277,15 +261,24 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     var currentItemDescriptor: CoilDescriptor? {
         guard let step = currentStep else { return nil }
         if case .runCoil(let runCoil) = step {
-            let coil = runCoil.coil
-            let item = coil.item
-            return CoilDescriptor(title: item.name,
-                                  subtitle: item.type.isEmpty ? item.id : "\(item.type) • \(item.id)",
-                                  machine: coil.machine.name,
-                                  pick: runCoil.pick,
-                                  pointer: coil.machinePointer)
+            return descriptor(for: runCoil)
         }
         return nil
+    }
+
+    var visibleItemDescriptors: [VisibleCoilDescriptor] {
+        guard let index = currentRunCoilIndex,
+              let current = descriptor(at: index) else { return [] }
+
+        var descriptors: [VisibleCoilDescriptor] = []
+        if let previous = descriptor(at: index - 1) {
+            descriptors.append(VisibleCoilDescriptor(position: .previous, descriptor: previous))
+        }
+        descriptors.append(VisibleCoilDescriptor(position: .current, descriptor: current))
+        if let next = descriptor(at: index + 1) {
+            descriptors.append(VisibleCoilDescriptor(position: .next, descriptor: next))
+        }
+        return descriptors
     }
 
     func startSession() {
@@ -326,12 +319,16 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     func stepForward() {
         guard !isSessionComplete else { return }
         synthesizer.stopSpeaking(at: .immediate)
-        advanceToNextStep()
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            advanceToNextStep()
+        }
     }
 
     func stepBackward() {
         synthesizer.stopSpeaking(at: .immediate)
-        moveToPreviousStep()
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            moveToPreviousStep()
+        }
     }
 
     func repeatCurrent() {
@@ -350,6 +347,14 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         return steps[currentIndex]
     }
 
+    private var currentRunCoilIndex: Int? {
+        guard let step = currentStep else { return nil }
+        if case .runCoil(let runCoil) = step {
+            return runCoils.firstIndex(where: { $0.id == runCoil.id })
+        }
+        return nil
+    }
+
     private var totalItemCount: Int {
         runCoils.count
     }
@@ -363,6 +368,22 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             return nil
         }
         return runCoil
+    }
+
+    private func descriptor(at index: Int) -> CoilDescriptor? {
+        guard index >= 0, index < runCoils.count else { return nil }
+        return descriptor(for: runCoils[index])
+    }
+
+    private func descriptor(for runCoil: RunCoil) -> CoilDescriptor {
+        let coil = runCoil.coil
+        let item = coil.item
+        return CoilDescriptor(id: runCoil.id,
+                              title: item.name,
+                              subtitle: item.type.isEmpty ? item.id : "\(item.type) • \(item.id)",
+                              machine: coil.machine.name,
+                              pick: runCoil.pick,
+                              pointer: coil.machinePointer)
     }
 
     private static func machineOrder(for runCoils: [RunCoil]) -> [String: Int] {
@@ -665,6 +686,132 @@ extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
 
 // MARK: - Supporting types
 
+private struct SessionItemCarousel: View {
+    let items: [VisibleCoilDescriptor]
+    private let spacing: CGFloat = 12
+    @State private var cardHeight: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .center) {
+            ForEach(items, id: \.descriptor.id) { item in
+                SessionItemCard(descriptor: item.descriptor, position: item.position)
+                    .offset(y: offset(for: item.position))
+                    .zIndex(zIndex(for: item.position))
+                    .transition(transition(for: item.position))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: carouselHeight)
+        .onPreferenceChange(SessionItemHeightPreferenceKey.self) { height in
+            guard height > 0 else { return }
+            if abs(height - cardHeight) > 0.5 {
+                cardHeight = height
+            }
+        }
+        .animation(.spring(response: 0.6, dampingFraction: 0.82), value: items)
+        .animation(.spring(response: 0.6, dampingFraction: 0.82), value: cardHeight)
+    }
+
+    private var carouselHeight: CGFloat {
+        guard cardHeight > 0 else { return 320 }
+        switch items.count {
+        case 3:
+            return cardHeight * 3 + spacing * 2
+        case 2:
+            return cardHeight * 2 + spacing
+        default:
+            return cardHeight
+        }
+    }
+
+    private func offset(for position: VisibleCoilDescriptor.Position) -> CGFloat {
+        guard cardHeight > 0 else { return fallbackOffset(for: position) }
+        let step = cardHeight + spacing
+        switch position {
+        case .previous:
+            return -step
+        case .current:
+            return 0
+        case .next:
+            return step
+        }
+    }
+
+    private func fallbackOffset(for position: VisibleCoilDescriptor.Position) -> CGFloat {
+        switch position {
+        case .previous:
+            return -220
+        case .current:
+            return 0
+        case .next:
+            return 220
+        }
+    }
+
+    private func zIndex(for position: VisibleCoilDescriptor.Position) -> Double {
+        switch position {
+        case .current:
+            return 3
+        case .next:
+            return 2
+        case .previous:
+            return 1
+        }
+    }
+
+    private func transition(for position: VisibleCoilDescriptor.Position) -> AnyTransition {
+        switch position {
+        case .previous:
+            return .move(edge: .top).combined(with: .opacity)
+        case .current:
+            return .opacity
+        case .next:
+            return .move(edge: .bottom).combined(with: .opacity)
+        }
+    }
+}
+
+private struct SessionItemCard: View {
+    let descriptor: CoilDescriptor
+    let position: VisibleCoilDescriptor.Position
+
+    private var isCurrent: Bool {
+        position == .current
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(descriptor.title)
+                .font(.title)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.leading)
+
+            Text(descriptor.subtitle)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: 16) {
+                SessionLabeledValue(title: "Machine", value: descriptor.machine)
+                SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
+                SessionLabeledValue(title: "Pointer", value: "\(descriptor.pointer)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .opacity(isCurrent ? 1 : 0.45)
+        .scaleEffect(isCurrent ? 1 : 0.98)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: SessionItemHeightPreferenceKey.self, value: proxy.size.height)
+            }
+        )
+        .animation(.easeInOut(duration: 0.2), value: isCurrent)
+        .accessibilityHidden(!isCurrent)
+        .allowsHitTesting(false)
+    }
+}
+
 private struct SessionLabeledValue: View {
     let title: String
     let value: String
@@ -686,12 +833,36 @@ struct MachineDescriptor {
     let location: String?
 }
 
-struct CoilDescriptor {
+struct CoilDescriptor: Identifiable, Equatable {
+    let id: String
     let title: String
     let subtitle: String
     let machine: String
     let pick: Int64
     let pointer: Int64
+}
+
+struct VisibleCoilDescriptor: Identifiable, Equatable {
+    enum Position: String {
+        case previous
+        case current
+        case next
+    }
+
+    let position: Position
+    let descriptor: CoilDescriptor
+
+    var id: String {
+        descriptor.id
+    }
+}
+
+private struct SessionItemHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 private final class SilentLoopPlayer {
