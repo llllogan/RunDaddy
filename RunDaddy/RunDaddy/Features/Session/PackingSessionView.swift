@@ -30,12 +30,6 @@ struct PackingSessionView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                ProgressView(value: viewModel.progress)
-                    .progressViewStyle(.linear)
-
-                Text(viewModel.progressDescription)
-                    .font(.headline)
-
                 SessionContentView(viewModel: viewModel)
 
                 if let message = viewModel.errorMessage {

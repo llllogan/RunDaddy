@@ -38,6 +38,8 @@ struct RootTabView: View {
         .tabViewBottomAccessory {
             if sessionController.hasActiveSession {
                 PackingSessionBar()
+            } else {
+                Text("Not currently packing")
             }
         }
         .sheet(isPresented: $sessionController.isSheetPresented,
