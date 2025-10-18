@@ -14,6 +14,7 @@ struct RunHistoryView: View {
     @Query(sort: \Run.date, order: .reverse) private var runs: [Run]
     @AppStorage("settings.webhookURL") private var webhookURL: String = ""
     @AppStorage("settings.apiKey") private var apiKey: String = ""
+    @AppStorage("settings.email") private var userEmail: String = ""
     @StateObject private var mailIntegrationViewModel = MailIntegrationViewModel()
 
     @State private var runPendingDeletion: Run?
@@ -102,7 +103,8 @@ struct RunHistoryView: View {
             .sheet(isPresented: $isMailSheetPresented) {
                 MailIntegrationSheet(viewModel: mailIntegrationViewModel,
                                      webhookURL: webhookURL,
-                                     apiKey: apiKey)
+                                     apiKey: apiKey,
+                                     recipientEmail: userEmail)
             }
         }
     }

@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import Combine
 
 struct MailIntegrationSheet: View {
     @ObservedObject var viewModel: MailIntegrationViewModel
     let webhookURL: String
     let apiKey: String
+    let recipientEmail: String
 
     @Environment(\.dismiss) private var dismiss
 
@@ -38,6 +40,19 @@ struct MailIntegrationSheet: View {
                     await viewModel.refresh(webhookURL: webhookURL, apiKey: apiKey)
                 }
         }
+        .alert("Export Failed", isPresented: Binding(get: {
+            viewModel.exportErrorMessage != nil
+        }, set: { newValue in
+            if !newValue {
+                viewModel.clearExportState()
+            }
+        })) {
+            Button("OK", role: .cancel) {
+                viewModel.clearExportState()
+            }
+        } message: {
+            Text(viewModel.exportErrorMessage ?? "")
+        }
     }
 
     @ViewBuilder
@@ -63,9 +78,35 @@ struct MailIntegrationSheet: View {
                                    systemImage: "tablecells",
                                    description: Text("Try refreshing or check your integration settings."))
         } else {
-            List(viewModel.spreadsheets, id: \.id) { spreadsheet in
-                GoogleSpreadsheetRow(spreadsheet: spreadsheet)
-                    .padding(.vertical, 8)
+            List {
+                if viewModel.exportResult != nil {
+                    Section {
+                        Label {
+                            Text("Please check your emails.")
+                                .font(.headline)
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        .symbolRenderingMode(.hierarchical)
+                    }
+                }
+
+                ForEach(viewModel.spreadsheets, id: \.id) { spreadsheet in
+                    Button {
+                        Task {
+                            await viewModel.export(spreadsheet: spreadsheet,
+                                                   webhookURL: webhookURL,
+                                                   apiKey: apiKey,
+                                                   recipientEmail: recipientEmail)
+                        }
+                    } label: {
+                        GoogleSpreadsheetRow(spreadsheet: spreadsheet)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isExporting)
+                }
             }
             .listStyle(.insetGrouped)
         }
@@ -79,12 +120,16 @@ private struct GoogleSpreadsheetRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(spreadsheet.name)
                 .font(.headline)
-            Text("Created: \(spreadsheet.dateCreated.formatted(.dateTime.year().month().day().hour().minute()))")
+            Text(spreadsheet.ownerEmail)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Owner: \(spreadsheet.ownerEmail)")
+            Text(spreadsheet.dateCreated.formatted(.dateTime.year().month().day().hour().minute()))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
+            Text(spreadsheet.url.absoluteString)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
         }
     }
 }
@@ -92,7 +137,8 @@ private struct GoogleSpreadsheetRow: View {
 #Preview {
     MailIntegrationSheet(viewModel: MailIntegrationViewModel(),
                          webhookURL: "https://example.com",
-                         apiKey: "test")
+                         apiKey: "test",
+                         recipientEmail: "preview@example.com")
 }
 
 #Preview("Spreadsheet Row") {
