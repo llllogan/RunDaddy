@@ -787,7 +787,7 @@ private struct SessionItemCard: View {
             HStack(alignment: .top, spacing: 16) {
                 SessionLabeledValue(title: "Machine", value: descriptor.machine)
                 SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
-                SessionLabeledValue(title: "Pointer", value: "\(descriptor.pointer)")
+                SessionLabeledValue(title: "Coil", value: "\(descriptor.pointer)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -51,6 +51,20 @@ final class PackingSessionController: ObservableObject {
         isSheetPresented = true
     }
 
+    func repeatActiveSession() {
+        guard let viewModel = activeSession?.viewModel else { return }
+        viewModel.repeatCurrent()
+    }
+
+    func advanceActiveSession() {
+        guard let viewModel = activeSession?.viewModel else { return }
+        if viewModel.isSessionComplete {
+            endSession()
+        } else {
+            viewModel.stepForward()
+        }
+    }
+
     func endSession() {
         guard let session = activeSession else {
             isSheetPresented = false

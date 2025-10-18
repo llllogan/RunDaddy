@@ -62,62 +62,83 @@ struct PackingSessionBar: View {
     }
 
     var body: some View {
-        Group {
-            if let viewModel {
+        if let viewModel {
+            HStack(spacing: 16) {
                 Button {
                     sessionController.expandSession()
                 } label: {
-                    PackingSessionBarContent(viewModel: viewModel, placement: placement)
+                    PackingSessionSummaryView(viewModel: viewModel)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open packing session")
-            } else {
-                EmptyView()
+                .accessibilityLabel(summaryAccessibilityLabel(for: viewModel))
+
+                Spacer(minLength: 0)
+
+                if placement != .inline {
+                    Button {
+                        sessionController.repeatActiveSession()
+                    } label: {
+                        Label("Repeat", systemImage: "arrow.uturn.left")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button {
+                    sessionController.advanceActiveSession()
+                } label: {
+                    Label("Next", systemImage: "forward")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(viewModel.isSessionComplete ? .green : .accentColor)
+                .disabled(!viewModel.isSessionComplete && !viewModel.hasActiveStep)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func summaryAccessibilityLabel(for viewModel: PackingSessionViewModel) -> String {
+        if let descriptor = viewModel.currentItemDescriptor {
+            return "Current item \(descriptor.title) on \(descriptor.machine). Tap to open session."
+        } else if viewModel.isSessionComplete {
+            return "Packing session complete. Tap to review or finish."
+        } else if let machine = viewModel.currentMachineDescriptor {
+            return "Machine \(machine.name). Tap to open session."
+        } else {
+            return "Packing session loading. Tap to open session."
         }
     }
 }
 
-private struct PackingSessionBarContent: View {
+private struct PackingSessionSummaryView: View {
     @ObservedObject var viewModel: PackingSessionViewModel
-    let placement: TabViewBottomAccessoryPlacement?
 
     var body: some View {
-        Group {
-            switch placement {
-            case .inline:
-                expandedContent
-            case .expanded:
-                expandedContent
-            default:
-                expandedContent
-            }
-        }
-    }
-
-    private var inlineContent: some View {
-        HStack {
+        HStack(spacing: 16) {
             if let descriptor = viewModel.currentItemDescriptor {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading) {
-                        Text(descriptor.title)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text(descriptor.machine)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    VStack(alignment: .center) {
-                        Text("\(descriptor.pick)")
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text("Need")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(descriptor.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(descriptor.machine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                VStack(alignment: .center, spacing: 2) {
+                    Text("\(descriptor.pick)")
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text("Need")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             } else if viewModel.isSessionComplete {
                 Text("Session complete")
@@ -139,60 +160,6 @@ private struct PackingSessionBarContent: View {
                     .font(.headline)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-    }
-
-    private var expandedContent: some View {
-        HStack {
-            if let descriptor = viewModel.currentItemDescriptor {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading) {
-                        Text(descriptor.title)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text(descriptor.machine)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    VStack(alignment: .center) {
-                        Text("\(descriptor.pick)")
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text("Need")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    ProgressView(value: viewModel.progress)
-                        .progressViewStyle(.linear)
-                        .frame(maxWidth: 90)
-                }
-            } else if viewModel.isSessionComplete {
-                Text("Session complete")
-                    .font(.headline)
-            } else if let machine = viewModel.currentMachineDescriptor {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(machine.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                    if let location = machine.location, !location.isEmpty {
-                        Text(location)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            } else {
-                Text("Preparing session…")
-                    .font(.headline)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -207,16 +174,11 @@ private struct PackingSessionBarPreview: View {
     @StateObject private var viewModel = PackingSessionViewModel(run: PreviewFixtures.sampleRun)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Inline")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            PackingSessionBarContent(viewModel: viewModel, placement: .inline)
-
-            Text("Expanded")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            PackingSessionBarContent(viewModel: viewModel, placement: .expanded)
+        HStack(spacing: 16) {
+            PackingSessionSummaryView(viewModel: viewModel)
+            Spacer(minLength: 0)
+            Button("Repeat") {}
+            Button("Next") {}
         }
         .padding()
         .background(Color(.systemGroupedBackground))
