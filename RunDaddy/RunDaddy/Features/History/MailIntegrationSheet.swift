@@ -50,7 +50,8 @@ struct MailIntegrationSheet: View {
                                             spreadsheet: spreadsheet,
                                             webhookURL: webhookURL,
                                             apiKey: apiKey,
-                                            recipientEmail: recipientEmail)
+                                            recipientEmail: recipientEmail,
+                                            onClose: { dismiss() })
                 }
         }
         .interactiveDismissDisabled(viewModel.isExporting)
@@ -115,16 +116,12 @@ private struct GoogleSpreadsheetRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(spreadsheet.name)
                 .font(.headline)
-            Text(spreadsheet.ownerEmail)
+            Text("Owner: \(spreadsheet.ownerEmail)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(spreadsheet.dateCreated.formatted(.dateTime.year().month().day().hour().minute()))
+            Text("Created: \(spreadsheet.dateCreated.formatted(.dateTime.year().month().day().hour().minute()))")
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
-            Text(spreadsheet.url.absoluteString)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
         }
     }
 }
@@ -149,8 +146,8 @@ private struct MailIntegrationSendView: View {
     let webhookURL: String
     let apiKey: String
     let recipientEmail: String
+    let onClose: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var didStartSending = false
 
     var body: some View {
@@ -203,7 +200,7 @@ private struct MailIntegrationSendView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    dismiss()
+                    onClose()
                 } label: {
                     Label("Close", systemImage: "xmark")
                 }
