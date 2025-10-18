@@ -204,7 +204,7 @@ struct RunDetailView: View {
                 Button {
                     sessionController.beginSession(for: run)
                 } label: {
-                    Image(systemName: "tray.and.arrow.down")
+                    Image(systemName: "tray.2")
                 }
                 .disabled(run.runCoils.isEmpty)
                 .accessibilityLabel("Start packing session")
@@ -273,7 +273,7 @@ fileprivate struct RunLocationDetailView: View {
                 Button {
                     sessionController.beginSession(for: run)
                 } label: {
-                    Image(systemName: "tray.and.arrow.down")
+                    Image(systemName: "tray.2")
                 }
                 .disabled(locationRunCoils.isEmpty)
                 .accessibilityLabel("Start packing session")

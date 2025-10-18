@@ -190,19 +190,9 @@ private struct CoilDetailView: View {
             Section("Coil Info") {
                 LabeledContent("Coil ID") { Text(coil.id) }
                 LabeledContent("Machine") { Text(coil.machine.name) }
-                LabeledContent("Item") {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(coil.item.id)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(coil.item.name)
-                        if !coil.item.type.isEmpty {
-                            Text(coil.item.type)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+                LabeledContent("Item") { Text(coil.item.name) }
+                LabeledContent("Item Type") { Text(coil.item.type) }
+                LabeledContent("Item Code") { Text(coil.item.id) }
                 LabeledContent("Stock Limit") { Text("\(coil.stockLimit)") }
             }
 
