@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import Foundation
 import MediaPlayer
 import SwiftData
 import SwiftUI
@@ -37,15 +38,6 @@ struct PackingSessionView: View {
 
                 SessionContentView(viewModel: viewModel)
 
-                ControlBar(viewModel: viewModel) {
-                    if let sessionController {
-                        sessionController.endSession()
-                    } else {
-                        viewModel.stopSession()
-                    }
-                    dismiss()
-                }
-
                 if let message = viewModel.errorMessage {
                     Text(message)
                         .font(.footnote)
@@ -67,7 +59,8 @@ struct PackingSessionView: View {
                         }
                         dismiss()
                     } label: {
-                        Label("Stop", systemImage: "xmark")
+                        Label("Stop", systemImage: "stop.fill")
+                            .labelStyle(.titleOnly)
                     }
                     .accessibilityLabel("Stop packing session")
                 }
@@ -82,9 +75,51 @@ struct PackingSessionView: View {
                         .accessibilityLabel("Minimize packing session")
                     }
                 }
+                
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button {
+                        viewModel.stepBackward()
+                    } label: {
+                        Label("Previous", systemImage: "backward.fill")
+                            .labelStyle(.titleOnly)
+                    }
+                    
+                    Button {
+                        viewModel.repeatCurrent()
+                    } label: {
+                        Label("Repeat", systemImage: "arrow.uturn.left")
+                            .labelStyle(.titleOnly)
+                    }
+                    
+                    Button {
+                        if viewModel.isSessionComplete {
+                            if let sessionController {
+                                sessionController.endSession()
+                            } else {
+                                viewModel.stopSession()
+                            }
+                            dismiss()
+                        } else {
+                            viewModel.stepForward()
+                        }
+                    } label: {
+                        Label(viewModel.isSessionComplete ? "Finish" : "Next",
+                              systemImage: viewModel.isSessionComplete ? "checkmark.circle" : "forward.fill")
+                        .labelStyle(.titleOnly)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(viewModel.isSessionComplete ? .green : .accentColor)
+                    .disabled(!viewModel.isSessionComplete && !viewModel.hasActiveStep)
+                }
             }
         }
         .onAppear {
+#if DEBUG
+            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+                viewModel.previewSelectFirstItem()
+                return
+            }
+#endif
             viewModel.startSession()
         }
         .onDisappear {
@@ -157,45 +192,6 @@ private struct SessionContentView: View {
                 ProgressView("Preparing session…")
                     .frame(maxWidth: .infinity)
             }
-        }
-    }
-}
-
-private struct ControlBar: View {
-    @ObservedObject var viewModel: PackingSessionViewModel
-    let finishAction: () -> Void
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Button {
-                viewModel.stepBackward()
-            } label: {
-                Label("Previous", systemImage: "backward.fill")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!viewModel.canStepBackward)
-
-            Button {
-                viewModel.repeatCurrent()
-            } label: {
-                Label("Repeat", systemImage: "arrow.uturn.left")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!viewModel.hasActiveStep)
-
-            Button {
-                if viewModel.isSessionComplete {
-                    finishAction()
-                } else {
-                    viewModel.stepForward()
-                }
-            } label: {
-                Label(viewModel.isSessionComplete ? "Finish" : "Next",
-                      systemImage: viewModel.isSessionComplete ? "checkmark.circle" : "forward.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(viewModel.isSessionComplete ? .green : .accentColor)
-            .disabled(!viewModel.isSessionComplete && !viewModel.hasActiveStep)
         }
     }
 }
@@ -765,6 +761,22 @@ private enum SessionStep {
 }
 
 #if DEBUG
+private struct PackingSessionPreviewContainer: View {
+    @StateObject private var viewModel = PackingSessionViewModel(run: PreviewFixtures.sampleRun)
+
+    var body: some View {
+        PackingSessionView(viewModel: viewModel)
+            .onAppear {
+                viewModel.previewSelectFirstItem()
+            }
+    }
+}
+
+#Preview("Packing Session") {
+    PackingSessionPreviewContainer()
+        .modelContainer(PreviewFixtures.container)
+}
+
 extension PackingSessionViewModel {
     func previewSelectFirstItem() {
         guard let index = steps.firstIndex(where: { step in

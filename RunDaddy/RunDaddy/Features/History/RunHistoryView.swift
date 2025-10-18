@@ -78,7 +78,7 @@ struct RunHistoryView: View {
                 }
             }
             .fileImporter(isPresented: $isImportingCSV,
-                          allowedContentTypes: [.commaSeparatedText],
+                          allowedContentTypes: [.commaSeparatedText, .folder],
                           allowsMultipleSelection: true) { result in
                 switch result {
                 case .failure(let error):
@@ -109,26 +109,28 @@ struct RunHistoryView: View {
         }
     }
 
-    private func importRun(from urls: [URL]) {
-        guard !urls.isEmpty else {
+    private func importRun(from selections: [URL]) {
+        guard !selections.isEmpty else {
             importErrorMessage = "No files were selected."
             return
         }
 
         var securedURLs: [URL] = []
-        securedURLs.reserveCapacity(urls.count)
+        securedURLs.reserveCapacity(selections.count)
         defer {
             securedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
         }
 
         do {
+            let csvFiles = try collectCSVFiles(from: selections, securedResources: &securedURLs)
+            guard !csvFiles.isEmpty else {
+                throw CSVImportError.noCSVFiles
+            }
+
             var payloads: [CSVRunImporter.RunLocationPayload] = []
-            for url in urls {
-                guard url.startAccessingSecurityScopedResource() else {
-                    importErrorMessage = "Unable to access \(url.lastPathComponent)."
-                    return
-                }
-                securedURLs.append(url)
+            payloads.reserveCapacity(csvFiles.count)
+
+            for url in csvFiles {
                 let payload = try csvImporter.loadLocation(from: url)
                 payloads.append(payload)
             }
@@ -340,6 +342,91 @@ struct RunHistoryView: View {
         }
 
         return "\(run.runner) - \(locationText) - \(machineText)"
+    }
+}
+
+private enum CSVImportError: LocalizedError {
+    case securityScope(String)
+    case noCSVFiles
+
+    var errorDescription: String? {
+        switch self {
+        case .securityScope(let name):
+            return "Unable to access \(name)."
+        case .noCSVFiles:
+            return "No CSV files were found in the selected location."
+        }
+    }
+}
+
+extension RunHistoryView {
+    private func collectCSVFiles(from selections: [URL],
+                                 securedResources: inout [URL]) throws -> [URL] {
+        var gatheredFiles: [URL] = []
+        var seen: Set<URL> = []
+
+        for selection in selections {
+            let files = try collectCSVFiles(at: selection, securedResources: &securedResources)
+            for file in files where seen.insert(file).inserted {
+                gatheredFiles.append(file)
+            }
+        }
+
+        gatheredFiles.sort { lhs, rhs in
+            lhs.lastPathComponent.localizedCaseInsensitiveCompare(rhs.lastPathComponent) == .orderedAscending
+        }
+        return gatheredFiles
+    }
+
+    private func collectCSVFiles(at url: URL,
+                                 securedResources: inout [URL]) throws -> [URL] {
+        guard url.startAccessingSecurityScopedResource() else {
+            throw CSVImportError.securityScope(url.lastPathComponent)
+        }
+
+        securedResources.append(url)
+
+        if url.hasDirectoryPath {
+            return try collectCSVFiles(inDirectory: url, securedResources: &securedResources)
+        }
+
+        if url.pathExtension.lowercased() == "csv" {
+            return [url]
+        }
+        return []
+    }
+
+    private func collectCSVFiles(inDirectory directory: URL,
+                                 securedResources: inout [URL]) throws -> [URL] {
+        let manager = FileManager.default
+        let enumerator = manager.enumerator(at: directory,
+                                            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                                            options: [.skipsHiddenFiles])
+
+        var files: [URL] = []
+
+        while let next = enumerator?.nextObject() as? URL {
+            let resourceValues = try next.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
+
+            if resourceValues.isDirectory == true {
+                continue
+            }
+
+            guard resourceValues.isRegularFile == true else {
+                continue
+            }
+
+            if next.pathExtension.lowercased() == "csv" {
+                if next.startAccessingSecurityScopedResource() {
+                    securedResources.append(next)
+                    files.append(next)
+                } else {
+                    throw CSVImportError.securityScope(next.lastPathComponent)
+                }
+            }
+        }
+
+        return files
     }
 }
 
