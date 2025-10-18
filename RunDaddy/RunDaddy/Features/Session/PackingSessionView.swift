@@ -460,7 +460,13 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             let item = runCoil.coil.item
             let need = max(runCoil.pick, 0)
             let needPhrase = need == 1 ? "Need one." : "Need \(need)."
-            utterance = AVSpeechUtterance(string: "\(item.name). \(needPhrase)")
+            let typeText = item.type.trimmingCharacters(in: .whitespacesAndNewlines)
+            var segments: [String] = ["\(item.name)."]
+            if !typeText.isEmpty {
+                segments.append("\(typeText).")
+            }
+            segments.append(needPhrase)
+            utterance = AVSpeechUtterance(string: segments.joined(separator: " "))
         }
 
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
