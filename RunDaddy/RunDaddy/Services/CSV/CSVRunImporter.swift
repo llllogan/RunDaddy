@@ -387,8 +387,8 @@ struct CSVRunImporter {
 
         let id = String(first)
         if segments.count >= 3 {
-            let type = segments[1]
-            let name = segments[2...].joined(separator: " - ")
+            let name = segments[1..<segments.count - 1].joined(separator: " - ")
+            let type = String(segments.last ?? "")
             return (id: id, name: name, type: type)
         } else if segments.count == 2 {
             return (id: id, name: segments[1], type: "")

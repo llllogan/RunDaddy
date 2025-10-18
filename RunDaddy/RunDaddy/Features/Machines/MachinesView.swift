@@ -111,7 +111,7 @@ private struct MachineCoilsView: View {
         if coil.item.type.isEmpty {
             return coil.item.name
         }
-        return "\(coil.item.type) - \(coil.item.name)"
+        return "\(coil.item.name) - \(coil.item.type)"
     }
 
     var body: some View {
