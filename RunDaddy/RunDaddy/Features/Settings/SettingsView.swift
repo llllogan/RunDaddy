@@ -7,11 +7,37 @@
 
 import SwiftUI
 
-private enum SettingsKeys {
+enum SettingsKeys {
     static let userName = "settings.username"
     static let userEmail = "settings.email"
     static let webhookURL = "settings.webhookURL"
     static let apiKey = "settings.apiKey"
+    static let navigationApp = "settings.navigationApp"
+}
+
+enum NavigationApp: String, CaseIterable, Identifiable {
+    case appleMaps
+    case waze
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .appleMaps:
+            return "Apple Maps"
+        case .waze:
+            return "Waze"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .appleMaps:
+            return "map"
+        case .waze:
+            return "car.fill"
+        }
+    }
 }
 
 struct SettingsView: View {
@@ -19,6 +45,15 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.userEmail) private var userEmail: String = ""
     @AppStorage(SettingsKeys.webhookURL) private var webhookURL: String = ""
     @AppStorage(SettingsKeys.apiKey) private var apiKey: String = ""
+    @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
+
+    private var navigationAppBinding: Binding<NavigationApp> {
+        Binding<NavigationApp> {
+            NavigationApp(rawValue: navigationAppRawValue) ?? .appleMaps
+        } set: { newValue in
+            navigationAppRawValue = newValue.rawValue
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -45,6 +80,16 @@ struct SettingsView: View {
                         .textContentType(.password)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+                }
+
+                Section("Navigation") {
+                    Picker("Open directions in:", selection: navigationAppBinding) {
+                        ForEach(NavigationApp.allCases) { app in
+                            Text(app.title)
+                                .tag(app)
+                        }
+                    }
+                    .pickerStyle(.inline)
                 }
             }
             .navigationTitle("Settings")

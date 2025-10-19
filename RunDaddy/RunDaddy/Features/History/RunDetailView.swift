@@ -37,8 +37,13 @@ fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
 struct RunDetailView: View {
     @Bindable var run: Run
     @EnvironmentObject private var sessionController: PackingSessionController
-    @Environment(\.haptics) private var haptics
+    @Environment(\.openURL) private var openURL
+    @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
     @State private var isPresentingOrderEditor = false
+
+    private var navigationApp: NavigationApp {
+        NavigationApp(rawValue: navigationAppRawValue) ?? .appleMaps
+    }
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
@@ -121,6 +126,10 @@ struct RunDetailView: View {
         run.runCoils.filter(\.packed).count
     }
 
+    private var hasPackedItems: Bool {
+        run.runCoils.contains(where: \.packed)
+    }
+
     private var navigationTitle: String {
         run.date.formatted(.dateTime.day().month().year())
     }
@@ -193,24 +202,72 @@ struct RunDetailView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button {
-                    haptics.secondaryButtonTap()
-                    isPresentingOrderEditor = true
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down")
-                }
-                .disabled(locationSections.count <= 1)
-                .accessibilityLabel("Reorder locations")
-
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     haptics.prominentActionTap()
                     sessionController.beginSession(for: run)
                 } label: {
-                    Image(systemName: "tray.2")
+                    Label("Start Packing Session", systemImage: "tray.2")
                 }
                 .disabled(run.runCoils.isEmpty)
-                .accessibilityLabel("Start packing session")
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    ForEach(locationSections) { section in
+                        Button {
+                            openDirections(to: section.location)
+                        } label: {
+                            Label(section.location.name, systemImage: "mappin.and.ellipse")
+                        }
+                        .disabled(mapsURL(for: section.location) == nil)
+                    }
+                } label: {
+                    Label("Directions", systemImage: "map")
+                }
+                .disabled(locationSections.isEmpty)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button {
+                        sessionController.beginSession(for: run)
+                    } label: {
+                        Label("Start Packing Session", systemImage: "tray.2")
+                    }
+                    .disabled(run.runCoils.isEmpty)
+                    
+                    Button {
+                        isPresentingOrderEditor = true
+                    } label: {
+                        Label("Reorder Locations", systemImage: "arrow.up.arrow.down")
+                    }
+                    .disabled(locationSections.count <= 1)
+
+                    Button {
+                        markAllRunItemsAsUnpacked()
+                    } label: {
+                        Label("Reset Packing Status for All Locations", systemImage: "arrow.counterclockwise")
+                    }
+                    .disabled(!hasPackedItems)
+                    
+                    Divider()
+                    
+                    Menu {
+                        ForEach(locationSections) { section in
+                            Button {
+                                openDirections(to: section.location)
+                            } label: {
+                                Label(section.location.name, systemImage: "mappin.and.ellipse")
+                            }
+                            .disabled(mapsURL(for: section.location) == nil)
+                        }
+                    } label: {
+                        Label("Directions", systemImage: "map")
+                    }
+                    .disabled(locationSections.isEmpty)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Run actions")
             }
         }
         .sheet(isPresented: $isPresentingOrderEditor) {
@@ -222,6 +279,35 @@ struct RunDetailView: View {
             LocationOrderEditor(items: items) { updatedItems in
                 applyLocationOrder(updatedItems)
             }
+        }
+    }
+
+    private func markAllRunItemsAsUnpacked() {
+        guard hasPackedItems else { return }
+        withAnimation {
+            for runCoil in run.runCoils {
+                runCoil.packed = false
+            }
+        }
+    }
+
+    private func openDirections(to location: Location) {
+        guard let url = mapsURL(for: location) else { return }
+        openURL(url)
+    }
+
+    private func mapsURL(for location: Location) -> URL? {
+        let trimmedAddress = location.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else { return nil }
+
+        guard let encodedAddress = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        switch navigationApp {
+        case .appleMaps:
+            return URL(string: "http://maps.apple.com/?q=\(encodedAddress)")
+        case .waze:
+            return URL(string: "https://www.waze.com/ul?q=\(encodedAddress)&navigate=yes")
         }
     }
 }
@@ -273,29 +359,26 @@ fileprivate struct RunLocationDetailView: View {
         .navigationTitle(section.location.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button {
-                    haptics.prominentActionTap()
-                    sessionController.beginSession(for: run)
-                } label: {
-                    Image(systemName: "tray.2")
-                }
-                .disabled(locationRunCoils.isEmpty)
-                .accessibilityLabel("Start packing session")
-
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    Button {
+                        sessionController.beginSession(for: run)
+                    } label: {
+                        Label("Start Packing", systemImage: "tray.2")
+                    }
+                    .disabled(locationRunCoils.isEmpty)
+                    .accessibilityLabel("Start packing session")
                     Button {
                         haptics.secondaryButtonTap()
                         markAllItemsAsUnpacked()
                     } label: {
-                        Label("Mark All Unpacked", systemImage: "arrow.counterclockwise")
+                        Label("Reset Packing Status", systemImage: "arrow.counterclockwise")
                     }
                     .disabled(!hasPackedItems)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .disabled(locationRunCoils.isEmpty)
-                .accessibilityLabel("Location actions")
+                .accessibilityLabel("Run actions")
             }
         }
     }
@@ -315,7 +398,8 @@ fileprivate struct CoilRow: View {
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.haptics) private var haptics
     @Bindable var runCoil: RunCoil
-    @State private var presentedAlert: AlertKind?
+    @State private var isDeleteConfirmationPresented = false
+    @State private var isSessionRestartAlertPresented = false
     @State private var pendingPackedValue: Bool = false
 
     private var coil: Coil { runCoil.coil }
@@ -356,34 +440,34 @@ fileprivate struct CoilRow: View {
             labelValue(title: "Need", value: runCoil.pick)
         }
         .padding(.vertical, 2)
-        .swipeActions(edge: .leading) {
-            Button(role: .destructive) {
-                haptics.destructiveActionTap()
-                presentedAlert = .delete
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button {
+                isDeleteConfirmationPresented = true
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .tint(.red)
         }
-        .alert(item: $presentedAlert) { kind in
-            switch kind {
-            case .delete:
-                return Alert(title: Text("Remove Item?"),
-                             message: Text("Are you sure you want to remove \(itemDescriptor) from this run?"),
-                             primaryButton: .destructive(Text("Delete"), action: deleteRunCoil),
-                             secondaryButton: .cancel(Text("Cancel")) {
-                                 haptics.secondaryButtonTap()
-                                 presentedAlert = nil
-                             })
-            case .sessionRestart:
-                return Alert(title: Text("Packing Session Active"),
-                             message: Text("To manually check this item off, your packing session has to be stopped and restarted, continue?"),
-                             primaryButton: .cancel(Text("No")) {
-                                 haptics.secondaryButtonTap()
-                                 pendingPackedValue = false
-                                 presentedAlert = nil
-                             },
-                             secondaryButton: .default(Text("Continue"), action: handleSessionRestartContinue))
+        .confirmationDialog("Remove Item?",
+                            isPresented: $isDeleteConfirmationPresented,
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                deleteRunCoil()
             }
+            Button("Cancel") { }
+        } message: {
+            Text("Are you sure you want to remove \(itemDescriptor) from this run?")
+        }
+        .alert("Packing Session Active",
+               isPresented: $isSessionRestartAlertPresented) {
+            Button("No", role: .cancel) {
+                pendingPackedValue = false
+            }
+            Button("Continue") {
+                handleSessionRestartContinue()
+            }
+        } message: {
+            Text("To manually check this item off, your packing session has to be stopped and restarted, continue?")
         }
     }
 
@@ -431,7 +515,7 @@ fileprivate struct CoilRow: View {
         if newValue && isSessionRunningForRun {
             haptics.warning()
             pendingPackedValue = newValue
-            presentedAlert = .sessionRestart
+            isSessionRestartAlertPresented = true
         } else {
             applyToggle(newValue)
         }
@@ -461,14 +545,14 @@ fileprivate struct CoilRow: View {
             }
             modelContext.delete(runCoil)
         }
-        presentedAlert = nil
+        isDeleteConfirmationPresented = false
     }
 
     private func handleSessionRestartContinue() {
         haptics.warning()
         guard isSessionRunningForRun else {
             applyToggle(pendingPackedValue)
-            presentedAlert = nil
+            isSessionRestartAlertPresented = false
             pendingPackedValue = false
             return
         }
@@ -476,20 +560,8 @@ fileprivate struct CoilRow: View {
         applyToggle(pendingPackedValue)
         sessionController.endSession()
         sessionController.beginSession(for: run)
-        presentedAlert = nil
+        isSessionRestartAlertPresented = false
         pendingPackedValue = false
-    }
-
-    private enum AlertKind: Identifiable {
-        case delete
-        case sessionRestart
-
-        var id: Int {
-            switch self {
-            case .delete: return 0
-            case .sessionRestart: return 1
-            }
-        }
     }
 }
 
