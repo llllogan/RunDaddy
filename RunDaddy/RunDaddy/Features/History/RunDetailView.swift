@@ -38,7 +38,12 @@ struct RunDetailView: View {
     @Bindable var run: Run
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.openURL) private var openURL
+    @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
     @State private var isPresentingOrderEditor = false
+
+    private var navigationApp: NavigationApp {
+        NavigationApp(rawValue: navigationAppRawValue) ?? .appleMaps
+    }
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
@@ -216,7 +221,7 @@ struct RunDetailView: View {
                         .disabled(mapsURL(for: section.location) == nil)
                     }
                 } label: {
-                    Label("Directions", systemImage: "map")
+                    Label("Directins", systemImage: "map")
                 }
                 .disabled(locationSections.isEmpty)
             }
@@ -255,7 +260,7 @@ struct RunDetailView: View {
                             .disabled(mapsURL(for: section.location) == nil)
                         }
                     } label: {
-                        Label("Directions", systemImage: "map")
+                        Label("Directins", systemImage: "map")
                     }
                     .disabled(locationSections.isEmpty)
                 } label: {
@@ -294,10 +299,15 @@ struct RunDetailView: View {
         let trimmedAddress = location.address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else { return nil }
 
-        guard let encodedQuery = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+        guard let encodedAddress = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             return nil
         }
-        return URL(string: "http://maps.apple.com/?q=\(encodedQuery)")
+        switch navigationApp {
+        case .appleMaps:
+            return URL(string: "http://maps.apple.com/?q=\(encodedAddress)")
+        case .waze:
+            return URL(string: "https://www.waze.com/ul?q=\(encodedAddress)&navigate=yes")
+        }
     }
 }
 
@@ -627,4 +637,3 @@ fileprivate struct LocationOrderEditor: View {
     .environmentObject(PackingSessionController())
     .modelContainer(PreviewFixtures.container)
 }
-
