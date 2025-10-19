@@ -37,6 +37,7 @@ fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
 struct RunDetailView: View {
     @Bindable var run: Run
     @EnvironmentObject private var sessionController: PackingSessionController
+    @Environment(\.openURL) private var openURL
     @State private var isPresentingOrderEditor = false
 
     private var locationSections: [RunLocationSection] {
@@ -197,6 +198,29 @@ struct RunDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    sessionController.beginSession(for: run)
+                } label: {
+                    Label("Start Packing Session", systemImage: "tray.2")
+                }
+                .disabled(run.runCoils.isEmpty)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    ForEach(locationSections) { section in
+                        Button {
+                            openDirections(to: section.location)
+                        } label: {
+                            Label(section.location.name, systemImage: "mappin.and.ellipse")
+                        }
+                        .disabled(mapsURL(for: section.location) == nil)
+                    }
+                } label: {
+                    Label("Directions", systemImage: "map")
+                }
+                .disabled(locationSections.isEmpty)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {
                         sessionController.beginSession(for: run)
@@ -218,6 +242,22 @@ struct RunDetailView: View {
                         Label("Reset Packing Status for All Locations", systemImage: "arrow.counterclockwise")
                     }
                     .disabled(!hasPackedItems)
+                    
+                    Divider()
+                    
+                    Menu {
+                        ForEach(locationSections) { section in
+                            Button {
+                                openDirections(to: section.location)
+                            } label: {
+                                Label(section.location.name, systemImage: "mappin.and.ellipse")
+                            }
+                            .disabled(mapsURL(for: section.location) == nil)
+                        }
+                    } label: {
+                        Label("Directions", systemImage: "map")
+                    }
+                    .disabled(locationSections.isEmpty)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -243,6 +283,21 @@ struct RunDetailView: View {
                 runCoil.packed = false
             }
         }
+    }
+
+    private func openDirections(to location: Location) {
+        guard let url = mapsURL(for: location) else { return }
+        openURL(url)
+    }
+
+    private func mapsURL(for location: Location) -> URL? {
+        let trimmedAddress = location.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else { return nil }
+
+        guard let encodedQuery = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "http://maps.apple.com/?q=\(encodedQuery)")
     }
 }
 
@@ -572,3 +627,4 @@ fileprivate struct LocationOrderEditor: View {
     .environmentObject(PackingSessionController())
     .modelContainer(PreviewFixtures.container)
 }
+
