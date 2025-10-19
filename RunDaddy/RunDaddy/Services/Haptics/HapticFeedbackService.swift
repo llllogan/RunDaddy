@@ -8,11 +8,20 @@
 import Foundation
 import SwiftUI
 import UIKit
+#if canImport(CoreHaptics)
+import CoreHaptics
+#endif
 
 @MainActor
 final class HapticFeedbackService {
     static let live = HapticFeedbackService(mode: .live)
     static let preview = HapticFeedbackService(mode: .preview)
+
+    enum Feedback {
+        case impact(style: UIImpactFeedbackGenerator.FeedbackStyle, intensity: CGFloat?)
+        case notification(UINotificationFeedbackGenerator.FeedbackType)
+        case selection
+    }
 
     private enum Mode {
         case live
@@ -20,6 +29,7 @@ final class HapticFeedbackService {
     }
 
     private let mode: Mode
+    private let supportsHaptics: Bool
     private let softImpactGenerator = UIImpactFeedbackGenerator(style: .soft)
     private let lightImpactGenerator = UIImpactFeedbackGenerator(style: .light)
     private let mediumImpactGenerator = UIImpactFeedbackGenerator(style: .medium)
@@ -30,64 +40,98 @@ final class HapticFeedbackService {
 
     private init(mode: Mode) {
         self.mode = mode
-        if mode == .live {
-            prepareGenerators()
-        }
+#if canImport(CoreHaptics)
+        supportsHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
+#else
+        supportsHaptics = true
+#endif
+        prepareGeneratorsIfNeeded()
     }
 
     func primaryButtonTap() {
-        guard isLive else { return }
-        mediumImpactGenerator.prepare()
-        mediumImpactGenerator.impactOccurred(intensity: 0.9)
+        play(.impact(style: .medium, intensity: 0.9))
     }
 
     func secondaryButtonTap() {
-        guard isLive else { return }
-        softImpactGenerator.prepare()
-        softImpactGenerator.impactOccurred(intensity: 0.6)
+        play(.impact(style: .light, intensity: 0.6))
     }
 
     func prominentActionTap() {
-        guard isLive else { return }
-        heavyImpactGenerator.prepare()
-        heavyImpactGenerator.impactOccurred(intensity: 1.0)
+        play(.impact(style: .heavy, intensity: 1.0))
     }
 
     func destructiveActionTap() {
-        guard isLive else { return }
-        rigidImpactGenerator.prepare()
-        rigidImpactGenerator.impactOccurred(intensity: 1.0)
+        play(.impact(style: .rigid, intensity: 1.0))
     }
 
     func selectionChanged() {
-        guard isLive else { return }
-        selectionGenerator.prepare()
-        selectionGenerator.selectionChanged()
+        play(.selection)
     }
 
     func success() {
-        guard isLive else { return }
-        notificationGenerator.prepare()
-        notificationGenerator.notificationOccurred(.success)
+        play(.notification(.success))
     }
 
     func warning() {
-        guard isLive else { return }
-        notificationGenerator.prepare()
-        notificationGenerator.notificationOccurred(.warning)
+        play(.notification(.warning))
     }
 
     func error() {
-        guard isLive else { return }
-        notificationGenerator.prepare()
-        notificationGenerator.notificationOccurred(.error)
+        play(.notification(.error))
     }
 
-    private var isLive: Bool {
-        mode == .live
+    func play(_ feedback: Feedback) {
+        guard canPlayHaptics else { return }
+        prepareGeneratorsIfNeeded()
+
+        switch feedback {
+        case let .impact(style, intensity):
+            let generator = impactGenerator(for: style)
+            if let intensity {
+                generator.impactOccurred(intensity: intensity)
+            } else {
+                generator.impactOccurred()
+            }
+        case let .notification(type):
+            notificationGenerator.prepare()
+            notificationGenerator.notificationOccurred(type)
+        case .selection:
+            selectionGenerator.prepare()
+            selectionGenerator.selectionChanged()
+        }
     }
 
-    private func prepareGenerators() {
+    private var canPlayHaptics: Bool {
+        mode == .live && supportsHaptics
+    }
+
+    private var hasPreparedGenerators = false
+
+    private func impactGenerator(for style: UIImpactFeedbackGenerator.FeedbackStyle) -> UIImpactFeedbackGenerator {
+        switch style {
+        case .light:
+            lightImpactGenerator.prepare()
+            return lightImpactGenerator
+        case .medium:
+            mediumImpactGenerator.prepare()
+            return mediumImpactGenerator
+        case .heavy:
+            heavyImpactGenerator.prepare()
+            return heavyImpactGenerator
+        case .soft:
+            softImpactGenerator.prepare()
+            return softImpactGenerator
+        case .rigid:
+            rigidImpactGenerator.prepare()
+            return rigidImpactGenerator
+        @unknown default:
+            mediumImpactGenerator.prepare()
+            return mediumImpactGenerator
+        }
+    }
+
+    private func prepareGeneratorsIfNeeded() {
+        guard mode == .live, supportsHaptics, !hasPreparedGenerators else { return }
         softImpactGenerator.prepare()
         lightImpactGenerator.prepare()
         mediumImpactGenerator.prepare()
@@ -95,6 +139,7 @@ final class HapticFeedbackService {
         heavyImpactGenerator.prepare()
         selectionGenerator.prepare()
         notificationGenerator.prepare()
+        hasPreparedGenerators = true
     }
 }
 

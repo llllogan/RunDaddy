@@ -38,6 +38,7 @@ struct RunDetailView: View {
     @Bindable var run: Run
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.openURL) private var openURL
+    @Environment(\.haptics) private var haptics
     @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
     @State private var isPresentingOrderEditor = false
 
