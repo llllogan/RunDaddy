@@ -221,7 +221,7 @@ struct RunDetailView: View {
                         .disabled(mapsURL(for: section.location) == nil)
                     }
                 } label: {
-                    Label("Directins", systemImage: "map")
+                    Label("Directions", systemImage: "map")
                 }
                 .disabled(locationSections.isEmpty)
             }
@@ -260,7 +260,7 @@ struct RunDetailView: View {
                             .disabled(mapsURL(for: section.location) == nil)
                         }
                     } label: {
-                        Label("Directins", systemImage: "map")
+                        Label("Directions", systemImage: "map")
                     }
                     .disabled(locationSections.isEmpty)
                 } label: {

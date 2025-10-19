@@ -9,6 +9,13 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
+private struct RunSection: Identifiable {
+    let date: Date
+    let runs: [Run]
+
+    var id: Date { date }
+}
+
 struct RunHistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Run.date, order: .reverse) private var runs: [Run]
@@ -25,27 +32,48 @@ struct RunHistoryView: View {
 
     private let csvImporter = CSVRunImporter()
 
+    private var runSections: [RunSection] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: runs) { calendar.startOfDay(for: $0.date) }
+        let sortedDates = grouped.keys.sorted(by: >)
+        return sortedDates.map { date in
+            let entries = (grouped[date] ?? []).sorted { $0.date > $1.date }
+            return RunSection(date: date, runs: entries)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(runs) { run in
-                    NavigationLink {
-                        RunDetailView(run: run)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(runTitle(for: run))
-                                .font(.headline)
-                            Text(runSubtitle(for: run))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            runPendingDeletion = run
-                            isConfirmingDeletion = true
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                if runSections.isEmpty {
+                    ContentUnavailableView("No runs yet",
+                                            systemImage: "tray",
+                                            description: Text("Import a CSV to start tracking runs."))
+                        .listRowBackground(Color.clear)
+                } else {
+                    ForEach(runSections) { section in
+                        Section(section.date.formatted(.dateTime.month().day().year())) {
+                            ForEach(section.runs) { run in
+                                NavigationLink {
+                                    RunDetailView(run: run)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(runTitle(for: run))
+                                            .font(.headline)
+                                        Text(runSubtitle(for: run))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .swipeActions {
+                                    Button(role: .destructive) {
+                                        runPendingDeletion = run
+                                        isConfirmingDeletion = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -316,32 +344,27 @@ struct RunHistoryView: View {
     }
 
     private func runTitle(for run: Run) -> String {
-        let dateText = run.date.formatted(.dateTime.day().month().year())
+        let runnerName = run.runner.isEmpty ? "Unknown" : run.runner
         let locationNames = Set(run.runCoils.compactMap { $0.coil.machine.location?.name })
         if locationNames.count == 1, let name = locationNames.first {
-            return "\(name) - \(dateText)"
+            return "\(runnerName) - \(name)"
         }
         if locationNames.count > 1 {
-            return "\(dateText) - \(locationNames.count) locations"
+            return "\(runnerName) - \(locationNames.count) locations"
         }
-        return dateText
+        return runnerName
     }
 
     private func runSubtitle(for run: Run) -> String {
-        let locationIDs = Set(run.runCoils.compactMap { $0.coil.machine.location?.id })
         let machineIDs = Set(run.runCoils.map { $0.coil.machine.id })
 
-        let locationCount = locationIDs.count
         let machineCount = machineIDs.count
+        let coilCount = Set(run.runCoils.map(\.coil.id)).count
 
-        let locationText = "\(locationCount) \(locationCount == 1 ? "location" : "locations")"
         let machineText = "\(machineCount) \(machineCount == 1 ? "machine" : "machines")"
+        let coilText = "\(coilCount) \(coilCount == 1 ? "coil" : "coils")"
 
-        if run.runner.isEmpty {
-            return "\(locationText) - \(machineText)"
-        }
-
-        return "\(run.runner) - \(locationText) - \(machineText)"
+        return "\(machineText) - \(coilText)"
     }
 }
 
