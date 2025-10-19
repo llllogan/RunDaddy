@@ -56,6 +56,7 @@ struct RootTabView: View {
 struct PackingSessionBar: View {
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @Environment(\.haptics) private var haptics
 
     private var viewModel: PackingSessionViewModel? {
         sessionController.activeViewModel
@@ -65,6 +66,7 @@ struct PackingSessionBar: View {
         if let viewModel {
             HStack(spacing: 16) {
                 Button {
+                    haptics.secondaryButtonTap()
                     sessionController.expandSession()
                 } label: {
                     PackingSessionSummaryView(viewModel: viewModel)
@@ -77,6 +79,7 @@ struct PackingSessionBar: View {
 
                 if placement != .inline {
                     Button {
+                        haptics.secondaryButtonTap()
                         sessionController.repeatActiveSession()
                     } label: {
                         Label("Repeat", systemImage: "arrow.uturn.left")
@@ -86,6 +89,11 @@ struct PackingSessionBar: View {
                 }
 
                 Button {
+                    if viewModel.isSessionComplete {
+                        haptics.success()
+                    } else {
+                        haptics.prominentActionTap()
+                    }
                     sessionController.advanceActiveSession()
                 } label: {
                     Label("Next", systemImage: "forward")
@@ -170,6 +178,7 @@ private struct PackingSessionSummaryView: View {
         .modelContainer(PreviewFixtures.container)
 }
 
+#if DEBUG
 private struct PackingSessionBarPreview: View {
     @StateObject private var viewModel = PackingSessionViewModel(run: PreviewFixtures.sampleRun)
 
@@ -192,3 +201,4 @@ private struct PackingSessionBarPreview: View {
     PackingSessionBarPreview()
         .modelContainer(PreviewFixtures.container)
 }
+#endif

@@ -15,6 +15,7 @@ struct MailIntegrationSheet: View {
     let recipientEmail: String
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.haptics) private var haptics
     @State private var navigationPath: [GoogleSpreadsheet] = []
     @State private var previousNavigationPath: [GoogleSpreadsheet] = []
 
@@ -25,6 +26,7 @@ struct MailIntegrationSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
+                            haptics.secondaryButtonTap()
                             dismiss()
                         } label: {
                             Image(systemName: "xmark")
@@ -33,6 +35,7 @@ struct MailIntegrationSheet: View {
 
                     ToolbarItem(placement: .primaryAction) {
                         Button {
+                            haptics.secondaryButtonTap()
                             Task {
                                 await viewModel.refresh(webhookURL: webhookURL, apiKey: apiKey)
                             }
@@ -85,6 +88,7 @@ struct MailIntegrationSheet: View {
                     .multilineTextAlignment(.center)
 
                 Button("Try Again") {
+                    haptics.secondaryButtonTap()
                     viewModel.clearError()
                     Task {
                         await viewModel.refresh(webhookURL: webhookURL, apiKey: apiKey)
@@ -149,6 +153,7 @@ private struct MailIntegrationSendView: View {
     let onClose: () -> Void
 
     @State private var didStartSending = false
+    @Environment(\.haptics) private var haptics
 
     var body: some View {
         VStack(spacing: 28) {
@@ -177,6 +182,7 @@ private struct MailIntegrationSendView: View {
                     .multilineTextAlignment(.center)
 
                 Button("Try Again") {
+                    haptics.prominentActionTap()
                     Task {
                         await sendExport()
                     }
@@ -200,6 +206,7 @@ private struct MailIntegrationSendView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    haptics.secondaryButtonTap()
                     onClose()
                 } label: {
                     Label("Close", systemImage: "xmark")

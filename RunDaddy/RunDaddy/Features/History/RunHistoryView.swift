@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 
 struct RunHistoryView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.haptics) private var haptics
     @Query(sort: \Run.date, order: .reverse) private var runs: [Run]
     @AppStorage("settings.webhookURL") private var webhookURL: String = ""
     @AppStorage("settings.apiKey") private var apiKey: String = ""
@@ -42,6 +43,7 @@ struct RunHistoryView: View {
                     }
                     .swipeActions {
                         Button(role: .destructive) {
+                            haptics.destructiveActionTap()
                             runPendingDeletion = run
                             isConfirmingDeletion = true
                         } label: {
@@ -52,10 +54,12 @@ struct RunHistoryView: View {
             }
             .alert("Delete Run?", isPresented: $isConfirmingDeletion, presenting: runPendingDeletion) { run in
                 Button("Delete", role: .destructive) {
+                    haptics.destructiveActionTap()
                     delete(run: run)
                     runPendingDeletion = nil
                 }
                 Button("Cancel", role: .cancel) {
+                    haptics.secondaryButtonTap()
                     runPendingDeletion = nil
                 }
             } message: { run in
@@ -65,12 +69,14 @@ struct RunHistoryView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button {
+                        haptics.secondaryButtonTap()
                         isMailSheetPresented = true
                     } label: {
                         Label("Compose Email", systemImage: "envelope.badge.plus")
                     }
 
                     Button {
+                        haptics.secondaryButtonTap()
                         isImportingCSV = true
                     } label: {
                         Label("Import Run", systemImage: "plus")
@@ -95,6 +101,7 @@ struct RunHistoryView: View {
                 }
             })) {
                 Button("OK", role: .cancel) {
+                    haptics.secondaryButtonTap()
                     importErrorMessage = nil
                 }
             } message: {

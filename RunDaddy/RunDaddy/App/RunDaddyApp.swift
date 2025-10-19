@@ -34,6 +34,7 @@ struct RunDaddyApp: App {
         WindowGroup {
             RootTabView()
                 .environmentObject(sessionController)
+                .environment(\.haptics, HapticFeedbackService.live)
         }
         .modelContainer(sharedModelContainer)
     }

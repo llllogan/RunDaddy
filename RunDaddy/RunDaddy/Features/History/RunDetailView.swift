@@ -37,6 +37,7 @@ fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
 struct RunDetailView: View {
     @Bindable var run: Run
     @EnvironmentObject private var sessionController: PackingSessionController
+    @Environment(\.haptics) private var haptics
     @State private var isPresentingOrderEditor = false
 
     private var locationSections: [RunLocationSection] {
@@ -194,6 +195,7 @@ struct RunDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button {
+                    haptics.secondaryButtonTap()
                     isPresentingOrderEditor = true
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
@@ -202,6 +204,7 @@ struct RunDetailView: View {
                 .accessibilityLabel("Reorder locations")
 
                 Button {
+                    haptics.prominentActionTap()
                     sessionController.beginSession(for: run)
                 } label: {
                     Image(systemName: "tray.2")
@@ -225,6 +228,7 @@ struct RunDetailView: View {
 
 fileprivate struct RunLocationDetailView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
+    @Environment(\.haptics) private var haptics
     let run: Run
     let section: RunLocationSection
 
@@ -271,6 +275,7 @@ fileprivate struct RunLocationDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button {
+                    haptics.prominentActionTap()
                     sessionController.beginSession(for: run)
                 } label: {
                     Image(systemName: "tray.2")
@@ -280,6 +285,7 @@ fileprivate struct RunLocationDetailView: View {
 
                 Menu {
                     Button {
+                        haptics.secondaryButtonTap()
                         markAllItemsAsUnpacked()
                     } label: {
                         Label("Mark All Unpacked", systemImage: "arrow.counterclockwise")
@@ -307,6 +313,7 @@ fileprivate struct RunLocationDetailView: View {
 fileprivate struct CoilRow: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var sessionController: PackingSessionController
+    @Environment(\.haptics) private var haptics
     @Bindable var runCoil: RunCoil
     @State private var presentedAlert: AlertKind?
     @State private var pendingPackedValue: Bool = false
@@ -319,7 +326,7 @@ fileprivate struct CoilRow: View {
         if item.type.isEmpty {
             return item.name
         }
-        return "\(item.type) - \(item.name)"
+        return "\(item.name) - \(item.type)"
     }
 
     private var isAnnouncing: Bool {
@@ -351,6 +358,7 @@ fileprivate struct CoilRow: View {
         .padding(.vertical, 2)
         .swipeActions(edge: .leading) {
             Button(role: .destructive) {
+                haptics.destructiveActionTap()
                 presentedAlert = .delete
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -362,11 +370,18 @@ fileprivate struct CoilRow: View {
                 return Alert(title: Text("Remove Item?"),
                              message: Text("Are you sure you want to remove \(itemDescriptor) from this run?"),
                              primaryButton: .destructive(Text("Delete"), action: deleteRunCoil),
-                             secondaryButton: .cancel(Text("Cancel")))
+                             secondaryButton: .cancel(Text("Cancel")) {
+                                 haptics.secondaryButtonTap()
+                                 presentedAlert = nil
+                             })
             case .sessionRestart:
                 return Alert(title: Text("Packing Session Active"),
                              message: Text("To manually check this item off, your packing session has to be stopped and restarted, continue?"),
-                             primaryButton: .cancel(Text("No")),
+                             primaryButton: .cancel(Text("No")) {
+                                 haptics.secondaryButtonTap()
+                                 pendingPackedValue = false
+                                 presentedAlert = nil
+                             },
                              secondaryButton: .default(Text("Continue"), action: handleSessionRestartContinue))
             }
         }
@@ -414,6 +429,7 @@ fileprivate struct CoilRow: View {
     private func handleToggleTap() {
         let newValue = !runCoil.packed
         if newValue && isSessionRunningForRun {
+            haptics.warning()
             pendingPackedValue = newValue
             presentedAlert = .sessionRestart
         } else {
@@ -422,12 +438,18 @@ fileprivate struct CoilRow: View {
     }
 
     private func applyToggle(_ newValue: Bool) {
+        if newValue {
+            haptics.success()
+        } else {
+            haptics.selectionChanged()
+        }
         withAnimation {
             runCoil.packed = newValue
         }
     }
 
     private func deleteRunCoil() {
+        haptics.destructiveActionTap()
         let run = runCoil.run
         let identifier = runCoil.id
         if isAnnouncing {
@@ -443,6 +465,7 @@ fileprivate struct CoilRow: View {
     }
 
     private func handleSessionRestartContinue() {
+        haptics.warning()
         guard isSessionRunningForRun else {
             applyToggle(pendingPackedValue)
             presentedAlert = nil
@@ -478,6 +501,7 @@ fileprivate struct LocationOrderEditor: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.haptics) private var haptics
     @State private var items: [Item]
     private let onSave: ([Item]) -> Void
 
@@ -513,11 +537,13 @@ fileprivate struct LocationOrderEditor: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        haptics.secondaryButtonTap()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
+                        haptics.prominentActionTap()
                         saveAndDismiss()
                     }
                 }

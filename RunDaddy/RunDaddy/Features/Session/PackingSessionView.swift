@@ -14,6 +14,7 @@ import Combine
 
 struct PackingSessionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.haptics) private var haptics
     private let sessionController: PackingSessionController?
     @ObservedObject private var viewModel: PackingSessionViewModel
 
@@ -46,6 +47,7 @@ struct PackingSessionView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
+                        haptics.destructiveActionTap()
                         if let sessionController {
                             sessionController.endSession()
                         } else {
@@ -61,6 +63,7 @@ struct PackingSessionView: View {
                 if let sessionController {
                     ToolbarItem(placement: .confirmationAction) {
                         Button {
+                            haptics.secondaryButtonTap()
                             sessionController.minimizeSession()
                             dismiss()
                         } label: {
@@ -72,6 +75,7 @@ struct PackingSessionView: View {
                 
                 ToolbarItemGroup(placement: .bottomBar) {
                     Button {
+                        haptics.secondaryButtonTap()
                         viewModel.stepBackward()
                     } label: {
                         Label("Previous", systemImage: "backward.fill")
@@ -79,6 +83,7 @@ struct PackingSessionView: View {
                     }
                     
                     Button {
+                        haptics.secondaryButtonTap()
                         viewModel.repeatCurrent()
                     } label: {
                         Label("Repeat", systemImage: "arrow.uturn.left")
@@ -86,6 +91,11 @@ struct PackingSessionView: View {
                     }
                     
                     Button {
+                        if viewModel.isSessionComplete {
+                            haptics.success()
+                        } else {
+                            haptics.prominentActionTap()
+                        }
                         if viewModel.isSessionComplete {
                             if let sessionController {
                                 sessionController.endSession()
@@ -505,7 +515,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
                                          mode: .spokenAudio,
                                          options: [.duckOthers,
                                                    .interruptSpokenAudioAndMixWithOthers,
-                                                   .allowBluetooth,
+                                                   .allowBluetoothHFP,
                                                    .allowBluetoothA2DP,
                                                    .allowAirPlay])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
