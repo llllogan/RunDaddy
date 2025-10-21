@@ -220,7 +220,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
                 if lhsOrder != rhsOrder {
                     return lhsOrder < rhsOrder
                 }
-                return lhs.coil.machinePointer < rhs.coil.machinePointer
+                return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
             }
         self.runCoils = filtered
         self.steps = PackingSessionViewModel.buildSteps(from: filtered)
@@ -395,7 +395,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             if lhs.packOrder != rhs.packOrder {
                 return lhs.packOrder < rhs.packOrder
             }
-            return lhs.coil.machinePointer < rhs.coil.machinePointer
+            return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
         }
         var order: [String: Int] = [:]
         for (index, runCoil) in sorted.enumerated() {
@@ -803,7 +803,7 @@ private struct SessionItemCard: View {
             HStack(alignment: .top, spacing: 16) {
                 SessionLabeledValue(title: "Machine", value: descriptor.machine)
                 SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
-                SessionLabeledValue(title: "Coil", value: "\(descriptor.pointer)")
+                SessionLabeledValue(title: "Coil", value: descriptor.pointer)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -849,7 +849,7 @@ struct CoilDescriptor: Identifiable, Equatable {
     let subtitle: String
     let machine: String
     let pick: Int64
-    let pointer: Int64
+    let pointer: String
 }
 
 struct VisibleCoilDescriptor: Identifiable, Equatable {

@@ -30,12 +30,12 @@ enum PreviewFixtures {
         let locationA = Location(id: "LOC001", name: "Preview Warehouse", address: "123 Example Street")
         let machineA = Machine(id: "M001", name: "Preview Machine", locationLabel: "Preview Warehouse", location: locationA)
         let itemA = Item(id: "ITEM001", name: "Sample Snack", type: "Snack")
-        let coilA = Coil(id: "M001-10", machinePointer: 10, stockLimit: 5, machine: machineA, item: itemA)
+        let coilA = Coil(id: "M001-10", machinePointer: "10", stockLimit: 5, machine: machineA, item: itemA)
 
         let locationB = Location(id: "LOC002", name: "Preview Cafe", address: "456 Sample Road")
         let machineB = Machine(id: "M002", name: "Preview Freezer", locationLabel: "Preview Cafe", location: locationB)
         let itemB = Item(id: "ITEM002", name: "Frozen Treat", type: "Dessert")
-        let coilB = Coil(id: "M002-04", machinePointer: 4, stockLimit: 8, machine: machineB, item: itemB)
+        let coilB = Coil(id: "M002-04", machinePointer: "04", stockLimit: 8, machine: machineB, item: itemB)
 
         let run = Run(id: "RUN-PREVIEW", runner: "Preview Runner", date: Date())
         let runCoilA = RunCoil(id: "RUNCOIL-A", pick: 3, packOrder: 1, packed: false, run: run, coil: coilA)

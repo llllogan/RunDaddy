@@ -103,7 +103,7 @@ private struct MachineCoilsView: View {
             if lhs.machinePointer == rhs.machinePointer {
                 return lhs.id < rhs.id
             }
-            return lhs.machinePointer < rhs.machinePointer
+            return lhs.machinePointer.localizedStandardCompare(rhs.machinePointer) == .orderedAscending
         }
     }
 

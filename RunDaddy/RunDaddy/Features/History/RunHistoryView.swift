@@ -231,7 +231,7 @@ struct RunHistoryView: View {
 
         run.runCoils.sort { lhs, rhs in
             if lhs.packOrder == rhs.packOrder {
-                return lhs.coil.machinePointer < rhs.coil.machinePointer
+                return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
             }
             return lhs.packOrder < rhs.packOrder
         }

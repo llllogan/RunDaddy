@@ -41,7 +41,7 @@ struct CSVRunImporter {
         let id: String
         let machineID: String
         let itemID: String
-        var machinePointer: Int64
+        var machinePointer: String
         var stockLimit: Int64
     }
 
@@ -182,6 +182,8 @@ struct CSVRunImporter {
                 throw ImportError.missingItemTable(machineID)
             }
 
+            let headerRow = rows[tableHeaderIndex]
+            let columnIndices = inferItemTableColumns(from: headerRow)
             index = tableHeaderIndex + 1
 
             while index < rows.count {
@@ -217,22 +219,28 @@ struct CSVRunImporter {
                     }
                 }
 
-                guard row.count >= 9 else {
+                guard row.count > columnIndices.maxIndex else {
                     index += 1
                     continue
                 }
 
-                let coilPointerValue = sanitize(row[safe: 4] ?? "")
-                let itemNameValue = stripQuotes(from: sanitize(row[safe: 5] ?? ""))
+                let coilPointerRawValue = sanitize(row[safe: columnIndices.pointer] ?? "")
+                let itemNameValue = stripQuotes(from: sanitize(row[safe: columnIndices.item] ?? ""))
 
                 if itemNameValue.isEmpty {
                     index += 1
                     continue
                 }
 
-                let parValue = parseInt64(from: sanitize(row[safe: 7] ?? ""))
-                let needValue = parseInt64(from: sanitize(row[safe: 8] ?? ""))
-                let machinePointer = parseInt64(from: coilPointerValue)
+                let coilPointerValue = stripQuotes(from: coilPointerRawValue)
+                let machinePointer = coilPointerValue.isEmpty ? coilPointerRawValue : coilPointerValue
+                if machinePointer.isEmpty {
+                    index += 1
+                    continue
+                }
+
+                let totalValue = parseInt64(from: sanitize(row[safe: columnIndices.total] ?? ""))
+                let parValue = parseInt64(from: sanitize(row[safe: columnIndices.par] ?? ""))
 
                 let itemComponents = parseItemNameComponents(from: itemNameValue)
                 let itemID = itemComponents.id
@@ -257,10 +265,10 @@ struct CSVRunImporter {
                     coilsByID[coilID] = coilPayload
                 }
 
-                if needValue > 0 {
+                if totalValue > 0 {
                     let runCoilPayload = RunCoilPayload(id: UUID().uuidString,
                                                         coilID: coilID,
-                                                        pick: needValue)
+                                                        pick: totalValue)
                     runCoils.append(runCoilPayload)
                 }
 
@@ -397,8 +405,51 @@ struct CSVRunImporter {
         }
     }
 
-    private func coilIdentifier(machineID: String, pointer: Int64, itemID: String) -> String {
+    private func coilIdentifier(machineID: String, pointer: String, itemID: String) -> String {
         "\(machineID)-\(pointer)-\(itemID)"
+    }
+
+    private struct ItemTableColumns {
+        let pointer: Int
+        let item: Int
+        let total: Int
+        let par: Int
+
+        var maxIndex: Int {
+            [pointer, item, total, par].max() ?? 0
+        }
+    }
+
+    private func inferItemTableColumns(from headerRow: [String]) -> ItemTableColumns {
+        let normalized = headerRow.enumerated().map { offset, value -> (index: Int, value: String) in
+            let cleaned = stripQuotes(from: sanitize(value)).lowercased()
+            return (index: offset, value: cleaned)
+        }
+
+        func firstIndex(matching keywords: [String]) -> Int? {
+            for entry in normalized {
+                guard !entry.value.isEmpty else { continue }
+                for keyword in keywords where entry.value.contains(keyword) {
+                    return entry.index
+                }
+            }
+            return nil
+        }
+
+        let pointerIndex = firstIndex(matching: ["pointer", "coil"]) ?? 4
+        let itemIndex = firstIndex(matching: ["item"]) ?? 5
+        let totalIndex = firstIndex(matching: ["total"]) ??
+            firstIndex(matching: ["need"]) ??
+            firstIndex(matching: ["current"]) ??
+            6
+        let parIndex = firstIndex(matching: ["par"]) ??
+            firstIndex(matching: ["stock"]) ??
+            (totalIndex == 6 ? 7 : totalIndex + 1)
+
+        return ItemTableColumns(pointer: pointerIndex,
+                                item: itemIndex,
+                                total: totalIndex,
+                                par: parIndex)
     }
 
     private func sanitize(_ value: String) -> String {
