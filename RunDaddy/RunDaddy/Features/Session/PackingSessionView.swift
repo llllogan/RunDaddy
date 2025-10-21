@@ -220,7 +220,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
                 if lhsOrder != rhsOrder {
                     return lhsOrder < rhsOrder
                 }
-                return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
+                return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedDescending
             }
         self.runCoils = filtered
         self.steps = PackingSessionViewModel.buildSteps(from: filtered)
@@ -395,7 +395,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             if lhs.packOrder != rhs.packOrder {
                 return lhs.packOrder < rhs.packOrder
             }
-            return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
+            return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedDescending
         }
         var order: [String: Int] = [:]
         for (index, runCoil) in sorted.enumerated() {
