@@ -89,7 +89,16 @@ struct PackingSessionView: View {
                         Label("Repeat", systemImage: "arrow.uturn.left")
                             .labelStyle(.titleOnly)
                     }
-                    
+
+                    Button {
+                        haptics.secondaryButtonTap()
+                        viewModel.skipCurrent()
+                    } label: {
+                        Label("Skip", systemImage: "forward.end.fill")
+                            .labelStyle(.titleOnly)
+                    }
+                    .disabled(viewModel.isSessionComplete || !viewModel.hasActiveStep)
+
                     Button {
                         if viewModel.isSessionComplete {
                             haptics.success()
@@ -196,7 +205,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     @Published private(set) var currentRunCoilID: String?
 
     let run: Run
-    private let runCoils: [RunCoil]
+    private let runCoilGroups: [RunCoilGroup]
     private let steps: [SessionStep]
     private let synthesizer = AVSpeechSynthesizer()
     private lazy var sessionVoice: AVSpeechSynthesisVoice? = AVSpeechSynthesisVoice.preferredSiriVoice(forLanguage: "en-AU")
@@ -222,8 +231,9 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
                 }
                 return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedDescending
             }
-        self.runCoils = filtered
-        self.steps = PackingSessionViewModel.buildSteps(from: filtered)
+        let grouped = PackingSessionViewModel.groupRunCoils(filtered)
+        self.runCoilGroups = grouped
+        self.steps = PackingSessionViewModel.buildSteps(from: grouped)
         super.init()
         synthesizer.delegate = self
     }
@@ -335,6 +345,14 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         }
     }
 
+    func skipCurrent() {
+        guard !isSessionComplete else { return }
+        synthesizer.stopSpeaking(at: .immediate)
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            advanceToNextStep(markCurrentAsPacked: false)
+        }
+    }
+
     func repeatCurrent() {
         synthesizer.stopSpeaking(at: .immediate)
         if isSessionComplete {
@@ -354,20 +372,20 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     private var currentRunCoilIndex: Int? {
         guard let step = currentStep else { return nil }
         if case .runCoil(let runCoil) = step {
-            return runCoils.firstIndex(where: { $0.id == runCoil.id })
+            return runCoilGroups.firstIndex(where: { $0.id == runCoil.id })
         }
         return nil
     }
 
     private var totalItemCount: Int {
-        runCoils.count
+        runCoilGroups.count
     }
 
     private var packedItemCount: Int {
-        runCoils.filter(\.packed).count
+        runCoilGroups.filter(\.isPacked).count
     }
 
-    private var activeRunCoil: RunCoil? {
+    private var activeRunCoil: RunCoilGroup? {
         guard let step = currentStep, case let .runCoil(runCoil) = step else {
             return nil
         }
@@ -375,19 +393,26 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
     }
 
     private func descriptor(at index: Int) -> CoilDescriptor? {
-        guard index >= 0, index < runCoils.count else { return nil }
-        return descriptor(for: runCoils[index])
+        guard index >= 0, index < runCoilGroups.count else { return nil }
+        return descriptor(for: runCoilGroups[index])
     }
 
-    private func descriptor(for runCoil: RunCoil) -> CoilDescriptor {
-        let coil = runCoil.coil
-        let item = coil.item
-        return CoilDescriptor(id: runCoil.id,
+    private func descriptor(for group: RunCoilGroup) -> CoilDescriptor {
+        let item = group.item
+        let subtitle: String
+        if item.type.isEmpty {
+            subtitle = item.id
+        } else {
+            subtitle = "\(item.type) • \(item.id)"
+        }
+
+        return CoilDescriptor(id: group.id,
                               title: item.name,
-                              subtitle: item.type.isEmpty ? item.id : "\(item.type) • \(item.id)",
-                              machine: coil.machine.name,
-                              pick: runCoil.pick,
-                              pointer: coil.machinePointer)
+                              subtitle: subtitle,
+                              machine: group.machine.name,
+                              pick: group.totalPick,
+                              pointer: group.pointerSummary,
+                              pointerLabel: group.pointerLabel)
     }
 
     private static func machineOrder(for runCoils: [RunCoil]) -> [String: Int] {
@@ -406,11 +431,32 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         return order
     }
 
-    private static func buildSteps(from runCoils: [RunCoil]) -> [SessionStep] {
+    private static func groupRunCoils(_ runCoils: [RunCoil]) -> [RunCoilGroup] {
+        var groups: [RunCoilGroup] = []
+        var indexByKey: [String: Int] = [:]
+
+        for runCoil in runCoils {
+            let machineID = runCoil.coil.machine.id
+            let itemID = runCoil.coil.item.id
+            let key = "\(machineID)|\(itemID)"
+
+            if let existingIndex = indexByKey[key] {
+                groups[existingIndex].add(runCoil)
+            } else {
+                let group = RunCoilGroup(primary: runCoil)
+                groups.append(group)
+                indexByKey[key] = groups.count - 1
+            }
+        }
+
+        return groups
+    }
+
+    private static func buildSteps(from runCoils: [RunCoilGroup]) -> [SessionStep] {
         var steps: [SessionStep] = []
         var lastMachineID: String?
         for runCoil in runCoils {
-            let machine = runCoil.coil.machine
+            let machine = runCoil.machine
             if lastMachineID != machine.id {
                 steps.append(.machine(machine))
                 lastMachineID = machine.id
@@ -420,9 +466,11 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         return steps
     }
 
-    private func advanceToNextStep() {
-        if let step = currentStep, case let .runCoil(runCoil) = step {
-            runCoil.packed = true
+    private func advanceToNextStep(markCurrentAsPacked: Bool = true) {
+        if markCurrentAsPacked,
+           let step = currentStep,
+           case let .runCoil(runCoil) = step {
+            runCoil.setPacked(true)
         }
 
         let nextIndex = currentIndex + 1
@@ -446,7 +494,7 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         }
 
         if let step = currentStep, case let .runCoil(runCoil) = step {
-            runCoil.packed = false
+            runCoil.setPacked(false)
         }
 
         updateNowPlayingInfo()
@@ -466,17 +514,24 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
         switch step {
         case .machine(let machine):
             utterance = AVSpeechUtterance(string: "Machine \(machine.name).")
-        case .runCoil(let runCoil):
-            let item = runCoil.coil.item
-            let need = max(runCoil.pick, 0)
-            let needPhrase = need == 1 ? "Need one." : "Need \(need)."
+        case .runCoil(let group):
+            let item = group.item
+            let need = max(group.totalPick, 0)
+            let needPhrase = "Need \(need)"
             let typeText = item.type.trimmingCharacters(in: .whitespacesAndNewlines)
-            var segments: [String] = ["\(item.name)."]
+            var segments: [String] = ["\(item.name)"]
             if !typeText.isEmpty {
-                segments.append("\(typeText).")
+                segments.append(typeText)
             }
-            segments.append(needPhrase)
-            utterance = AVSpeechUtterance(string: segments.joined(separator: " "))
+
+            if group.isGrouped {
+                segments.append("Need \(need) for \(group.membersCount) coils")
+            } else {
+                segments.append(needPhrase)
+            }
+
+            let sentence = segments.joined(separator: ", ") + "."
+            utterance = AVSpeechUtterance(string: sentence)
         }
 
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
@@ -803,7 +858,7 @@ private struct SessionItemCard: View {
             HStack(alignment: .top, spacing: 16) {
                 SessionLabeledValue(title: "Machine", value: descriptor.machine)
                 SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
-                SessionLabeledValue(title: "Coil", value: descriptor.pointer)
+                SessionLabeledValue(title: descriptor.pointerLabel, value: descriptor.pointer)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -850,6 +905,7 @@ struct CoilDescriptor: Identifiable, Equatable {
     let machine: String
     let pick: Int64
     let pointer: String
+    let pointerLabel: String
 }
 
 struct VisibleCoilDescriptor: Identifiable, Equatable {
@@ -936,9 +992,64 @@ private struct RemoteCommandToken {
     let token: Any
 }
 
+private struct RunCoilGroup: Identifiable {
+    private var members: [RunCoil]
+    private(set) var totalPick: Int64
+
+    init(primary: RunCoil) {
+        self.members = [primary]
+        self.totalPick = max(primary.pick, 0)
+    }
+
+    mutating func add(_ runCoil: RunCoil) {
+        members.append(runCoil)
+        totalPick += max(runCoil.pick, 0)
+    }
+
+    var id: String {
+        primary.id
+    }
+
+    var machine: Machine {
+        primary.coil.machine
+    }
+
+    var item: Item {
+        primary.coil.item
+    }
+
+    var pointerSummary: String {
+        isGrouped ? "\(members.count)" : members.first?.coil.machinePointer ?? ""
+    }
+
+    var pointerLabel: String {
+        isGrouped ? "Coils" : "Coil"
+    }
+
+    var membersCount: Int {
+        members.count
+    }
+
+    var isGrouped: Bool {
+        members.count > 1
+    }
+
+    var isPacked: Bool {
+        members.allSatisfy { $0.packed }
+    }
+
+    func setPacked(_ value: Bool) {
+        members.forEach { $0.packed = value }
+    }
+
+    private var primary: RunCoil {
+        members[0]
+    }
+}
+
 private enum SessionStep {
     case machine(Machine)
-    case runCoil(RunCoil)
+    case runCoil(RunCoilGroup)
 }
 
 #if DEBUG

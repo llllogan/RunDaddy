@@ -26,6 +26,13 @@ fileprivate struct RunLocationSection: Identifiable {
     var coilCount: Int { machines.reduce(into: 0) { $0 += $1.coilCount } }
 }
 
+fileprivate struct NotPackedLocationSection: Identifiable {
+    let location: Location
+    let items: [RunCoil]
+
+    var id: String { location.id }
+}
+
 fileprivate func formattedOrderDescription(for packOrder: Int) -> String {
     guard packOrder > 0 else { return "Unscheduled" }
     if packOrder == 1 {
@@ -48,6 +55,18 @@ struct RunDetailView: View {
 
     private var locationSections: [RunLocationSection] {
         Self.locationSections(for: run)
+    }
+
+    private var notPackedSections: [NotPackedLocationSection] {
+        Self.notPackedSections(for: run)
+    }
+
+    private var notPackedCount: Int {
+        notPackedSections.reduce(into: 0) { $0 += $1.items.count }
+    }
+
+    private var hasNotPackedItems: Bool {
+        notPackedCount > 0
     }
 
     fileprivate static func locationSections(for run: Run) -> [RunLocationSection] {
@@ -87,6 +106,34 @@ struct RunDetailView: View {
                 return $0.location.name.localizedCaseInsensitiveCompare($1.location.name) == .orderedAscending
             }
             return $0.packOrder < $1.packOrder
+        }
+    }
+
+    fileprivate static func notPackedSections(for run: Run) -> [NotPackedLocationSection] {
+        let filtered = run.runCoils.filter { !$0.packed && $0.pick > 0 }
+        var byLocation: [String: [RunCoil]] = [:]
+
+        for runCoil in filtered {
+            guard let location = runCoil.coil.machine.location else { continue }
+            byLocation[location.id, default: []].append(runCoil)
+        }
+
+        return byLocation.compactMap { _, runCoils in
+            guard let location = runCoils.first?.coil.machine.location else { return nil }
+
+            let sortedItems = runCoils.sorted { lhs, rhs in
+                let lhsMachine = lhs.coil.machine.name
+                let rhsMachine = rhs.coil.machine.name
+                if lhsMachine != rhsMachine {
+                    return lhsMachine.localizedCaseInsensitiveCompare(rhsMachine) == .orderedAscending
+                }
+                return lhs.coil.machinePointer.localizedStandardCompare(rhs.coil.machinePointer) == .orderedAscending
+            }
+
+            return NotPackedLocationSection(location: location, items: sortedItems)
+        }
+        .sorted {
+            $0.location.name.localizedCaseInsensitiveCompare($1.location.name) == .orderedAscending
         }
     }
 
@@ -168,6 +215,28 @@ struct RunDetailView: View {
                 }
                 LabeledContent("Packed") {
                     Text("\(packedCount) / \(totalCoils)")
+                }
+            }
+
+            Section("Not Packed") {
+                if hasNotPackedItems {
+                    NavigationLink {
+                        NotPackedItemsView(run: run)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("View items")
+                                    .font(.headline)
+                                Text("\(notPackedCount) not packed")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                    }
+                } else {
+                    Text("All items were packed.")
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -391,6 +460,45 @@ fileprivate struct RunLocationDetailView: View {
                 runCoil.packed = false
             }
         }
+    }
+}
+
+private struct NotPackedItemsView: View {
+    @Bindable var run: Run
+
+    private var sections: [NotPackedLocationSection] {
+        RunDetailView.notPackedSections(for: run)
+    }
+
+    var body: some View {
+        List {
+            if sections.isEmpty {
+                Text("All items were packed.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(sections) { section in
+                    Section(section.location.name) {
+                        ForEach(section.items) { runCoil in
+                            HStack(alignment: .center, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(runCoil.coil.item.name)
+                                        .font(.headline)
+                                    Text(runCoil.coil.machine.name)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("Need \(max(runCoil.pick, 0))")
+                                    .font(.headline)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Not Packed")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
