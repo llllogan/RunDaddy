@@ -266,7 +266,7 @@ struct RunDetailView: View {
                     }
                     .disabled(locationSections.isEmpty)
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Run actions")
             }
@@ -377,7 +377,7 @@ fileprivate struct RunLocationDetailView: View {
                     }
                     .disabled(!hasPackedItems)
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Run actions")
             }
