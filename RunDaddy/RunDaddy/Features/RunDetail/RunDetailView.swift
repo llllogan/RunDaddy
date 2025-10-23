@@ -184,38 +184,18 @@ struct RunDetailView: View {
 
     var body: some View {
         List {
-            Section("Run Details") {
-                LabeledContent("Date") {
-                    Text(run.date.formatted(.dateTime.day().month().year()))
-                }
-                if !run.runner.isEmpty {
-                    LabeledContent("Runner") {
-                        Text(run.runner)
-                    }
-                }
-                LabeledContent("Locations") {
-                    if locationCount == 1, let section = locationSections.first {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(section.location.name)
-                            if !section.location.address.isEmpty {
-                                Text(section.location.address)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } else {
-                        Text("\(locationCount)")
-                    }
-                }
-                LabeledContent("Machines") {
-                    Text("\(machineCount)")
-                }
-                LabeledContent("Total Coils") {
-                    Text("\(totalCoils)")
-                }
-                LabeledContent("Packed") {
-                    Text("\(packedCount) / \(totalCoils)")
-                }
+            Section {
+                RunOverviewBento(run: run,
+                                 locationSections: locationSections,
+                                 machineCount: machineCount,
+                                 totalCoils: totalCoils,
+                                 packedCount: packedCount,
+                                 notPackedCount: max(totalCoils - packedCount, 0))
+                    .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            } header: {
+                Text("Run Overview")
             }
 
             Section("Not Packed") {
@@ -392,30 +372,29 @@ fileprivate struct RunLocationDetailView: View {
         section.machines.flatMap(\.coils)
     }
 
+    private var packedCount: Int {
+        locationRunCoils.filter(\.packed).count
+    }
+
+    private var notPackedCount: Int {
+        max(locationRunCoils.count - packedCount, 0)
+    }
+
     private var hasPackedItems: Bool {
         locationRunCoils.contains(where: \.packed)
     }
 
     var body: some View {
         List {
-            Section("Location Details") {
-                LabeledContent("Name") {
-                    Text(section.location.name)
-                }
-                if !section.location.address.isEmpty {
-                    LabeledContent("Address") {
-                        Text(section.location.address)
-                    }
-                }
-                LabeledContent("Machines") {
-                    Text("\(section.machineCount)")
-                }
-                LabeledContent("Total Coils") {
-                    Text("\(section.coilCount)")
-                }
-                LabeledContent("Order") {
-                    Text(formattedOrderDescription(for: section.packOrder))
-                }
+            Section {
+                LocationOverviewBento(section: section,
+                                      packedCount: packedCount,
+                                      notPackedCount: notPackedCount)
+                    .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            } header: {
+                Text("Location Overview")
             }
 
             ForEach(section.machines) { machineSection in
@@ -460,6 +439,293 @@ fileprivate struct RunLocationDetailView: View {
                 runCoil.packed = false
             }
         }
+    }
+}
+
+private struct RunOverviewBento: View {
+    let run: Run
+    let locationSections: [RunLocationSection]
+    let machineCount: Int
+    let totalCoils: Int
+    let packedCount: Int
+    let notPackedCount: Int
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    }
+
+    private var items: [BentoItem] {
+        var cards: [BentoItem] = []
+
+        cards.append(
+            BentoItem(title: "Run Date",
+                      value: run.date.formatted(.dateTime.day().month().year()),
+                      subtitle: run.date.formatted(.dateTime.weekday(.wide)),
+                      symbolName: "calendar",
+                      symbolTint: .indigo)
+        )
+
+        if !run.runner.isEmpty {
+            cards.append(
+                BentoItem(title: "Runner",
+                          value: run.runner,
+                          subtitle: "Assigned",
+                          symbolName: "person.crop.circle.fill",
+                          symbolTint: .blue,
+                          allowsMultilineValue: true)
+            )
+        }
+
+        if locationSections.count == 1, let section = locationSections.first {
+            let subtitle = section.location.address.isEmpty ? nil : section.location.address
+            cards.append(
+                BentoItem(title: "Location",
+                          value: section.location.name,
+                          subtitle: subtitle,
+                          symbolName: "building.2.fill",
+                          symbolTint: .orange,
+                          allowsMultilineValue: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Locations",
+                          value: "\(locationSections.count)",
+                          subtitle: "Included in this run",
+                          symbolName: "building.2.fill",
+                          symbolTint: .orange)
+            )
+        }
+
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "\(machineCount)",
+                      subtitle: machineCount == 1 ? "machine" : "machines",
+                      symbolName: "gearshape.2.fill",
+                      symbolTint: .teal)
+        )
+
+        cards.append(
+            BentoItem(title: "Total Coils",
+                      value: "\(totalCoils)",
+                      subtitle: totalCoils == 1 ? "coil" : "coils",
+                      symbolName: "bolt.fill",
+                      symbolTint: .purple)
+        )
+
+        if totalCoils > 0 {
+            let completion = Double(packedCount) / Double(totalCoils)
+            let percent = Int((completion * 100).rounded())
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "\(packedCount)",
+                          subtitle: "\(percent)% complete",
+                          symbolName: "checkmark.circle.fill",
+                          symbolTint: .green,
+                          isProminent: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "0",
+                          subtitle: "Awaiting items",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green)
+            )
+        }
+
+        if notPackedCount > 0 {
+            cards.append(
+                BentoItem(title: "Remaining",
+                          value: "\(notPackedCount)",
+                          subtitle: "Still to pack",
+                          symbolName: "shippingbox.fill",
+                          symbolTint: .pink,
+                          isProminent: true)
+            )
+        }
+
+        return cards
+    }
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(items) { item in
+                BentoCard(item: item)
+            }
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+    }
+}
+
+private struct LocationOverviewBento: View {
+    let section: RunLocationSection
+    let packedCount: Int
+    let notPackedCount: Int
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    }
+
+    private var metricItems: [BentoItem] {
+        var cards: [BentoItem] = []
+
+        cards.append(
+            BentoItem(title: "Order",
+                      value: formattedOrderDescription(for: section.packOrder),
+                      subtitle: "Delivery sequence",
+                      symbolName: "list.number",
+                      symbolTint: .blue)
+        )
+
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "\(section.machineCount)",
+                      subtitle: section.machineCount == 1 ? "machine" : "machines",
+                      symbolName: "gearshape.2.fill",
+                      symbolTint: .teal)
+        )
+
+        cards.append(
+            BentoItem(title: "Total Coils",
+                      value: "\(section.coilCount)",
+                      subtitle: section.coilCount == 1 ? "coil" : "coils",
+                      symbolName: "bolt.fill",
+                      symbolTint: .purple)
+        )
+
+        if section.coilCount > 0 {
+            let completion = Double(packedCount) / Double(section.coilCount)
+            let percent = Int((completion * 100).rounded())
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "\(packedCount)",
+                          subtitle: "\(percent)% complete",
+                          symbolName: "checkmark.circle.fill",
+                          symbolTint: .green,
+                          isProminent: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "0",
+                          subtitle: "Awaiting items",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green)
+            )
+        }
+
+        if notPackedCount > 0 {
+            cards.append(
+                BentoItem(title: "Remaining",
+                          value: "\(notPackedCount)",
+                          subtitle: "Still to pack",
+                          symbolName: "shippingbox.fill",
+                          symbolTint: .orange,
+                          isProminent: true)
+            )
+        }
+
+        return cards
+    }
+
+    private var addressItem: BentoItem? {
+        guard !section.location.address.isEmpty else { return nil }
+        return BentoItem(title: "Address",
+                         value: section.location.address,
+                         subtitle: nil,
+                         symbolName: "mappin.circle.fill",
+                         symbolTint: .pink,
+                         allowsMultilineValue: true)
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(metricItems) { item in
+                    BentoCard(item: item)
+                }
+            }
+            if let addressItem {
+                BentoCard(item: addressItem)
+            }
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+    }
+}
+
+private struct BentoItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let value: String
+    let subtitle: String?
+    let symbolName: String
+    let symbolTint: Color
+    let isProminent: Bool
+    let allowsMultilineValue: Bool
+
+    init(title: String,
+         value: String,
+         subtitle: String? = nil,
+         symbolName: String,
+         symbolTint: Color,
+         isProminent: Bool = false,
+         allowsMultilineValue: Bool = false) {
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.symbolName = symbolName
+        self.symbolTint = symbolTint
+        self.isProminent = isProminent
+        self.allowsMultilineValue = allowsMultilineValue
+    }
+}
+
+private struct BentoCard: View {
+    let item: BentoItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: item.symbolName)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(item.symbolTint)
+                    .frame(width: 40, height: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(item.symbolTint.opacity(0.18))
+                    )
+                Text(item.title.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(item.value)
+                .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
+                .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
+                .lineLimit(item.allowsMultilineValue ? nil : 2)
+                .multilineTextAlignment(.leading)
+
+            if let subtitle = item.subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(item.allowsMultilineValue ? nil : 2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color(uiColor: .separator).opacity(0.35))
+        )
+        .accessibilityElement(children: .combine)
     }
 }
 
