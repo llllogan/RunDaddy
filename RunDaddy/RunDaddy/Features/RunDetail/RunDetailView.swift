@@ -450,10 +450,6 @@ private struct RunOverviewBento: View {
     let packedCount: Int
     let notPackedCount: Int
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
-    }
-
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
 
@@ -548,13 +544,9 @@ private struct RunOverviewBento: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(items) { item in
-                BentoCard(item: item)
-            }
-        }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 4)
+        StaggeredBentoGrid(items: items, columnCount: 2)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
     }
 }
 
@@ -562,10 +554,6 @@ private struct LocationOverviewBento: View {
     let section: RunLocationSection
     let packedCount: Int
     let notPackedCount: Int
-
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
-    }
 
     private var metricItems: [BentoItem] {
         var cards: [BentoItem] = []
@@ -641,17 +629,14 @@ private struct LocationOverviewBento: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(metricItems) { item in
-                    BentoCard(item: item)
-                }
-            }
+            StaggeredBentoGrid(items: metricItems, columnCount: 2)
+                .padding(.horizontal, 4)
             if let addressItem {
                 BentoCard(item: addressItem)
+                    .padding(.horizontal, 4)
             }
         }
         .padding(.vertical, 2)
-        .padding(.horizontal, 4)
     }
 }
 
@@ -679,6 +664,37 @@ private struct BentoItem: Identifiable {
         self.symbolTint = symbolTint
         self.isProminent = isProminent
         self.allowsMultilineValue = allowsMultilineValue
+    }
+}
+
+private struct StaggeredBentoGrid: View {
+    let items: [BentoItem]
+    let columnCount: Int
+
+    private var columns: [[BentoItem]] {
+        let count = max(columnCount, 1)
+        guard count > 1 else { return [items] }
+
+        var buckets = Array(repeating: [BentoItem](), count: count)
+        var index = 0
+        for item in items {
+            buckets[index].append(item)
+            index = (index + 1) % count
+        }
+        return buckets
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, columnItems in
+                VStack(spacing: 10) {
+                    ForEach(columnItems) { item in
+                        BentoCard(item: item)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
     }
 }
 
