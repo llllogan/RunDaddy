@@ -65,10 +65,6 @@ struct RunDetailView: View {
         notPackedSections.reduce(into: 0) { $0 += $1.items.count }
     }
 
-    private var hasNotPackedItems: Bool {
-        notPackedCount > 0
-    }
-
     fileprivate static func locationSections(for run: Run) -> [RunLocationSection] {
         var byLocation: [String: [RunCoil]] = [:]
 
@@ -196,28 +192,6 @@ struct RunDetailView: View {
                     .listRowSeparator(.hidden)
             } header: {
                 Text("Run Overview")
-            }
-
-            Section("Not Packed") {
-                if hasNotPackedItems {
-                    NavigationLink {
-                        NotPackedItemsView(run: run)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("View items")
-                                    .font(.headline)
-                                Text("\(notPackedCount) not packed")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                        }
-                    }
-                } else {
-                    Text("All items were packed.")
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Section("Locations") {
@@ -533,10 +507,12 @@ private struct RunOverviewBento: View {
             cards.append(
                 BentoItem(title: "Remaining",
                           value: "\(notPackedCount)",
-                          subtitle: "Still to pack",
+                          subtitle: "View items",
                           symbolName: "shippingbox.fill",
                           symbolTint: .pink,
-                          isProminent: true)
+                          isProminent: true,
+                          destination: { AnyView(NotPackedItemsView(run: run)) },
+                          showsChevron: true)
             )
         }
 
@@ -649,6 +625,8 @@ private struct BentoItem: Identifiable {
     let symbolTint: Color
     let isProminent: Bool
     let allowsMultilineValue: Bool
+    let destination: (() -> AnyView)?
+    let showsChevron: Bool
 
     init(title: String,
          value: String,
@@ -656,7 +634,9 @@ private struct BentoItem: Identifiable {
          symbolName: String,
          symbolTint: Color,
          isProminent: Bool = false,
-         allowsMultilineValue: Bool = false) {
+         allowsMultilineValue: Bool = false,
+         destination: (() -> AnyView)? = nil,
+         showsChevron: Bool = false) {
         self.title = title
         self.value = value
         self.subtitle = subtitle
@@ -664,12 +644,17 @@ private struct BentoItem: Identifiable {
         self.symbolTint = symbolTint
         self.isProminent = isProminent
         self.allowsMultilineValue = allowsMultilineValue
+        self.destination = destination
+        self.showsChevron = showsChevron
     }
 }
 
 private struct StaggeredBentoGrid: View {
     let items: [BentoItem]
     let columnCount: Int
+
+    @State private var isPresentingDestination = false
+    @State private var activeDestination: AnyView?
 
     private var columns: [[BentoItem]] {
         let count = max(columnCount, 1)
@@ -689,10 +674,35 @@ private struct StaggeredBentoGrid: View {
             ForEach(Array(columns.enumerated()), id: \.offset) { _, columnItems in
                 VStack(spacing: 10) {
                     ForEach(columnItems) { item in
-                        BentoCard(item: item)
+                        if let destination = item.destination {
+                            Button {
+                                activeDestination = destination()
+                                isPresentingDestination = true
+                            } label: {
+                                BentoCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                        } else {
+                            BentoCard(item: item)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .navigationDestination(isPresented: $isPresentingDestination) {
+            Group {
+                if let destination = activeDestination {
+                    destination
+                } else {
+                    EmptyView()
+                }
+            }
+        }
+        .onChange(of: isPresentingDestination) { oldValue, newValue in
+            if oldValue && !newValue {
+                activeDestination = nil
             }
         }
     }
@@ -717,18 +727,29 @@ private struct BentoCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(item.value)
-                .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
-                .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
-                .lineLimit(item.allowsMultilineValue ? nil : 2)
-                .multilineTextAlignment(.leading)
-
-            if let subtitle = item.subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(item.value)
+                    .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
+                    .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
                     .lineLimit(item.allowsMultilineValue ? nil : 2)
                     .multilineTextAlignment(.leading)
+            }
+            
+            HStack {
+                if let subtitle = item.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(item.allowsMultilineValue ? nil : 2)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                if item.showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .imageScale(.small)
+                }
             }
         }
         .padding(12)
