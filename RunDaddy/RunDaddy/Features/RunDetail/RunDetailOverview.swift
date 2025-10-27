@@ -71,18 +71,16 @@ struct RunOverviewBento: View {
             )
         }
 
-        if notPackedCount > 0 {
-            cards.append(
-                BentoItem(title: "Remaining",
-                          value: "\(notPackedCount)",
-                          subtitle: "View items",
-                          symbolName: "cart",
-                          symbolTint: .pink,
-                          isProminent: true,
-                          destination: { AnyView(NotPackedItemsView(run: run)) },
-                          showsChevron: true)
-            )
-        }
+        cards.append(
+            BentoItem(title: "Remaining",
+                      value: "\(notPackedCount)",
+                      subtitle: "View items",
+                      symbolName: "cart",
+                      symbolTint: .pink,
+                      isProminent: true,
+                      destination: { AnyView(NotPackedItemsView(run: run)) },
+                      showsChevron: true)
+        )
 
         return cards
     }
@@ -137,16 +135,14 @@ struct LocationOverviewBento: View {
             )
         }
 
-        if notPackedCount > 0 {
-            cards.append(
-                BentoItem(title: "Remaining",
-                          value: "\(notPackedCount)",
-                          subtitle: "Still to pack",
-                          symbolName: "cart",
-                          symbolTint: .red,
-                          isProminent: true)
-            )
-        }
+        cards.append(
+            BentoItem(title: "Remaining",
+                      value: "\(notPackedCount)",
+                      subtitle: "Still to pack",
+                      symbolName: "cart",
+                      symbolTint: .red,
+                      isProminent: true)
+        )
 
         return cards
     }
