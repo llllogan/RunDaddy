@@ -15,6 +15,7 @@ struct RunDetailView: View {
     @Environment(\.haptics) private var haptics
     @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
     @State private var isPresentingOrderEditor = false
+    @State private var isShowingResetRunAlert = false
 
     private var navigationApp: NavigationApp {
         NavigationApp(rawValue: navigationAppRawValue) ?? .appleMaps
@@ -151,7 +152,7 @@ struct RunDetailView: View {
                     Divider()
                     
                     Button {
-                        markAllRunItemsAsUnpacked()
+                        isShowingResetRunAlert = true
                     } label: {
                         Label("Mark all items unpacked", systemImage: "arrow.counterclockwise")
                     }
@@ -171,6 +172,15 @@ struct RunDetailView: View {
             LocationOrderEditor(items: items) { updatedItems in
                 applyLocationOrder(updatedItems)
             }
+        }
+        .alert("Reset packing status?", isPresented: $isShowingResetRunAlert) {
+            Button("Reset", role: .destructive) {
+                haptics.secondaryButtonTap()
+                markAllRunItemsAsUnpacked()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to reset the packing status for this run?")
         }
     }
 

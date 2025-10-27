@@ -10,9 +10,16 @@ import SwiftUI
 struct RunLocationDetailView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.haptics) private var haptics
+    @Environment(\.openURL) private var openURL
+    @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
     @State private var expandedMachineIDs: Set<String> = []
+    @State private var isShowingResetAlert = false
     let run: Run
     let section: RunLocationSection
+
+    private var navigationApp: NavigationApp {
+        NavigationApp(rawValue: navigationAppRawValue) ?? .appleMaps
+    }
 
     private var locationRunCoils: [RunCoil] {
         section.machines.flatMap(\.coils)
@@ -64,30 +71,41 @@ struct RunLocationDetailView: View {
         .navigationTitle(section.location.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        sessionController.beginSession(for: run)
-                    } label: {
-                        Label("Start Packing", systemImage: "tray")
-                    }
-                    .disabled(locationRunCoils.isEmpty)
-                    .accessibilityLabel("Start packing session")
-                    Button {
-                        haptics.secondaryButtonTap()
-                        markAllItemsAsUnpacked()
-                    } label: {
-                        Label("Reset Packing Status", systemImage: "arrow.counterclockwise")
-                    }
-                    .disabled(!hasPackedItems)
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    haptics.prominentActionTap()
+                    sessionController.beginSession(for: run)
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Label("Start packing", systemImage: "tray")
                 }
-                .accessibilityLabel("Run actions")
+                .disabled(locationRunCoils.isEmpty)
+
+                Button {
+                    openDirectionsToLocation()
+                } label: {
+                    Label("Get directions to this location", systemImage: "map")
+                }
+                .disabled(mapsURL(for: section.location) == nil)
+
+                Button {
+                    isShowingResetAlert = true
+                } label: {
+                    Label("Reset packing status", systemImage: "arrow.counterclockwise")
+                }
+                .disabled(!hasPackedItems)
             }
         }
         .onChange(of: section.id) {
             expandedMachineIDs.removeAll()
+        }
+        .alert("Reset packing status?", isPresented: $isShowingResetAlert) {
+            Button("Reset", role: .destructive) {
+                haptics.secondaryButtonTap()
+                markAllItemsAsUnpacked()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to reset the packing status for this location?")
         }
     }
 
@@ -112,6 +130,26 @@ struct RunLocationDetailView: View {
             for runCoil in locationRunCoils {
                 runCoil.packed = false
             }
+        }
+    }
+
+    private func openDirectionsToLocation() {
+        guard let url = mapsURL(for: section.location) else { return }
+        openURL(url)
+    }
+
+    private func mapsURL(for location: Location) -> URL? {
+        let trimmedAddress = location.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else { return nil }
+        guard let encodedAddress = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+
+        switch navigationApp {
+        case .appleMaps:
+            return URL(string: "http://maps.apple.com/?q=\(encodedAddress)")
+        case .waze:
+            return URL(string: "https://www.waze.com/ul?q=\(encodedAddress)&navigate=yes")
         }
     }
 }
