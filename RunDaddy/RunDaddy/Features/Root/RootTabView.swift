@@ -20,7 +20,7 @@ struct RootTabView: View {
 
             MachinesView()
                 .tabItem {
-                    Label("Machines", systemImage: "building")
+                    Label("Info", systemImage: "info.circle")
                 }
 
             SettingsView()

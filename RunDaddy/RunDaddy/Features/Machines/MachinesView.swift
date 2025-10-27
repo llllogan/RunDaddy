@@ -39,10 +39,38 @@ struct MachinesView: View {
             }
     }
 
+    private var totalItemsByDay: [Date: Double] {
+        let calendar = Calendar.current
+        return runCoils.reduce(into: [Date: Double]()) { result, runCoil in
+            let day = calendar.startOfDay(for: runCoil.run.date)
+            result[day, default: 0] += Double(runCoil.pick)
+        }
+    }
+
+    private var metricsItems: [BentoItem] {
+        let comparison = itemsPackedComparisonMetric()
+        let average = sevenDayAverageMetric()
+
+        return [
+            BentoItem(title: "Today vs Last Week",
+                      value: comparison.value,
+                      subtitle: comparison.subtitle,
+                      symbolName: comparison.symbolName,
+                      symbolTint: comparison.tint,
+                      isProminent: true),
+            BentoItem(title: "7-Day Average",
+                      value: average.value,
+                      subtitle: average.subtitle,
+                      symbolName: average.symbolName,
+                      symbolTint: average.tint,
+                      isProminent: true)
+        ]
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                Section("Items Packed") {
+                Section("Items packed this week") {
                     if dailyItemBreakdown.isEmpty {
                         ContentUnavailableView("No Packing Data",
                                                systemImage: "chart.bar",
@@ -52,10 +80,128 @@ struct MachinesView: View {
                         ItemsPackedChart(data: dailyItemBreakdown)
                     }
                 }
+
+                Section("Recent Insights") {
+                    StaggeredBentoGrid(items: metricsItems, columnCount: 2)
+                        .padding(.horizontal, 4)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
+                        .listRowBackground(Color.clear)
+                }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Machines")
+            .navigationTitle("Info")
         }
+    }
+
+    private func itemsPackedComparisonMetric() -> (value: String,
+                                                   subtitle: String?,
+                                                   symbolName: String,
+                                                   tint: Color) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let lastWeekDate = calendar.date(byAdding: .day, value: -7, to: today)
+
+        let todayTotal = totalItemsByDay[today]
+        let lastWeekTotal = lastWeekDate.flatMap { totalItemsByDay[$0] }
+
+        let subtitle: String? = {
+            if todayTotal == nil && lastWeekTotal == nil {
+                return nil
+            }
+            let todayString = todayTotal.map { formatItems($0) } ?? "—"
+            let lastWeekString = lastWeekTotal.map { formatItems($0) } ?? "—"
+            return "Today \(todayString) • Last Week \(lastWeekString)"
+        }()
+
+        guard let todayTotal else {
+            return (value: "—",
+                    subtitle: "No data for today",
+                    symbolName: "questionmark.circle",
+                    tint: .gray)
+        }
+
+        guard let lastWeekTotal else {
+            return (value: "—",
+                    subtitle: "No data from last week",
+                    symbolName: "questionmark.circle",
+                    tint: .gray)
+        }
+
+        guard lastWeekTotal != 0 else {
+            if todayTotal == 0 {
+                return (value: "0%",
+                        subtitle: subtitle ?? "No items recorded",
+                        symbolName: "equal.circle",
+                        tint: .secondary)
+            } else {
+                return (value: "—",
+                        subtitle: "Add more data for last week to compare",
+                        symbolName: "exclamationmark.triangle",
+                        tint: .orange)
+            }
+        }
+
+        let percentChange = ((todayTotal - lastWeekTotal) / lastWeekTotal) * 100
+        let formattedChange = formatPercent(percentChange)
+
+        if percentChange > 0 {
+            return (value: formattedChange,
+                    subtitle: subtitle,
+                    symbolName: "arrow.up.forward",
+                    tint: .green)
+        } else if percentChange < 0 {
+            return (value: formattedChange,
+                    subtitle: subtitle,
+                    symbolName: "arrow.down.forward",
+                    tint: .pink)
+        } else {
+            return (value: "0%",
+                    subtitle: subtitle,
+                    symbolName: "equal.circle",
+                    tint: .secondary)
+        }
+    }
+
+    private func sevenDayAverageMetric() -> (value: String,
+                                             subtitle: String,
+                                             symbolName: String,
+                                             tint: Color) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let days = (0..<7).compactMap { offset in
+            calendar.date(byAdding: .day, value: -offset, to: today)
+        }
+
+        let totals = days.map { date in
+            totalItemsByDay[date] ?? 0
+        }
+
+        let totalItems = totals.reduce(0, +)
+        let average = totalItems / Double(days.count)
+
+        if totalItems == 0 {
+            return (value: "0 / day",
+                    subtitle: "No packing activity in the last week",
+                    symbolName: "calendar.badge.exclamationmark",
+                    tint: .gray)
+        }
+
+        return (value: "\(formatItems(average, fractionDigits: 0...1)) / day",
+                subtitle: "Total \(formatItems(totalItems)) items in 7 days",
+                symbolName: "chart.bar.doc.horizontal",
+                tint: .indigo)
+    }
+
+    private func formatItems(_ value: Double, fractionDigits: ClosedRange<Int> = 0...0) -> String {
+        value.formatted(.number.precision(.fractionLength(fractionDigits)))
+    }
+
+    private func formatPercent(_ value: Double) -> String {
+        let absolute = abs(value)
+        let decimals = absolute < 10 ? 1 : 0
+        let scaled = decimals == 0 ? value.rounded() : (value * 10).rounded() / 10
+        return String(format: "%+.\(decimals)f%%", scaled)
     }
 }
 
