@@ -59,6 +59,7 @@ struct RunOverviewBento: View {
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
                           customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   totalCount: totalCoils,
                                                                    tint: .green)))
             )
         } else {
@@ -123,6 +124,7 @@ struct LocationOverviewBento: View {
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
                           customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   totalCount: section.coilCount,
                                                                    tint: .green)))
             )
         } else {
@@ -172,6 +174,7 @@ struct LocationOverviewBento: View {
 
 struct PackedGaugeChart: View {
     let progress: Double
+    let totalCount: Int
     let tint: Color
 
     private enum GaugeSliceKind {
@@ -188,6 +191,16 @@ struct PackedGaugeChart: View {
 
     private var clampedProgress: Double {
         min(max(progress, 0), 1)
+    }
+
+    private var packedPercentageText: String {
+        let percentage = (clampedProgress * 100).rounded()
+        return "\(Int(percentage))%"
+    }
+
+    private var totalCountText: String {
+        guard totalCount != 1 else { return "1 item" }
+        return "\(totalCount) items"
     }
 
     /// Creates donut slices that render a semi-circular gauge using a Swift Chart.
@@ -237,11 +250,11 @@ struct PackedGaugeChart: View {
             .layoutPriority(1)
 
             HStack {
-                Text("0%")
+                Text(packedPercentageText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("100%")
+                Text(totalCountText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
