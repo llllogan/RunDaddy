@@ -44,11 +44,15 @@ struct RootTabView: View {
         }
         .sheet(isPresented: $sessionController.isSheetPresented,
                onDismiss: { sessionController.minimizeSession() }) {
-            if let viewModel = sessionController.activeViewModel {
-                PackingSessionView(viewModel: viewModel, controller: sessionController)
-            } else {
-                EmptyView()
+            Group {
+                if let viewModel = sessionController.activeViewModel {
+                    PackingSessionView(viewModel: viewModel, controller: sessionController)
+                } else {
+                    EmptyView()
+                }
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 }
