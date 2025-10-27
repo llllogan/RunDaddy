@@ -194,7 +194,7 @@ struct RunDetailView: View {
                 Text("Run Overview")
             }
 
-            Section("Locations") {
+            Section {
                 if locationSections.isEmpty {
                     Text("No locations were imported for this run.")
                         .foregroundStyle(.secondary)
@@ -203,24 +203,12 @@ struct RunDetailView: View {
                         NavigationLink {
                             RunLocationDetailView(run: run, section: section)
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Order \(formattedOrderDescription(for: section.packOrder))")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(section.location.name)
-                                    .font(.headline)
-                                if !section.location.address.isEmpty {
-                                    Text(section.location.address)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Text("\(section.machineCount) \(section.machineCount == 1 ? "machine" : "machines") - \(section.coilCount) \(section.coilCount == 1 ? "coil" : "coils")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            RunLocationRow(section: section)
                         }
                     }
                 }
+            } header: {
+                LocationsSectionHeader(locationCount: locationSections.count)
             }
         }
         .navigationTitle(navigationTitle)
@@ -336,6 +324,68 @@ struct RunDetailView: View {
     }
 }
 
+private struct LocationsSectionHeader: View {
+    let locationCount: Int
+
+    private var subtitle: String {
+        guard locationCount > 0 else { return "No locations" }
+        let label = locationCount == 1 ? "location" : "locations"
+        return "\(locationCount) \(label)"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "house")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.orange)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.orange.opacity(0.18))
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text("LOCATIONS")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(subtitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+}
+
+private struct RunLocationRow: View {
+    let section: RunLocationSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(section.location.name)
+                    .font(.headline)
+                Spacer()
+                Text("Order \(formattedOrderDescription(for: section.packOrder))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !section.location.address.isEmpty {
+                Text(section.location.address)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("\(section.machineCount) \(section.machineCount == 1 ? "machine" : "machines") • \(section.coilCount) \(section.coilCount == 1 ? "coil" : "coils")")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 6)
+    }
+}
+
 fileprivate struct RunLocationDetailView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.haptics) private var haptics
@@ -440,29 +490,9 @@ private struct RunOverviewBento: View {
                 BentoItem(title: "Runner",
                           value: run.runner,
                           subtitle: "Assigned",
-                          symbolName: "person.crop.circle.fill",
+                          symbolName: "person.crop.circle",
                           symbolTint: .blue,
                           allowsMultilineValue: true)
-            )
-        }
-
-        if locationSections.count == 1, let section = locationSections.first {
-            let subtitle = section.location.address.isEmpty ? nil : section.location.address
-            cards.append(
-                BentoItem(title: "Location",
-                          value: section.location.name,
-                          subtitle: subtitle,
-                          symbolName: "building.2.fill",
-                          symbolTint: .orange,
-                          allowsMultilineValue: true)
-            )
-        } else {
-            cards.append(
-                BentoItem(title: "Locations",
-                          value: "\(locationSections.count)",
-                          subtitle: "Included in this run",
-                          symbolName: "building.2.fill",
-                          symbolTint: .orange)
             )
         }
 
@@ -470,15 +500,15 @@ private struct RunOverviewBento: View {
             BentoItem(title: "Machines",
                       value: "\(machineCount)",
                       subtitle: machineCount == 1 ? "machine" : "machines",
-                      symbolName: "gearshape.2.fill",
-                      symbolTint: .teal)
+                      symbolName: "building.2",
+                      symbolTint: .cyan)
         )
 
         cards.append(
             BentoItem(title: "Total Coils",
                       value: "\(totalCoils)",
                       subtitle: totalCoils == 1 ? "coil" : "coils",
-                      symbolName: "bolt.fill",
+                      symbolName: "scope",
                       symbolTint: .purple)
         )
 
@@ -489,7 +519,7 @@ private struct RunOverviewBento: View {
                 BentoItem(title: "Packed",
                           value: "\(packedCount)",
                           subtitle: "\(percent)% complete",
-                          symbolName: "checkmark.circle.fill",
+                          symbolName: "checkmark.circle",
                           symbolTint: .green,
                           isProminent: true)
             )
@@ -508,7 +538,7 @@ private struct RunOverviewBento: View {
                 BentoItem(title: "Remaining",
                           value: "\(notPackedCount)",
                           subtitle: "View items",
-                          symbolName: "shippingbox.fill",
+                          symbolName: "cart",
                           symbolTint: .pink,
                           isProminent: true,
                           destination: { AnyView(NotPackedItemsView(run: run)) },
