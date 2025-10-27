@@ -10,343 +10,111 @@ import SwiftData
 import SwiftUI
 
 struct MachinesView: View {
-    @Query(sort: \Location.name, order: .forward) private var locations: [Location]
+    @Query private var runCoils: [RunCoil]
+
+    init() {
+        _runCoils = Query()
+    }
+
+    private var dailyItemBreakdown: [DailyItemBreakdown] {
+        let calendar = Calendar.current
+        let grouped = runCoils.reduce(into: [DailyItemKey: Double]()) { result, runCoil in
+            let day = calendar.startOfDay(for: runCoil.run.date)
+            let itemName = runCoil.coil.item.name
+            let key = DailyItemKey(date: day, itemName: itemName)
+            result[key, default: 0] += Double(runCoil.pick)
+        }
+
+        return grouped
+            .map { entry in
+                DailyItemBreakdown(date: entry.key.date,
+                                   itemName: entry.key.itemName,
+                                   total: entry.value)
+            }
+            .sorted { lhs, rhs in
+                if lhs.date == rhs.date {
+                    return lhs.itemName.localizedCaseInsensitiveCompare(rhs.itemName) == .orderedAscending
+                }
+                return lhs.date < rhs.date
+            }
+    }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if locations.isEmpty {
-                    ContentUnavailableView("No Locations Yet",
-                                           systemImage: "building.2",
-                                           description: Text("Import a run to see locations, machines, and coils here."))
-                } else {
-                    List {
-                        ForEach(locations) { location in
-                            NavigationLink {
-                                LocationMachinesView(location: location)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(location.name)
-                                        .font(.headline)
-                                    if !location.address.isEmpty {
-                                        Text(location.address)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    if !location.machines.isEmpty {
-                                        Text("\(location.machines.count) \(location.machines.count == 1 ? "machine" : "machines")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
+            List {
+                Section("Items Packed") {
+                    if dailyItemBreakdown.isEmpty {
+                        ContentUnavailableView("No Packing Data",
+                                               systemImage: "chart.bar",
+                                               description: Text("Import runs to visualize daily packing totals."))
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                    } else {
+                        ItemsPackedChart(data: dailyItemBreakdown)
                     }
-                    .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("Locations")
+            .listStyle(.insetGrouped)
+            .navigationTitle("Machines")
         }
     }
 }
 
-private struct LocationMachinesView: View {
-    let location: Location
-    private let machines: [Machine]
-
-    init(location: Location) {
-        self.location = location
-        self.machines = location.machines.sorted { lhs, rhs in
-            lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-        }
-    }
+private struct ItemsPackedChart: View {
+    let data: [DailyItemBreakdown]
 
     var body: some View {
-        List {
-            if machines.isEmpty {
-                ContentUnavailableView("No Machines",
-                                       systemImage: "gearshape.2",
-                                       description: Text("There are no machines recorded for this location yet."))
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .listRowBackground(Color(.systemGroupedBackground))
-            } else {
-                ForEach(machines) { machine in
-                    NavigationLink {
-                        MachineCoilsView(machine: machine)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(machine.name)
-                                .font(.headline)
-                            if let label = machine.locationLabel, !label.isEmpty {
-                                Text(label)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text("\(machine.coils.count) \(machine.coils.count == 1 ? "coil" : "coils")")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
+        Chart(data) { entry in
+            BarMark(
+                x: .value("Date", entry.date, unit: .day),
+                y: .value("Items Packed", entry.total),
+                width: .fixed(18)
+            )
+            .foregroundStyle(by: .value("Item", entry.itemName))
+        }
+        .chartLegend(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .leading)
+        }
+        .chartYAxisLabel("Items Packed")
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 6)) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let dateValue = value.as(Date.self) {
+                        Text(dateValue, format: .dateTime.month(.abbreviated).day())
                     }
                 }
             }
         }
-        .navigationTitle(location.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .frame(height: 240)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 }
 
-private struct MachineCoilsView: View {
-    @Bindable var machine: Machine
-
-    private var coils: [Coil] {
-        machine.coils.sorted { lhs, rhs in
-            if lhs.machinePointer == rhs.machinePointer {
-                return lhs.id < rhs.id
-            }
-            return lhs.machinePointer.localizedStandardCompare(rhs.machinePointer) == .orderedAscending
-        }
-    }
-
-    private func itemDescription(for coil: Coil) -> String {
-        if coil.item.type.isEmpty {
-            return coil.item.name
-        }
-        return "\(coil.item.name) - \(coil.item.type)"
-    }
-
-    var body: some View {
-        List {
-            if coils.isEmpty {
-                ContentUnavailableView("No Coils",
-                                       systemImage: "shippingbox",
-                                       description: Text("This machine does not have any coils yet."))
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .listRowBackground(Color(.systemGroupedBackground))
-            } else {
-                ForEach(coils) { coil in
-                    NavigationLink {
-                        CoilDetailView(coil: coil)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Coil \(coil.machinePointer)")
-                                    .font(.headline)
-                                Spacer()
-                                Text("ID \(coil.id)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(coil.item.id)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(itemDescription(for: coil))
-                                .font(.subheadline)
-                            Text("Stock limit \(coil.stockLimit)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle(machine.name)
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct CoilDetailView: View {
-    @Bindable var coil: Coil
-
-    private var history: [RunCoil] {
-        coil.runCoils.sorted { lhs, rhs in
-            lhs.run.date < rhs.run.date
-        }
-    }
-
-    private var chartData: [CoilHistoryPoint] {
-        history.map { runCoil in
-            CoilHistoryPoint(date: runCoil.run.date,
-                             pick: runCoil.pick,
-                             packOrder: runCoil.packOrder,
-                             runName: runCoil.run.runner.isEmpty ? runCoil.run.id : runCoil.run.runner)
-        }
-    }
-
-    private var totalPick: Int64 {
-        history.reduce(0) { $0 + $1.pick }
-    }
-
-    private var maxPick: Int64 {
-        history.map(\.pick).max() ?? 0
-    }
-
-    private var averagePick: Double {
-        guard !history.isEmpty else { return 0 }
-        return Double(totalPick) / Double(history.count)
-    }
-
-    var body: some View {
-        List {
-            Section("Coil Info") {
-                LabeledContent("Coil ID") { Text(coil.id) }
-                LabeledContent("Machine") { Text(coil.machine.name) }
-                LabeledContent("Item") { Text(coil.item.name) }
-                LabeledContent("Item Type") { Text(coil.item.type) }
-                LabeledContent("Item Code") { Text(coil.item.id) }
-                LabeledContent("Stock Limit") { Text("\(coil.stockLimit)") }
-            }
-
-            Section("Pick History") {
-                if history.isEmpty {
-                    Text("This coil has not been used in any runs yet.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Chart {
-                        ForEach(chartData) { point in
-                            LineMark(
-                                x: .value("Run Date", point.date),
-                                y: .value("Need", point.pick)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            PointMark(
-                                x: .value("Run Date", point.date),
-                                y: .value("Need", point.pick)
-                            )
-                        }
-                    }
-                    .frame(height: 220)
-                    .chartYAxisLabel(position: .leading) {
-                        Text("Need")
-                    }
-                    .chartXAxisLabel(position: .bottom) {
-                        Text("Run Date")
-                    }
-
-                    HStack {
-                        StatTile(title: "Total", value: "\(totalPick)")
-                        StatTile(title: "Average", value: averagePick.formatted(.number.precision(.fractionLength(1))))
-                        StatTile(title: "Max", value: "\(maxPick)")
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
-            if !history.isEmpty {
-                Section("Runs") {
-                    ForEach(history) { runCoil in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(runTitle(for: runCoil.run))
-                                    .font(.headline)
-                                Spacer()
-                                Text(runCoil.run.date, format: .dateTime.day().month().year())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            HStack(spacing: 16) {
-                                LabeledValue(title: "Need", value: "\(runCoil.pick)")
-                                LabeledValue(title: "Order", value: "\(runCoil.packOrder)")
-                                LabeledValue(title: "Packed", value: runCoil.packed ? "Yes" : "No")
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Coil \(coil.machinePointer)")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func runTitle(for run: Run) -> String {
-        if !run.runner.isEmpty {
-            return run.runner
-        }
-        return run.runCoils.first?.coil.machine.location?.name ?? run.id
-    }
-}
-
-private struct CoilHistoryPoint: Identifiable {
-    let id = UUID()
+private struct DailyItemBreakdown: Identifiable, Hashable {
+    let id: String
     let date: Date
-    let pick: Int64
-    let packOrder: Int64
-    let runName: String
-}
+    let itemName: String
+    let total: Double
 
-private struct StatTile: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.headline)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
-        )
+    init(date: Date, itemName: String, total: Double) {
+        self.date = date
+        self.itemName = itemName
+        self.total = total
+        self.id = "\(date.timeIntervalSinceReferenceDate)-\(itemName)"
     }
 }
 
-private struct LabeledValue: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-        }
-    }
+private struct DailyItemKey: Hashable {
+    let date: Date
+    let itemName: String
 }
 
-#Preview("Coil Detail") {
-    NavigationStack {
-        if let run = PreviewFixtures.sampleRunOptional,
-           let coil = run.runCoils.first?.coil {
-            CoilDetailView(coil: coil)
-        } else {
-            Text("Missing preview data")
-        }
-    }
-    .modelContainer(PreviewFixtures.container)
-}
-#Preview("Locations") {
+#Preview {
     NavigationStack {
         MachinesView()
+            .navigationBarTitleDisplayMode(.inline)
     }
     .modelContainer(PreviewFixtures.container)
-}
-
-#Preview("Machines") {
-    NavigationStack {
-        if let run = PreviewFixtures.sampleRunOptional,
-           let location = run.runCoils.first?.coil.machine.location {
-            LocationMachinesView(location: location)
-        } else {
-            Text("Missing preview data")
-        }
-    }
-}
-
-#Preview("Coils") {
-    NavigationStack {
-        if let run = PreviewFixtures.sampleRunOptional,
-           let machine = run.runCoils.first?.coil.machine {
-            MachineCoilsView(machine: machine)
-        } else {
-            Text("Missing preview data")
-        }
-    }
 }
