@@ -13,6 +13,9 @@ struct RunMachineSection: Identifiable {
 
     var id: String { machine.id }
     var coilCount: Int { coils.count }
+    var itemCount: Int {
+        coils.reduce(into: 0) { $0 += max(Int($1.pick), 0) }
+    }
 }
 
 struct RunLocationSection: Identifiable {
@@ -23,6 +26,7 @@ struct RunLocationSection: Identifiable {
     var id: String { location.id }
     var machineCount: Int { machines.count }
     var coilCount: Int { machines.reduce(into: 0) { $0 += $1.coilCount } }
+    var itemCount: Int { machines.reduce(into: 0) { $0 += $1.itemCount } }
 }
 
 struct NotPackedLocationSection: Identifiable {

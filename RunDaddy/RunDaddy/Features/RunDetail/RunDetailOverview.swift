@@ -53,13 +53,14 @@ struct RunOverviewBento: View {
 
         if totalCoils > 0 {
             let completion = Double(packedCount) / Double(totalCoils)
+            let totalItemCount = run.runCoils.reduce(into: 0) { $0 += max(Int($1.pick), 0) }
             cards.append(
                 BentoItem(title: "Packed",
                           value: "\(packedCount) of \(totalCoils)",
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
                           customContent: AnyView(PackedGaugeChart(progress: completion,
-                                                                   totalCount: totalCoils,
+                                                                   totalCount: totalItemCount,
                                                                    tint: .green)))
             )
         } else {
@@ -118,13 +119,14 @@ struct LocationOverviewBento: View {
 
         if section.coilCount > 0 {
             let completion = Double(packedCount) / Double(section.coilCount)
+            let totalItemCount = section.itemCount
             cards.append(
                 BentoItem(title: "Packed",
                           value: "\(packedCount) of \(section.coilCount)",
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
                           customContent: AnyView(PackedGaugeChart(progress: completion,
-                                                                   totalCount: section.coilCount,
+                                                                   totalCount: totalItemCount,
                                                                    tint: .green)))
             )
         } else {
