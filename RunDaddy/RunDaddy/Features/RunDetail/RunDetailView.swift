@@ -5,6 +5,7 @@
 //  Created by Logan Janssen on 12/10/2025.
 //
 
+import Charts
 import SwiftData
 import SwiftUI
 
@@ -514,14 +515,13 @@ private struct RunOverviewBento: View {
 
         if totalCoils > 0 {
             let completion = Double(packedCount) / Double(totalCoils)
-            let percent = Int((completion * 100).rounded())
             cards.append(
                 BentoItem(title: "Packed",
-                          value: "\(packedCount)",
-                          subtitle: "\(percent)% complete",
+                          value: "\(packedCount) of \(totalCoils)",
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
-                          isProminent: true)
+                          customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   tint: .green)))
             )
         } else {
             cards.append(
@@ -576,7 +576,7 @@ private struct LocationOverviewBento: View {
             BentoItem(title: "Machines",
                       value: "\(section.machineCount)",
                       subtitle: section.machineCount == 1 ? "machine" : "machines",
-                      symbolName: "gearshape.2.fill",
+                      symbolName: "building.2",
                       symbolTint: .teal)
         )
 
@@ -584,20 +584,19 @@ private struct LocationOverviewBento: View {
             BentoItem(title: "Total Coils",
                       value: "\(section.coilCount)",
                       subtitle: section.coilCount == 1 ? "coil" : "coils",
-                      symbolName: "bolt.fill",
+                      symbolName: "scope",
                       symbolTint: .purple)
         )
 
         if section.coilCount > 0 {
             let completion = Double(packedCount) / Double(section.coilCount)
-            let percent = Int((completion * 100).rounded())
             cards.append(
                 BentoItem(title: "Packed",
-                          value: "\(packedCount)",
-                          subtitle: "\(percent)% complete",
-                          symbolName: "checkmark.circle.fill",
+                          value: "\(packedCount) of \(section.coilCount)",
+                          symbolName: "checkmark.circle",
                           symbolTint: .green,
-                          isProminent: true)
+                          customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   tint: .green)))
             )
         } else {
             cards.append(
@@ -614,8 +613,8 @@ private struct LocationOverviewBento: View {
                 BentoItem(title: "Remaining",
                           value: "\(notPackedCount)",
                           subtitle: "Still to pack",
-                          symbolName: "shippingbox.fill",
-                          symbolTint: .orange,
+                          symbolName: "cart",
+                          symbolTint: .red,
                           isProminent: true)
             )
         }
@@ -635,14 +634,117 @@ private struct LocationOverviewBento: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            StaggeredBentoGrid(items: metricItems, columnCount: 2)
-                .padding(.horizontal, 4)
             if let addressItem {
                 BentoCard(item: addressItem)
                     .padding(.horizontal, 4)
             }
+            StaggeredBentoGrid(items: metricItems, columnCount: 2)
+                .padding(.horizontal, 4)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct PackedGaugeChart: View {
+    let progress: Double
+    let tint: Color
+
+    private enum GaugeSliceKind {
+        case gap
+        case progress
+        case remainder
+    }
+
+    private struct GaugeSlice: Identifiable {
+        let id = UUID()
+        let kind: GaugeSliceKind
+        let value: Double
+    }
+
+    private var clampedProgress: Double {
+        min(max(progress, 0), 1)
+    }
+
+    /// Creates donut slices that render a semi-circular gauge using a Swift Chart.
+    private var slices: [GaugeSlice] {
+        let gapPortion = 0.5
+        let activePortion = 1 - gapPortion
+        let filledPortion = clampedProgress * activePortion
+        let remainingPortion = max(activePortion - filledPortion, 0)
+
+        var items: [GaugeSlice] = [
+            GaugeSlice(kind: .gap, value: gapPortion / 2)
+        ]
+
+        if filledPortion > 0 {
+            items.append(GaugeSlice(kind: .progress, value: filledPortion))
+        }
+
+        if remainingPortion > 0 {
+            items.append(GaugeSlice(kind: .remainder, value: remainingPortion))
+        }
+
+        items.append(GaugeSlice(kind: .gap, value: gapPortion / 2))
+
+        return items
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            GeometryReader { proxy in
+                let diameter = proxy.size.width
+
+                Chart(slices) { slice in
+                    SectorMark(angle: .value("Completion", slice.value),
+                               innerRadius: .ratio(0.62),
+                               outerRadius: .ratio(1.0))
+                        .cornerRadius(6)
+                        .foregroundStyle(style(for: slice.kind))
+                        .opacity(slice.kind == .gap ? 0 : 1)
+                }
+                .chartLegend(.hidden)
+                .rotationEffect(.degrees(180))
+                .frame(width: diameter, height: diameter)
+                .clipShape(SemiCircleClipShape())
+                .frame(width: diameter, height: diameter / 2, alignment: .top)
+            }
+            .aspectRatio(2, contentMode: .fit)
+            .layoutPriority(1)
+
+            HStack {
+                Text("0%")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("100%")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .layoutPriority(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Packed completion")
+        .accessibilityValue(Text("\(Int((clampedProgress * 100).rounded())) percent"))
+    }
+
+    private func style(for kind: GaugeSliceKind) -> AnyShapeStyle {
+        switch kind {
+        case .gap:
+            return AnyShapeStyle(Color.clear)
+        case .progress:
+            return AnyShapeStyle(tint.gradient)
+        case .remainder:
+            return AnyShapeStyle(Color(.systemGray5))
+        }
+    }
+}
+
+private struct SemiCircleClipShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let clipRect = CGRect(x: 0, y: 0, width: rect.width, height: rect.height / 2)
+        path.addRect(clipRect)
+        return path
     }
 }
 
@@ -657,6 +759,7 @@ private struct BentoItem: Identifiable {
     let allowsMultilineValue: Bool
     let destination: (() -> AnyView)?
     let showsChevron: Bool
+    let customContent: AnyView?
 
     init(title: String,
          value: String,
@@ -666,7 +769,8 @@ private struct BentoItem: Identifiable {
          isProminent: Bool = false,
          allowsMultilineValue: Bool = false,
          destination: (() -> AnyView)? = nil,
-         showsChevron: Bool = false) {
+         showsChevron: Bool = false,
+         customContent: AnyView? = nil) {
         self.title = title
         self.value = value
         self.subtitle = subtitle
@@ -676,6 +780,7 @@ private struct BentoItem: Identifiable {
         self.allowsMultilineValue = allowsMultilineValue
         self.destination = destination
         self.showsChevron = showsChevron
+        self.customContent = customContent
     }
 }
 
@@ -757,28 +862,36 @@ private struct BentoCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(item.value)
-                    .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
-                    .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
-                    .lineLimit(item.allowsMultilineValue ? nil : 2)
-                    .multilineTextAlignment(.leading)
-            }
-            
-            HStack {
-                if let subtitle = item.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+            if let customContent = item.customContent {
+                customContent
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.value)
+                        .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
+                        .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
                         .lineLimit(item.allowsMultilineValue ? nil : 2)
                         .multilineTextAlignment(.leading)
                 }
-                Spacer(minLength: 0)
-                if item.showsChevron {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .imageScale(.small)
+            }
+
+            if (item.subtitle?.isEmpty == false) || item.showsChevron {
+                HStack {
+                    if let subtitle = item.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(item.allowsMultilineValue ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
+                    if item.showsChevron {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .imageScale(.small)
+                    }
                 }
             }
         }
