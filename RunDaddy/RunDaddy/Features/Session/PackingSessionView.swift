@@ -43,7 +43,7 @@ struct PackingSessionView: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Packing Session")
+            .navigationTitle(viewModel.activeMachineDescriptor?.name ?? "Packing Session")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -264,6 +264,15 @@ final class PackingSessionViewModel: NSObject, ObservableObject {
             return MachineDescriptor(name: machine.name, location: machine.locationLabel ?? machine.location?.name)
         }
         return nil
+    }
+
+    var activeMachineDescriptor: MachineDescriptor? {
+        if let runCoil = activeRunCoil {
+            let machine = runCoil.machine
+            return MachineDescriptor(name: machine.name,
+                                     location: machine.locationLabel ?? machine.location?.name)
+        }
+        return currentMachineDescriptor
     }
 
     var currentItemDescriptor: CoilDescriptor? {
@@ -734,21 +743,29 @@ private struct SessionItemCard: View {
     let descriptor: CoilDescriptor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(descriptor.title)
-                .font(.title)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.leading)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(descriptor.title)
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.leading)
 
-            Text(descriptor.subtitle)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            HStack(alignment: .top, spacing: 16) {
-                SessionLabeledValue(title: "Machine", value: descriptor.machine)
-                SessionLabeledValue(title: "Need", value: "\(descriptor.pick)")
-                SessionLabeledValue(title: descriptor.pointerLabel, value: descriptor.pointer)
+                Text("\(descriptor.subtitle) • \(descriptor.pointerLabel) \(descriptor.pointer)")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
             }
+
+            VStack {
+                Text("NEED")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text("\(descriptor.pick)")
+                    .font(.system(size: 80, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(1)
+            }
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
