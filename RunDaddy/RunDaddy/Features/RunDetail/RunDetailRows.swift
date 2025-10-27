@@ -85,20 +85,8 @@ struct RunLocationRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(section.location.name)
-                    .font(.headline)
-                Spacer()
-                Text("Order \(RunDetailFormatter.orderDescription(for: section.packOrder))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !section.location.address.isEmpty {
-                Text(section.location.address)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            Text("\(RunDetailFormatter.orderDescription(for: section.packOrder)) - \(section.location.name)")
+                .font(.headline)
 
             Text("\(section.machineCount) \(section.machineCount == 1 ? "machine" : "machines") • \(section.coilCount) \(section.coilCount == 1 ? "coil" : "coils")")
                 .font(.footnote.weight(.semibold))
