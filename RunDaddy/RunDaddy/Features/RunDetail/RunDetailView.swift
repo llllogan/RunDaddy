@@ -97,7 +97,7 @@ struct RunDetailView: View {
                     haptics.prominentActionTap()
                     sessionController.beginSession(for: run)
                 } label: {
-                    Label("Start Packing Session", systemImage: "tray.2")
+                    Label("Start packing", systemImage: "tray")
                 }
                 .disabled(run.runCoils.isEmpty)
             }
@@ -121,23 +121,16 @@ struct RunDetailView: View {
                     Button {
                         sessionController.beginSession(for: run)
                     } label: {
-                        Label("Start Packing Session", systemImage: "tray.2")
+                        Label("Start packing", systemImage: "tray")
                     }
                     .disabled(run.runCoils.isEmpty)
 
                     Button {
                         isPresentingOrderEditor = true
                     } label: {
-                        Label("Reorder Locations", systemImage: "arrow.up.arrow.down")
+                        Label("Reorder locations", systemImage: "arrow.up.arrow.down")
                     }
                     .disabled(locationSections.count <= 1)
-
-                    Button {
-                        markAllRunItemsAsUnpacked()
-                    } label: {
-                        Label("Reset Packing Status for All Locations", systemImage: "arrow.counterclockwise")
-                    }
-                    .disabled(!hasPackedItems)
 
                     Divider()
 
@@ -154,6 +147,15 @@ struct RunDetailView: View {
                         Label("Directions", systemImage: "map")
                     }
                     .disabled(locationSections.isEmpty)
+                    
+                    Divider()
+                    
+                    Button {
+                        markAllRunItemsAsUnpacked()
+                    } label: {
+                        Label("Mark all items unpacked", systemImage: "arrow.counterclockwise")
+                    }
+                    .disabled(!hasPackedItems)
                 } label: {
                     Image(systemName: "ellipsis")
                 }

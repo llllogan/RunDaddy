@@ -31,7 +31,6 @@ struct RunOverviewBento: View {
             cards.append(
                 BentoItem(title: "Runner",
                           value: run.runner,
-                          subtitle: "Assigned",
                           symbolName: "person.crop.circle",
                           symbolTint: .blue,
                           allowsMultilineValue: true)
@@ -41,7 +40,6 @@ struct RunOverviewBento: View {
         cards.append(
             BentoItem(title: "Machines",
                       value: "\(machineCount)",
-                      subtitle: machineCount == 1 ? "machine" : "machines",
                       symbolName: "building.2",
                       symbolTint: .cyan)
         )
@@ -49,7 +47,6 @@ struct RunOverviewBento: View {
         cards.append(
             BentoItem(title: "Total Coils",
                       value: "\(totalCoils)",
-                      subtitle: totalCoils == 1 ? "coil" : "coils",
                       symbolName: "scope",
                       symbolTint: .purple)
         )
@@ -116,7 +113,6 @@ struct LocationOverviewBento: View {
         cards.append(
             BentoItem(title: "Total Coils",
                       value: "\(section.coilCount)",
-                      subtitle: section.coilCount == 1 ? "coil" : "coils",
                       symbolName: "scope",
                       symbolTint: .purple)
         )

@@ -69,7 +69,7 @@ struct RunLocationDetailView: View {
                     Button {
                         sessionController.beginSession(for: run)
                     } label: {
-                        Label("Start Packing", systemImage: "tray.2")
+                        Label("Start Packing", systemImage: "tray")
                     }
                     .disabled(locationRunCoils.isEmpty)
                     .accessibilityLabel("Start packing session")
@@ -86,7 +86,7 @@ struct RunLocationDetailView: View {
                 .accessibilityLabel("Run actions")
             }
         }
-        .onChange(of: section.id) { _ in
+        .onChange(of: section.id) {
             expandedMachineIDs.removeAll()
         }
     }

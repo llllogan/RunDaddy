@@ -92,6 +92,5 @@ struct RunLocationRow: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 6)
     }
 }
