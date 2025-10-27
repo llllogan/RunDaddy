@@ -18,15 +18,15 @@ struct RootTabView: View {
                     Label("Runs", systemImage: "figure.run")
                 }
 
-            MachinesView()
-                .tabItem {
-                    Label("Machines", systemImage: "building")
-                }
-
-            StatsView()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar.xaxis")
-                }
+//            MachinesView()
+//                .tabItem {
+//                    Label("Machines", systemImage: "building")
+//                }
+//
+//            StatsView()
+//                .tabItem {
+//                    Label("Stats", systemImage: "chart.bar.xaxis")
+//                }
 
             SettingsView()
                 .tabItem {
