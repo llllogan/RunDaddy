@@ -359,6 +359,45 @@ private struct LocationsSectionHeader: View {
     }
 }
 
+private struct LocationMachinesSectionHeader: View {
+    let machineCount: Int
+    let coilCount: Int
+
+    private var subtitle: String {
+        guard machineCount > 0 else { return "No machines" }
+        let machineLabel = machineCount == 1 ? "machine" : "machines"
+        if coilCount == 0 {
+            return "\(machineCount) \(machineLabel) • No coils"
+        }
+        let coilLabel = coilCount == 1 ? "coil" : "coils"
+        return "\(machineCount) \(machineLabel) • \(coilCount) \(coilLabel)"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "building.2")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.cyan)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.blue.opacity(0.18))
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text("MACHINES")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(subtitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+}
+
 private struct RunLocationRow: View {
     let section: RunLocationSection
 
@@ -387,9 +426,86 @@ private struct RunLocationRow: View {
     }
 }
 
+private struct LocationMachineListItem: View {
+    let machineSection: RunMachineSection
+    @Binding var isExpanded: Bool
+
+    private var machine: Machine { machineSection.machine }
+    private var coilCount: Int { machineSection.coilCount }
+    private var packedCount: Int { machineSection.coils.filter(\.packed).count }
+    private var remainingCount: Int { max(coilCount - packedCount, 0) }
+    private var coilLabel: String { coilCount == 1 ? "coil" : "coils" }
+
+    private var summary: String {
+        guard coilCount > 0 else { return "No coils assigned" }
+        if remainingCount == 0 {
+            return "All \(coilCount) \(coilLabel) packed"
+        }
+        let remainingLabel = remainingCount == 1 ? "coil remaining" : "coils remaining"
+        return "\(coilCount) \(coilLabel) • \(remainingCount) \(remainingLabel)"
+    }
+
+    private var statusText: String {
+        guard coilCount > 0 else { return "0" }
+        return "\(packedCount)/\(coilCount)"
+    }
+
+    private var statusColor: Color {
+        guard coilCount > 0 else { return .secondary }
+        return remainingCount == 0 ? .green : .primary
+    }
+
+    var body: some View {
+        Group {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 12) {
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(machine.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(summary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(statusText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(statusColor)
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .listRowInsets(.init(top: 6, leading: 16, bottom: 6, trailing: 16))
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Tap to \(isExpanded ? "collapse" : "expand") machine items")
+
+            if isExpanded {
+                ForEach(machineSection.coils) { runCoil in
+                    CoilRow(runCoil: runCoil)
+                        .listRowInsets(.init(top: 4, leading: 64, bottom: 4, trailing: 16))
+                }
+            }
+        }
+    }
+}
+
 fileprivate struct RunLocationDetailView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
     @Environment(\.haptics) private var haptics
+    @State private var expandedMachineIDs: Set<String> = []
     let run: Run
     let section: RunLocationSection
 
@@ -422,14 +538,24 @@ fileprivate struct RunLocationDetailView: View {
                 Text("Location Overview")
             }
 
-            ForEach(section.machines) { machineSection in
-                Section(machineSection.machine.name) {
-                    ForEach(machineSection.coils) { runCoil in
-                        CoilRow(runCoil: runCoil)
+            Section {
+                if section.machines.isEmpty {
+                    Text("No machines for this location.")
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(section.machines) { machineSection in
+                        LocationMachineListItem(machineSection: machineSection,
+                                                isExpanded: binding(forMachineID: machineSection.id))
                     }
                 }
+            } header: {
+                LocationMachinesSectionHeader(machineCount: section.machineCount,
+                                              coilCount: section.coilCount)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: expandedMachineIDs)
         .navigationTitle(section.location.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -455,6 +581,24 @@ fileprivate struct RunLocationDetailView: View {
                 .accessibilityLabel("Run actions")
             }
         }
+        .onChange(of: section.id) { _ in
+            expandedMachineIDs.removeAll()
+        }
+    }
+
+    private func binding(forMachineID id: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedMachineIDs.contains(id) },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if newValue {
+                        expandedMachineIDs.insert(id)
+                    } else {
+                        expandedMachineIDs.remove(id)
+                    }
+                }
+            }
+        )
     }
 
     private func markAllItemsAsUnpacked() {
@@ -570,14 +714,6 @@ private struct LocationOverviewBento: View {
                       subtitle: "Delivery sequence",
                       symbolName: "list.number",
                       symbolTint: .blue)
-        )
-
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "\(section.machineCount)",
-                      subtitle: section.machineCount == 1 ? "machine" : "machines",
-                      symbolName: "building.2",
-                      symbolTint: .teal)
         )
 
         cards.append(
