@@ -4,21 +4,26 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-	"dev": "tsx watch src/index.ts",
-	"build": "rimraf dist && tsc",
-    	"start": "node dist/index.js",
-    	"typecheck": "tsc --noEmit"
+    "dev": "tsx watch --env-file .env src/index.ts",
+    "build": "rimraf dist && tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
+    "@prisma/client": "^6.18.0",
     "express": "^5.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.5",
     "@types/node": "^24.9.1",
+    "prisma": "^6.18.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
