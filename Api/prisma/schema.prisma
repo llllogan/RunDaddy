@@ -30,8 +30,10 @@ enum RunStatus {
   DRAFT
   SCHEDULED
   IN_PROGRESS
+  READY
   COMPLETED
   CANCELLED
+  HISTORICAL
 }
 
 enum RunItemStatus {
