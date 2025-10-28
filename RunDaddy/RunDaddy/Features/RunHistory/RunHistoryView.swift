@@ -66,20 +66,21 @@ struct RunHistoryView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
-                                .swipeActions {
+                                .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         runPendingDeletion = run
                                         isConfirmingDeletion = true
                                     } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
+                                    .tint(.red)
                                 }
                             }
                         }
                     }
                 }
             }
-            .alert("Delete Run?", isPresented: $isConfirmingDeletion, presenting: runPendingDeletion) { run in
+            .alert("Are you sure?", isPresented: $isConfirmingDeletion, presenting: runPendingDeletion) { run in
                 Button("Delete", role: .destructive) {
                     haptics.destructiveActionTap()
                     delete(run: run)
