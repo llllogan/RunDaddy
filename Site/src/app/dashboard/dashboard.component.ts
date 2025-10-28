@@ -1,6 +1,7 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { AuthService } from '../auth/auth.service';
 
 interface UploadedFile {
   file: File;
@@ -14,6 +15,8 @@ interface UploadedFile {
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
+  private readonly auth = inject(AuthService);
+
   protected readonly tabs = [
     { id: 'home', label: 'Home' },
     { id: 'pickers', label: 'Pickers' },
@@ -24,6 +27,8 @@ export class DashboardComponent {
   protected readonly uploadedFiles = signal<UploadedFile[]>([]);
 
   protected readonly hasFiles = computed(() => this.uploadedFiles().length > 0);
+  protected readonly admin = this.auth.admin;
+  protected readonly company = this.auth.company;
 
   protected setTab(tab: 'home' | 'pickers'): void {
     this.activeTab.set(tab);
@@ -98,5 +103,9 @@ export class DashboardComponent {
       ...incoming.map((file) => ({ file, receivedAt: new Date() })),
     ];
     this.uploadedFiles.set(next);
+  }
+
+  protected async logout(): Promise<void> {
+    await this.auth.logout();
   }
 }

@@ -8,27 +8,45 @@
           <p class="text-lg font-semibold text-white">Operations Control</p>
         </div>
       </div>
-      <nav class="flex flex-wrap items-center gap-2">
-        <button
-          *ngFor="let tab of tabs"
-          type="button"
-          (click)="setTab(tab.id)"
-          [class]="[
-            'rounded-full px-5 py-2 text-sm font-semibold transition',
-            activeTab() === tab.id
-              ? 'bg-white text-black shadow-[0_12px_28px_-20px_rgba(95,108,251,0.9)]'
-              : 'bg-white/10 text-rd-secondary hover:bg-white/20'
-          ].join(' ')"
-        >
-          {{ tab.label }}
-        </button>
-        <a
-          routerLink="/"
-          class="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
-        >
-          Marketing Site
-        </a>
-      </nav>
+      <div class="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-end sm:gap-6">
+        <nav class="flex flex-wrap items-center gap-2">
+          <button
+            *ngFor="let tab of tabs"
+            type="button"
+            (click)="setTab(tab.id)"
+            [class]="[
+              'rounded-full px-5 py-2 text-sm font-semibold transition',
+              activeTab() === tab.id
+                ? 'bg-white text-black shadow-[0_12px_28px_-20px_rgba(95,108,251,0.9)]'
+                : 'bg-white/10 text-rd-secondary hover:bg-white/20'
+            ].join(' ')"
+          >
+            {{ tab.label }}
+          </button>
+          <a
+            routerLink="/"
+            class="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
+          >
+            Marketing Site
+          </a>
+        </nav>
+        <div class="flex items-center justify-between gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 sm:justify-end">
+          <div class="text-right">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-rd-secondary">Signed in</p>
+            <p class="text-sm font-medium text-white">
+              {{ admin()?.firstName ? admin()?.firstName + ' ' + (admin()?.lastName ?? '') : '—' }}
+            </p>
+            <p class="text-xs text-rd-secondary">{{ company()?.name || '—' }}</p>
+          </div>
+          <button
+            type="button"
+            (click)="logout()"
+            class="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white/40 hover:bg-white/10"
+          >
+            Log out
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 

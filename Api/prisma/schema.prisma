@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum AdminRole {
+  ADMIN
   OWNER
   MANAGER
   STAFF
@@ -71,6 +72,7 @@ model Admin {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   runsCreated Run[]     @relation("RunCreatedBy")
+  tokens      RefreshToken[]
 }
 
 model Picker {
@@ -214,4 +216,16 @@ model CompanyPicker {
 
   @@id([companyId, pickerId])
   @@index([pickerId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenId   String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }

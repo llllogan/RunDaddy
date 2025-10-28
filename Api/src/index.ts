@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { prisma } from './lib/prisma.js';
+import { authRouter } from './routes/auth.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -24,6 +25,8 @@ app.get('/health', async (_req, res) => {
     res.status(500).json({ ok: false, database: 'down', error: (error as Error).message });
   }
 });
+
+app.use('/auth', authRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 const server = app.listen(port, () => {
