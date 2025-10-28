@@ -77,7 +77,6 @@ model Picker {
   firstName    String
   lastName     String
   phone        String?
-  status       PickerStatus    @default(ACTIVE)
   employeeCode String?
   runs         Run[]           @relation("RunAssignedPicker")
   companies    CompanyPicker[]
@@ -206,6 +205,7 @@ model CompanyPicker {
   companyId String
   pickerId  String
   role      String?
+  status    PickerStatus    @default(ACTIVE)
   joinedAt  DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
