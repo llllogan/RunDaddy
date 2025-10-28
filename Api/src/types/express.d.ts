@@ -1,10 +1,10 @@
-import type { AdminRole } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 export interface AuthenticatedUser {
-  adminId: string;
+  userId: string;
   companyId: string;
   email: string;
-  role: AdminRole;
+  role: UserRole;
 }
 
 declare global {

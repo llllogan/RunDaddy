@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../config/api.config';
 
-export interface AdminSummary {
+export interface UserSummary {
   id: string;
   email: string;
   firstName: string;
@@ -27,7 +27,7 @@ interface TokenPayload {
 }
 
 interface SessionPayload {
-  admin: AdminSummary;
+  user: UserSummary;
   company: CompanySummary;
   tokens: TokenPayload;
 }
@@ -40,18 +40,18 @@ interface TokenSet {
 }
 
 interface Session {
-  admin: AdminSummary;
+  user: UserSummary;
   company: CompanySummary;
   tokens: TokenSet;
 }
 
 interface ProfileResponse {
-  admin: AdminSummary;
+  user: UserSummary;
   company: CompanySummary;
 }
 
 interface StoredSession {
-  admin: AdminSummary;
+  user: UserSummary;
   company: CompanySummary;
   tokens: {
     accessToken: string;
@@ -64,11 +64,11 @@ interface StoredSession {
 export interface RegisterInput {
   companyName: string;
   companyDescription?: string;
-  adminFirstName: string;
-  adminLastName: string;
-  adminEmail: string;
-  adminPassword: string;
-  adminPhone?: string;
+  userFirstName: string;
+  userLastName: string;
+  userEmail: string;
+  userPassword: string;
+  userPhone?: string;
 }
 
 export interface LoginInput {
@@ -90,7 +90,7 @@ export class AuthService {
   private restorePromise: Promise<boolean> | null = null;
 
   readonly isAuthenticated = computed(() => this.session() !== null);
-  readonly admin = computed(() => this.session()?.admin ?? null);
+  readonly user = computed(() => this.session()?.user ?? null);
   readonly company = computed(() => this.session()?.company ?? null);
 
   constructor() {
@@ -218,7 +218,7 @@ export class AuthService {
         });
         const profile = await firstValueFrom(this.http.get<ProfileResponse>(`${API_BASE_URL}/auth/me`, { headers }));
         const session: Session = {
-          admin: profile.admin,
+          user: profile.user,
           company: profile.company,
           tokens: stored.tokens,
         };
@@ -257,7 +257,7 @@ export class AuthService {
 
   private mapSession(payload: SessionPayload): Session {
     return {
-      admin: payload.admin,
+      user: payload.user,
       company: payload.company,
       tokens: {
         accessToken: payload.tokens.accessToken,
@@ -300,7 +300,7 @@ export class AuthService {
       return;
     }
     const stored: StoredSession = {
-      admin: session.admin,
+      user: session.user,
       company: session.company,
       tokens: {
         accessToken: session.tokens.accessToken,
@@ -323,7 +323,7 @@ export class AuthService {
     try {
       const parsed = JSON.parse(raw) as StoredSession;
       return {
-        admin: parsed.admin,
+        user: parsed.user,
         company: parsed.company,
         tokens: {
           accessToken: parsed.tokens.accessToken,

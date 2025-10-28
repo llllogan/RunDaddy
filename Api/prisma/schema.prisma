@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum AdminRole {
+enum UserRole {
   ADMIN
   OWNER
   MANAGER
@@ -53,19 +53,19 @@ model Company {
 
   locations Location[]
   machines  VendingMachine[]
-  admins    Admin[]
+  users     User[]
   pickers   CompanyPicker[]
   items     Item[]
   runs      Run[]
 }
 
-model Admin {
+model User {
   id          String    @id @default(cuid())
   email       String    @unique
   password    String
   firstName   String
   lastName    String
-  role        AdminRole @default(MANAGER)
+  role        UserRole  @default(MANAGER)
   phone       String?
   companyId   String
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -175,8 +175,8 @@ model Run {
   company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   pickerId         String?
   picker           Picker?       @relation("RunAssignedPicker", fields: [pickerId], references: [id], onDelete: SetNull)
-  createdByAdminId String?
-  createdBy        Admin?        @relation("RunCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdBy       User?         @relation("RunCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   itemForCoils     ItemForCoil[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -220,12 +220,12 @@ model CompanyPicker {
 
 model RefreshToken {
   id        String   @id @default(cuid())
-  adminId   String
+  userId    String
   tokenId   String   @unique
   expiresAt DateTime
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

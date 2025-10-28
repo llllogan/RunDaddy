@@ -2,7 +2,7 @@
   <div class="mx-auto max-w-3xl px-6 py-16 lg:px-10">
     <h1 class="text-3xl font-semibold sm:text-4xl">Request Early Access</h1>
     <p class="mt-3 text-sm text-rd-secondary sm:text-base">
-      Tell us about your company and create the first administrator account to get started.
+      Tell us about your company and create the first owner account to get started.
     </p>
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="mt-10 space-y-6 rounded-3xl border border-white/10 bg-black/30 p-8 shadow-rd-card">
@@ -31,59 +31,59 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white" for="adminFirstName">Admin first name</label>
+          <label class="block text-sm font-medium text-white" for="userFirstName">Owner first name</label>
           <input
-            id="adminFirstName"
+            id="userFirstName"
             type="text"
-            formControlName="adminFirstName"
+            formControlName="userFirstName"
             class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
             placeholder="Jamie"
           />
-          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('adminFirstName')">{{ getErrorMessage('adminFirstName') }}</p>
+          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('userFirstName')">{{ getErrorMessage('userFirstName') }}</p>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white" for="adminLastName">Admin last name</label>
+          <label class="block text-sm font-medium text-white" for="userLastName">Owner last name</label>
           <input
-            id="adminLastName"
+            id="userLastName"
             type="text"
-            formControlName="adminLastName"
+            formControlName="userLastName"
             class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
             placeholder="Rivera"
           />
-          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('adminLastName')">{{ getErrorMessage('adminLastName') }}</p>
+          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('userLastName')">{{ getErrorMessage('userLastName') }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="block text-sm font-medium text-white" for="adminEmail">Admin email</label>
+          <label class="block text-sm font-medium text-white" for="userEmail">Owner email</label>
           <input
-            id="adminEmail"
+            id="userEmail"
             type="email"
-            formControlName="adminEmail"
+            formControlName="userEmail"
             class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
             placeholder="you@company.com"
           />
-          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('adminEmail')">{{ getErrorMessage('adminEmail') }}</p>
+          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('userEmail')">{{ getErrorMessage('userEmail') }}</p>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white" for="adminPassword">Password</label>
+          <label class="block text-sm font-medium text-white" for="userPassword">Password</label>
           <input
-            id="adminPassword"
+            id="userPassword"
             type="password"
-            formControlName="adminPassword"
+            formControlName="userPassword"
             class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
             placeholder="Minimum 8 characters"
           />
-          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('adminPassword')">{{ getErrorMessage('adminPassword') }}</p>
+          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('userPassword')">{{ getErrorMessage('userPassword') }}</p>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white" for="adminPhone">Phone (optional)</label>
+          <label class="block text-sm font-medium text-white" for="userPhone">Phone (optional)</label>
           <input
-            id="adminPhone"
+            id="userPhone"
             type="tel"
-            formControlName="adminPhone"
+            formControlName="userPhone"
             class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
             placeholder="(555) 555-1212"
           />

@@ -27,7 +27,7 @@ export class DashboardComponent {
   protected readonly uploadedFiles = signal<UploadedFile[]>([]);
 
   protected readonly hasFiles = computed(() => this.uploadedFiles().length > 0);
-  protected readonly admin = this.auth.admin;
+  protected readonly user = this.auth.user;
   protected readonly company = this.auth.company;
 
   protected setTab(tab: 'home' | 'pickers'): void {

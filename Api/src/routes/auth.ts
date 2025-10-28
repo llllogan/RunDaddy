@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { AdminRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { buildCompanySlug } from '../lib/slug.js';
@@ -13,11 +13,11 @@ const router = Router();
 const registerSchema = z.object({
   companyName: z.string().min(2),
   companyDescription: z.string().min(1).optional(),
-  adminFirstName: z.string().min(1),
-  adminLastName: z.string().min(1),
-  adminEmail: z.string().email(),
-  adminPassword: z.string().min(8),
-  adminPhone: z.string().min(7).optional(),
+  userFirstName: z.string().min(1),
+  userLastName: z.string().min(1),
+  userEmail: z.string().email(),
+  userPassword: z.string().min(8),
+  userPhone: z.string().min(7).optional(),
 });
 
 const loginSchema = z.object({
@@ -51,7 +51,7 @@ const respondWithSession = (
   res: Response,
   data: {
     company: { id: string; name: string; slug: string };
-    admin: { id: string; email: string; firstName: string; lastName: string; role: AdminRole; phone?: string | null };
+    user: { id: string; email: string; firstName: string; lastName: string; role: UserRole; phone?: string | null };
     accessToken: string;
     refreshToken: string;
     accessTokenExpiresAt: Date;
@@ -61,7 +61,7 @@ const respondWithSession = (
 ) => {
   return res.status(status).json({
     company: data.company,
-    admin: data.admin,
+    user: data.user,
     tokens: {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
@@ -81,58 +81,58 @@ router.post('/register', async (req, res) => {
   const {
     companyName,
     companyDescription,
-    adminFirstName,
-    adminLastName,
-    adminEmail,
-    adminPassword,
-    adminPhone,
+    userFirstName,
+    userLastName,
+    userEmail,
+    userPassword,
+    userPhone,
   } = result.data;
 
-  const existingAdmin = await prisma.admin.findUnique({ where: { email: adminEmail } });
-  if (existingAdmin) {
+  const existingUser = await prisma.user.findUnique({ where: { email: userEmail } });
+  if (existingUser) {
     return res.status(409).json({ error: 'Email already registered' });
   }
 
   const slug = await makeCompanySlug(companyName);
-  const passwordHash = await hashPassword(adminPassword);
+  const passwordHash = await hashPassword(userPassword);
 
   const company = await prisma.company.create({
     data: {
       name: companyName,
       slug,
       description: companyDescription ?? null,
-      admins: {
+      users: {
         create: {
-          email: adminEmail,
+          email: userEmail,
           password: passwordHash,
-          firstName: adminFirstName,
-          lastName: adminLastName,
-          role: AdminRole.ADMIN,
-          phone: adminPhone ?? null,
+          firstName: userFirstName,
+          lastName: userLastName,
+          role: UserRole.OWNER,
+          phone: userPhone ?? null,
         },
       },
     },
     include: {
-      admins: true,
+      users: true,
     },
   });
 
-  const admin = company.admins[0];
+  const user = company.users[0];
 
-  if (!admin) {
-    return res.status(500).json({ error: 'Failed to create admin account' });
+  if (!user) {
+    return res.status(500).json({ error: 'Failed to create user account' });
   }
 
   const tokens = createTokenPair({
-    adminId: admin.id,
+    userId: user.id,
     companyId: company.id,
-    email: admin.email,
-    role: admin.role,
+    email: user.email,
+    role: user.role,
   });
 
   await prisma.refreshToken.create({
     data: {
-      adminId: admin.id,
+      userId: user.id,
       tokenId: tokens.refreshTokenId,
       expiresAt: tokens.refreshTokenExpiresAt,
     },
@@ -142,13 +142,13 @@ router.post('/register', async (req, res) => {
     res,
     {
       company: { id: company.id, name: company.name, slug: company.slug },
-      admin: {
-        id: admin.id,
-        email: admin.email,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        role: admin.role,
-        phone: admin.phone,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        phone: user.phone,
       },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -167,44 +167,44 @@ router.post('/login', async (req, res) => {
   }
 
   const { email, password } = result.data;
-  const admin = await prisma.admin.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email },
     include: { company: true },
   });
 
-  if (!admin || !admin.company) {
+  if (!user || !user.company) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const valid = await verifyPassword(password, admin.password);
+  const valid = await verifyPassword(password, user.password);
   if (!valid) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
   const tokens = createTokenPair({
-    adminId: admin.id,
-    companyId: admin.companyId,
-    email: admin.email,
-    role: admin.role,
+    userId: user.id,
+    companyId: user.companyId,
+    email: user.email,
+    role: user.role,
   });
 
   await prisma.refreshToken.create({
     data: {
-      adminId: admin.id,
+      userId: user.id,
       tokenId: tokens.refreshTokenId,
       expiresAt: tokens.refreshTokenExpiresAt,
     },
   });
 
   return respondWithSession(res, {
-    company: { id: admin.company.id, name: admin.company.name, slug: admin.company.slug },
-    admin: {
-      id: admin.id,
-      email: admin.email,
-      firstName: admin.firstName,
-      lastName: admin.lastName,
-      role: admin.role,
-      phone: admin.phone,
+    company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      phone: user.phone,
     },
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
@@ -233,24 +233,24 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Refresh token expired or revoked' });
     }
 
-    if (stored.adminId !== payload.sub) {
+    if (stored.userId !== payload.sub) {
       return res.status(401).json({ error: 'Refresh token invalid for this account' });
     }
 
-    const admin = await prisma.admin.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       include: { company: true },
     });
 
-    if (!admin || !admin.company) {
+    if (!user || !user.company) {
       return res.status(401).json({ error: 'Account not available' });
     }
 
     const tokens = createTokenPair({
-      adminId: admin.id,
-      companyId: admin.companyId,
-      email: admin.email,
-      role: admin.role,
+      userId: user.id,
+      companyId: user.companyId,
+      email: user.email,
+      role: user.role,
     });
 
     await prisma.$transaction([
@@ -260,7 +260,7 @@ router.post('/refresh', async (req, res) => {
       }),
       prisma.refreshToken.create({
         data: {
-          adminId: admin.id,
+          userId: user.id,
           tokenId: tokens.refreshTokenId,
           expiresAt: tokens.refreshTokenExpiresAt,
         },
@@ -268,14 +268,14 @@ router.post('/refresh', async (req, res) => {
     ]);
 
     return respondWithSession(res, {
-      company: { id: admin.company.id, name: admin.company.name, slug: admin.company.slug },
-      admin: {
-        id: admin.id,
-        email: admin.email,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        role: admin.role,
-        phone: admin.phone,
+      company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        phone: user.phone,
       },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -292,24 +292,24 @@ router.get('/me', authenticate, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const admin = await prisma.admin.findUnique({
-    where: { id: req.auth.adminId },
+  const user = await prisma.user.findUnique({
+    where: { id: req.auth.userId },
     include: { company: true },
   });
 
-  if (!admin || !admin.company) {
+  if (!user || !user.company) {
     return res.status(404).json({ error: 'Account not found' });
   }
 
   return res.json({
-    company: { id: admin.company.id, name: admin.company.name, slug: admin.company.slug },
-    admin: {
-      id: admin.id,
-      email: admin.email,
-      firstName: admin.firstName,
-      lastName: admin.lastName,
-      role: admin.role,
-      phone: admin.phone,
+    company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      phone: user.phone,
     },
   });
 });

@@ -1,12 +1,12 @@
 import { sign, verify } from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
-import type { AdminRole } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 type BaseClaims = {
   sub: string;
   companyId: string;
   email: string;
-  role: AdminRole;
+  role: UserRole;
 };
 
 export type AccessTokenClaims = BaseClaims & { exp?: number; iat?: number };
@@ -22,10 +22,10 @@ export interface TokenPair {
 }
 
 export interface TokenPayloadInput {
-  adminId: string;
+  userId: string;
   companyId: string;
   email: string;
-  role: AdminRole;
+  role: UserRole;
 }
 
 const DEFAULT_ACCESS_DURATION = '15m';
@@ -83,7 +83,7 @@ export const createTokenPair = (input: TokenPayloadInput): TokenPair => {
   const tokenId = randomUUID();
   const now = Date.now();
   const claims: BaseClaims = {
-    sub: input.adminId,
+    sub: input.userId,
     companyId: input.companyId,
     email: input.email,
     role: input.role,

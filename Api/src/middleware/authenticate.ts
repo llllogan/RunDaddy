@@ -17,7 +17,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ error: 'Invalid token payload' });
     }
 
-    const admin = await prisma.admin.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
         id: true,
@@ -27,15 +27,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       },
     });
 
-    if (!admin) {
+    if (!user) {
       return res.status(401).json({ error: 'Account not found' });
     }
 
     req.auth = {
-      adminId: admin.id,
-      email: admin.email,
-      role: admin.role,
-      companyId: admin.companyId,
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId,
     };
     return next();
   } catch (error) {

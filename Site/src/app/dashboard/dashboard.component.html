@@ -34,7 +34,7 @@
           <div class="text-right">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-rd-secondary">Signed in</p>
             <p class="text-sm font-medium text-white">
-              {{ admin()?.firstName ? admin()?.firstName + ' ' + (admin()?.lastName ?? '') : '—' }}
+              {{ user()?.firstName ? user()?.firstName + ' ' + (user()?.lastName ?? '') : '—' }}
             </p>
             <p class="text-xs text-rd-secondary">{{ company()?.name || '—' }}</p>
           </div>

@@ -21,11 +21,11 @@ export class EarlyAccessComponent {
   protected readonly form = this.fb.group({
     companyName: ['', [Validators.required, Validators.minLength(2)]],
     companyDescription: [''],
-    adminFirstName: ['', [Validators.required, Validators.minLength(1)]],
-    adminLastName: ['', [Validators.required, Validators.minLength(1)]],
-    adminEmail: ['', [Validators.required, Validators.email]],
-    adminPassword: ['', [Validators.required, Validators.minLength(8)]],
-    adminPhone: [''],
+    userFirstName: ['', [Validators.required, Validators.minLength(1)]],
+    userLastName: ['', [Validators.required, Validators.minLength(1)]],
+    userEmail: ['', [Validators.required, Validators.email]],
+    userPassword: ['', [Validators.required, Validators.minLength(8)]],
+    userPhone: [''],
   });
 
   protected shouldShowError(controlName: string): boolean {
