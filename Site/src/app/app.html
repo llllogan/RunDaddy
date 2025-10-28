@@ -1,196 +1,259 @@
-<main id="top" class="landing">
-  <section class="hero">
-    <div class="hero__orb" aria-hidden="true"></div>
-    <nav class="nav">
-      <a class="brand" href="#top">RunDaddy</a>
-      <div class="nav__links">
-        <a href="#features">Features</a>
-        <a href="#workflow">Workflow</a>
-        <a href="#results">Results</a>
-        <a class="nav__cta" href="#cta">Request Access</a>
-      </div>
-    </nav>
-    <div class="hero__grid">
-      <div class="hero__copy">
-        <p class="eyebrow">Hands-free warehouse picking</p>
-        <h1>Keep every vending bin on track with a headset co-pilot built for speed.</h1>
-        <p class="subcopy">
-          RunDaddy syncs every route, speaks each pick straight into your AirPods, and logs confirmations as items drop into labeled bins so your team stays fast and accurate.
+<main id="top" class="bg-rd-background text-rd-primary">
+  <section class="relative overflow-hidden">
+    <div
+      class="pointer-events-none absolute left-1/2 top-[-30%] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(125,115,255,0.35)_0%,rgba(125,115,255,0)_70%)] blur-3xl"
+    ></div>
+    <div class="relative mx-auto max-w-6xl px-6 pb-24 pt-12 lg:px-12">
+      <nav class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <a class="text-sm font-semibold uppercase tracking-[0.38em] text-white transition hover:text-rd-secondary" href="#top">
+          RunDaddy
+        </a>
+        <div class="flex flex-wrap items-center gap-4 text-sm font-medium text-rd-secondary">
+          <a class="transition hover:text-white" href="#features">Features</a>
+          <a class="transition hover:text-white" href="#workflow">Workflow</a>
+          <a class="transition hover:text-white" href="#results">Results</a>
+          <a
+            class="rounded-full bg-gradient-to-r from-rd-accent to-rd-accent-strong px-5 py-2 font-semibold text-white shadow-[0_12px_24px_-18px_rgba(95,108,251,0.9)] transition hover:brightness-110"
+            href="#cta"
+          >
+            Request Access
+          </a>
+        </div>
+      </nav>
+
+      <div class="mx-auto mt-12 max-w-3xl text-center lg:mx-0 lg:text-left">
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-accent">Hands-free warehouse picking</p>
+        <h1 class="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-5xl">
+          Keep every vending bin on track with a headset co-pilot built for speed.
+        </h1>
+        <p class="mt-6 text-base leading-7 text-rd-secondary lg:text-lg">
+          RunDaddy syncs every route, speaks each pick straight into your AirPods, and logs confirmations as items drop
+          into labeled bins so your team stays fast and accurate.
         </p>
-        <div class="hero__actions">
-          <a class="button primary" href="#cta">Request Early Access</a>
-          <a class="button ghost" href="#workflow">See how it works</a>
+        <div class="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center lg:justify-start">
+          <a
+            class="w-full rounded-full bg-gradient-to-r from-rd-accent to-rd-accent-strong px-6 py-3 text-center text-sm font-semibold text-white shadow-[0_20px_40px_-30px_rgba(95,108,251,0.9)] transition hover:brightness-110 sm:w-auto"
+            href="#cta"
+          >
+            Request Early Access
+          </a>
+          <a
+            class="w-full rounded-full border border-white/20 px-6 py-3 text-center text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5 sm:w-auto"
+            href="#workflow"
+          >
+            See how it works
+          </a>
         </div>
-        <div class="hero__metrics">
+        <div class="mt-10 flex flex-col items-center gap-6 text-left text-sm text-rd-secondary sm:flex-row sm:justify-start">
           <div>
-            <span class="metric">38%</span>
-            <span class="label">Faster picking</span>
+            <span class="block text-3xl font-semibold text-white">38%</span>
+            <span>Faster picking</span>
           </div>
           <div>
-            <span class="metric">99.6%</span>
-            <span class="label">Bin accuracy</span>
+            <span class="block text-3xl font-semibold text-white">99.6%</span>
+            <span>Bin accuracy</span>
           </div>
         </div>
-        <div class="hero__highlights" aria-label="RunDaddy warehouse flow">
-          <div class="highlight">
-            <span class="highlight-step">01</span>
-            <div>
-              <span class="highlight-title">Stage bins by route</span>
-              <p>Auto-build pick paths so each tote lines up with its vending machine delivery.</p>
-            </div>
-          </div>
-          <div class="highlight">
-            <span class="highlight-step">02</span>
-            <div>
-              <span class="highlight-title">Voice-led pulls</span>
-              <p>AirPods call out location, quantity, and bin while you move through the warehouse.</p>
-            </div>
-          </div>
-          <div class="highlight">
-            <span class="highlight-step">03</span>
-            <div>
-              <span class="highlight-title">Hands-free confirmations</span>
-              <p>Quick verbal check-ins keep inventory synced and every vending run on schedule.</p>
-            </div>
-          </div>
+        <div class="mt-12 grid gap-4 md:grid-cols-3" aria-label="RunDaddy warehouse flow">
+          <article class="rounded-2xl border border-white/10 bg-rd-card/80 p-5 backdrop-blur">
+            <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">01</span>
+            <h2 class="mt-3 text-lg font-semibold text-white">Stage bins by route</h2>
+            <p class="mt-2 text-sm leading-6 text-rd-secondary">
+              Auto-build pick paths so each tote lines up with its vending machine delivery.
+            </p>
+          </article>
+          <article class="rounded-2xl border border-white/10 bg-rd-card/80 p-5 backdrop-blur">
+            <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">02</span>
+            <h2 class="mt-3 text-lg font-semibold text-white">Voice-led pulls</h2>
+            <p class="mt-2 text-sm leading-6 text-rd-secondary">
+              AirPods call out location, quantity, and bin while you move through the warehouse.
+            </p>
+          </article>
+          <article class="rounded-2xl border border-white/10 bg-rd-card/80 p-5 backdrop-blur">
+            <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">03</span>
+            <h2 class="mt-3 text-lg font-semibold text-white">Hands-free confirmations</h2>
+            <p class="mt-2 text-sm leading-6 text-rd-secondary">
+              Quick verbal check-ins keep inventory synced and every vending run on schedule.
+            </p>
+          </article>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="features" class="section features">
-    <div class="features__layout">
-      <div class="section__intro">
-        <p class="eyebrow">Why operators switch</p>
-        <h2>Speed, clarity, and accountability from shelf to vending machine.</h2>
-        <p class="intro-copy">
-          RunDaddy unifies voice-led prompts, inventory, and route planning so crews stop juggling tablets, paper lists, and backtracking between bins.
+  <section id="features" class="border-y border-white/5 bg-white/[0.04]">
+    <div class="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-20 lg:flex-row lg:px-12">
+      <div class="max-w-xl">
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-accent">Why operators switch</p>
+        <h2 class="mt-4 text-3xl font-semibold text-white lg:text-[2.4rem]">
+          Speed, clarity, and accountability from shelf to vending machine.
+        </h2>
+        <p class="mt-6 text-base leading-7 text-rd-secondary">
+          RunDaddy unifies voice-led prompts, inventory, and route planning so crews stop juggling tablets, paper lists,
+          and backtracking between bins.
         </p>
       </div>
-      <div class="feature-grid">
-        <article class="feature-card">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="presentation">
-              <path
-                d="M16 6a10 10 0 0 1 10 10v6a3 3 0 0 1-3 3h-2v-9h4v-1a9 9 0 0 0-18 0v1h4v9h-2a3 3 0 0 1-3-3v-6A10 10 0 0 1 16 6Z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <rect x="9" y="17" width="4" height="7" rx="1.3" fill="currentColor" />
-              <rect x="19" y="17" width="4" height="7" rx="1.3" fill="currentColor" />
-            </svg>
-          </span>
-          <h3>Voice-led picking</h3>
-          <p>AirPods or any headset becomes your guide as RunDaddy calls out the next SKU, quantity, and bin before you reach the shelf.</p>
+      <div class="grid flex-1 grid-cols-1 gap-5 md:grid-cols-2">
+        <article class="relative overflow-hidden rounded-2xl border border-white/10 bg-rd-surface p-6 shadow-rd-card">
+          <div
+            class="absolute inset-0 bg-gradient-to-b from-rd-accent/20 via-transparent to-transparent opacity-40"
+          ></div>
+          <svg class="relative h-12 w-12 text-rd-secondary" viewBox="0 0 32 32" fill="none" role="presentation">
+            <path
+              d="M16 6a10 10 0 0 1 10 10v6a3 3 0 0 1-3 3h-2v-9h4v-1a9 9 0 0 0-18 0v1h4v9h-2a3 3 0 0 1-3-3v-6A10 10 0 0 1 16 6Z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <rect x="9" y="17" width="4" height="7" rx="1.3" fill="currentColor" />
+            <rect x="19" y="17" width="4" height="7" rx="1.3" fill="currentColor" />
+          </svg>
+          <h3 class="relative mt-5 text-xl font-semibold text-white">Voice-led picking</h3>
+          <p class="relative mt-3 text-sm leading-6 text-rd-secondary">
+            AirPods or any headset becomes your guide as RunDaddy calls out the next SKU, quantity, and bin before you
+            reach the shelf.
+          </p>
         </article>
-        <article class="feature-card">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="presentation">
-              <path
-                d="M6 9.5 16 4l10 5.5v13L16 28l-10-5.5v-13Z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M6 9.5 16 15l10-5.5M16 15v13"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
-          <h3>Inventory intelligence</h3>
-          <p>Predictive restock recommendations align vending demand with warehouse stock so totes roll out full without overloading the truck.</p>
+        <article class="relative overflow-hidden rounded-2xl border border-white/10 bg-rd-surface p-6 shadow-rd-card">
+          <div
+            class="absolute inset-0 bg-gradient-to-b from-[#5f6cfb]/20 via-transparent to-transparent opacity-40"
+          ></div>
+          <svg class="relative h-12 w-12 text-rd-secondary" viewBox="0 0 32 32" fill="none" role="presentation">
+            <path
+              d="M6 9.5 16 4l10 5.5v13L16 28l-10-5.5v-13Z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M6 9.5 16 15l10-5.5M16 15v13"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <h3 class="relative mt-5 text-xl font-semibold text-white">Inventory intelligence</h3>
+          <p class="relative mt-3 text-sm leading-6 text-rd-secondary">
+            Predictive restock recommendations align vending demand with warehouse stock so totes roll out full without
+            overloading the truck.
+          </p>
         </article>
-        <article class="feature-card">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="presentation">
-              <circle cx="8.5" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <circle cx="23.5" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <circle cx="16" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <path
-                d="M12.5 13.5 10.4 17m9.1-3.5 2.1 3.5M12.5 20.5a5.5 5.5 0 0 1-4-5.4m15 0a5.5 5.5 0 0 1-4 5.4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
-          <h3>Team sync</h3>
-          <p>Supervisors get bin-level confirmations, timestamps, and route status in real-time from the same dashboard.</p>
+        <article class="relative overflow-hidden rounded-2xl border border-white/10 bg-rd-surface p-6 shadow-rd-card md:col-span-2">
+          <div
+            class="absolute inset-0 bg-gradient-to-b from-[#78f5d0]/10 via-transparent to-transparent opacity-40"
+          ></div>
+          <svg class="relative h-12 w-12 text-rd-secondary" viewBox="0 0 32 32" fill="none" role="presentation">
+            <circle cx="8.5" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5" />
+            <circle cx="23.5" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5" />
+            <circle cx="16" cy="24" r="4" stroke="currentColor" stroke-width="1.5" />
+            <path
+              d="M12.5 13.5 10.4 17m9.1-3.5 2.1 3.5M12.5 20.5a5.5 5.5 0 0 1-4-5.4m15 0a5.5 5.5 0 0 1-4 5.4"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <h3 class="relative mt-5 text-xl font-semibold text-white">Team sync</h3>
+          <p class="relative mt-3 text-sm leading-6 text-rd-secondary">
+            Supervisors get bin-level confirmations, timestamps, and route status in real-time from the same dashboard.
+          </p>
         </article>
       </div>
     </div>
   </section>
 
-  <section id="workflow" class="section workflow">
-    <div class="section__intro">
-      <p class="eyebrow">How it works</p>
-      <h2>From route drop to final scan in three simple stages.</h2>
+  <section id="workflow" class="bg-gradient-to-b from-[#06090f]/95 via-[#0c1221]/95 to-[#05070d]">
+    <div class="mx-auto max-w-6xl px-6 py-20 lg:px-12">
+      <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-rd-accent">How it works</p>
+      <h2 class="mx-auto mt-5 max-w-3xl text-center text-3xl font-semibold text-white lg:text-[2.4rem]">
+        From route drop to final scan in three simple stages.
+      </h2>
+      <ol class="mt-12 grid gap-6 md:grid-cols-3">
+        <li class="rounded-2xl border border-white/10 bg-rd-surface/90 p-6">
+          <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">01</span>
+          <h3 class="mt-4 text-xl font-semibold text-white">Sync your run</h3>
+          <p class="mt-3 text-sm leading-6 text-rd-secondary">
+            Import scheduled machines from your planogram or POS. RunDaddy assembles the optimal path, tags bins, and
+            prepares the voice script.
+          </p>
+        </li>
+        <li class="rounded-2xl border border-white/10 bg-rd-surface/90 p-6">
+          <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">02</span>
+          <h3 class="mt-4 text-xl font-semibold text-white">Pick with voice cues</h3>
+          <p class="mt-3 text-sm leading-6 text-rd-secondary">
+            Put in your AirPods and move. Each pick call-out includes shelf location, quantity, and bin assignment so you
+            never break stride.
+          </p>
+        </li>
+        <li class="rounded-2xl border border-white/10 bg-rd-surface/90 p-6">
+          <span class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-teal">03</span>
+          <h3 class="mt-4 text-xl font-semibold text-white">Auto-close the loop</h3>
+          <p class="mt-3 text-sm leading-6 text-rd-secondary">
+            Inventory, totes, and accountability update instantly. Send digital receipts before pallets leave the dock.
+          </p>
+        </li>
+      </ol>
     </div>
-    <ol class="workflow-steps">
-      <li>
-        <span class="step-number">01</span>
-        <h3>Sync your run</h3>
-        <p>Import scheduled machines from your planogram or POS. RunDaddy assembles the optimal path, tags bins, and prepares the voice script.</p>
-      </li>
-      <li>
-        <span class="step-number">02</span>
-        <h3>Pick with voice cues</h3>
-        <p>Put in your AirPods and move. Each pick call-out includes shelf location, quantity, and bin assignment so you never break stride.</p>
-      </li>
-      <li>
-        <span class="step-number">03</span>
-        <h3>Auto-close the loop</h3>
-        <p>Inventory, totes, and accountability update instantly. Send digital receipts before pallets leave the dock.</p>
-      </li>
-    </ol>
   </section>
 
-  <section id="results" class="section results">
-    <div class="results__grid">
-      <article class="testimonial">
-        <p class="eyebrow">Operator spotlight</p>
-        <blockquote>“Our two-person crew stages four campus runs before lunch now. RunDaddy keeps the bins labeled and our reports write themselves.”</blockquote>
-        <cite>— Octavia James, Route Lead at FreshVend</cite>
+  <section id="results" class="bg-white/[0.04]">
+    <div class="mx-auto grid max-w-6xl gap-8 px-6 py-20 lg:grid-cols-[1.2fr_1fr] lg:px-12">
+      <article class="rounded-3xl border border-white/10 bg-rd-surface/95 p-10 shadow-rd-card">
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-accent">Operator spotlight</p>
+        <blockquote class="mt-6 text-2xl italic leading-relaxed text-white">
+          “Our two-person crew stages four campus runs before lunch now. RunDaddy keeps the bins labeled and our reports
+          write themselves.”
+        </blockquote>
+        <cite class="mt-6 block text-sm font-medium text-rd-muted">— Octavia James, Route Lead at FreshVend</cite>
       </article>
-      <div class="results__stats">
-        <div>
-          <span class="stat-number">2x</span>
-          <span class="stat-label">More machines per shift</span>
+      <div class="grid gap-5">
+        <div class="rounded-2xl border border-white/10 bg-rd-surface/80 p-6 text-center">
+          <span class="block text-3xl font-semibold text-white">2x</span>
+          <span class="mt-1 text-sm text-rd-secondary">More machines per shift</span>
         </div>
-        <div>
-          <span class="stat-number">-45%</span>
-          <span class="stat-label">Paperwork time</span>
+        <div class="rounded-2xl border border-white/10 bg-rd-surface/80 p-6 text-center">
+          <span class="block text-3xl font-semibold text-white">-45%</span>
+          <span class="mt-1 text-sm text-rd-secondary">Paperwork time</span>
         </div>
-        <div>
-          <span class="stat-number">99.2%</span>
-          <span class="stat-label">On-time restocks</span>
+        <div class="rounded-2xl border border-white/10 bg-rd-surface/80 p-6 text-center">
+          <span class="block text-3xl font-semibold text-white">99.2%</span>
+          <span class="mt-1 text-sm text-rd-secondary">On-time restocks</span>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="cta" class="section cta">
-    <div class="cta__card">
-      <p class="eyebrow">Ready for smoother runs?</p>
-      <h2>Be first in line for the RunDaddy private beta.</h2>
-      <p>Tell us about your routes and we’ll reserve your spot when invites open.</p>
-      <form class="cta__form">
-        <label class="sr-only" for="email">Work email</label>
-        <input id="email" type="email" name="email" placeholder="you@company.com" autocomplete="email" required />
-        <button type="submit">Request access</button>
-      </form>
-      <p class="footnote">No spam — just an invite when we’re ready for your market.</p>
+  <section id="cta" class="bg-gradient-to-b from-[#0c1221]/80 via-[#06090f]/95 to-[#05070d]">
+    <div class="mx-auto max-w-3xl px-6 py-20 lg:px-12">
+      <div class="rounded-[34px] border border-white/10 bg-rd-surface/95 p-10 text-center shadow-rd-card">
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-rd-accent">Ready for smoother runs?</p>
+        <h2 class="mt-4 text-3xl font-semibold text-white">Be first in line for the RunDaddy private beta.</h2>
+        <p class="mt-4 text-base leading-7 text-rd-secondary">
+          Tell us about your routes and we’ll reserve your spot when invites open.
+        </p>
+        <form class="mt-8 flex flex-col gap-4 sm:flex-row">
+          <label class="sr-only" for="email">Work email</label>
+          <input
+            id="email"
+            type="email"
+            name="email"
+            placeholder="you@company.com"
+            autocomplete="email"
+            required
+            class="w-full rounded-full border border-white/20 bg-black/20 px-5 py-3 text-sm text-white placeholder:text-rd-muted outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
+          />
+          <button
+            type="submit"
+            class="w-full rounded-full bg-gradient-to-r from-rd-accent to-rd-accent-strong px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_-24px_rgba(95,108,251,0.9)] transition hover:brightness-110 sm:w-auto"
+          >
+            Request access
+          </button>
+        </form>
+        <p class="mt-4 text-xs text-rd-muted">No spam — just an invite when we’re ready for your market.</p>
+      </div>
     </div>
   </section>
 </main>
