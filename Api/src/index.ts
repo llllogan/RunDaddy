@@ -1,7 +1,19 @@
 import express from 'express';
+import cors from 'cors';
 import { prisma } from './lib/prisma.js';
 
 const app = express();
+const defaultOrigins = ['http://localhost:4200'];
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
+  : defaultOrigins;
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 app.get('/health', async (_req, res) => {

@@ -61,6 +61,7 @@ model Company {
 model Admin {
   id          String    @id @default(cuid())
   email       String    @unique
+  password    String
   firstName   String
   lastName    String
   role        AdminRole @default(MANAGER)
@@ -205,8 +206,8 @@ model CompanyPicker {
   companyId String
   pickerId  String
   role      String?
-  status    PickerStatus    @default(ACTIVE)
-  joinedAt  DateTime @default(now())
+  status    PickerStatus @default(ACTIVE)
+  joinedAt  DateTime     @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   picker  Picker  @relation(fields: [pickerId], references: [id], onDelete: Cascade)
