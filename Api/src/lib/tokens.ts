@@ -1,6 +1,6 @@
 import { sign, verify } from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
-import type { UserRole } from '@prisma/client';
+import type { UserRole } from '../types/enums.js';
 
 type BaseClaims = {
   sub: string;

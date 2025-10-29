@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
-import { buildCompanySlug } from '../lib/slug.js';
 import { createTokenPair, verifyRefreshToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
 
@@ -12,7 +11,6 @@ const router = Router();
 
 const registerSchema = z.object({
   companyName: z.string().min(2),
-  companyDescription: z.string().min(1).optional(),
   userFirstName: z.string().min(1),
   userLastName: z.string().min(1),
   userEmail: z.string().email(),
@@ -23,111 +21,108 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  companyId: z.string().cuid().optional(),
 });
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(10),
 });
 
-const makeCompanySlug = async (name: string): Promise<string> => {
-  const base = buildCompanySlug(name);
-  let candidate = base;
-  let counter = 1;
+type SessionCompany = { id: string; name: string };
+type SessionUser = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  phone?: string | null;
+};
 
-  // Ensure uniqueness by appending a counter if needed.
-  // This loop is safe because of the unique constraint and short-circuit on the first available slug.
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const existing = await prisma.company.findUnique({ where: { slug: candidate } });
-    if (!existing) {
-      return candidate;
-    }
-    counter += 1;
-    candidate = `${base}-${counter}`;
-  }
+type SessionTokens = {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: Date;
+  refreshTokenExpiresAt: Date;
 };
 
 const respondWithSession = (
   res: Response,
   data: {
-    company: { id: string; name: string; slug: string };
-    user: { id: string; email: string; firstName: string; lastName: string; role: UserRole; phone?: string | null };
-    accessToken: string;
-    refreshToken: string;
-    accessTokenExpiresAt: Date;
-    refreshTokenExpiresAt: Date;
+    company: SessionCompany;
+    user: SessionUser;
+    tokens: SessionTokens;
   },
   status = 200,
 ) => {
   return res.status(status).json({
     company: data.company,
-    user: data.user,
+    user: {
+      id: data.user.id,
+      email: data.user.email,
+      firstName: data.user.firstName,
+      lastName: data.user.lastName,
+      role: data.user.role,
+      phone: data.user.phone ?? null,
+    },
     tokens: {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      accessTokenExpiresAt: data.accessTokenExpiresAt.toISOString(),
-      refreshTokenExpiresAt: data.refreshTokenExpiresAt.toISOString(),
+      accessToken: data.tokens.accessToken,
+      refreshToken: data.tokens.refreshToken,
+      accessTokenExpiresAt: data.tokens.accessTokenExpiresAt.toISOString(),
+      refreshTokenExpiresAt: data.tokens.refreshTokenExpiresAt.toISOString(),
     },
   });
 };
 
-router.post('/register', async (req, res) => {
-  const result = registerSchema.safeParse(req.body);
+const buildSessionPayload = (
+  user: SessionUser,
+  company: SessionCompany,
+  tokens: SessionTokens,
+) => ({
+  company,
+  user,
+  tokens,
+});
 
-  if (!result.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: result.error.flatten() });
+router.post('/register', async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const {
-    companyName,
-    companyDescription,
-    userFirstName,
-    userLastName,
-    userEmail,
-    userPassword,
-    userPhone,
-  } = result.data;
+  const { companyName, userFirstName, userLastName, userEmail, userPassword, userPhone } = parsed.data;
 
   const existingUser = await prisma.user.findUnique({ where: { email: userEmail } });
   if (existingUser) {
     return res.status(409).json({ error: 'Email already registered' });
   }
 
-  const slug = await makeCompanySlug(companyName);
   const passwordHash = await hashPassword(userPassword);
 
-  const company = await prisma.company.create({
+  const company = await prisma.company.create({ data: { name: companyName } });
+  const user = await prisma.user.create({
     data: {
-      name: companyName,
-      slug,
-      description: companyDescription ?? null,
-      users: {
-        create: {
-          email: userEmail,
-          password: passwordHash,
-          firstName: userFirstName,
-          lastName: userLastName,
-          role: UserRole.OWNER,
-          phone: userPhone ?? null,
-        },
-      },
-    },
-    include: {
-      users: true,
+      email: userEmail,
+      password: passwordHash,
+      firstName: userFirstName,
+      lastName: userLastName,
+      phone: userPhone ?? null,
+      role: UserRole.OWNER,
     },
   });
-
-  const user = company.users[0];
-
-  if (!user) {
-    return res.status(500).json({ error: 'Failed to create user account' });
-  }
+  const membership = await prisma.membership.create({
+    data: {
+      userId: user.id,
+      companyId: company.id,
+      role: UserRole.OWNER,
+    },
+  });
 
   const tokens = createTokenPair({
     userId: user.id,
     companyId: company.id,
     email: user.email,
-    role: user.role,
+    role: membership.role,
   });
 
   await prisma.refreshToken.create({
@@ -140,39 +135,43 @@ router.post('/register', async (req, res) => {
 
   return respondWithSession(
     res,
-    {
-      company: { id: company.id, name: company.name, slug: company.slug },
-      user: {
+    buildSessionPayload(
+      {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: membership.role,
         phone: user.phone,
       },
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-    },
+      { id: company.id, name: company.name },
+      tokens,
+    ),
     201,
   );
 });
 
 router.post('/login', async (req, res) => {
-  const result = loginSchema.safeParse(req.body);
+  const parsed = loginSchema.safeParse(req.body);
 
-  if (!result.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: result.error.flatten() });
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const { email, password } = result.data;
+  const { email, password, companyId } = parsed.data;
+
   const user = await prisma.user.findUnique({
     where: { email },
-    include: { company: true },
+    include: {
+      memberships: {
+        include: {
+          company: true,
+        },
+      },
+    },
   });
 
-  if (!user || !user.company) {
+  if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
@@ -181,11 +180,40 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
+  const memberships = (user.memberships ?? []) as Array<{
+    companyId: string;
+    role: UserRole;
+    company: { id: string; name: string };
+  }>;
+
+  if (!memberships.length) {
+    return res.status(403).json({ error: 'No active company memberships for this account' });
+  }
+
+  const firstMembership = memberships[0];
+  if (!firstMembership) {
+    return res.status(500).json({ error: 'Unable to resolve company membership' });
+  }
+
+  let membership = firstMembership;
+  if (companyId) {
+    const selected = memberships.find((member) => member.companyId === companyId);
+    if (!selected) {
+      return res.status(404).json({ error: 'Membership not found for provided company' });
+    }
+    membership = selected;
+  } else if (memberships.length > 1) {
+    return res.status(412).json({
+      error: 'Multiple company memberships. Provide companyId to select one.',
+      memberships: memberships.map((member) => ({ companyId: member.companyId, companyName: member.company.name })),
+    });
+  }
+
   const tokens = createTokenPair({
     userId: user.id,
-    companyId: user.companyId,
+    companyId: membership.companyId,
     email: user.email,
-    role: user.role,
+    role: membership.role,
   });
 
   await prisma.refreshToken.create({
@@ -196,31 +224,31 @@ router.post('/login', async (req, res) => {
     },
   });
 
-  return respondWithSession(res, {
-    company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
-    user: {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      phone: user.phone,
-    },
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-    accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-  });
+  return respondWithSession(
+    res,
+    buildSessionPayload(
+      {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: membership.role,
+        phone: user.phone,
+      },
+      { id: membership.company.id, name: membership.company.name },
+      tokens,
+    ),
+  );
 });
 
 router.post('/refresh', async (req, res) => {
-  const result = refreshSchema.safeParse(req.body);
+  const parsed = refreshSchema.safeParse(req.body);
 
-  if (!result.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: result.error.flatten() });
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const { refreshToken } = result.data;
+  const { refreshToken } = parsed.data;
 
   try {
     const payload = verifyRefreshToken(refreshToken);
@@ -239,18 +267,25 @@ router.post('/refresh', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { company: true },
+      include: {
+        memberships: {
+          where: { companyId: payload.companyId },
+          include: { company: true },
+        },
+      },
     });
 
-    if (!user || !user.company) {
+    if (!user || !user.memberships.length) {
       return res.status(401).json({ error: 'Account not available' });
     }
 
+    const membership = user.memberships[0];
+
     const tokens = createTokenPair({
       userId: user.id,
-      companyId: user.companyId,
+      companyId: membership.companyId,
       email: user.email,
-      role: user.role,
+      role: membership.role,
     });
 
     await prisma.$transaction([
@@ -267,21 +302,21 @@ router.post('/refresh', async (req, res) => {
       }),
     ]);
 
-    return respondWithSession(res, {
-      company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        phone: user.phone,
-      },
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-    });
+    return respondWithSession(
+      res,
+      buildSessionPayload(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: membership.role,
+          phone: user.phone,
+        },
+        { id: membership.company.id, name: membership.company.name },
+        tokens,
+      ),
+    );
   } catch (error) {
     return res.status(401).json({ error: 'Unable to refresh token', detail: (error as Error).message });
   }
@@ -292,24 +327,32 @@ router.get('/me', authenticate, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: req.auth.userId },
-    include: { company: true },
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_companyId: {
+        userId: req.auth.userId,
+        companyId: req.auth.companyId,
+      },
+    },
+    include: {
+      user: true,
+      company: true,
+    },
   });
 
-  if (!user || !user.company) {
-    return res.status(404).json({ error: 'Account not found' });
+  if (!membership) {
+    return res.status(404).json({ error: 'Membership not found' });
   }
 
   return res.json({
-    company: { id: user.company.id, name: user.company.name, slug: user.company.slug },
+    company: { id: membership.company.id, name: membership.company.name },
     user: {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      phone: user.phone,
+      id: membership.user.id,
+      email: membership.user.email,
+      firstName: membership.user.firstName,
+      lastName: membership.user.lastName,
+      role: membership.role,
+      phone: membership.user.phone,
     },
   });
 });

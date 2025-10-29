@@ -19,17 +19,6 @@
           <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('companyName')">{{ getErrorMessage('companyName') }}</p>
         </div>
 
-        <div class="sm:col-span-2">
-          <label class="block text-sm font-medium text-white" for="companyDescription">Company description</label>
-          <textarea
-            id="companyDescription"
-            formControlName="companyDescription"
-            rows="3"
-            class="mt-2 w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
-            placeholder="Short description (optional)"
-          ></textarea>
-        </div>
-
         <div>
           <label class="block text-sm font-medium text-white" for="userFirstName">Owner first name</label>
           <input

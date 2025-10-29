@@ -2,6 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
+import { companiesRouter } from './routes/companies.js';
+import { usersRouter } from './routes/users.js';
+import { machineTypesRouter } from './routes/machine-types.js';
+import { locationsRouter } from './routes/locations.js';
+import { machinesRouter } from './routes/machines.js';
+import { skusRouter } from './routes/skus.js';
+import { runsRouter } from './routes/runs.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -27,6 +34,13 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/auth', authRouter);
+app.use('/companies', companiesRouter);
+app.use('/users', usersRouter);
+app.use('/machine-types', machineTypesRouter);
+app.use('/locations', locationsRouter);
+app.use('/machines', machinesRouter);
+app.use('/skus', skusRouter);
+app.use('/runs', runsRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 const server = app.listen(port, () => {

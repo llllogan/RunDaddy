@@ -16,7 +16,6 @@ export interface UserSummary {
 export interface CompanySummary {
   id: string;
   name: string;
-  slug: string;
 }
 
 interface TokenPayload {
@@ -63,7 +62,6 @@ interface StoredSession {
 
 export interface RegisterInput {
   companyName: string;
-  companyDescription?: string;
   userFirstName: string;
   userLastName: string;
   userEmail: string;

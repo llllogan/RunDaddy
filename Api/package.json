@@ -8,9 +8,9 @@
     "build": "rimraf dist && tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:generate": "prisma generate --schema DB/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema DB/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema DB/prisma/schema.prisma"
   },
   "keywords": [],
   "author": "",

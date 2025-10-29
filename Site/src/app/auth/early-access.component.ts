@@ -20,7 +20,6 @@ export class EarlyAccessComponent {
 
   protected readonly form = this.fb.group({
     companyName: ['', [Validators.required, Validators.minLength(2)]],
-    companyDescription: [''],
     userFirstName: ['', [Validators.required, Validators.minLength(1)]],
     userLastName: ['', [Validators.required, Validators.minLength(1)]],
     userEmail: ['', [Validators.required, Validators.email]],

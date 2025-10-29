@@ -17,25 +17,34 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ error: 'Invalid token payload' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_companyId: {
+          userId: payload.sub,
+          companyId: payload.companyId,
+        },
+      },
       select: {
-        id: true,
-        email: true,
         role: true,
         companyId: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
       },
     });
 
-    if (!user) {
-      return res.status(401).json({ error: 'Account not found' });
+    if (!membership) {
+      return res.status(401).json({ error: 'Membership not found' });
     }
 
     req.auth = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      companyId: user.companyId,
+      userId: membership.user.id,
+      email: membership.user.email,
+      role: membership.role,
+      companyId: membership.companyId,
     };
     return next();
   } catch (error) {
