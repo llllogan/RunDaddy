@@ -139,7 +139,7 @@ struct MachinesView: View {
             let previous = totalItems(in: previousRange)
             result = percentChangeResult(current: current, previous: previous)
 
-        case .sevenDays:
+        case .fortnight:
             let current = totalItemsByDay[today]
             let comparisonDate = calendar.date(byAdding: .day, value: -7, to: today).map { calendar.startOfDay(for: $0) }
             let previous = comparisonDate.flatMap { totalItemsByDay[$0] }
@@ -347,7 +347,7 @@ private struct ItemsPackedChart: View {
 
 private enum ChartRange: String, CaseIterable, Identifiable {
     case week
-    case sevenDays
+    case fortnight
     case month
 
     var id: ChartRange { self }
@@ -356,8 +356,8 @@ private enum ChartRange: String, CaseIterable, Identifiable {
         switch self {
         case .week:
             return "Week"
-        case .sevenDays:
-            return "7 Days"
+        case .fortnight:
+            return "Fortnight"
         case .month:
             let monthSymbols = calendar.monthSymbols
             let index = calendar.component(.month, from: today) - 1
@@ -375,7 +375,7 @@ private enum ChartRange: String, CaseIterable, Identifiable {
         switch self {
         case .week:
             return "Week vs Last Week"
-        case .sevenDays:
+        case .fortnight:
             return "Today vs Last Week"
         case .month:
             return "Month Over Month"
@@ -386,7 +386,7 @@ private enum ChartRange: String, CaseIterable, Identifiable {
         switch self {
         case .week:
             return "Week Average"
-        case .sevenDays:
+        case .fortnight:
             return "7-Day Average"
         case .month:
             return "30-Day Average"
@@ -397,7 +397,7 @@ private enum ChartRange: String, CaseIterable, Identifiable {
         switch self {
         case .week:
             return "Week-to-date average"
-        case .sevenDays:
+        case .fortnight:
             return "Rolling 7 days"
         case .month:
             return "Last 30 days"
@@ -411,9 +411,9 @@ private enum ChartRange: String, CaseIterable, Identifiable {
             let end = calendar.endOfWeek(containing: today)
             return start...end
 
-        case .sevenDays:
+        case .fortnight:
             let end = today
-            let start = calendar.date(byAdding: .day, value: -6, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            let start = calendar.date(byAdding: .day, value: -13, to: end).map { calendar.startOfDay(for: $0) } ?? end
             return start...end
 
         case .month:
@@ -429,7 +429,7 @@ private enum ChartRange: String, CaseIterable, Identifiable {
             let start = calendar.startOfWeek(containing: today)
             return start...today
 
-        case .sevenDays:
+        case .fortnight:
             let end = today
             let start = calendar.date(byAdding: .day, value: -6, to: end).map { calendar.startOfDay(for: $0) } ?? end
             return start...end
@@ -446,7 +446,7 @@ private enum ChartRange: String, CaseIterable, Identifiable {
         case .week:
             return "Week So Far"
 
-        case .sevenDays:
+        case .fortnight:
             let comparisonDate = calendar.date(byAdding: .day, value: -7, to: today) ?? today
             let weekdaySymbols = calendar.weekdaySymbols
             let rawIndex = calendar.component(.weekday, from: comparisonDate) - 1
