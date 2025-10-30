@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate --schema DB/prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema DB/prisma/schema.prisma",
-    "prisma:studio": "prisma studio --schema DB/prisma/schema.prisma"
+    "prisma:studio": "prisma studio --schema DB/prisma/schema.prisma",
+    "db:sync": "npm run prisma:migrate && prisma db execute --schema DB/prisma/schema.prisma --file DB/sql/seed_views.sql && prisma db execute --schema DB/prisma/schema.prisma --file DB/sql/seed_stored_procs.sql"
   },
   "keywords": [],
   "author": "",

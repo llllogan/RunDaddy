@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -9,6 +10,16 @@ const router = Router();
 router.use(authenticate);
 
 const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
+
+const extractRows = <T>(result: unknown): T[] => {
+  if (Array.isArray(result)) {
+    if (result.length > 0 && Array.isArray(result[0])) {
+      return result[0] as T[];
+    }
+    return result as T[];
+  }
+  return [];
+};
 
 const createMachineSchema = z.object({
   code: z.string().min(1),
@@ -117,13 +128,10 @@ router.get('/details', async (req, res) => {
     location_address: string | null;
   };
 
-  const rowsRaw = await prisma.$queryRaw`
-    SELECT *
-    FROM v_machine_details
-    WHERE company_id = ${req.auth.companyId}
-    ORDER BY machine_code ASC
-  `;
-  const rows = rowsRaw as MachineDetailsRow[];
+  const rowsRaw = await prisma.$queryRaw<MachineDetailsRow[][]>(
+    Prisma.sql`CALL sp_get_machine_details(${req.auth.companyId})`,
+  );
+  const rows = extractRows<MachineDetailsRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -168,23 +176,11 @@ router.get('/coil-inventory', async (req, res) => {
 
   const { machineId } = req.query;
 
-  const rowsRaw =
-    typeof machineId === 'string'
-      ? await prisma.$queryRaw`
-          SELECT *
-          FROM v_coil_inventory
-          WHERE company_id = ${req.auth.companyId}
-            AND machine_id = ${machineId}
-          ORDER BY machine_code ASC, coil_code ASC
-        `
-      : await prisma.$queryRaw`
-          SELECT *
-          FROM v_coil_inventory
-          WHERE company_id = ${req.auth.companyId}
-          ORDER BY machine_code ASC, coil_code ASC
-        `;
-
-  const rows = rowsRaw as CoilInventoryRow[];
+  const machineIdParam = typeof machineId === 'string' ? machineId : null;
+  const rowsRaw = await prisma.$queryRaw<CoilInventoryRow[][]>(
+    Prisma.sql`CALL sp_get_coil_inventory(${req.auth.companyId}, ${machineIdParam})`,
+  );
+  const rows = extractRows<CoilInventoryRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({

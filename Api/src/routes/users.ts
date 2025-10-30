@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -28,6 +29,16 @@ const updateUserSchema = z.object({
 
 const canManageUsers = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
 
+const extractRows = <T>(result: unknown): T[] => {
+  if (Array.isArray(result)) {
+    if (result.length > 0 && Array.isArray(result[0])) {
+      return result[0] as T[];
+    }
+    return result as T[];
+  }
+  return [];
+};
+
 router.get('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -46,14 +57,10 @@ router.get('/', async (req, res) => {
     company_id: string;
   };
 
-  const rowsRaw = await prisma.$queryRaw`
-    SELECT *
-    FROM v_user_memberships
-    WHERE company_id = ${req.auth.companyId}
-    ORDER BY user_last_name ASC, user_first_name ASC
-  `;
-
-  const rows = rowsRaw as UserMembershipRow[];
+  const rowsRaw = await prisma.$queryRaw<UserMembershipRow[][]>(
+    Prisma.sql`CALL sp_get_user_memberships(${req.auth.companyId})`,
+  );
+  const rows = extractRows<UserMembershipRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -365,13 +372,10 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
     token_context: string;
   };
 
-  const rowsRaw = await prisma.$queryRaw`
-    SELECT *
-    FROM v_user_refresh_tokens
-    WHERE user_id = ${userId}
-  `;
-
-  const rows = rowsRaw as RefreshTokenRow[];
+  const rowsRaw = await prisma.$queryRaw<RefreshTokenRow[][]>(
+    Prisma.sql`CALL sp_get_user_refresh_tokens(${userId})`,
+  );
+  const rows = extractRows<RefreshTokenRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({

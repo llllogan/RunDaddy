@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { RunItemStatus, RunStatus, UserRole, isRunStatus } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -9,6 +10,16 @@ const router = Router();
 router.use(authenticate);
 
 const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
+
+const extractRows = <T>(result: unknown): T[] => {
+  if (Array.isArray(result)) {
+    if (result.length > 0 && Array.isArray(result[0])) {
+      return result[0] as T[];
+    }
+    return result as T[];
+  }
+  return [];
+};
 
 const createRunSchema = z.object({
   pickerId: z.string().cuid().optional(),
@@ -165,22 +176,10 @@ router.get('/overview', async (req, res) => {
   const { status } = req.query;
   const statusFilter = isRunStatus(status) ? status : null;
 
-  const rowsRaw = statusFilter
-    ? await prisma.$queryRaw`
-        SELECT *
-        FROM v_run_overview
-        WHERE company_id = ${req.auth.companyId}
-          AND run_status = ${statusFilter}
-        ORDER BY scheduled_for DESC, run_created_at DESC
-      `
-    : await prisma.$queryRaw`
-        SELECT *
-        FROM v_run_overview
-        WHERE company_id = ${req.auth.companyId}
-        ORDER BY scheduled_for DESC, run_created_at DESC
-      `;
-
-  const rows = rowsRaw as RunOverviewRow[];
+  const rowsRaw = await prisma.$queryRaw<RunOverviewRow[][]>(
+    Prisma.sql`CALL sp_get_run_overview(${req.auth.companyId}, ${statusFilter})`,
+  );
+  const rows = extractRows<RunOverviewRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -230,22 +229,11 @@ router.get('/pick-entries', async (req, res) => {
 
   const { runId } = req.query;
 
-  const rowsRaw = typeof runId === 'string'
-    ? await prisma.$queryRaw`
-        SELECT *
-        FROM v_run_pick_entries
-        WHERE company_id = ${req.auth.companyId}
-          AND run_id = ${runId}
-        ORDER BY run_id DESC, pick_entry_id ASC
-      `
-    : await prisma.$queryRaw`
-        SELECT *
-        FROM v_run_pick_entries
-        WHERE company_id = ${req.auth.companyId}
-        ORDER BY run_id DESC, pick_entry_id ASC
-      `;
-
-  const rows = rowsRaw as RunPickEntryRow[];
+  const runIdParam = typeof runId === 'string' ? runId : null;
+  const rowsRaw = await prisma.$queryRaw<RunPickEntryRow[][]>(
+    Prisma.sql`CALL sp_get_run_pick_entries(${req.auth.companyId}, ${runIdParam})`,
+  );
+  const rows = extractRows<RunPickEntryRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -287,22 +275,11 @@ router.get('/chocolate-boxes', async (req, res) => {
 
   const { runId } = req.query;
 
-  const rowsRaw = typeof runId === 'string'
-    ? await prisma.$queryRaw`
-        SELECT *
-        FROM v_chocolate_box_details
-        WHERE company_id = ${req.auth.companyId}
-          AND run_id = ${runId}
-        ORDER BY run_id DESC, chocolate_box_number ASC
-      `
-    : await prisma.$queryRaw`
-        SELECT *
-        FROM v_chocolate_box_details
-        WHERE company_id = ${req.auth.companyId}
-        ORDER BY run_id DESC, chocolate_box_number ASC
-      `;
-
-  const rows = rowsRaw as ChocolateBoxRow[];
+  const runIdParam = typeof runId === 'string' ? runId : null;
+  const rowsRaw = await prisma.$queryRaw<ChocolateBoxRow[][]>(
+    Prisma.sql`CALL sp_get_chocolate_box_details(${req.auth.companyId}, ${runIdParam})`,
+  );
+  const rows = extractRows<ChocolateBoxRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
