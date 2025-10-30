@@ -11,6 +11,7 @@ import SwiftUI
 
 struct MachinesView: View {
     @Query private var runCoils: [RunCoil]
+    @State private var selectedRange: ChartRange = .week
 
     init() {
         _runCoils = Query()
@@ -47,42 +48,54 @@ struct MachinesView: View {
         }
     }
 
-    private var metricsItems: [BentoItem] {
-        let comparison = itemsPackedComparisonMetric()
-        let average = sevenDayAverageMetric()
-
-        return [
-            BentoItem(title: "Today vs Last Week",
-                      value: comparison.value,
-                      subtitle: comparison.subtitle,
-                      symbolName: comparison.symbolName,
-                      symbolTint: comparison.tint,
-                      isProminent: true),
-            BentoItem(title: "7-Day Average",
-                      value: average.value,
-                      subtitle: average.subtitle,
-                      symbolName: average.symbolName,
-                      symbolTint: average.tint,
-                      isProminent: true)
-        ]
-    }
-
     var body: some View {
-        NavigationStack {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let chartRange = selectedRange.chartDateRange(relativeTo: today, calendar: calendar)
+        let metricsRange = selectedRange.metricsDateRange(relativeTo: today, calendar: calendar)
+        let filteredBreakdown = dailyItemBreakdown.filter { chartRange.contains($0.date) }
+        let metrics = metricsItems(for: selectedRange,
+                                   chartRange: chartRange,
+                                   metricsRange: metricsRange,
+                                   today: today,
+                                   calendar: calendar)
+
+        return NavigationStack {
             List {
-                Section("Items packed this week") {
+                Section("Items Packed") {
                     if dailyItemBreakdown.isEmpty {
                         ContentUnavailableView("No Packing Data",
                                                systemImage: "chart.bar",
                                                description: Text("Import runs to visualize daily packing totals."))
                             .frame(maxWidth: .infinity, minHeight: 220)
                     } else {
-                        ItemsPackedChart(data: dailyItemBreakdown)
+                        VStack(alignment: .leading, spacing: 12) {
+                            ItemsPackedChart(data: filteredBreakdown, dateRange: chartRange)
+                                .overlay {
+                                    if filteredBreakdown.isEmpty {
+                                        ContentUnavailableView("No Data in Range",
+                                                               systemImage: "calendar.badge.exclamationmark",
+                                                               description: Text("Try a different period to compare packing activity."))
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .background(Color.clear)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+
+                            Picker("", selection: $selectedRange) {
+                                ForEach(ChartRange.allCases) { range in
+                                    Text(range.label(for: today, calendar: calendar)).tag(range)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
 
                 Section("Recent Insights") {
-                    StaggeredBentoGrid(items: metricsItems, columnCount: 2)
+                    StaggeredBentoGrid(items: metrics, columnCount: 2)
                         .padding(.horizontal, 4)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
                         .listRowBackground(Color.clear)
@@ -93,104 +106,164 @@ struct MachinesView: View {
         }
     }
 
-    private func itemsPackedComparisonMetric() -> (value: String,
-                                                   subtitle: String?,
-                                                   symbolName: String,
-                                                   tint: Color) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let lastWeekDate = calendar.date(byAdding: .day, value: -7, to: today)
+    private func metricsItems(for selection: ChartRange,
+                              chartRange: ClosedRange<Date>,
+                              metricsRange: ClosedRange<Date>,
+                              today: Date,
+                              calendar: Calendar) -> [BentoItem] {
+        [
+            comparisonMetric(for: selection,
+                             chartRange: chartRange,
+                             metricsRange: metricsRange,
+                             today: today,
+                             calendar: calendar),
+            averageMetric(for: selection,
+                          chartRange: chartRange,
+                          calendar: calendar)
+        ]
+    }
 
-        let todayTotal = totalItemsByDay[today]
-        let lastWeekTotal = lastWeekDate.flatMap { totalItemsByDay[$0] }
+    private func comparisonMetric(for selection: ChartRange,
+                                  chartRange: ClosedRange<Date>,
+                                  metricsRange: ClosedRange<Date>,
+                                  today: Date,
+                                  calendar: Calendar) -> BentoItem {
+        let subtitle = selection.comparisonSubtitle(today: today, calendar: calendar)
+        let result: PercentChangeResult
+        let title = selection.comparisonTitle
 
-        let subtitle: String? = {
-            if todayTotal == nil && lastWeekTotal == nil {
-                return nil
-            }
-            let todayString = todayTotal.map { formatItems($0) } ?? "—"
-            let lastWeekString = lastWeekTotal.map { formatItems($0) } ?? "—"
-            return "Today \(todayString) • Last Week \(lastWeekString)"
-        }()
+        switch selection {
+        case .week:
+            let current = totalItems(in: metricsRange)
+            let previousRange = offsetRange(metricsRange, byDays: -7, calendar: calendar)
+            let previous = totalItems(in: previousRange)
+            result = percentChangeResult(current: current, previous: previous)
 
-        guard let todayTotal else {
-            return (value: "—",
-                    subtitle: "No data for today",
-                    symbolName: "questionmark.circle",
-                    tint: .gray)
+        case .sevenDays:
+            let current = totalItemsByDay[today]
+            let comparisonDate = calendar.date(byAdding: .day, value: -7, to: today).map { calendar.startOfDay(for: $0) }
+            let previous = comparisonDate.flatMap { totalItemsByDay[$0] }
+            result = percentChangeResult(current: current, previous: previous)
+
+        case .month:
+            let currentMonthStart = calendar.startOfMonth(containing: today)
+            let currentRange = currentMonthStart...today
+            let previousPeriodEnd = calendar.date(byAdding: .month, value: -1, to: today).map { calendar.startOfDay(for: $0) } ?? today
+            let previousMonthStart = calendar.startOfMonth(containing: previousPeriodEnd)
+            let previousRange = previousMonthStart...previousPeriodEnd
+
+            let current = totalItems(in: currentRange)
+            let previous = totalItems(in: previousRange)
+            result = percentChangeResult(current: current, previous: previous)
         }
 
-        guard let lastWeekTotal else {
-            return (value: "—",
-                    subtitle: "No data from last week",
-                    symbolName: "questionmark.circle",
-                    tint: .gray)
+        return BentoItem(title: title,
+                         value: result.value,
+                         subtitle: subtitle,
+                         symbolName: result.symbolName,
+                         symbolTint: result.tint,
+                         isProminent: true)
+    }
+
+    private func averageMetric(for selection: ChartRange,
+                               chartRange: ClosedRange<Date>,
+                               calendar: Calendar) -> BentoItem {
+        let dayTotals = totalsPerDay(in: chartRange, calendar: calendar)
+        let totalItems = dayTotals.reduce(0, +)
+        let dayCount = dayTotals.count
+        let subtitle = selection.averageSubtitle
+
+        if dayCount == 0 || totalItems == 0 {
+            return BentoItem(title: selection.averageTitle,
+                              value: "0 / day",
+                              subtitle: subtitle,
+                              symbolName: "calendar.badge.exclamationmark",
+                              symbolTint: .gray,
+                              isProminent: true)
         }
 
-        guard lastWeekTotal != 0 else {
-            if todayTotal == 0 {
-                return (value: "0%",
-                        subtitle: subtitle ?? "No items recorded",
-                        symbolName: "equal.circle",
-                        tint: .secondary)
+        let average = totalItems / Double(dayCount)
+        return BentoItem(title: selection.averageTitle,
+                          value: "\(formatItems(average, fractionDigits: 0...1)) / day",
+                          subtitle: subtitle,
+                          symbolName: "chart.bar.doc.horizontal",
+                          symbolTint: .indigo,
+                          isProminent: true)
+    }
+
+    private func totalItems(in range: ClosedRange<Date>) -> Double? {
+        let matching = totalItemsByDay.filter { range.contains($0.key) }
+        guard !matching.isEmpty else { return nil }
+        return matching.values.reduce(0, +)
+    }
+
+    private func totalsPerDay(in range: ClosedRange<Date>, calendar: Calendar) -> [Double] {
+        guard range.lowerBound <= range.upperBound else { return [] }
+        var values: [Double] = []
+        var cursor = range.lowerBound
+        while cursor <= range.upperBound {
+            values.append(totalItemsByDay[cursor] ?? 0)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return values
+    }
+
+    private func offsetRange(_ range: ClosedRange<Date>, byDays days: Int, calendar: Calendar) -> ClosedRange<Date> {
+        guard let lower = calendar.date(byAdding: .day, value: days, to: range.lowerBound),
+              let upper = calendar.date(byAdding: .day, value: days, to: range.upperBound) else {
+            return range
+        }
+        return lower...upper
+    }
+
+    private func percentChangeResult(current: Double?, previous: Double?) -> PercentChangeResult {
+        guard let current else {
+            return PercentChangeResult(value: "—",
+                                       symbolName: "questionmark.circle",
+                                       tint: .gray)
+        }
+
+        guard let previous else {
+            return PercentChangeResult(value: "—",
+                                       symbolName: "questionmark.circle",
+                                       tint: .gray)
+        }
+
+        guard previous != 0 else {
+            if current == 0 {
+                return PercentChangeResult(value: "0%",
+                                           symbolName: "equal.circle",
+                                           tint: .secondary)
             } else {
-                return (value: "—",
-                        subtitle: "Add more data for last week to compare",
-                        symbolName: "exclamationmark.triangle",
-                        tint: .orange)
+                return PercentChangeResult(value: "—",
+                                           symbolName: "exclamationmark.triangle",
+                                           tint: .orange)
             }
         }
 
-        let percentChange = ((todayTotal - lastWeekTotal) / lastWeekTotal) * 100
+        let percentChange = ((current - previous) / previous) * 100
         let formattedChange = formatPercent(percentChange)
 
         if percentChange > 0 {
-            return (value: formattedChange,
-                    subtitle: subtitle,
-                    symbolName: "arrow.up.forward",
-                    tint: .green)
+            return PercentChangeResult(value: formattedChange,
+                                       symbolName: "arrow.up.forward",
+                                       tint: .green)
         } else if percentChange < 0 {
-            return (value: formattedChange,
-                    subtitle: subtitle,
-                    symbolName: "arrow.down.forward",
-                    tint: .pink)
+            return PercentChangeResult(value: formattedChange,
+                                       symbolName: "arrow.down.forward",
+                                       tint: .pink)
         } else {
-            return (value: "0%",
-                    subtitle: subtitle,
-                    symbolName: "equal.circle",
-                    tint: .secondary)
+            return PercentChangeResult(value: "0%",
+                                       symbolName: "equal.circle",
+                                       tint: .secondary)
         }
     }
 
-    private func sevenDayAverageMetric() -> (value: String,
-                                             subtitle: String,
-                                             symbolName: String,
-                                             tint: Color) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-
-        let days = (0..<7).compactMap { offset in
-            calendar.date(byAdding: .day, value: -offset, to: today)
-        }
-
-        let totals = days.map { date in
-            totalItemsByDay[date] ?? 0
-        }
-
-        let totalItems = totals.reduce(0, +)
-        let average = totalItems / Double(days.count)
-
-        if totalItems == 0 {
-            return (value: "0 / day",
-                    subtitle: "No packing activity in the last week",
-                    symbolName: "calendar.badge.exclamationmark",
-                    tint: .gray)
-        }
-
-        return (value: "\(formatItems(average, fractionDigits: 0...1)) / day",
-                subtitle: "Total \(formatItems(totalItems)) items in 7 days",
-                symbolName: "chart.bar.doc.horizontal",
-                tint: .indigo)
+    private struct PercentChangeResult {
+        let value: String
+        let symbolName: String
+        let tint: Color
     }
 
     private func formatItems(_ value: Double, fractionDigits: ClosedRange<Int> = 0...0) -> String {
@@ -207,6 +280,28 @@ struct MachinesView: View {
 
 private struct ItemsPackedChart: View {
     let data: [DailyItemBreakdown]
+    let dateRange: ClosedRange<Date>
+
+    private var calendar: Calendar { Calendar.current }
+
+    private var paddedDomain: ClosedRange<Date> {
+        let lower = calendar.date(byAdding: .hour, value: -12, to: dateRange.lowerBound) ?? dateRange.lowerBound
+        let endOfRange = calendar.date(byAdding: .day, value: 1, to: dateRange.upperBound) ?? dateRange.upperBound
+        let upper = endOfRange
+        return lower...upper
+    }
+
+    private var axisDates: [Date] {
+        guard dateRange.lowerBound <= dateRange.upperBound else { return [] }
+        var values: [Date] = []
+        var cursor = dateRange.lowerBound
+        while cursor <= dateRange.upperBound {
+            values.append(cursor)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return values
+    }
 
     var body: some View {
         Chart(data) { entry in
@@ -222,12 +317,13 @@ private struct ItemsPackedChart: View {
             AxisMarks(position: .leading)
         }
         .chartYAxisLabel("Items Packed")
+        .chartXScale(domain: paddedDomain)
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 6)) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let dateValue = value.as(Date.self) {
-                        Text(dateValue, format: .dateTime.month(.abbreviated).day())
+            AxisMarks(values: axisDates) { value in
+                if let dateValue = value.as(Date.self) {
+                    AxisGridLine()
+                    AxisValueLabel {
+                        axisLabel(for: dateValue)
                     }
                 }
             }
@@ -235,6 +331,160 @@ private struct ItemsPackedChart: View {
         .frame(height: 240)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func axisLabel(for date: Date) -> some View {
+        let weekday = calendar.component(.weekday, from: date)
+        if weekday == 2 {
+            Text(date, format: .dateTime.day())
+        } else {
+            let symbol = calendar.shortWeekdaySymbols[weekday - 1]
+            Text(String(symbol.prefix(1)))
+        }
+    }
+}
+
+private enum ChartRange: String, CaseIterable, Identifiable {
+    case week
+    case sevenDays
+    case month
+
+    var id: ChartRange { self }
+
+    func label(for today: Date, calendar: Calendar) -> String {
+        switch self {
+        case .week:
+            return "Week"
+        case .sevenDays:
+            return "7 Days"
+        case .month:
+            let monthSymbols = calendar.monthSymbols
+            let index = calendar.component(.month, from: today) - 1
+            if monthSymbols.indices.contains(index) {
+                return monthSymbols[index]
+            }
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.dateFormat = "MMMM"
+            return formatter.string(from: today)
+        }
+    }
+
+    var comparisonTitle: String {
+        switch self {
+        case .week:
+            return "Week vs Last Week"
+        case .sevenDays:
+            return "Today vs Last Week"
+        case .month:
+            return "Month Over Month"
+        }
+    }
+
+    var averageTitle: String {
+        switch self {
+        case .week:
+            return "Week Average"
+        case .sevenDays:
+            return "7-Day Average"
+        case .month:
+            return "30-Day Average"
+        }
+    }
+
+    var averageSubtitle: String? {
+        switch self {
+        case .week:
+            return "Week-to-date average"
+        case .sevenDays:
+            return "Rolling 7 days"
+        case .month:
+            return "Last 30 days"
+        }
+    }
+
+    func chartDateRange(relativeTo today: Date, calendar: Calendar) -> ClosedRange<Date> {
+        switch self {
+        case .week:
+            let start = calendar.startOfWeek(containing: today)
+            let end = calendar.endOfWeek(containing: today)
+            return start...end
+
+        case .sevenDays:
+            let end = today
+            let start = calendar.date(byAdding: .day, value: -6, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            return start...end
+
+        case .month:
+            let end = today
+            let start = calendar.date(byAdding: .day, value: -30, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            return start...end
+        }
+    }
+
+    func metricsDateRange(relativeTo today: Date, calendar: Calendar) -> ClosedRange<Date> {
+        switch self {
+        case .week:
+            let start = calendar.startOfWeek(containing: today)
+            return start...today
+
+        case .sevenDays:
+            let end = today
+            let start = calendar.date(byAdding: .day, value: -6, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            return start...end
+
+        case .month:
+            let end = today
+            let start = calendar.date(byAdding: .day, value: -30, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            return start...end
+        }
+    }
+
+    func comparisonSubtitle(today: Date, calendar: Calendar) -> String {
+        switch self {
+        case .week:
+            return "Week So Far"
+
+        case .sevenDays:
+            let comparisonDate = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+            let weekdaySymbols = calendar.weekdaySymbols
+            let rawIndex = calendar.component(.weekday, from: comparisonDate) - 1
+            let boundedIndex = min(max(rawIndex, 0), weekdaySymbols.count - 1)
+            let weekdayName = weekdaySymbols[boundedIndex]
+            return "Today vs Last \(weekdayName)"
+
+        case .month:
+            let monthSymbols = calendar.monthSymbols
+            let currentMonthIndex = calendar.component(.month, from: today) - 1
+            let boundedCurrent = min(max(currentMonthIndex, 0), monthSymbols.count - 1)
+            let currentMonth = monthSymbols[boundedCurrent]
+            let previousDate = calendar.date(byAdding: .month, value: -1, to: today) ?? today
+            let previousIndex = calendar.component(.month, from: previousDate) - 1
+            let boundedPrevious = min(max(previousIndex, 0), monthSymbols.count - 1)
+            let previousMonth = monthSymbols[boundedPrevious]
+            return "\(currentMonth) vs \(previousMonth)"
+        }
+    }
+}
+
+private extension Calendar {
+    func startOfMonth(containing date: Date) -> Date {
+        let components = dateComponents([.year, .month], from: date)
+        let start = self.date(from: components) ?? date
+        return startOfDay(for: start)
+    }
+
+    func startOfWeek(containing date: Date) -> Date {
+        let day = startOfDay(for: date)
+        let weekday = component(.weekday, from: day)
+        let daysSinceMonday = (weekday + 5) % 7
+        return self.date(byAdding: .day, value: -daysSinceMonday, to: day) ?? day
+    }
+
+    func endOfWeek(containing date: Date) -> Date {
+        let start = startOfWeek(containing: date)
+        return self.date(byAdding: .day, value: 6, to: start) ?? start
     }
 }
 
