@@ -30,6 +30,55 @@
             Marketing Site
           </a>
         </nav>
+        <div
+          *ngIf="showCompanySelector()"
+          class="flex flex-col gap-2 text-xs text-rd-secondary sm:items-end sm:text-right"
+        >
+          <span class="font-semibold uppercase tracking-[0.2em] text-rd-secondary">Company</span>
+          <div class="relative w-full sm:w-56">
+            <select
+              class="w-full rounded-full border border-white/20 bg-black/30 px-4 py-2 text-sm font-semibold text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40 disabled:cursor-not-allowed disabled:opacity-60"
+              [value]="company()?.id ?? ''"
+              (change)="onCompanyChange($event)"
+              [disabled]="isSwitchingCompany() || loadingMemberships() || memberships().length <= 1"
+            >
+              <option *ngIf="loadingMemberships()" value="" disabled>Loading companies…</option>
+              <option
+                *ngIf="!loadingMemberships() && !memberships().length"
+                [value]="company()?.id ?? ''"
+              >
+                {{ company()?.name || 'Current company' }}
+              </option>
+              <option *ngFor="let membership of memberships()" [value]="membership.companyId">
+                {{ membership.companyName }}
+              </option>
+            </select>
+            <svg
+              *ngIf="isSwitchingCompany()"
+              class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-rd-accent"
+              viewBox="0 0 24 24"
+              fill="none"
+              role="presentation"
+            >
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3a5 5 0 0 0-5 5H4z"></path>
+            </svg>
+          </div>
+          <div
+            *ngIf="companySwitchError()"
+            class="flex flex-wrap items-center gap-2 text-xs text-[#f87171]"
+          >
+            <span>{{ companySwitchError() }}</span>
+            <button
+              type="button"
+              class="text-xs font-semibold text-rd-accent transition hover:text-rd-accent-strong disabled:opacity-60"
+              (click)="reloadMemberships()"
+              [disabled]="loadingMemberships()"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
         <div class="flex items-center justify-between gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 sm:justify-end">
           <div class="text-right">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-rd-secondary">Signed in</p>
@@ -180,47 +229,72 @@
         </div>
 
         <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-rd-card">
-          <table class="min-w-full text-left text-sm text-rd-secondary">
-            <thead>
-              <tr class="text-xs uppercase tracking-wide text-rd-muted">
-                <th class="pb-4 font-semibold">Picker</th>
-                <th class="pb-4 font-semibold">Routes</th>
-                <th class="pb-4 font-semibold">Avg. pace</th>
-                <th class="pb-4 font-semibold">Accuracy</th>
-                <th class="pb-4 font-semibold">Last sync</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/5 text-sm">
-              <tr class="hover:bg-white/5">
-                <td class="py-3 font-medium text-white">Octavia James</td>
-                <td class="py-3">5</td>
-                <td class="py-3">38m</td>
-                <td class="py-3 text-rd-teal">99.4%</td>
-                <td class="py-3">9 mins ago</td>
-              </tr>
-              <tr class="hover:bg-white/5">
-                <td class="py-3 font-medium text-white">Luis Andrade</td>
-                <td class="py-3">4</td>
-                <td class="py-3">43m</td>
-                <td class="py-3 text-rd-teal">98.1%</td>
-                <td class="py-3">17 mins ago</td>
-              </tr>
-              <tr class="hover:bg-white/5">
-                <td class="py-3 font-medium text-white">Kira Patel</td>
-                <td class="py-3">3</td>
-                <td class="py-3">41m</td>
-                <td class="py-3 text-[#f9c74f]">96.8%</td>
-                <td class="py-3">26 mins ago</td>
-              </tr>
-              <tr class="hover:bg-white/5">
-                <td class="py-3 font-medium text-white">Sean Murphy</td>
-                <td class="py-3">2</td>
-                <td class="py-3">45m</td>
-                <td class="py-3 text-rd-teal">99.1%</td>
-                <td class="py-3">32 mins ago</td>
-              </tr>
-            </tbody>
-          </table>
+          <div
+            *ngIf="runsError()"
+            class="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
+          >
+            <span>{{ runsError() }}</span>
+            <button
+              type="button"
+              class="text-xs font-semibold text-rd-accent transition hover:text-rd-accent-strong disabled:opacity-60"
+              (click)="reloadRuns()"
+              [disabled]="loadingRuns()"
+            >
+              Retry
+            </button>
+          </div>
+
+          <div *ngIf="loadingRuns(); else runsContent" class="flex items-center justify-center py-10 text-sm text-rd-secondary">
+            Loading recent runs…
+          </div>
+
+          <ng-template #runsContent>
+            <div *ngIf="hasRuns(); else runsEmpty">
+              <table class="min-w-full text-left text-sm text-rd-secondary">
+                <thead>
+                  <tr class="text-xs uppercase tracking-wide text-rd-muted">
+                    <th class="pb-4 font-semibold">Run</th>
+                    <th class="pb-4 font-semibold">Status</th>
+                    <th class="pb-4 font-semibold">Picker</th>
+                    <th class="pb-4 font-semibold">Runner</th>
+                    <th class="pb-4 font-semibold">Scheduled</th>
+                    <th class="pb-4 font-semibold">Updated</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5 text-sm">
+                  <tr *ngFor="let run of runs(); trackBy: trackByRun" class="hover:bg-white/5">
+                    <td class="py-3 font-mono text-xs uppercase tracking-wider text-rd-secondary">
+                      #{{ run.id | slice:-6 }}
+                    </td>
+                    <td class="py-3">
+                      <span
+                        [class]="[
+                          'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
+                          statusBadgeClass(run.status)
+                        ].join(' ')"
+                      >
+                        {{ formatStatus(run.status) }}
+                      </span>
+                    </td>
+                    <td class="py-3 text-white">{{ formatPerson(run.picker) }}</td>
+                    <td class="py-3 text-white">{{ formatPerson(run.runner) }}</td>
+                    <td class="py-3">
+                      {{ run.scheduledFor ? (run.scheduledFor | date : 'MMM d, h:mm a') : '—' }}
+                    </td>
+                    <td class="py-3">
+                      {{ getRunUpdatedAt(run) | date : 'MMM d, h:mm a' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </ng-template>
+
+          <ng-template #runsEmpty>
+            <div class="rounded-2xl border border-white/10 bg-black/20 px-6 py-8 text-sm text-rd-secondary">
+              No runs recorded for this company yet. Upload a pick list to get started.
+            </div>
+          </ng-template>
         </div>
       </section>
     </ng-template>

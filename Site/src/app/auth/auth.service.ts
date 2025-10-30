@@ -18,11 +18,21 @@ export interface CompanySummary {
   name: string;
 }
 
+export interface MembershipChoice {
+  companyId: string;
+  companyName: string;
+  role: string;
+}
+
+const AUTH_CONTEXT = 'WEB' as const;
+type AuthContext = typeof AUTH_CONTEXT;
+
 interface TokenPayload {
   accessToken: string;
   refreshToken: string;
   accessTokenExpiresAt: string;
   refreshTokenExpiresAt: string;
+  context?: AuthContext;
 }
 
 interface SessionPayload {
@@ -36,6 +46,7 @@ interface TokenSet {
   refreshToken: string;
   accessTokenExpiresAt: Date;
   refreshTokenExpiresAt: Date;
+  context: AuthContext;
 }
 
 interface Session {
@@ -49,6 +60,16 @@ interface ProfileResponse {
   company: CompanySummary;
 }
 
+interface CompanyMembershipResponse {
+  company: {
+    id: string;
+    name: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  role: string;
+}
+
 interface StoredSession {
   user: UserSummary;
   company: CompanySummary;
@@ -57,6 +78,7 @@ interface StoredSession {
     refreshToken: string;
     accessTokenExpiresAt: string;
     refreshTokenExpiresAt: string;
+    context?: AuthContext;
   };
 }
 
@@ -72,6 +94,15 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string;
   password: string;
+  companyId?: string;
+  setAsDefault?: boolean;
+}
+
+export class CompanySelectionRequiredError extends Error {
+  constructor(public readonly memberships: MembershipChoice[]) {
+    super('Select a company to continue.');
+    this.name = 'CompanySelectionRequiredError';
+  }
 }
 
 @Injectable({
@@ -123,8 +154,53 @@ export class AuthService {
 
   async login(input: LoginInput): Promise<void> {
     try {
-      const payload = await firstValueFrom(this.http.post<SessionPayload>(`${API_BASE_URL}/auth/login`, input));
+      const payload = await firstValueFrom(
+        this.http.post<SessionPayload>(`${API_BASE_URL}/auth/login`, {
+          ...input,
+          context: AUTH_CONTEXT,
+        }),
+      );
       this.applySessionPayload(payload);
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 412) {
+        const memberships = this.extractMembershipChoices(error.error);
+        if (memberships.length) {
+          throw new CompanySelectionRequiredError(memberships);
+        }
+      }
+      this.handleHttpError(error);
+    }
+  }
+
+  async switchCompany(companyId: string, options: { persist?: boolean } = {}): Promise<void> {
+    const persist = options.persist ?? true;
+
+    try {
+      const payload = await firstValueFrom(
+        this.http.post<SessionPayload>(`${API_BASE_URL}/auth/switch-company`, {
+          companyId,
+          persist,
+          context: AUTH_CONTEXT,
+        }),
+      );
+      this.applySessionPayload(payload);
+    } catch (error) {
+      this.handleHttpError(error);
+    }
+  }
+
+  async listMemberships(): Promise<MembershipChoice[]> {
+    try {
+      const response = await firstValueFrom(
+        this.http.get<CompanyMembershipResponse[]>(`${API_BASE_URL}/companies`),
+      );
+      return response
+        .map((membership) => ({
+          companyId: membership.company.id,
+          companyName: membership.company.name,
+          role: membership.role,
+        }))
+        .sort((a, b) => a.companyName.localeCompare(b.companyName));
     } catch (error) {
       this.handleHttpError(error);
     }
@@ -262,6 +338,7 @@ export class AuthService {
         refreshToken: payload.tokens.refreshToken,
         accessTokenExpiresAt: new Date(payload.tokens.accessTokenExpiresAt),
         refreshTokenExpiresAt: new Date(payload.tokens.refreshTokenExpiresAt),
+        context: payload.tokens.context ?? AUTH_CONTEXT,
       },
     };
   }
@@ -305,6 +382,7 @@ export class AuthService {
         refreshToken: session.tokens.refreshToken,
         accessTokenExpiresAt: session.tokens.accessTokenExpiresAt.toISOString(),
         refreshTokenExpiresAt: session.tokens.refreshTokenExpiresAt.toISOString(),
+        context: session.tokens.context,
       },
     };
     localStorage.setItem(this.storageKey, JSON.stringify(stored));
@@ -328,6 +406,7 @@ export class AuthService {
           refreshToken: parsed.tokens.refreshToken,
           accessTokenExpiresAt: new Date(parsed.tokens.accessTokenExpiresAt),
           refreshTokenExpiresAt: new Date(parsed.tokens.refreshTokenExpiresAt),
+          context: parsed.tokens.context ?? AUTH_CONTEXT,
         },
       };
     } catch {
@@ -347,6 +426,36 @@ export class AuthService {
       return;
     }
     localStorage.removeItem(this.storageKey);
+  }
+
+  private extractMembershipChoices(payload: unknown): MembershipChoice[] {
+    if (!payload || typeof payload !== 'object') {
+      return [];
+    }
+
+    const membershipsRaw = (payload as { memberships?: unknown }).memberships;
+    if (!Array.isArray(membershipsRaw)) {
+      return [];
+    }
+
+    const choices: MembershipChoice[] = [];
+    for (const entry of membershipsRaw) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+
+      const { companyId, companyName, role } = entry as {
+        companyId?: unknown;
+        companyName?: unknown;
+        role?: unknown;
+      };
+      if (typeof companyId !== 'string' || typeof companyName !== 'string' || typeof role !== 'string') {
+        continue;
+      }
+      choices.push({ companyId, companyName, role });
+    }
+
+    return choices;
   }
 
   private handleHttpError(error: unknown): never {

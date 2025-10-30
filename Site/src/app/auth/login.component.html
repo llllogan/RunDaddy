@@ -28,6 +28,32 @@
         <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('password')">{{ getErrorMessage('password') }}</p>
       </div>
 
+      <div *ngIf="memberships().length" class="rounded-2xl border border-white/10 bg-black/20 p-5">
+        <p class="text-sm font-medium text-white">Choose a company</p>
+        <p class="mt-1 text-xs text-rd-secondary">We found multiple memberships for this account. Pick where you want to sign in.</p>
+        <div class="mt-4">
+          <label class="sr-only" for="company">Company</label>
+          <select
+            id="company"
+            formControlName="companyId"
+            class="w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40"
+          >
+            <option value="" disabled>Select a company</option>
+            <option *ngFor="let membership of memberships()" [value]="membership.companyId">
+              {{ membership.companyName }} · {{ formatRole(membership.role) }}
+            </option>
+          </select>
+          <p class="mt-2 text-xs text-rd-muted" *ngIf="shouldShowError('companyId')">Select a company to continue.</p>
+        </div>
+        <label
+          class="mt-4 flex items-center gap-2 text-xs text-rd-secondary transition hover:text-white"
+          for="setAsDefault"
+        >
+          <input id="setAsDefault" type="checkbox" formControlName="setAsDefault" class="h-4 w-4 rounded border-white/20 bg-black/40 text-rd-accent focus:ring-rd-accent" />
+          Remember this company for next time
+        </label>
+      </div>
+
       <div class="rounded-xl bg-black/20 px-4 py-3 text-sm text-rd-muted" *ngIf="error()">
         {{ error() }}
       </div>
