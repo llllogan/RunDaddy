@@ -54,6 +54,11 @@ struct MachinesView: View {
         let chartRange = selectedRange.chartDateRange(relativeTo: today, calendar: calendar)
         let metricsRange = selectedRange.metricsDateRange(relativeTo: today, calendar: calendar)
         let filteredBreakdown = dailyItemBreakdown.filter { chartRange.contains($0.date) }
+        let weeklyAverages = weeklyAverages(for: today, calendar: calendar)
+        let isMonthSelection = selectedRange == .month
+        let chartHasData = isMonthSelection
+            ? weeklyAverages.contains { $0.average > 0 }
+            : !filteredBreakdown.isEmpty
         let metrics = metricsItems(for: selectedRange,
                                    chartRange: chartRange,
                                    metricsRange: metricsRange,
@@ -70,17 +75,23 @@ struct MachinesView: View {
                             .frame(maxWidth: .infinity, minHeight: 220)
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            ItemsPackedChart(data: filteredBreakdown, dateRange: chartRange)
-                                .overlay {
-                                    if filteredBreakdown.isEmpty {
-                                        ContentUnavailableView("No Data in Range",
-                                                               systemImage: "calendar.badge.exclamationmark",
-                                                               description: Text("Try a different period to compare packing activity."))
-                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                            .background(Color.clear)
-                                            .allowsHitTesting(false)
-                                    }
+                            Group {
+                                if isMonthSelection {
+                                    ItemsPackedWeeklyAverageChart(data: weeklyAverages)
+                                } else {
+                                    ItemsPackedBarChart(data: filteredBreakdown, dateRange: chartRange)
                                 }
+                            }
+                            .overlay {
+                                if !chartHasData {
+                                    ContentUnavailableView("No Data in Range",
+                                                           systemImage: "calendar.badge.exclamationmark",
+                                                           description: Text("Try a different period to compare packing activity."))
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .background(Color.clear)
+                                        .allowsHitTesting(false)
+                                }
+                            }
 
                             Picker("", selection: $selectedRange) {
                                 ForEach(ChartRange.allCases) { range in
@@ -118,7 +129,7 @@ struct MachinesView: View {
                              today: today,
                              calendar: calendar),
             averageMetric(for: selection,
-                          chartRange: chartRange,
+                          metricsRange: metricsRange,
                           calendar: calendar)
         ]
     }
@@ -166,9 +177,9 @@ struct MachinesView: View {
     }
 
     private func averageMetric(for selection: ChartRange,
-                               chartRange: ClosedRange<Date>,
+                               metricsRange: ClosedRange<Date>,
                                calendar: Calendar) -> BentoItem {
-        let dayTotals = totalsPerDay(in: chartRange, calendar: calendar)
+        let dayTotals = totalsPerDay(in: metricsRange, calendar: calendar)
         let totalItems = dayTotals.reduce(0, +)
         let dayCount = dayTotals.count
         let subtitle = selection.averageSubtitle
@@ -193,8 +204,9 @@ struct MachinesView: View {
 
     private func totalItems(in range: ClosedRange<Date>) -> Double? {
         let matching = totalItemsByDay.filter { range.contains($0.key) }
-        guard !matching.isEmpty else { return nil }
-        return matching.values.reduce(0, +)
+        let nonZeroValues = matching.values.filter { $0 > 0 }
+        guard !nonZeroValues.isEmpty else { return nil }
+        return nonZeroValues.reduce(0, +)
     }
 
     private func totalsPerDay(in range: ClosedRange<Date>, calendar: Calendar) -> [Double] {
@@ -202,7 +214,9 @@ struct MachinesView: View {
         var values: [Double] = []
         var cursor = range.lowerBound
         while cursor <= range.upperBound {
-            values.append(totalItemsByDay[cursor] ?? 0)
+            if let total = totalItemsByDay[cursor], total > 0 {
+                values.append(total)
+            }
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next
         }
@@ -266,6 +280,61 @@ struct MachinesView: View {
         let tint: Color
     }
 
+    private func weeklyAverages(for today: Date, calendar: Calendar) -> [WeeklyAverage] {
+        let currentWeekStart = calendar.startOfWeek(containing: today)
+        var result: [WeeklyAverage] = []
+
+        for offset in 0..<5 {
+            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: -offset, to: currentWeekStart) else { continue }
+
+            let fullWeekDays: [Date] = (0..<7).compactMap { dayOffset in
+                calendar.date(byAdding: .day, value: dayOffset, to: weekStart).map { calendar.startOfDay(for: $0) }
+            }
+
+            var activeDays = fullWeekDays
+            var activeTotals = activeDays.map { day in
+                totalItemsByDay[day] ?? 0
+            }
+
+            let weekendIndices = [5, 6]
+            let weekendHasZero = weekendIndices.contains { index in
+                guard index < activeTotals.count else { return true }
+                return activeTotals[index] == 0
+            }
+
+            if weekendHasZero && activeDays.count >= 5 {
+                activeDays = Array(activeDays.prefix(5))
+                activeTotals = Array(activeTotals.prefix(5))
+            }
+
+            let nonZeroTotals = activeTotals.filter { $0 > 0 }
+
+            guard let startDay = activeDays.first,
+                  let endDay = activeDays.last else {
+                continue
+            }
+
+            let average: Double
+            if nonZeroTotals.isEmpty {
+                average = 0
+            } else {
+                average = nonZeroTotals.reduce(0, +) / Double(nonZeroTotals.count)
+            }
+
+            let midIndex = activeDays.count / 2
+            let midDay = activeDays[min(midIndex, activeDays.count - 1)]
+
+            guard average > 0 else { continue }
+
+            result.append(WeeklyAverage(weekStart: startDay,
+                                        midWeek: midDay,
+                                        weekEnd: endDay,
+                                        average: average))
+        }
+
+        return result.sorted { $0.weekStart < $1.weekStart }
+    }
+
     private func formatItems(_ value: Double, fractionDigits: ClosedRange<Int> = 0...0) -> String {
         value.formatted(.number.precision(.fractionLength(fractionDigits)))
     }
@@ -278,10 +347,9 @@ struct MachinesView: View {
     }
 }
 
-private struct ItemsPackedChart: View {
+private struct ItemsPackedBarChart: View {
     let data: [DailyItemBreakdown]
     let dateRange: ClosedRange<Date>
-
     private var calendar: Calendar { Calendar.current }
 
     private var paddedDomain: ClosedRange<Date> {
@@ -289,18 +357,6 @@ private struct ItemsPackedChart: View {
         let endOfRange = calendar.date(byAdding: .day, value: 1, to: dateRange.upperBound) ?? dateRange.upperBound
         let upper = endOfRange
         return lower...upper
-    }
-
-    private var axisDates: [Date] {
-        guard dateRange.lowerBound <= dateRange.upperBound else { return [] }
-        var values: [Date] = []
-        var cursor = dateRange.lowerBound
-        while cursor <= dateRange.upperBound {
-            values.append(cursor)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-        return values
     }
 
     var body: some View {
@@ -318,31 +374,58 @@ private struct ItemsPackedChart: View {
         }
         .chartYAxisLabel("Items Packed")
         .chartXScale(domain: paddedDomain)
-        .chartXAxis {
-            AxisMarks(values: axisDates) { value in
-                if let dateValue = value.as(Date.self) {
-                    AxisGridLine()
-                    AxisValueLabel {
-                        axisLabel(for: dateValue)
-                    }
-                }
-            }
-        }
         .frame(height: 240)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
     }
+}
+
+private struct ItemsPackedWeeklyAverageChart: View {
+    let data: [WeeklyAverage]
+    private var calendar: Calendar { Calendar.current }
+
+    private var paddedDomain: ClosedRange<Date>? {
+        guard let firstStart = data.first?.weekStart,
+              let lastEnd = data.last?.weekEnd else { return nil }
+        let lower = calendar.date(byAdding: .day, value: -1, to: firstStart) ?? firstStart
+        let upper = calendar.date(byAdding: .day, value: 1, to: lastEnd) ?? lastEnd
+        return lower...upper
+    }
 
     @ViewBuilder
-    private func axisLabel(for date: Date) -> some View {
-        let weekday = calendar.component(.weekday, from: date)
-        if weekday == 2 {
-            Text(date, format: .dateTime.day())
+    var body: some View {
+        let chart = Chart(data) { entry in
+            BarMark(
+                x: .value("Week", entry.midWeek),
+                y: .value("Average Items", entry.average),
+                width: .fixed(28)
+            )
+            .foregroundStyle(.blue.gradient)
+        }
+        .chartLegend(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .leading)
+        }
+        .chartYAxisLabel("Average Items Packed")
+        .frame(height: 240)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+
+        if let domain = paddedDomain {
+            chart.chartXScale(domain: domain)
         } else {
-            let symbol = calendar.shortWeekdaySymbols[weekday - 1]
-            Text(String(symbol.prefix(1)))
+            chart
         }
     }
+}
+
+private struct WeeklyAverage: Identifiable {
+    let weekStart: Date
+    let midWeek: Date
+    let weekEnd: Date
+    let average: Double
+
+    var id: Date { weekStart }
 }
 
 private enum ChartRange: String, CaseIterable, Identifiable {
