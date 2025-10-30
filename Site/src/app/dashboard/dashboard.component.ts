@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService, MembershipChoice } from '../auth/auth.service';
 import { RunsService, RunOverviewEntry, RunPerson } from './runs.service';
+import { DashboardUser, UsersService } from './users.service';
 
 interface UploadedFile {
   file: File;
@@ -18,14 +19,17 @@ interface UploadedFile {
 export class DashboardComponent {
   private readonly auth = inject(AuthService);
   private readonly runsService = inject(RunsService);
+  private readonly usersService = inject(UsersService);
   private lastRunsCompanyId: string | null = null;
+  private lastUsersCompanyId: string | null = null;
 
   protected readonly tabs = [
     { id: 'home', label: 'Home' },
-    { id: 'pickers', label: 'Pickers' },
+    { id: 'users', label: 'Users' },
+    { id: 'runs', label: 'Runs' },
   ] as const;
 
-  protected readonly activeTab = signal<'home' | 'pickers'>('home');
+  protected readonly activeTab = signal<'home' | 'users' | 'runs'>('home');
   protected readonly isDragging = signal(false);
   protected readonly uploadedFiles = signal<UploadedFile[]>([]);
   protected readonly memberships = signal<MembershipChoice[]>([]);
@@ -35,9 +39,13 @@ export class DashboardComponent {
   protected readonly runs = signal<RunOverviewEntry[]>([]);
   protected readonly loadingRuns = signal(false);
   protected readonly runsError = signal<string | null>(null);
+  protected readonly users = signal<DashboardUser[]>([]);
+  protected readonly loadingUsers = signal(false);
+  protected readonly usersError = signal<string | null>(null);
 
   protected readonly hasFiles = computed(() => this.uploadedFiles().length > 0);
   protected readonly hasRuns = computed(() => this.runs().length > 0);
+  protected readonly hasUsers = computed(() => this.users().length > 0);
   protected readonly user = this.auth.user;
   protected readonly company = this.auth.company;
   protected readonly showCompanySelector = computed(
@@ -52,10 +60,11 @@ export class DashboardComponent {
         return;
       }
       void this.loadRuns(companyId);
+      void this.loadUsers(companyId);
     });
   }
 
-  protected setTab(tab: 'home' | 'pickers'): void {
+  protected setTab(tab: 'home' | 'users' | 'runs'): void {
     this.activeTab.set(tab);
   }
 
@@ -174,12 +183,27 @@ export class DashboardComponent {
     void this.loadRuns(companyId, true);
   }
 
+  protected reloadUsers(): void {
+    if (this.loadingUsers()) {
+      return;
+    }
+    const companyId = this.company()?.id;
+    if (!companyId) {
+      return;
+    }
+    void this.loadUsers(companyId, true);
+  }
+
   protected formatStatus(status: string): string {
     return status
       .toLowerCase()
       .split('_')
       .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ');
+  }
+
+  protected formatRole(role: string): string {
+    return this.formatStatus(role);
   }
 
   protected statusBadgeClass(status: string): string {
@@ -205,6 +229,12 @@ export class DashboardComponent {
   }
 
   protected trackByRun = (_: number, run: RunOverviewEntry): string => run.id;
+  protected trackByUser = (_: number, user: DashboardUser): string => user.id;
+
+  protected formatUserName(user: DashboardUser): string {
+    const parts = [user.firstName, user.lastName].filter(Boolean);
+    return parts.length ? parts.join(' ') : user.email;
+  }
 
   protected getRunUpdatedAt(run: RunOverviewEntry): Date {
     return run.pickingEndedAt ?? run.pickingStartedAt ?? run.createdAt;
@@ -243,6 +273,28 @@ export class DashboardComponent {
       }
     } finally {
       this.loadingRuns.set(false);
+    }
+  }
+
+  private async loadUsers(companyId: string, force = false): Promise<void> {
+    if (!force && companyId === this.lastUsersCompanyId) {
+      return;
+    }
+
+    this.loadingUsers.set(true);
+    this.usersError.set(null);
+
+    try {
+      const list = await this.usersService.listUsers();
+      this.users.set(list);
+      this.lastUsersCompanyId = companyId;
+    } catch (error) {
+      this.usersError.set(error instanceof Error ? error.message : 'Unable to load users.');
+      if (!force) {
+        this.lastUsersCompanyId = null;
+      }
+    } finally {
+      this.loadingUsers.set(false);
     }
   }
 }
