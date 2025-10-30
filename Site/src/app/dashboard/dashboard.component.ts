@@ -4,10 +4,17 @@ import { RouterModule } from '@angular/router';
 import { AuthService, MembershipChoice } from '../auth/auth.service';
 import { RunsService, RunOverviewEntry, RunPerson } from './runs.service';
 import { DashboardUser, UsersService } from './users.service';
+import { RunImportPreview, RunImportsService } from './run-imports.service';
+
+type UploadStatus = 'uploading' | 'success' | 'error';
 
 interface UploadedFile {
+  id: string;
   file: File;
   receivedAt: Date;
+  status: UploadStatus;
+  result: RunImportPreview | null;
+  error: string | null;
 }
 
 @Component({
@@ -20,6 +27,7 @@ export class DashboardComponent {
   private readonly auth = inject(AuthService);
   private readonly runsService = inject(RunsService);
   private readonly usersService = inject(UsersService);
+  private readonly runImportsService = inject(RunImportsService);
   private lastRunsCompanyId: string | null = null;
   private lastUsersCompanyId: string | null = null;
 
@@ -103,10 +111,8 @@ export class DashboardComponent {
     input.value = '';
   }
 
-  protected removeFile(index: number): void {
-    const files = [...this.uploadedFiles()];
-    files.splice(index, 1);
-    this.uploadedFiles.set(files);
+  protected removeFile(id: string): void {
+    this.removeUpload(id);
   }
 
   protected formatFileSize(bytes: number): string {
@@ -132,11 +138,21 @@ export class DashboardComponent {
     if (!incoming.length) {
       return;
     }
-    const next = [
-      ...this.uploadedFiles(),
-      ...incoming.map((file) => ({ file, receivedAt: new Date() })),
-    ];
-    this.uploadedFiles.set(next);
+    incoming.forEach((file) => this.queueFileForUpload(file));
+  }
+
+  protected retryUpload(id: string): void {
+    const current = this.getUploadById(id);
+    if (!current) {
+      return;
+    }
+    this.updateUpload(id, (upload) => ({
+      ...upload,
+      status: 'uploading',
+      error: null,
+      result: null,
+    }));
+    void this.uploadWorkbook(id);
   }
 
   protected async logout(): Promise<void> {
@@ -204,6 +220,28 @@ export class DashboardComponent {
 
   protected formatRole(role: string): string {
     return this.formatStatus(role);
+  }
+
+  protected uploadStatusLabel(status: UploadStatus): string {
+    switch (status) {
+      case 'uploading':
+        return 'Uploading...';
+      case 'success':
+        return 'Uploaded';
+      case 'error':
+        return 'Failed';
+      default:
+        return status;
+    }
+  }
+
+  protected uploadStatusClass(status: UploadStatus): string {
+    const mapping: Record<UploadStatus, string> = {
+      uploading: 'border border-white/15 bg-white/10 text-white/80',
+      success: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
+      error: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#f87171]',
+    };
+    return mapping[status];
   }
 
   protected statusBadgeClass(status: string): string {
@@ -296,5 +334,65 @@ export class DashboardComponent {
     } finally {
       this.loadingUsers.set(false);
     }
+  }
+
+  private queueFileForUpload(file: File): void {
+    const entry: UploadedFile = {
+      id: this.createUploadId(),
+      file,
+      receivedAt: new Date(),
+      status: 'uploading',
+      result: null,
+      error: null,
+    };
+    this.uploadedFiles.update((files) => [...files, entry]);
+    void this.uploadWorkbook(entry.id);
+  }
+
+  private async uploadWorkbook(id: string): Promise<void> {
+    const entry = this.getUploadById(id);
+    if (!entry) {
+      return;
+    }
+
+    try {
+      const preview = await this.runImportsService.uploadRun(entry.file);
+      this.updateUpload(id, (upload) => ({
+        ...upload,
+        status: 'success',
+        error: null,
+        result: preview,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to process this workbook. Please try again.';
+      this.updateUpload(id, (upload) => ({
+        ...upload,
+        status: 'error',
+        error: message,
+        result: null,
+      }));
+    }
+  }
+
+  private getUploadById(id: string): UploadedFile | undefined {
+    return this.uploadedFiles().find((upload) => upload.id === id);
+  }
+
+  private updateUpload(id: string, mutate: (upload: UploadedFile) => UploadedFile): void {
+    this.uploadedFiles.update((files) =>
+      files.map((upload) => (upload.id === id ? mutate(upload) : upload)),
+    );
+  }
+
+  private removeUpload(id: string): void {
+    this.uploadedFiles.update((files) => files.filter((upload) => upload.id !== id));
+  }
+
+  private createUploadId(): string {
+    if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
+      return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 }

@@ -100,9 +100,9 @@
   </header>
 
   <main class="mx-auto max-w-6xl px-6 py-10 lg:px-12">
-    <section *ngIf="activeTab() === 'home'" class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+    <section *ngIf="activeTab() === 'home'" class="space-y-10">
       <article
-        class="flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur shadow-rd-card"
+        class="flex w-full flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur shadow-rd-card transition-colors"
         (drop)="onDrop($event)"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
@@ -120,14 +120,10 @@
               isDragging() ? 'border-rd-accent/80 bg-rd-accent/10' : ''
             ].join(' ')"
           >
-            <svg class="h-12 w-12 text-rd-accent" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M24 32V8m0 0 7.5 7.5M24 8l-7.5 7.5M12 32v6a2 2 0 0 0 2 2h20" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M36 26h-4m4 8H16a2 2 0 0 1-2-2v-4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
             <p class="mt-5 text-sm font-medium text-white">
               Drop your Excel or CSV file here
             </p>
-            <p class="mt-2 text-xs text-rd-muted">Supports .xlsx, .xls, and .csv</p>
+            <p class="mt-2 text-xs text-rd-muted">Supports .xlsx and .xls</p>
             <label
               class="mt-6 inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-rd-accent to-rd-accent-strong px-5 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_-22px_rgba(95,108,251,0.9)] transition hover:brightness-110"
             >
@@ -140,54 +136,81 @@
           <h3 class="text-sm font-semibold text-white">Recent uploads</h3>
           <ul class="space-y-3">
             <li
-              *ngFor="let upload of uploadedFiles(); let i = index"
-              class="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+              *ngFor="let upload of uploadedFiles()"
+              class="space-y-3 rounded-xl border border-white/10 bg-black/20 px-4 py-4"
             >
-              <div>
-                <p class="text-sm font-medium text-white">{{ upload.file.name }}</p>
-                <p class="text-xs text-rd-muted">
-                  {{ formatFileSize(upload.file.size) }} · Received {{ upload.receivedAt | date : 'shortTime' }}
-                </p>
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium text-white">{{ upload.file.name }}</p>
+                  <p class="text-xs text-rd-muted">
+                    {{ formatFileSize(upload.file.size) }} · Received {{ upload.receivedAt | date : 'shortTime' }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span
+                    [class]="[
+                      'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
+                      uploadStatusClass(upload.status)
+                    ].join(' ')"
+                  >
+                    <svg
+                      *ngIf="upload.status === 'uploading'"
+                      class="h-3.5 w-3.5 animate-spin text-current"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      role="presentation"
+                    >
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3a5 5 0 0 0-5 5H4z"></path>
+                    </svg>
+                    {{ uploadStatusLabel(upload.status) }}
+                  </span>
+                  <button
+                    type="button"
+                    (click)="removeFile(upload.id)"
+                    class="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                (click)="removeFile(i)"
-                class="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
+
+              <div
+                *ngIf="upload.status === 'error' && upload.error"
+                class="flex flex-wrap items-center gap-2 rounded-lg border border-[#f87171]/30 bg-[#f87171]/10 px-3 py-2 text-xs text-[#f87171]"
               >
-                Remove
-              </button>
+                <span>{{ upload.error }}</span>
+                <button
+                  type="button"
+                  class="rounded-full border border-[#f87171]/40 px-3 py-1 text-xs font-semibold text-[#f87171] transition hover:border-[#f87171]/60 hover:text-white"
+                  (click)="retryUpload(upload.id)"
+                >
+                  Retry upload
+                </button>
+              </div>
+
+              <div *ngIf="upload.result" class="space-y-3 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-rd-secondary">
+                <div class="flex flex-wrap items-center gap-3 text-sm text-white">
+                  <span class="font-semibold text-rd-secondary">Summary</span>
+                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                    Runs: {{ upload.result.summary.runs }}
+                  </span>
+                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                    Machines: {{ upload.result.summary.machines }}
+                  </span>
+                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                    Pick entries: {{ upload.result.summary.pickEntries }}
+                  </span>
+                </div>
+                <details class="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
+                  <summary class="cursor-pointer text-xs font-semibold text-rd-accent outline-none">View workbook JSON</summary>
+                  <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-rd-muted">{{ upload.result.workbook | json }}</pre>
+                </details>
+              </div>
             </li>
           </ul>
         </div>
       </article>
-
-      <aside class="space-y-6">
-        <div class="rounded-3xl border border-white/10 bg-white/[0.05] p-6 shadow-rd-card">
-          <h3 class="text-sm font-semibold text-white">Processing queue</h3>
-          <p class="mt-2 text-xs text-rd-secondary">
-            Files dropped here are parsed instantly. Notification lands in your inbox once pick waves are ready.
-          </p>
-          <div class="mt-6 space-y-3 text-xs text-rd-muted">
-            <p class="flex items-center justify-between">
-              <span>Average parse time</span>
-              <span class="text-white">42s</span>
-            </p>
-            <p class="flex items-center justify-between">
-              <span>Last completed run</span>
-              <span class="text-white">Route 14 · 11:22 AM</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="rounded-3xl border border-white/10 bg-white/[0.05] p-6 shadow-rd-card">
-          <h3 class="text-sm font-semibold text-white">Tips for accuracy</h3>
-          <ul class="mt-4 space-y-3 text-xs text-rd-secondary">
-            <li>Ensure each row has SKU, quantity, and destination bin columns.</li>
-            <li>Include machine ID in the filename to auto-link routes.</li>
-            <li>Use CSV export if your ERP adds macros to Excel files.</li>
-          </ul>
-        </div>
-      </aside>
     </section>
 
     <section *ngIf="activeTab() === 'users'" class="space-y-8">
