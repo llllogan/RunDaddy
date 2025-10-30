@@ -1,11 +1,11 @@
 <div class="min-h-screen bg-rd-background text-rd-primary">
-  <header class="border-b border-white/10 bg-gradient-to-r from-[#0b1020] via-[#0e1530] to-[#070b18]">
+  <header class="border-b border-[#ecd9a0]/70 bg-white/75 backdrop-blur">
     <div class="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-6 lg:flex-row lg:items-center lg:justify-between lg:px-12">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rd-accent/20 text-lg font-semibold text-rd-accent">RD</span>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.32em] text-rd-secondary">RunDaddy</p>
-          <p class="text-lg font-semibold text-white">Operations Control</p>
+          <p class="text-lg font-semibold text-rd-primary">Operations Control</p>
         </div>
       </div>
       <div class="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-end sm:gap-6">
@@ -17,18 +17,12 @@
             [class]="[
               'rounded-full px-5 py-2 text-sm font-semibold transition',
               activeTab() === tab.id
-                ? 'bg-white text-black shadow-[0_12px_28px_-20px_rgba(95,108,251,0.9)]'
-                : 'bg-white/10 text-rd-secondary hover:bg-white/20'
+                ? 'bg-rd-accent text-rd-primary shadow-[0_18px_32px_-26px_rgba(231,150,7,0.55)] hover:bg-rd-accent-strong hover:text-white'
+                : 'bg-white/60 text-rd-secondary hover:bg-white hover:text-rd-primary'
             ].join(' ')"
           >
             {{ tab.label }}
           </button>
-          <a
-            routerLink="/"
-            class="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
-          >
-            Marketing Site
-          </a>
         </nav>
         <div
           *ngIf="showCompanySelector()"
@@ -37,7 +31,7 @@
           <span class="font-semibold uppercase tracking-[0.2em] text-rd-secondary">Company</span>
           <div class="relative w-full sm:w-56">
             <select
-              class="w-full rounded-full border border-white/20 bg-black/30 px-4 py-2 text-sm font-semibold text-white outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/40 disabled:cursor-not-allowed disabled:opacity-60"
+              class="w-full rounded-full border border-rd-primary/15 bg-white px-4 py-2 text-sm font-semibold text-rd-primary outline-none transition focus:border-rd-accent focus:ring-2 focus:ring-rd-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
               [value]="company()?.id ?? ''"
               (change)="onCompanyChange($event)"
               [disabled]="isSwitchingCompany() || loadingMemberships() || memberships().length <= 1"
@@ -79,18 +73,19 @@
             </button>
           </div>
         </div>
-        <div class="flex items-center justify-between gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 sm:justify-end">
-          <div class="text-right">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-rd-secondary">Signed in</p>
-            <p class="text-sm font-medium text-white">
-              {{ user()?.firstName ? user()?.firstName + ' ' + (user()?.lastName ?? '') : '—' }}
-            </p>
-            <p class="text-xs text-rd-secondary">{{ company()?.name || '—' }}</p>
-          </div>
+        <div
+          class="flex items-center gap-3 rounded-full border border-rd-primary/12 bg-white/70 px-4 py-2 text-sm text-rd-secondary shadow-sm"
+        >
+          <span class="font-semibold text-rd-primary">
+            {{ user()?.firstName ? user()?.firstName + ' ' + (user()?.lastName ?? '') : '—' }}
+          </span>
+          <span class="hidden text-xs text-rd-secondary sm:inline">
+            • {{ company()?.name || '—' }}
+          </span>
           <button
             type="button"
             (click)="logout()"
-            class="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white/40 hover:bg-white/10"
+            class="rounded-full border border-rd-primary/12 px-3 py-1 text-xs font-semibold text-rd-primary transition hover:border-rd-accent hover:bg-white"
           >
             Log out
           </button>
@@ -102,13 +97,13 @@
   <main class="mx-auto max-w-6xl px-6 py-10 lg:px-12">
     <section *ngIf="activeTab() === 'home'" class="space-y-10">
       <article
-        class="flex w-full flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur shadow-rd-card transition-colors"
+        class="flex w-full flex-col justify-between rounded-3xl border border-rd-primary/12 bg-white/90 p-8 shadow-rd-card transition-colors"
         (drop)="onDrop($event)"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
       >
         <div>
-          <h2 class="text-2xl font-semibold text-white">Upload pick list</h2>
+          <h2 class="text-2xl font-semibold text-rd-primary">Upload pick list</h2>
           <p class="mt-3 text-sm leading-6 text-rd-secondary">
             Drag & drop a spreadsheet exported from your warehouse system. RunDaddy parses SKUs, builds picker routes,
             and schedules vending bins automatically.
@@ -116,16 +111,16 @@
           <div
             class="mt-8 flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed transition"
             [class]="[
-              'border-white/20 bg-black/30 px-6 py-12 text-center',
-              isDragging() ? 'border-rd-accent/80 bg-rd-accent/10' : ''
+              'border-rd-primary/20 bg-white/80 px-6 py-12 text-center',
+              isDragging() ? 'border-rd-accent/70 bg-rd-accent/10' : ''
             ].join(' ')"
           >
-            <p class="mt-5 text-sm font-medium text-white">
+            <p class="mt-5 text-sm font-medium text-rd-primary">
               Drop your Excel or CSV file here
             </p>
             <p class="mt-2 text-xs text-rd-muted">Supports .xlsx and .xls</p>
             <label
-              class="mt-6 inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-rd-accent to-rd-accent-strong px-5 py-2 text-sm font-semibold text-white shadow-[0_14px_32px_-22px_rgba(95,108,251,0.9)] transition hover:brightness-110"
+              class="mt-6 inline-flex cursor-pointer items-center rounded-full bg-rd-accent px-5 py-2 text-sm font-semibold text-rd-primary shadow-[0_16px_32px_-24px_rgba(231,150,7,0.55)] transition hover:scale-[1.02] hover:bg-rd-accent-strong hover:text-white"
             >
               <input type="file" accept=".xlsx,.xls,.csv" class="hidden" (change)="onFileSelect($event)" multiple />
               Browse files
@@ -133,15 +128,15 @@
           </div>
         </div>
         <div *ngIf="hasFiles()" class="mt-10 space-y-4">
-          <h3 class="text-sm font-semibold text-white">Recent uploads</h3>
+          <h3 class="text-sm font-semibold text-rd-primary">Recent uploads</h3>
           <ul class="space-y-3">
             <li
               *ngFor="let upload of uploadedFiles()"
-              class="space-y-3 rounded-xl border border-white/10 bg-black/20 px-4 py-4"
+              class="space-y-3 rounded-xl border border-rd-primary/12 bg-white/80 px-4 py-4"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium text-white">{{ upload.file.name }}</p>
+                  <p class="text-sm font-medium text-rd-primary">{{ upload.file.name }}</p>
                   <p class="text-xs text-rd-muted">
                     {{ formatFileSize(upload.file.size) }} · Received {{ upload.receivedAt | date : 'shortTime' }}
                   </p>
@@ -168,7 +163,7 @@
                   <button
                     type="button"
                     (click)="removeFile(upload.id)"
-                    class="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
+                    class="rounded-full border border-rd-primary/12 px-3 py-1 text-xs font-semibold text-rd-secondary transition hover:border-rd-accent hover:text-rd-primary"
                   >
                     Remove
                   </button>
@@ -182,27 +177,27 @@
                 <span>{{ upload.error }}</span>
                 <button
                   type="button"
-                  class="rounded-full border border-[#f87171]/40 px-3 py-1 text-xs font-semibold text-[#f87171] transition hover:border-[#f87171]/60 hover:text-white"
+                  class="rounded-full border border-[#f87171]/40 px-3 py-1 text-xs font-semibold text-[#f87171] transition hover:border-[#f87171]/60 hover:text-[#c24141]"
                   (click)="retryUpload(upload.id)"
                 >
                   Retry upload
                 </button>
               </div>
 
-              <div *ngIf="upload.result" class="space-y-3 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-rd-secondary">
-                <div class="flex flex-wrap items-center gap-3 text-sm text-white">
+              <div *ngIf="upload.result" class="space-y-3 rounded-lg border border-rd-primary/12 bg-white/80 px-3 py-3 text-xs text-rd-secondary">
+                <div class="flex flex-wrap items-center gap-3 text-sm text-rd-primary">
                   <span class="font-semibold text-rd-secondary">Summary</span>
-                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
                     Runs: {{ upload.result.summary.runs }}
                   </span>
-                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
                     Machines: {{ upload.result.summary.machines }}
                   </span>
-                  <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs text-white/80">
+                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
                     Pick entries: {{ upload.result.summary.pickEntries }}
                   </span>
                 </div>
-                <details class="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
+                <details class="rounded-lg border border-rd-primary/12 bg-white/85 px-3 py-2">
                   <summary class="cursor-pointer text-xs font-semibold text-rd-accent outline-none">View workbook JSON</summary>
                   <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-rd-muted">{{ upload.result.workbook | json }}</pre>
                 </details>
@@ -216,12 +211,12 @@
     <section *ngIf="activeTab() === 'users'" class="space-y-8">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-white">Team directory</h2>
+          <h2 class="text-2xl font-semibold text-rd-primary">Team directory</h2>
           <p class="text-sm text-rd-secondary">Every user who belongs to this company and has access to RunDaddy.</p>
         </div>
       </header>
 
-      <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-rd-card">
+      <div class="rounded-3xl border border-rd-primary/12 bg-white/90 p-6 shadow-rd-card">
         <div
           *ngIf="usersError()"
           class="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
@@ -254,16 +249,16 @@
                   <th class="pb-4 font-semibold">Updated</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-white/5 text-sm">
-                <tr *ngFor="let member of users(); trackBy: trackByUser" class="hover:bg-white/5">
-                  <td class="py-3 text-white">{{ formatUserName(member) }}</td>
+              <tbody class="divide-y divide-[#ecd9a0]/60 text-sm">
+                <tr *ngFor="let member of users(); trackBy: trackByUser" class="hover:bg-white">
+                  <td class="py-3 text-rd-primary">{{ formatUserName(member) }}</td>
                   <td class="py-3 text-rd-secondary">{{ member.email }}</td>
                   <td class="py-3">
-                    <span class="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
+                    <span class="inline-flex items-center rounded-full border border-rd-primary/12 bg-white/80 px-3 py-1 text-xs font-semibold text-rd-primary">
                       {{ formatRole(member.role) }}
                     </span>
                   </td>
-                  <td class="py-3 text-white">{{ member.phone || '—' }}</td>
+                  <td class="py-3 text-rd-primary">{{ member.phone || '—' }}</td>
                   <td class="py-3">{{ member.createdAt | date : 'MMM d, y' }}</td>
                   <td class="py-3">{{ member.updatedAt | date : 'MMM d, y, h:mm a' }}</td>
                 </tr>
@@ -273,7 +268,7 @@
         </ng-template>
 
         <ng-template #usersEmpty>
-          <div class="rounded-2xl border border-white/10 bg-black/20 px-6 py-8 text-sm text-rd-secondary">
+          <div class="rounded-2xl border border-rd-primary/12 bg-white/80 px-6 py-8 text-sm text-rd-secondary">
             No users found for this company yet.
           </div>
         </ng-template>
@@ -283,41 +278,41 @@
     <section *ngIf="activeTab() === 'runs'" class="space-y-8">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-white">Recent runs</h2>
+          <h2 class="text-2xl font-semibold text-rd-primary">Recent runs</h2>
           <p class="text-sm text-rd-secondary">Live snapshot from the last 24 hours of warehouse activity.</p>
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-rd-secondary transition hover:border-white/30 hover:text-white"
+          class="inline-flex items-center gap-2 rounded-full border border-rd-primary/12 bg-white/70 px-4 py-2 text-xs font-semibold text-rd-secondary transition hover:bg-white hover:text-rd-primary"
         >
           Export report
         </button>
       </header>
 
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-5 shadow-rd-card">
+        <div class="rounded-2xl border border-rd-primary/12 bg-white/90 p-5 shadow-rd-card">
           <p class="text-xs text-rd-secondary">Average route duration</p>
-          <p class="mt-3 text-2xl font-semibold text-white">41m</p>
+          <p class="mt-3 text-2xl font-semibold text-rd-primary">41m</p>
           <p class="mt-1 text-xs text-rd-teal">14% faster than last week</p>
         </div>
-        <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-5 shadow-rd-card">
+        <div class="rounded-2xl border border-rd-primary/12 bg-white/90 p-5 shadow-rd-card">
           <p class="text-xs text-rd-secondary">Voice confirmations</p>
-          <p class="mt-3 text-2xl font-semibold text-white">98.7%</p>
+          <p class="mt-3 text-2xl font-semibold text-rd-primary">98.7%</p>
           <p class="mt-1 text-xs text-rd-secondary">5,214 verbal check-ins recorded</p>
         </div>
-        <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-5 shadow-rd-card">
+        <div class="rounded-2xl border border-rd-primary/12 bg-white/90 p-5 shadow-rd-card">
           <p class="text-xs text-rd-secondary">High priority bins</p>
-          <p class="mt-3 text-2xl font-semibold text-white">12</p>
+          <p class="mt-3 text-2xl font-semibold text-rd-primary">12</p>
           <p class="mt-1 text-xs text-[#f9c74f]">Monitor restock this afternoon</p>
         </div>
-        <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-5 shadow-rd-card">
+        <div class="rounded-2xl border border-rd-primary/12 bg-white/90 p-5 shadow-rd-card">
           <p class="text-xs text-rd-secondary">Picker coverage</p>
-          <p class="mt-3 text-2xl font-semibold text-white">7 / 8</p>
+          <p class="mt-3 text-2xl font-semibold text-rd-primary">7 / 8</p>
           <p class="mt-1 text-xs text-rd-secondary">One PTO · coverage holding</p>
         </div>
       </div>
 
-      <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-rd-card">
+      <div class="rounded-3xl border border-rd-primary/12 bg-white/90 p-6 shadow-rd-card">
         <div
           *ngIf="runsError()"
           class="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
@@ -350,8 +345,8 @@
                   <th class="pb-4 font-semibold">Updated</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-white/5 text-sm">
-                <tr *ngFor="let run of runs(); trackBy: trackByRun" class="hover:bg-white/5">
+              <tbody class="divide-y divide-[#ecd9a0]/60 text-sm">
+                <tr *ngFor="let run of runs(); trackBy: trackByRun" class="hover:bg-white">
                   <td class="py-3 font-mono text-xs uppercase tracking-wider text-rd-secondary">
                     #{{ run.id | slice:-6 }}
                   </td>
@@ -365,8 +360,8 @@
                       {{ formatStatus(run.status) }}
                     </span>
                   </td>
-                  <td class="py-3 text-white">{{ formatPerson(run.picker) }}</td>
-                  <td class="py-3 text-white">{{ formatPerson(run.runner) }}</td>
+                  <td class="py-3 text-rd-primary">{{ formatPerson(run.picker) }}</td>
+                  <td class="py-3 text-rd-primary">{{ formatPerson(run.runner) }}</td>
                   <td class="py-3">
                     {{ run.scheduledFor ? (run.scheduledFor | date : 'MMM d, h:mm a') : '—' }}
                   </td>
@@ -380,7 +375,7 @@
         </ng-template>
 
         <ng-template #runsEmpty>
-          <div class="rounded-2xl border border-white/10 bg-black/20 px-6 py-8 text-sm text-rd-secondary">
+          <div class="rounded-2xl border border-rd-primary/12 bg-white/80 px-6 py-8 text-sm text-rd-secondary">
             No runs recorded for this company yet. Upload a pick list to get started.
           </div>
         </ng-template>

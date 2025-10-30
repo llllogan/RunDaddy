@@ -237,9 +237,9 @@ export class DashboardComponent {
 
   protected uploadStatusClass(status: UploadStatus): string {
     const mapping: Record<UploadStatus, string> = {
-      uploading: 'border border-white/15 bg-white/10 text-white/80',
+      uploading: 'border border-rd-primary/12 bg-white/80 text-rd-secondary',
       success: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
-      error: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#f87171]',
+      error: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#c24141]',
     };
     return mapping[status];
   }
@@ -250,12 +250,12 @@ export class DashboardComponent {
       READY: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
       IN_PROGRESS: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
       PICKING: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
-      SCHEDULED: 'border border-[#f9c74f]/30 bg-[#f9c74f]/10 text-[#f9c74f]',
-      DRAFT: 'border border-white/15 bg-white/10 text-white/80',
-      HISTORICAL: 'border border-white/15 bg-white/5 text-white/70',
-      CANCELLED: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#f87171]',
+      SCHEDULED: 'border border-[#f9c74f]/30 bg-[#f9c74f]/10 text-[#b96f05]',
+      DRAFT: 'border border-rd-primary/12 bg-white/75 text-rd-secondary',
+      HISTORICAL: 'border border-rd-primary/12 bg-white/60 text-rd-secondary',
+      CANCELLED: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#c24141]',
     };
-    return mapping[status] ?? 'border border-white/15 bg-white/10 text-white/80';
+    return mapping[status] ?? 'border border-rd-primary/12 bg-white/75 text-rd-secondary';
   }
 
   protected formatPerson(person: RunPerson | null): string {

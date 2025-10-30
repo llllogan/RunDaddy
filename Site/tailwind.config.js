@@ -4,18 +4,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'rd-background': '#05070d',
-        'rd-surface': 'rgba(12, 16, 28, 0.92)',
-        'rd-card': 'rgba(15, 20, 34, 0.9)',
-        'rd-accent': '#5f6cfb',
-        'rd-accent-strong': '#8b5bff',
-        'rd-teal': '#78f5d0',
-        'rd-muted': '#8a92a9',
-        'rd-secondary': '#c0c6d9',
-        'rd-primary': '#f2f6ff',
+        'rd-background': '#fdf9f2',
+        'rd-surface': '#ffffff',
+        'rd-card': 'rgba(255, 244, 214, 0.65)',
+        'rd-accent': '#f2b134',
+        'rd-accent-strong': '#e79607',
+        'rd-teal': '#2f8f9d',
+        'rd-muted': '#f3e5c0',
+        'rd-secondary': '#5d6168',
+        'rd-primary': '#222b38',
       },
       boxShadow: {
-        'rd-card': '0 30px 60px -40px rgba(0, 0, 0, 0.6)',
+        'rd-card': '0 24px 55px -35px rgba(149, 108, 10, 0.35)',
       },
       fontFamily: {
         sans: [
