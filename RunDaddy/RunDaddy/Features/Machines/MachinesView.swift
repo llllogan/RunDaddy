@@ -79,7 +79,9 @@ struct MachinesView: View {
                                 if isMonthSelection {
                                     ItemsPackedWeeklyAverageChart(data: weeklyAverages)
                                 } else {
-                                    ItemsPackedBarChart(data: filteredBreakdown, dateRange: chartRange)
+                                    ItemsPackedBarChart(data: filteredBreakdown,
+                                                        dateRange: chartRange,
+                                                        range: selectedRange)
                                 }
                             }
                             .overlay {
@@ -101,7 +103,6 @@ struct MachinesView: View {
                             .pickerStyle(.segmented)
                             .labelsHidden()
                         }
-                        .padding(.vertical, 4)
                     }
                 }
 
@@ -307,24 +308,21 @@ struct MachinesView: View {
                 activeTotals = Array(activeTotals.prefix(5))
             }
 
-            let nonZeroTotals = activeTotals.filter { $0 > 0 }
-
             guard let startDay = activeDays.first,
                   let endDay = activeDays.last else {
                 continue
             }
 
             let average: Double
-            if nonZeroTotals.isEmpty {
+            let contributingTotals = activeTotals.filter { $0 > 0 }
+            if contributingTotals.isEmpty {
                 average = 0
             } else {
-                average = nonZeroTotals.reduce(0, +) / Double(nonZeroTotals.count)
+                average = contributingTotals.reduce(0, +) / Double(contributingTotals.count)
             }
 
             let midIndex = activeDays.count / 2
             let midDay = activeDays[min(midIndex, activeDays.count - 1)]
-
-            guard average > 0 else { continue }
 
             result.append(WeeklyAverage(weekStart: startDay,
                                         midWeek: midDay,
@@ -350,6 +348,7 @@ struct MachinesView: View {
 private struct ItemsPackedBarChart: View {
     let data: [DailyItemBreakdown]
     let dateRange: ClosedRange<Date>
+    let range: ChartRange
     private var calendar: Calendar { Calendar.current }
 
     private var paddedDomain: ClosedRange<Date> {
@@ -357,6 +356,22 @@ private struct ItemsPackedBarChart: View {
         let endOfRange = calendar.date(byAdding: .day, value: 1, to: dateRange.upperBound) ?? dateRange.upperBound
         let upper = endOfRange
         return lower...upper
+    }
+
+    private var dailyAxisDates: [Date]? {
+        guard range == .week || range == .fortnight else { return nil }
+
+        var dates: [Date] = []
+        var cursor = calendar.startOfDay(for: dateRange.lowerBound)
+        let end = calendar.startOfDay(for: dateRange.upperBound)
+
+        while cursor <= end {
+            dates.append(cursor)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        return dates
     }
 
     var body: some View {
@@ -373,10 +388,36 @@ private struct ItemsPackedBarChart: View {
             AxisMarks(position: .leading)
         }
         .chartYAxisLabel("Items Packed")
+        .chartXAxis {
+            if let axisDates = dailyAxisDates {
+                AxisMarks(values: axisDates) { value in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel {
+                        if let rawDate = value.as(Date.self) {
+                            let day = calendar.startOfDay(for: rawDate)
+                            let weekday = calendar.component(.weekday, from: day)
+
+                            if weekday == 2 {
+                                Text(day.formatted(.dateTime.day()))
+                            } else {
+                                let symbols = calendar.shortWeekdaySymbols
+                                let index = min(max(weekday - 1, 0), symbols.count - 1)
+                                let symbol = symbols[index]
+                                let firstCharacter = symbol.first.map(String.init) ?? ""
+                                Text(firstCharacter)
+                            }
+                        }
+                    }
+                }
+            } else {
+                AxisMarks(position: .bottom)
+            }
+        }
         .chartXScale(domain: paddedDomain)
         .frame(height: 240)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+        .padding(.vertical, 4)
     }
 }
 
@@ -400,16 +441,35 @@ private struct ItemsPackedWeeklyAverageChart: View {
                 y: .value("Average Items", entry.average),
                 width: .fixed(28)
             )
-            .foregroundStyle(.blue.gradient)
+            .foregroundStyle(
+                LinearGradient(colors: [
+                    Color(red: 0.36, green: 0.31, blue: 0.93),
+                    Color(red: 0.59, green: 0.39, blue: 0.98)
+                ],
+                               startPoint: .bottom,
+                               endPoint: .top)
+            )
         }
         .chartLegend(.hidden)
         .chartYAxis {
             AxisMarks(position: .leading)
         }
         .chartYAxisLabel("Average Items Packed")
+        .chartXAxis {
+            AxisMarks(values: data.map(\.midWeek)) { value in
+                AxisGridLine()
+                AxisTick()
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        let weekNumber = calendar.component(.weekOfYear, from: date)
+                        Text("\(weekNumber)")
+                    }
+                }
+            }
+        }
         .frame(height: 240)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+        .padding(.vertical, 4)
 
         if let domain = paddedDomain {
             chart.chartXScale(domain: domain)
@@ -500,8 +560,9 @@ private enum ChartRange: String, CaseIterable, Identifiable {
             return start...end
 
         case .month:
-            let end = today
-            let start = calendar.date(byAdding: .day, value: -30, to: end).map { calendar.startOfDay(for: $0) } ?? end
+            let currentWeekStart = calendar.startOfWeek(containing: today)
+            let start = calendar.date(byAdding: .weekOfYear, value: -4, to: currentWeekStart) ?? currentWeekStart
+            let end = calendar.endOfWeek(containing: today)
             return start...end
         }
     }
@@ -518,8 +579,9 @@ private enum ChartRange: String, CaseIterable, Identifiable {
             return start...end
 
         case .month:
+            let currentWeekStart = calendar.startOfWeek(containing: today)
+            let start = calendar.date(byAdding: .weekOfYear, value: -4, to: currentWeekStart) ?? currentWeekStart
             let end = today
-            let start = calendar.date(byAdding: .day, value: -30, to: end).map { calendar.startOfDay(for: $0) } ?? end
             return start...end
         }
     }
