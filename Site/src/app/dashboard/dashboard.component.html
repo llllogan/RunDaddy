@@ -140,7 +140,7 @@
                 <div>
                   <p class="text-sm font-medium text-rd-primary">{{ upload.file.name }}</p>
                   <p class="text-xs text-rd-muted">
-                    {{ formatFileSize(upload.file.size) }} · Received {{ upload.receivedAt | date : 'shortTime' }}
+                    {{ formatFileSize(upload.file.size) }} · Received {{ formatDateTime(upload.receivedAt, 'shortTime') }}
                   </p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -261,8 +261,8 @@
                     </span>
                   </td>
                   <td class="py-3 text-rd-primary">{{ member.phone || '—' }}</td>
-                  <td class="py-3">{{ member.createdAt | date : 'MMM d, y' }}</td>
-                  <td class="py-3">{{ member.updatedAt | date : 'MMM d, y, h:mm a' }}</td>
+                  <td class="py-3">{{ formatDateTime(member.createdAt, 'MMM d, y') }}</td>
+                  <td class="py-3">{{ formatDateTime(member.updatedAt) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -365,10 +365,10 @@
                   <td class="py-3 text-rd-primary">{{ formatPerson(run.picker) }}</td>
                   <td class="py-3 text-rd-primary">{{ formatPerson(run.runner) }}</td>
                   <td class="py-3">
-                    {{ run.scheduledFor ? (run.scheduledFor | date : 'MMM d, h:mm a') : '—' }}
+                    {{ formatDateTime(run.scheduledFor) }}
                   </td>
                   <td class="py-3">
-                    {{ getRunUpdatedAt(run) | date : 'MMM d, h:mm a' }}
+                    {{ formatDateTime(getRunUpdatedAt(run)) }}
                   </td>
                 </tr>
               </tbody>

@@ -1,0 +1,69 @@
+@COMPANY_ID=cmhddjr5b0000sbczxqfe2rc1
+
+@USER_ID=cmhddjr6a0001sbczrgdex6wr
+
+
+
+### Create a company for debugging
+POST http://localhost:3000/debug/companies
+Content-Type: application/json
+
+{
+  "name": "Debug Warehouse Co"
+}
+
+###
+
+### List companies
+GET http://localhost:3000/debug/companies
+
+###
+
+### Delete a company (replace COMPANY_ID)
+DELETE http://localhost:3000/debug/companies/{{COMPANY_ID}}
+
+###
+
+### Create a user and optionally attach to a company
+POST http://localhost:3000/debug/users
+Content-Type: application/json
+
+{
+  "email": "picker@example.com",
+  "password": "debugPassword1!",
+  "firstName": "Paula",
+  "lastName": "Picker",
+  "phone": "+18885550123",
+  "role": "PICKER",
+  "companyId": "{{COMPANY_ID}}",
+  "membershipRole": "PICKER",
+  "setAsDefaultMembership": true
+}
+
+###
+
+### Delete a user (replace USER_ID)
+DELETE http://localhost:3000/debug/users/{{USER_ID}}
+
+###
+
+### List users
+GET http://localhost:3000/debug/users
+
+###
+
+### Create a membership (attach an existing user to an existing company)
+POST http://localhost:3000/debug/memberships
+Content-Type: application/json
+
+{
+  "userId": "{{USER_ID}}",
+  "companyId": "{{COMPANY_ID}}",
+  "role": "ADMIN",
+  "setAsDefault": true
+}
+
+###
+
+### Delete a membership (replace MEMBERSHIP_ID)
+DELETE http://localhost:3000/debug/memberships/{{MEMBERSHIP_ID}}

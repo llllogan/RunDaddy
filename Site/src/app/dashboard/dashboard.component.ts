@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService, MembershipChoice } from '../auth/auth.service';
 import { RunsService, RunOverviewEntry, RunPerson } from './runs.service';
@@ -210,7 +210,10 @@ export class DashboardComponent {
     void this.loadUsers(companyId, true);
   }
 
-  protected formatStatus(status: string): string {
+  protected formatStatus(status: string | null | undefined): string {
+    if (!status) {
+      return 'Unknown';
+    }
     return status
       .toLowerCase()
       .split('_')
@@ -218,7 +221,7 @@ export class DashboardComponent {
       .join(' ');
   }
 
-  protected formatRole(role: string): string {
+  protected formatRole(role: string | null | undefined): string {
     return this.formatStatus(role);
   }
 
@@ -274,8 +277,19 @@ export class DashboardComponent {
     return parts.length ? parts.join(' ') : user.email;
   }
 
-  protected getRunUpdatedAt(run: RunOverviewEntry): Date {
-    return run.pickingEndedAt ?? run.pickingStartedAt ?? run.createdAt;
+  protected getRunUpdatedAt(run: RunOverviewEntry): Date | null {
+    return run.pickingEndedAt ?? run.pickingStartedAt ?? run.createdAt ?? null;
+  }
+
+  protected formatDateTime(value: Date | null | undefined, format: string = 'MMM d, h:mm a'): string {
+    if (!value) {
+      return '—';
+    }
+    const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    if (Number.isNaN(timestamp)) {
+      return '—';
+    }
+    return formatDate(timestamp, format, 'en-US');
   }
 
   private async loadMemberships(): Promise<void> {

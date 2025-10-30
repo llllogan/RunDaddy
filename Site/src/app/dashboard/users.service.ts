@@ -10,8 +10,8 @@ export interface DashboardUser {
   lastName: string;
   phone: string | null;
   role: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 }
 
 interface UsersResponseItem {
@@ -30,6 +30,13 @@ interface UsersResponseItem {
 })
 export class UsersService {
   private readonly http = inject(HttpClient);
+  private parseDate(value: string | null | undefined): Date | null {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
 
   async listUsers(): Promise<DashboardUser[]> {
     try {
@@ -44,8 +51,8 @@ export class UsersService {
         lastName: user.lastName,
         phone: user.phone,
         role: user.role,
-        createdAt: new Date(user.createdAt),
-        updatedAt: new Date(user.updatedAt),
+        createdAt: this.parseDate(user.createdAt),
+        updatedAt: this.parseDate(user.updatedAt),
       }));
     } catch (error) {
       throw this.toError(error);

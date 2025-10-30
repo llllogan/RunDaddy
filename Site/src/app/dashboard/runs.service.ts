@@ -36,6 +36,13 @@ interface RunOverviewResponse {
 })
 export class RunsService {
   private readonly http = inject(HttpClient);
+  private parseDate(value: string | null): Date | null {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
 
   async getOverview(): Promise<RunOverviewEntry[]> {
     try {
@@ -46,10 +53,10 @@ export class RunsService {
       return response.map((run) => ({
         id: run.id,
         status: run.status,
-        scheduledFor: run.scheduledFor ? new Date(run.scheduledFor) : null,
-        pickingStartedAt: run.pickingStartedAt ? new Date(run.pickingStartedAt) : null,
-        pickingEndedAt: run.pickingEndedAt ? new Date(run.pickingEndedAt) : null,
-        createdAt: new Date(run.createdAt),
+        scheduledFor: this.parseDate(run.scheduledFor),
+        pickingStartedAt: this.parseDate(run.pickingStartedAt),
+        pickingEndedAt: this.parseDate(run.pickingEndedAt),
+        createdAt: this.parseDate(run.createdAt) ?? new Date(),
         picker: run.picker
           ? {
               id: run.picker.id,

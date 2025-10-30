@@ -10,6 +10,7 @@ import { machinesRouter } from './routes/machines.js';
 import { skusRouter } from './routes/skus.js';
 import { runsRouter } from './routes/runs.js';
 import { runImportsRouter } from './routes/run-imports.js';
+import { debugRouter } from './routes/debug.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -43,6 +44,7 @@ app.use('/machines', machinesRouter);
 app.use('/skus', skusRouter);
 app.use('/runs', runsRouter);
 app.use('/run-imports', runImportsRouter);
+app.use('/debug', debugRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 const server = app.listen(port, () => {
