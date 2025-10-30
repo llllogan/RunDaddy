@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { UserRole } from '../types/enums.js';
+import { AuthContext, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken } from '../lib/tokens.js';
@@ -22,10 +22,18 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
   companyId: z.string().cuid().optional(),
+  context: z.nativeEnum(AuthContext).default(AuthContext.WEB),
+  setAsDefault: z.boolean().optional(),
 });
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(10),
+});
+
+const switchCompanySchema = z.object({
+  companyId: z.string().cuid(),
+  context: z.nativeEnum(AuthContext).optional(),
+  persist: z.boolean().optional(),
 });
 
 type SessionCompany = { id: string; name: string };
@@ -43,7 +51,29 @@ type SessionTokens = {
   refreshToken: string;
   accessTokenExpiresAt: Date;
   refreshTokenExpiresAt: Date;
+  context: AuthContext;
 };
+
+type MembershipSummary = {
+  id: string;
+  companyId: string;
+  role: UserRole;
+  company: { id: string; name: string };
+};
+
+const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
+const ALL_ALLOWED_ROLES = new Set<UserRole>(Object.values(UserRole));
+
+const getAllowedRolesForContext = (context: AuthContext): Set<UserRole> => {
+  return context === AuthContext.WEB ? WEB_ALLOWED_ROLES : ALL_ALLOWED_ROLES;
+};
+
+const formatMembershipChoices = (memberships: MembershipSummary[]) =>
+  memberships.map((member) => ({
+    companyId: member.companyId,
+    companyName: member.company.name,
+    role: member.role,
+  }));
 
 const respondWithSession = (
   res: Response,
@@ -69,6 +99,7 @@ const respondWithSession = (
       refreshToken: data.tokens.refreshToken,
       accessTokenExpiresAt: data.tokens.accessTokenExpiresAt.toISOString(),
       refreshTokenExpiresAt: data.tokens.refreshTokenExpiresAt.toISOString(),
+      context: data.tokens.context,
     },
   });
 };
@@ -117,12 +148,17 @@ router.post('/register', async (req, res) => {
       role: UserRole.OWNER,
     },
   });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { defaultMembershipId: membership.id },
+  });
 
   const tokens = createTokenPair({
     userId: user.id,
     companyId: company.id,
     email: user.email,
     role: membership.role,
+    context: AuthContext.WEB,
   });
 
   await prisma.refreshToken.create({
@@ -130,6 +166,7 @@ router.post('/register', async (req, res) => {
       userId: user.id,
       tokenId: tokens.refreshTokenId,
       expiresAt: tokens.refreshTokenExpiresAt,
+      context: tokens.context,
     },
   });
 
@@ -158,7 +195,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const { email, password, companyId } = parsed.data;
+  const { email, password, companyId, context, setAsDefault } = parsed.data;
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -180,33 +217,74 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const memberships = (user.memberships ?? []) as Array<{
+  type LoadedMembership = {
+    id: string;
     companyId: string;
     role: UserRole;
     company: { id: string; name: string };
-  }>;
+  };
+
+  const loadedMemberships = (user.memberships ?? []) as LoadedMembership[];
+
+  const memberships: MembershipSummary[] = loadedMemberships.map((membership) => ({
+    id: membership.id,
+    companyId: membership.companyId,
+    role: membership.role as UserRole,
+    company: { id: membership.company.id, name: membership.company.name },
+  }));
 
   if (!memberships.length) {
     return res.status(403).json({ error: 'No active company memberships for this account' });
   }
 
-  const firstMembership = memberships[0];
-  if (!firstMembership) {
-    return res.status(500).json({ error: 'Unable to resolve company membership' });
+  const allowedRoles = getAllowedRolesForContext(context);
+  const eligibleMemberships = memberships.filter((member) => allowedRoles.has(member.role));
+
+  if (context === AuthContext.WEB && !eligibleMemberships.length) {
+    return res.status(403).json({ error: 'Web dashboard requires ADMIN or OWNER membership' });
   }
 
-  let membership = firstMembership;
+  let membership: MembershipSummary | undefined;
+  const defaultMembershipId = user.defaultMembershipId ?? null;
+  let persistDefault = context === AuthContext.WEB && Boolean(setAsDefault);
+
   if (companyId) {
     const selected = memberships.find((member) => member.companyId === companyId);
     if (!selected) {
       return res.status(404).json({ error: 'Membership not found for provided company' });
     }
+    if (!allowedRoles.has(selected.role)) {
+      return res.status(403).json({ error: 'Membership role not permitted for this client' });
+    }
     membership = selected;
-  } else if (memberships.length > 1) {
-    return res.status(412).json({
-      error: 'Multiple company memberships. Provide companyId to select one.',
-      memberships: memberships.map((member) => ({ companyId: member.companyId, companyName: member.company.name })),
-    });
+  } else if (context === AuthContext.WEB) {
+    if (defaultMembershipId) {
+      membership = eligibleMemberships.find((member) => member.id === defaultMembershipId);
+    }
+
+    if (!membership && eligibleMemberships.length === 1) {
+      membership = eligibleMemberships[0];
+      persistDefault = true;
+    }
+
+    if (!membership) {
+      return res.status(412).json({
+        error: 'Multiple company memberships. Provide companyId to select one or set a default.',
+        memberships: formatMembershipChoices(eligibleMemberships),
+      });
+    }
+  } else {
+    if (defaultMembershipId) {
+      membership = memberships.find((member) => member.id === defaultMembershipId);
+    }
+
+    if (!membership) {
+      membership = memberships[0];
+    }
+  }
+
+  if (!membership) {
+    return res.status(500).json({ error: 'Unable to resolve company membership' });
   }
 
   const tokens = createTokenPair({
@@ -214,15 +292,38 @@ router.post('/login', async (req, res) => {
     companyId: membership.companyId,
     email: user.email,
     role: membership.role,
+    context,
   });
 
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenId: tokens.refreshTokenId,
-      expiresAt: tokens.refreshTokenExpiresAt,
-    },
-  });
+  const writes = [
+    prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    }),
+  ];
+
+  if (
+    context === AuthContext.WEB &&
+    persistDefault &&
+    membership.id !== user.defaultMembershipId
+  ) {
+    writes.push(
+      prisma.user.update({
+        where: { id: user.id },
+        data: { defaultMembershipId: membership.id },
+      }),
+    );
+  }
+
+  if (writes.length > 1) {
+    await prisma.$transaction(writes);
+  } else {
+    await writes[0];
+  }
 
   return respondWithSession(
     res,
@@ -261,13 +362,18 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Refresh token expired or revoked' });
     }
 
-    if (stored.userId !== payload.sub) {
+    if (stored.userId !== payload.sub || stored.context !== payload.context) {
       return res.status(401).json({ error: 'Refresh token invalid for this account' });
     }
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
         memberships: {
           where: { companyId: payload.companyId },
           include: { company: true },
@@ -279,13 +385,25 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Account not available' });
     }
 
-    const membership = user.memberships[0];
+    const membershipRecord = user.memberships[0];
+    const membership: MembershipSummary = {
+      id: membershipRecord.id,
+      companyId: membershipRecord.companyId,
+      role: membershipRecord.role as UserRole,
+      company: { id: membershipRecord.company.id, name: membershipRecord.company.name },
+    };
+
+    const allowedRoles = getAllowedRolesForContext(payload.context);
+    if (!allowedRoles.has(membership.role)) {
+      return res.status(403).json({ error: 'Membership role not permitted for this client' });
+    }
 
     const tokens = createTokenPair({
       userId: user.id,
       companyId: membership.companyId,
       email: user.email,
       role: membership.role,
+      context: payload.context,
     });
 
     await prisma.$transaction([
@@ -298,6 +416,7 @@ router.post('/refresh', async (req, res) => {
           userId: user.id,
           tokenId: tokens.refreshTokenId,
           expiresAt: tokens.refreshTokenExpiresAt,
+          context: tokens.context,
         },
       }),
     ]);
@@ -318,8 +437,115 @@ router.post('/refresh', async (req, res) => {
       ),
     );
   } catch (error) {
-    return res.status(401).json({ error: 'Unable to refresh token', detail: (error as Error).message });
+    return res.status(401).json({ error: 'Invalid or expired refresh token', detail: (error as Error).message });
   }
+});
+
+router.post('/switch-company', authenticate, async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const parsed = switchCompanySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const { companyId, context, persist } = parsed.data;
+  const targetContext = context ?? req.auth.context ?? AuthContext.WEB;
+  const allowedRoles = getAllowedRolesForContext(targetContext);
+
+  const membershipRecord = await prisma.membership.findUnique({
+    where: {
+      userId_companyId: {
+        userId: req.auth.userId,
+        companyId,
+      },
+    },
+    include: {
+      company: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          defaultMembershipId: true,
+        },
+      },
+    },
+  });
+
+  if (!membershipRecord) {
+    return res.status(404).json({ error: 'Membership not found for provided company' });
+  }
+
+  if (!allowedRoles.has(membershipRecord.role as UserRole)) {
+    return res.status(403).json({ error: 'Membership role not permitted for this client' });
+  }
+
+  const membership: MembershipSummary = {
+    id: membershipRecord.id,
+    companyId: membershipRecord.companyId,
+    role: membershipRecord.role as UserRole,
+    company: { id: membershipRecord.company.id, name: membershipRecord.company.name },
+  };
+
+  const tokens = createTokenPair({
+    userId: membershipRecord.user.id,
+    companyId: membership.companyId,
+    email: membershipRecord.user.email,
+    role: membership.role,
+    context: targetContext,
+  });
+
+  const shouldPersist =
+    targetContext === AuthContext.WEB &&
+    (persist ?? true) &&
+    membershipRecord.user.defaultMembershipId !== membership.id;
+
+  const writes = [
+    prisma.refreshToken.create({
+      data: {
+        userId: membershipRecord.user.id,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    }),
+  ];
+
+  if (shouldPersist) {
+    writes.push(
+      prisma.user.update({
+        where: { id: membershipRecord.user.id },
+        data: { defaultMembershipId: membership.id },
+      }),
+    );
+  }
+
+  if (writes.length > 1) {
+    await prisma.$transaction(writes);
+  } else {
+    await writes[0];
+  }
+
+  return respondWithSession(
+    res,
+    buildSessionPayload(
+      {
+        id: membershipRecord.user.id,
+        email: membershipRecord.user.email,
+        firstName: membershipRecord.user.firstName,
+        lastName: membershipRecord.user.lastName,
+        role: membership.role,
+        phone: membershipRecord.user.phone,
+      },
+      { id: membership.company.id, name: membership.company.name },
+      tokens,
+    ),
+  );
 });
 
 router.get('/me', authenticate, async (req, res) => {

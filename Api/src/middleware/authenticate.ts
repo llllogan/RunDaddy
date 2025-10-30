@@ -13,7 +13,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
   try {
     const payload = verifyAccessToken(token);
-    if (!payload.sub || !payload.companyId) {
+    if (!payload.sub || !payload.companyId || !payload.context) {
       return res.status(401).json({ error: 'Invalid token payload' });
     }
 
@@ -45,6 +45,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       email: membership.user.email,
       role: membership.role,
       companyId: membership.companyId,
+      context: payload.context,
     };
     return next();
   } catch (error) {

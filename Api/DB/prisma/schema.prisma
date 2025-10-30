@@ -30,6 +30,11 @@ enum UserRole {
   PICKER
 }
 
+enum AuthContext {
+  WEB
+  APP
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -40,11 +45,13 @@ model User {
   phone     String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  defaultMembershipId String?  @unique
 
   memberships  Membership[]
   runsAsPicker Run[]       @relation("RunPicker")
   runsAsRunner Run[]       @relation("RunRunner")
   tokens       RefreshToken[]
+  defaultMembership Membership? @relation("UserDefaultMembership", fields: [defaultMembershipId], references: [id])
 }
 
 model Membership {
@@ -55,6 +62,7 @@ model Membership {
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultForUser User?  @relation("UserDefaultMembership")
 
   @@unique([userId, companyId])
   @@index([userId])
@@ -212,8 +220,10 @@ model RefreshToken {
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  context   AuthContext @default(WEB)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([context])
 }

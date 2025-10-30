@@ -173,6 +173,10 @@ router.post('/', async (req, res) => {
       role,
     },
   });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { defaultMembershipId: membership.id },
+  });
 
   return res.status(201).json({
     id: user.id,
@@ -358,6 +362,7 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
     expires_at: Date;
     is_revoked: number | boolean;
     created_at: Date;
+    token_context: string;
   };
 
   const rowsRaw = await prisma.$queryRaw`
@@ -375,6 +380,7 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
       expiresAt: row.expires_at,
       revoked: Boolean(row.is_revoked),
       createdAt: row.created_at,
+      context: row.token_context,
     })),
   );
 });

@@ -121,6 +121,7 @@ SELECT
   rt.tokenId   AS token_identifier,
   rt.expiresAt AS expires_at,
   rt.revoked   AS is_revoked,
-  rt.createdAt AS created_at
+  rt.createdAt AS created_at,
+  rt.context   AS token_context
 FROM `RefreshToken` rt
 JOIN `User` u ON u.id = rt.userId;

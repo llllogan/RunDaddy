@@ -21,6 +21,11 @@ export enum RunItemStatus {
   SKIPPED = 'SKIPPED',
 }
 
+export enum AuthContext {
+  WEB = 'WEB',
+  APP = 'APP',
+}
+
 export const isRunStatus = (value: unknown): value is RunStatus => {
   return typeof value === 'string' && (Object.values(RunStatus) as string[]).includes(value);
 };
