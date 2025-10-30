@@ -1,6 +1,6 @@
-@COMPANY_ID=cmhddjr5b0000sbczxqfe2rc1
+@COMPANY_ID=cmhe2gr1100008holqfm3bryk
 
-@USER_ID=cmhddjr6a0001sbczrgdex6wr
+@USER_ID=cmhe26ks000018hi0mm9pz0r8
 
 
 
@@ -60,10 +60,15 @@ Content-Type: application/json
   "userId": "{{USER_ID}}",
   "companyId": "{{COMPANY_ID}}",
   "role": "ADMIN",
-  "setAsDefault": true
+  "setAsDefault": false
 }
 
 ###
 
 ### Delete a membership (replace MEMBERSHIP_ID)
 DELETE http://localhost:3000/debug/memberships/{{MEMBERSHIP_ID}}
+
+###
+
+### List memberships for a user
+GET http://localhost:3000/debug/memberships?userId={{USER_ID}}

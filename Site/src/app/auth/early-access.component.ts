@@ -61,7 +61,15 @@ export class EarlyAccessComponent {
     this.error.set(null);
 
     try {
-      const payload = this.form.getRawValue() as RegisterInput;
+      const raw = this.form.getRawValue();
+      const payload: RegisterInput = {
+        companyName: raw.companyName?.trim() ?? '',
+        userFirstName: raw.userFirstName?.trim() ?? '',
+        userLastName: raw.userLastName?.trim() ?? '',
+        userEmail: raw.userEmail?.trim() ?? '',
+        userPassword: raw.userPassword ?? '',
+        userPhone: raw.userPhone?.trim() ? raw.userPhone.trim() : undefined,
+      };
       await this.auth.register(payload);
       await this.router.navigate(['/dashboard']);
     } catch (error) {

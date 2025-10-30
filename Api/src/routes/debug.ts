@@ -248,4 +248,39 @@ router.delete('/memberships/:membershipId', async (req, res) => {
   }
 });
 
+router.get('/memberships', async (req, res) => {
+  const userId = typeof req.query.userId === 'string' ? req.query.userId : null;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'Query parameter "userId" is required' });
+  }
+
+  const memberships = await prisma.membership.findMany({
+    where: { userId },
+    include: {
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      company: {
+        name: 'asc',
+      },
+    },
+  });
+
+  return res.json(
+    memberships.map((membership) => ({
+      id: membership.id,
+      userId: membership.userId,
+      companyId: membership.companyId,
+      role: membership.role,
+      companyName: membership.company.name,
+    })),
+  );
+});
+
 export const debugRouter = router;
