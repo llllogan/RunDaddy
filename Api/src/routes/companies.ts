@@ -84,7 +84,8 @@ router.patch('/:companyId', async (req, res) => {
     return res.status(403).json({ error: 'Cannot modify another company' });
   }
 
-  if (![UserRole.ADMIN, UserRole.OWNER].includes(req.auth.role)) {
+  const allowedRoles = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
+  if (!allowedRoles.has(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update company' });
   }
 

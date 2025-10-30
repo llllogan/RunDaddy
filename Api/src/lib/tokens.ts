@@ -1,6 +1,8 @@
-import { sign, verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import { AuthContext, type UserRole } from '../types/enums.js';
+
+const { sign, verify } = jwt;
 
 type BaseClaims = {
   sub: string;

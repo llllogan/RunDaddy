@@ -233,7 +233,7 @@ router.post('/', async (req, res) => {
     return res.status(404).json({ error: 'Machine type not found' });
   }
 
-  let locationId: string | undefined;
+  let locationId: string | null = null;
   if (parsed.data.locationId) {
     const location = await prisma.location.findUnique({ where: { id: parsed.data.locationId } });
     if (!location || location.companyId !== req.auth.companyId) {

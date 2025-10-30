@@ -1,30 +1,21 @@
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  OWNER = 'OWNER',
-  PICKER = 'PICKER',
-}
+import {
+  RunStatus as PrismaRunStatus,
+  RunItemStatus as PrismaRunItemStatus,
+  UserRole as PrismaUserRole,
+  AuthContext as PrismaAuthContext,
+} from '@prisma/client';
 
-export enum RunStatus {
-  DRAFT = 'DRAFT',
-  PICKING = 'PICKING',
-  READY = 'READY',
-  SCHEDULED = 'SCHEDULED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  HISTORICAL = 'HISTORICAL',
-}
+export const RunStatus = PrismaRunStatus;
+export type RunStatus = PrismaRunStatus;
 
-export enum RunItemStatus {
-  PENDING = 'PENDING',
-  PICKED = 'PICKED',
-  SKIPPED = 'SKIPPED',
-}
+export const RunItemStatus = PrismaRunItemStatus;
+export type RunItemStatus = PrismaRunItemStatus;
 
-export enum AuthContext {
-  WEB = 'WEB',
-  APP = 'APP',
-}
+export const UserRole = PrismaUserRole;
+export type UserRole = PrismaUserRole;
+
+export const AuthContext = PrismaAuthContext;
+export type AuthContext = PrismaAuthContext;
 
 export const isRunStatus = (value: unknown): value is RunStatus => {
   return typeof value === 'string' && (Object.values(RunStatus) as string[]).includes(value);

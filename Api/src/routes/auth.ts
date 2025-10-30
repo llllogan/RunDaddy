@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { AuthContext, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
@@ -295,7 +296,7 @@ router.post('/login', async (req, res) => {
     context,
   });
 
-  const writes = [
+  const writes: Prisma.PrismaPromise<unknown>[] = [
     prisma.refreshToken.create({
       data: {
         userId: user.id,
@@ -385,11 +386,11 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Account not available' });
     }
 
-    const membershipRecord = user.memberships[0];
+    const membershipRecord = user.memberships[0]!;
     const membership: MembershipSummary = {
       id: membershipRecord.id,
       companyId: membershipRecord.companyId,
-      role: membershipRecord.role as UserRole,
+      role: membershipRecord.role,
       company: { id: membershipRecord.company.id, name: membershipRecord.company.name },
     };
 
@@ -455,7 +456,7 @@ router.post('/switch-company', authenticate, async (req, res) => {
   const targetContext = context ?? req.auth.context ?? AuthContext.WEB;
   const allowedRoles = getAllowedRolesForContext(targetContext);
 
-  const membershipRecord = await prisma.membership.findUnique({
+    const membershipRecord = await prisma.membership.findUnique({
     where: {
       userId_companyId: {
         userId: req.auth.userId,
@@ -481,14 +482,14 @@ router.post('/switch-company', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Membership not found for provided company' });
   }
 
-  if (!allowedRoles.has(membershipRecord.role as UserRole)) {
+  if (!allowedRoles.has(membershipRecord.role)) {
     return res.status(403).json({ error: 'Membership role not permitted for this client' });
   }
 
   const membership: MembershipSummary = {
     id: membershipRecord.id,
     companyId: membershipRecord.companyId,
-    role: membershipRecord.role as UserRole,
+    role: membershipRecord.role,
     company: { id: membershipRecord.company.id, name: membershipRecord.company.name },
   };
 
@@ -505,7 +506,7 @@ router.post('/switch-company', authenticate, async (req, res) => {
     (persist ?? true) &&
     membershipRecord.user.defaultMembershipId !== membership.id;
 
-  const writes = [
+  const writes: Prisma.PrismaPromise<unknown>[] = [
     prisma.refreshToken.create({
       data: {
         userId: membershipRecord.user.id,

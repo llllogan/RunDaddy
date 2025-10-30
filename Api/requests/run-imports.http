@@ -1,0 +1,14 @@
+@baseUrl = http://localhost:3000
+@token = paste-your-jwt-here
+
+### Upload the sample Excel workbook
+POST {{baseUrl}}/run-imports/runs
+# Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----RunDaddyBoundary
+
+------RunDaddyBoundary
+Content-Disposition: form-data; name="file"; filename="638966916252537020.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ../638966916252537020.xlsx
+------RunDaddyBoundary--
