@@ -1,0 +1,66 @@
+<section class="space-y-8">
+  <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h2 class="text-2xl font-semibold text-rd-primary">Team directory</h2>
+      <p class="text-sm text-rd-secondary">Every user who belongs to this company and has access to RunDaddy.</p>
+    </div>
+  </header>
+
+  <div class="rounded-3xl border border-rd-primary/12 bg-white/90 p-6 shadow-rd-card">
+    <div
+      *ngIf="usersError()"
+      class="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
+    >
+      <span>{{ usersError() }}</span>
+      <button
+        type="button"
+        class="text-xs font-semibold text-rd-accent transition hover:text-rd-accent-strong disabled:opacity-60"
+        (click)="reloadUsers()"
+        [disabled]="loadingUsers()"
+      >
+        Retry
+      </button>
+    </div>
+
+    <div *ngIf="loadingUsers(); else usersContent" class="flex items-center justify-center py-10 text-sm text-rd-secondary">
+      Loading users…
+    </div>
+
+    <ng-template #usersContent>
+      <div *ngIf="hasUsers(); else usersEmpty">
+        <table class="min-w-full text-left text-sm text-rd-secondary">
+          <thead>
+            <tr class="text-xs uppercase tracking-wide text-rd-muted">
+              <th class="pb-4 font-semibold">Name</th>
+              <th class="pb-4 font-semibold">Email</th>
+              <th class="pb-4 font-semibold">Role</th>
+              <th class="pb-4 font-semibold">Phone</th>
+              <th class="pb-4 font-semibold">Added</th>
+              <th class="pb-4 font-semibold">Updated</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#ecd9a0]/60 text-sm">
+            <tr *ngFor="let member of users(); trackBy: trackByUser" class="hover:bg-white">
+              <td class="py-3 text-rd-primary">{{ formatUserName(member) }}</td>
+              <td class="py-3 text-rd-secondary">{{ member.email }}</td>
+              <td class="py-3">
+                <span class="inline-flex items-center rounded-full border border-rd-primary/12 bg-white/80 px-3 py-1 text-xs font-semibold text-rd-primary">
+                  {{ formatRole(member.role) }}
+                </span>
+              </td>
+              <td class="py-3 text-rd-primary">{{ member.phone || '—' }}</td>
+              <td class="py-3">{{ formatDateTime(member.createdAt, 'MMM d, y') }}</td>
+              <td class="py-3">{{ formatDateTime(member.updatedAt) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-template>
+
+    <ng-template #usersEmpty>
+      <div class="rounded-2xl border border-rd-primary/12 bg-white/80 px-6 py-8 text-sm text-rd-secondary">
+        No users found for this company yet.
+      </div>
+    </ng-template>
+  </div>
+</section>
