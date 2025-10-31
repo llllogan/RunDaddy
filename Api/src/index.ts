@@ -47,15 +47,35 @@ app.use('/run-imports', runImportsRouter);
 app.use('/debug', debugRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-const server = app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
-});
+let server: ReturnType<typeof app.listen> | undefined;
+
+const start = async () => {
+  try {
+    console.log('Verifying database connectivity...');
+    await prisma.$connect();
+    await prisma.$queryRaw`CALL sp_health_check()`;
+    server = app.listen(port, () => {
+      console.log(`API listening on http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to connect to the database. Shutting down.');
+    console.error(error);
+    await prisma.$disconnect().catch(() => null);
+    process.exit(1);
+  }
+};
 
 const shutdown = async () => {
   console.log('Shutting down API...');
   await prisma.$disconnect();
-  server.close(() => process.exit(0));
+  if (server) {
+    server.close(() => process.exit(0));
+  } else {
+    process.exit(0);
+  }
 };
+
+void start();
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

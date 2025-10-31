@@ -44,34 +44,36 @@ router.get('/', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  type UserMembershipRow = {
-    user_id: string;
-    user_email: string;
-    user_first_name: string;
-    user_last_name: string;
-    user_phone: string | null;
-    user_created_at: Date;
-    user_updated_at: Date;
-    user_role: UserRole;
-    membership_role: UserRole;
-    company_id: string;
-  };
-
-  const rowsRaw = await prisma.$queryRaw<UserMembershipRow[][]>(
-    Prisma.sql`CALL sp_get_user_memberships(${req.auth.companyId})`,
-  );
-  const rows = extractRows<UserMembershipRow>(rowsRaw);
-
+  const memberships = await prisma.membership.findMany({
+    where: {
+      companyId: req.auth.companyId,
+    },
+    include: {
+      user: true,
+    },
+    orderBy: [
+      {
+        user: {
+          lastName: 'asc',
+        },
+      },
+      {
+        user: {
+          firstName: 'asc',
+        },
+      },
+    ],
+  });
   return res.json(
-    rows.map((row) => ({
-      id: row.user_id,
-      email: row.user_email,
-      firstName: row.user_first_name,
-      lastName: row.user_last_name,
-      phone: row.user_phone,
-      role: row.membership_role,
-      createdAt: row.user_created_at,
-      updatedAt: row.user_updated_at,
+    memberships.map((membership) => ({
+      id: membership.user.id,
+      email: membership.user.email,
+      firstName: membership.user.firstName,
+      lastName: membership.user.lastName,
+      phone: membership.user.phone,
+      role: membership.role,
+      createdAt: membership.user.createdAt,
+      updatedAt: membership.user.updatedAt,
     })),
   );
 });
