@@ -391,6 +391,11 @@ export class DashboardComponent {
         error: null,
         result: preview,
       }));
+      const companyId = this.company()?.id ?? null;
+      if (companyId) {
+        await this.loadRuns(companyId, true);
+      }
+      this.activeTab.set('runs');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to process this workbook. Please try again.';

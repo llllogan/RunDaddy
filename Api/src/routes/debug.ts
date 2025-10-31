@@ -66,6 +66,81 @@ router.get('/companies', async (_req, res) => {
   return res.json(companies);
 });
 
+router.get('/companies/:companyId/machines', async (req, res) => {
+  const { companyId } = req.params;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+
+  if (!company) {
+    return res.status(404).json({ error: 'Company not found' });
+  }
+
+  const machines = await prisma.machine.findMany({
+    where: { companyId },
+    include: {
+      machineType: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+      location: {
+        select: {
+          id: true,
+          name: true,
+          address: true,
+        },
+      },
+      coils: {
+        orderBy: { code: 'asc' },
+        select: {
+          id: true,
+          code: true,
+          coilItems: {
+            orderBy: { sku: { code: 'asc' } },
+            select: {
+              id: true,
+              par: true,
+              sku: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                  type: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ code: 'asc' }],
+  });
+
+  return res.json(
+    machines.map((machine) => ({
+      id: machine.id,
+      code: machine.code,
+      description: machine.description,
+      machineType: machine.machineType,
+      location: machine.location,
+      coils: machine.coils.map((coil) => ({
+        id: coil.id,
+        code: coil.code,
+        items: coil.coilItems.map((item) => ({
+          id: item.id,
+          par: item.par,
+          sku: item.sku,
+        })),
+      })),
+    })),
+  );
+});
+
 router.post('/users', async (req, res) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {

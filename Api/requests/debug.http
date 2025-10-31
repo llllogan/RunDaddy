@@ -72,3 +72,6 @@ DELETE http://localhost:3000/debug/memberships/{{MEMBERSHIP_ID}}
 
 ### List memberships for a user
 GET http://localhost:3000/debug/memberships?userId={{USER_ID}}
+
+### List machines for a company
+GET http://localhost:3000/debug/companies/{{COMPANY_ID}}/machines

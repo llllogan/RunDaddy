@@ -300,6 +300,9 @@
               <div *ngIf="upload.result" class="space-y-3 rounded-lg border border-rd-primary/12 bg-white/80 px-3 py-3 text-xs text-rd-secondary">
                 <div class="flex flex-wrap items-center gap-3 text-sm text-rd-primary">
                   <span class="font-semibold text-rd-secondary">Summary</span>
+                  <span class="rounded-full border border-rd-teal/30 bg-rd-teal/10 px-2.5 py-1 text-xs text-rd-teal">
+                    Run created: {{ upload.result.run.id }}
+                  </span>
                   <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
                     Runs: {{ upload.result.summary.runs }}
                   </span>

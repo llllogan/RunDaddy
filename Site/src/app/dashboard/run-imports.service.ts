@@ -12,6 +12,12 @@ export interface RunImportSummary {
 export interface RunImportPreview {
   summary: RunImportSummary;
   workbook: unknown;
+  run: {
+    id: string;
+    status: string;
+    scheduledFor: string | null;
+    createdAt: string;
+  };
 }
 
 @Injectable({
@@ -52,4 +58,3 @@ export class RunImportsService {
     return new Error('Unable to upload workbook.');
   }
 }
-
