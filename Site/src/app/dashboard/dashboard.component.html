@@ -238,88 +238,16 @@
               <input type="file" accept=".xlsx,.xls,.csv" class="hidden" (change)="onFileSelect($event)" multiple />
               Browse files
             </label>
-          </div>
-        </div>
-        <div *ngIf="hasFiles()" class="mt-10 space-y-4">
-          <h3 class="text-sm font-semibold text-rd-primary">Recent uploads</h3>
-          <ul class="space-y-3">
-            <li
-              *ngFor="let upload of uploadedFiles()"
-              class="space-y-3 rounded-xl border border-rd-primary/12 bg-white/80 px-4 py-4"
+            <div *ngIf="uploadingRun()" class="mt-4 text-xs font-medium text-rd-secondary">
+              Uploading run…
+            </div>
+            <div
+              *ngIf="uploadError()"
+              class="mt-4 w-full rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-left text-xs text-[#c24141]"
             >
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-medium text-rd-primary">{{ upload.file.name }}</p>
-                  <p class="text-xs text-rd-muted">
-                    {{ formatFileSize(upload.file.size) }} · Received {{ formatDateTime(upload.receivedAt, 'shortTime') }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-3">
-                  <span
-                    [class]="[
-                      'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
-                      uploadStatusClass(upload.status)
-                    ].join(' ')"
-                  >
-                    <svg
-                      *ngIf="upload.status === 'uploading'"
-                      class="h-3.5 w-3.5 animate-spin text-current"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      role="presentation"
-                    >
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3a5 5 0 0 0-5 5H4z"></path>
-                    </svg>
-                    {{ uploadStatusLabel(upload.status) }}
-                  </span>
-                  <button
-                    type="button"
-                    (click)="removeFile(upload.id)"
-                    class="rounded-full border border-rd-primary/12 px-3 py-1 text-xs font-semibold text-rd-secondary transition hover:border-rd-accent hover:text-rd-primary"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-
-              <div
-                *ngIf="upload.status === 'error' && upload.error"
-                class="flex flex-wrap items-center gap-2 rounded-lg border border-[#f87171]/30 bg-[#f87171]/10 px-3 py-2 text-xs text-[#f87171]"
-              >
-                <span>{{ upload.error }}</span>
-                <button
-                  type="button"
-                  class="rounded-full border border-[#f87171]/40 px-3 py-1 text-xs font-semibold text-[#f87171] transition hover:border-[#f87171]/60 hover:text-[#c24141]"
-                  (click)="retryUpload(upload.id)"
-                >
-                  Retry upload
-                </button>
-              </div>
-
-              <div *ngIf="upload.result" class="space-y-3 rounded-lg border border-rd-primary/12 bg-white/80 px-3 py-3 text-xs text-rd-secondary">
-                <div class="flex flex-wrap items-center gap-3 text-sm text-rd-primary">
-                  <span class="font-semibold text-rd-secondary">Summary</span>
-                  <span class="rounded-full border border-rd-teal/30 bg-rd-teal/10 px-2.5 py-1 text-xs text-rd-teal">
-                    Run created: {{ upload.result.run.id }}
-                  </span>
-                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
-                    Runs: {{ upload.result.summary.runs }}
-                  </span>
-                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
-                    Machines: {{ upload.result.summary.machines }}
-                  </span>
-                  <span class="rounded-full border border-rd-primary/12 px-2.5 py-1 text-xs text-rd-primary/80">
-                    Pick entries: {{ upload.result.summary.pickEntries }}
-                  </span>
-                </div>
-                <details class="rounded-lg border border-rd-primary/12 bg-white/85 px-3 py-2">
-                  <summary class="cursor-pointer text-xs font-semibold text-rd-accent outline-none">View workbook JSON</summary>
-                  <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-rd-muted">{{ upload.result.workbook | json }}</pre>
-                </details>
-              </div>
-            </li>
-          </ul>
+              {{ uploadError() }}
+            </div>
+          </div>
         </div>
       </article>
     </section>

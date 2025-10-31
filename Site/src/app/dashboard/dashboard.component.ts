@@ -4,18 +4,7 @@ import { RouterModule } from '@angular/router';
 import { AuthService, MembershipChoice } from '../auth/auth.service';
 import { RunsService, RunOverviewEntry, RunPerson } from './runs.service';
 import { DashboardUser, UsersService } from './users.service';
-import { RunImportPreview, RunImportsService } from './run-imports.service';
-
-type UploadStatus = 'uploading' | 'success' | 'error';
-
-interface UploadedFile {
-  id: string;
-  file: File;
-  receivedAt: Date;
-  status: UploadStatus;
-  result: RunImportPreview | null;
-  error: string | null;
-}
+import { RunImportsService } from './run-imports.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -39,7 +28,6 @@ export class DashboardComponent {
 
   protected readonly activeTab = signal<'home' | 'users' | 'runs'>('home');
   protected readonly isDragging = signal(false);
-  protected readonly uploadedFiles = signal<UploadedFile[]>([]);
   protected readonly memberships = signal<MembershipChoice[]>([]);
   protected readonly loadingMemberships = signal(false);
   protected readonly isSwitchingCompany = signal(false);
@@ -51,8 +39,9 @@ export class DashboardComponent {
   protected readonly users = signal<DashboardUser[]>([]);
   protected readonly loadingUsers = signal(false);
   protected readonly usersError = signal<string | null>(null);
+  protected readonly uploadingRun = signal(false);
+  protected readonly uploadError = signal<string | null>(null);
 
-  protected readonly hasFiles = computed(() => this.uploadedFiles().length > 0);
   protected readonly hasRuns = computed(() => this.runs().length > 0);
   protected readonly hasUsers = computed(() => this.users().length > 0);
   protected readonly user = this.auth.user;
@@ -112,21 +101,6 @@ export class DashboardComponent {
     input.value = '';
   }
 
-  protected removeFile(id: string): void {
-    this.removeUpload(id);
-  }
-
-  protected formatFileSize(bytes: number): string {
-    if (bytes === 0) {
-      return '0 B';
-    }
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    const size = bytes / Math.pow(k, i);
-    return `${size.toFixed(size >= 10 || i === 0 ? 0 : 1)} ${sizes[i]}`;
-  }
-
   private handleFiles(fileList: FileList): void {
     const acceptedTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -139,21 +113,14 @@ export class DashboardComponent {
     if (!incoming.length) {
       return;
     }
-    incoming.forEach((file) => this.queueFileForUpload(file));
-  }
-
-  protected retryUpload(id: string): void {
-    const current = this.getUploadById(id);
-    if (!current) {
+    if (this.uploadingRun()) {
       return;
     }
-    this.updateUpload(id, (upload) => ({
-      ...upload,
-      status: 'uploading',
-      error: null,
-      result: null,
-    }));
-    void this.uploadWorkbook(id);
+    const [file] = incoming;
+    if (!file) {
+      return;
+    }
+    void this.processRunUpload(file);
   }
 
   protected async logout(): Promise<void> {
@@ -237,28 +204,6 @@ export class DashboardComponent {
 
   protected formatRole(role: string | null | undefined): string {
     return this.formatStatus(role);
-  }
-
-  protected uploadStatusLabel(status: UploadStatus): string {
-    switch (status) {
-      case 'uploading':
-        return 'Uploading...';
-      case 'success':
-        return 'Uploaded';
-      case 'error':
-        return 'Failed';
-      default:
-        return status;
-    }
-  }
-
-  protected uploadStatusClass(status: UploadStatus): string {
-    const mapping: Record<UploadStatus, string> = {
-      uploading: 'border border-rd-primary/12 bg-white/80 text-rd-secondary',
-      success: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
-      error: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#c24141]',
-    };
-    return mapping[status];
   }
 
   protected statusBadgeClass(status: string): string {
@@ -364,33 +309,14 @@ export class DashboardComponent {
     }
   }
 
-  private queueFileForUpload(file: File): void {
-    const entry: UploadedFile = {
-      id: this.createUploadId(),
-      file,
-      receivedAt: new Date(),
-      status: 'uploading',
-      result: null,
-      error: null,
-    };
-    this.uploadedFiles.update((files) => [...files, entry]);
-    void this.uploadWorkbook(entry.id);
-  }
-
-  private async uploadWorkbook(id: string): Promise<void> {
-    const entry = this.getUploadById(id);
-    if (!entry) {
+  private async processRunUpload(file: File): Promise<void> {
+    if (this.uploadingRun()) {
       return;
     }
-
+    this.uploadingRun.set(true);
+    this.uploadError.set(null);
     try {
-      const preview = await this.runImportsService.uploadRun(entry.file);
-      this.updateUpload(id, (upload) => ({
-        ...upload,
-        status: 'success',
-        error: null,
-        result: preview,
-      }));
+      await this.runImportsService.uploadRun(file);
       const companyId = this.company()?.id ?? null;
       if (companyId) {
         await this.loadRuns(companyId, true);
@@ -399,33 +325,9 @@ export class DashboardComponent {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to process this workbook. Please try again.';
-      this.updateUpload(id, (upload) => ({
-        ...upload,
-        status: 'error',
-        error: message,
-        result: null,
-      }));
+      this.uploadError.set(message);
+    } finally {
+      this.uploadingRun.set(false);
     }
-  }
-
-  private getUploadById(id: string): UploadedFile | undefined {
-    return this.uploadedFiles().find((upload) => upload.id === id);
-  }
-
-  private updateUpload(id: string, mutate: (upload: UploadedFile) => UploadedFile): void {
-    this.uploadedFiles.update((files) =>
-      files.map((upload) => (upload.id === id ? mutate(upload) : upload)),
-    );
-  }
-
-  private removeUpload(id: string): void {
-    this.uploadedFiles.update((files) => files.filter((upload) => upload.id !== id));
-  }
-
-  private createUploadId(): string {
-    if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
-      return globalThis.crypto.randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 }
