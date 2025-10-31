@@ -66,32 +66,212 @@
               <th class="pb-4 font-semibold">Runner</th>
               <th class="pb-4 font-semibold">Scheduled</th>
               <th class="pb-4 font-semibold">Updated</th>
+              <th class="pb-4 text-right font-semibold">Summary</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#ecd9a0]/60 text-sm">
-            <tr *ngFor="let run of runs(); trackBy: trackByRun" class="hover:bg-white">
-              <td class="py-3 font-mono text-xs uppercase tracking-wider text-rd-secondary">
-                #{{ run.id | slice:-6 }}
-              </td>
-              <td class="py-3">
-                <span
-                  [class]="[
-                    'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
-                    statusBadgeClass(run.status)
-                  ].join(' ')"
-                >
-                  {{ formatStatus(run.status) }}
-                </span>
-              </td>
-              <td class="py-3 text-rd-primary">{{ formatPerson(run.picker) }}</td>
-              <td class="py-3 text-rd-primary">{{ formatPerson(run.runner) }}</td>
-              <td class="py-3">
-                {{ formatDateTime(run.scheduledFor) }}
-              </td>
-              <td class="py-3">
-                {{ formatDateTime(getRunUpdatedAt(run)) }}
-              </td>
-            </tr>
+            <ng-container *ngFor="let run of runs(); trackBy: trackByRun">
+              <tr class="hover:bg-white">
+                <td class="py-3 font-mono text-xs uppercase tracking-wider text-rd-secondary">
+                  #{{ run.id | slice:-6 }}
+                </td>
+                <td class="py-3">
+                  <span
+                    [class]="[
+                      'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
+                      statusBadgeClass(run.status)
+                    ].join(' ')"
+                  >
+                    {{ formatStatus(run.status) }}
+                  </span>
+                </td>
+                <td class="py-3 text-rd-primary">{{ formatPerson(run.picker) }}</td>
+                <td class="py-3 text-rd-primary">{{ formatPerson(run.runner) }}</td>
+                <td class="py-3">
+                  {{ formatDateTime(run.scheduledFor) }}
+                </td>
+                <td class="py-3">
+                  {{ formatDateTime(getRunUpdatedAt(run)) }}
+                </td>
+                <td class="py-3 text-right">
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-full border border-rd-primary/12 bg-white/70 px-3 py-1 text-xs font-semibold text-rd-primary transition hover:bg-white"
+                    (click)="toggleRunDetails(run.id)"
+                    [attr.aria-expanded]="isRunExpanded(run.id)"
+                  >
+                    <svg
+                      *ngIf="!isRunExpanded(run.id); else collapseIcon"
+                      class="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      role="presentation"
+                    >
+                      <path
+                        d="M12 6v12m6-6H6"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    <ng-template #collapseIcon>
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" role="presentation">
+                        <path
+                          d="M6 12h12"
+                          stroke="currentColor"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </ng-template>
+                    <span>{{ isRunExpanded(run.id) ? 'Hide summary' : 'View summary' }}</span>
+                    <svg
+                      *ngIf="isRunExpanded(run.id) && isLoadingRunDetail(run.id)"
+                      class="h-3.5 w-3.5 animate-spin text-rd-secondary"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      role="presentation"
+                    >
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v2a6 6 0 0 0-6 6H4z"></path>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+
+              <tr *ngIf="isRunExpanded(run.id)" class="bg-rd-background/60">
+                <td colspan="7" class="px-0 pb-4">
+                  <div class="mx-1 mt-3 rounded-2xl border border-rd-primary/12 bg-white/95 p-6 shadow-inner">
+                    <div *ngIf="isLoadingRunDetail(run.id)" class="py-6 text-sm text-rd-secondary">
+                      Loading run summary…
+                    </div>
+
+                    <ng-container *ngIf="!isLoadingRunDetail(run.id)">
+                      <div
+                        *ngIf="runDetailErrorFor(run.id) as detailError"
+                        class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
+                      >
+                        <span>{{ detailError }}</span>
+                        <button
+                          type="button"
+                          class="text-xs font-semibold text-rd-accent transition hover:text-rd-accent-strong"
+                          (click)="reloadRunDetail(run.id)"
+                        >
+                          Retry
+                        </button>
+                      </div>
+
+                      <ng-container *ngIf="runDetailFor(run.id) as detail">
+                        <div class="flex flex-wrap items-center gap-6">
+                          <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-rd-muted">Total picks</p>
+                            <p class="mt-1 text-xl font-semibold text-rd-primary">{{ detail.totalCount }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-rd-muted">Distinct items</p>
+                            <p class="mt-1 text-xl font-semibold text-rd-primary">{{ detail.totalDistinctItems }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-rd-muted">Locations</p>
+                            <p class="mt-1 text-xl font-semibold text-rd-primary">{{ detail.locations.length }}</p>
+                          </div>
+                        </div>
+
+                        <div
+                          *ngIf="locationsError()"
+                          class="mt-4 rounded-xl border border-[#f9c74f]/40 bg-[#f9c74f]/10 px-4 py-3 text-xs text-[#a16207]"
+                        >
+                          {{ locationsError() }} — location names may be incomplete.
+                        </div>
+
+                        <div class="mt-6 space-y-4" *ngIf="detail.locations.length; else noPickEntries">
+                          <details
+                            *ngFor="let location of detail.locations"
+                            class="group rounded-2xl border border-rd-primary/10 bg-white/90 p-4"
+                          >
+                            <summary
+                              class="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-rd-primary outline-none transition group-open:text-rd-accent"
+                            >
+                              <span>{{ location.name }}</span>
+                              <span class="text-xs text-rd-secondary">{{ location.totalCount }} picks</span>
+                            </summary>
+                            <div class="mt-4 space-y-3 pl-1">
+                              <details
+                                *ngFor="let machine of location.machines"
+                                class="rounded-xl border border-rd-primary/10 bg-white/95 p-4"
+                              >
+                                <summary
+                                  class="flex cursor-pointer items-center justify-between gap-3 text-sm font-medium text-rd-primary outline-none transition"
+                                >
+                                  <span>
+                                    {{ machine.code }}
+                                    <span class="ml-2 text-[11px] uppercase tracking-[0.24em] text-rd-muted">
+                                      {{ machine.description || 'No description' }}
+                                    </span>
+                                  </span>
+                                  <span class="text-xs text-rd-secondary">{{ machine.totalCount }} picks</span>
+                                </summary>
+                                <div class="mt-4 overflow-x-auto">
+                                  <table class="min-w-full text-left text-xs text-rd-secondary">
+                                    <thead>
+                                      <tr class="text-[11px] uppercase tracking-[0.24em] text-rd-muted">
+                                        <th class="pb-2 font-semibold">Item</th>
+                                        <th class="pb-2 font-semibold">Coil</th>
+                                        <th class="pb-2 font-semibold">Qty</th>
+                                        <th class="pb-2 font-semibold">Status</th>
+                                        <th class="pb-2 font-semibold">Picked</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[#ecd9a0]/60 text-[13px]">
+                                      <tr *ngFor="let entry of machine.pickEntries" class="hover:bg-white/70">
+                                        <td class="py-2 text-rd-primary">
+                                          <span class="font-medium">{{ entry.skuName }}</span>
+                                          <span class="ml-2 text-[11px] uppercase tracking-[0.28em] text-rd-muted">
+                                            {{ entry.skuCode }}
+                                          </span>
+                                        </td>
+                                        <td class="py-2 text-rd-secondary">{{ entry.coilCode }}</td>
+                                        <td class="py-2 text-rd-primary">
+                                          {{ entry.count }}
+                                          <span class="ml-1 text-[11px] text-rd-muted">/ Par {{ entry.par }}</span>
+                                        </td>
+                                        <td class="py-2">
+                                          <span
+                                            [class]="[
+                                              'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                                              pickStatusBadgeClass(entry.status)
+                                            ].join(' ')"
+                                          >
+                                            {{ formatStatus(entry.status) }}
+                                          </span>
+                                        </td>
+                                        <td class="py-2 text-rd-secondary">
+                                          {{ formatDateTime(entry.pickedAt) }}
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </details>
+                            </div>
+                          </details>
+                        </div>
+
+                        <ng-template #noPickEntries>
+                          <div
+                            class="rounded-xl border border-rd-primary/10 bg-white/80 px-4 py-5 text-sm text-rd-secondary"
+                          >
+                            No pick entries recorded for this run yet.
+                          </div>
+                        </ng-template>
+                      </ng-container>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
           </tbody>
         </table>
       </div>

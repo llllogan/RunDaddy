@@ -31,6 +31,64 @@ interface RunOverviewResponse {
   runner: { id: string; firstName: string | null; lastName: string | null } | null;
 }
 
+interface RunDetailResponse extends RunOverviewResponse {
+  companyId: string;
+  pickEntries: Array<{
+    id: string;
+    status: string;
+    count: number;
+    pickedAt: string | null;
+    coilItem: {
+      id: string;
+      par: number;
+      coil: {
+        id: string;
+        code: string;
+        machine: {
+          id: string;
+          code: string;
+          description: string | null;
+          locationId: string | null;
+        };
+      };
+      sku: {
+        id: string;
+        code: string;
+        name: string;
+        type: string;
+      };
+    };
+  }>;
+}
+
+export interface RunDetail extends RunOverviewEntry {
+  pickEntries: RunDetailPickEntry[];
+}
+
+export interface RunDetailPickEntry {
+  id: string;
+  status: string;
+  count: number;
+  pickedAt: Date | null;
+  par: number;
+  sku: {
+    id: string;
+    code: string;
+    name: string;
+    type: string;
+  };
+  coil: {
+    id: string;
+    code: string;
+    machine: {
+      id: string;
+      code: string;
+      description: string | null;
+      locationId: string | null;
+    };
+  };
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -72,6 +130,64 @@ export class RunsService {
             }
           : null,
       }));
+    } catch (error) {
+      throw this.toError(error);
+    }
+  }
+
+  async getRunDetail(runId: string): Promise<RunDetail> {
+    try {
+      const response = await firstValueFrom(
+        this.http.get<RunDetailResponse>(`${API_BASE_URL}/runs/${runId}`),
+      );
+
+      const base: RunDetail = {
+        id: response.id,
+        status: response.status,
+        scheduledFor: this.parseDate(response.scheduledFor),
+        pickingStartedAt: this.parseDate(response.pickingStartedAt),
+        pickingEndedAt: this.parseDate(response.pickingEndedAt),
+        createdAt: this.parseDate(response.createdAt) ?? new Date(),
+        picker: response.picker
+          ? {
+              id: response.picker.id,
+              firstName: response.picker.firstName,
+              lastName: response.picker.lastName,
+            }
+          : null,
+        runner: response.runner
+          ? {
+              id: response.runner.id,
+              firstName: response.runner.firstName,
+              lastName: response.runner.lastName,
+            }
+          : null,
+        pickEntries: response.pickEntries.map((entry) => ({
+          id: entry.id,
+          status: entry.status,
+          count: entry.count,
+          pickedAt: this.parseDate(entry.pickedAt),
+          par: entry.coilItem.par,
+          sku: {
+            id: entry.coilItem.sku.id,
+            code: entry.coilItem.sku.code,
+            name: entry.coilItem.sku.name,
+            type: entry.coilItem.sku.type,
+          },
+          coil: {
+            id: entry.coilItem.coil.id,
+            code: entry.coilItem.coil.code,
+            machine: {
+              id: entry.coilItem.coil.machine.id,
+              code: entry.coilItem.coil.machine.code,
+              description: entry.coilItem.coil.machine.description,
+              locationId: entry.coilItem.coil.machine.locationId,
+            },
+          },
+        })),
+      };
+
+      return base;
     } catch (error) {
       throw this.toError(error);
     }
