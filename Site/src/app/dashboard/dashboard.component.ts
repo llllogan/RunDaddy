@@ -44,6 +44,7 @@ export class DashboardComponent {
   protected readonly loadingMemberships = signal(false);
   protected readonly isSwitchingCompany = signal(false);
   protected readonly companySwitchError = signal<string | null>(null);
+  protected readonly companyModalOpen = signal(false);
   protected readonly runs = signal<RunOverviewEntry[]>([]);
   protected readonly loadingRuns = signal(false);
   protected readonly runsError = signal<string | null>(null);
@@ -159,12 +160,25 @@ export class DashboardComponent {
     await this.auth.logout();
   }
 
-  protected async onCompanyChange(event: Event): Promise<void> {
-    const select = event.target as HTMLSelectElement;
-    const targetCompanyId = select.value;
+  protected openCompanyModal(): void {
+    if (this.isSwitchingCompany()) {
+      return;
+    }
+    this.companyModalOpen.set(true);
+  }
+
+  protected closeCompanyModal(): void {
+    if (this.isSwitchingCompany()) {
+      return;
+    }
+    this.companyModalOpen.set(false);
+  }
+
+  protected async selectCompany(targetCompanyId: string): Promise<void> {
     const currentCompanyId = this.company()?.id ?? '';
 
     if (!targetCompanyId || targetCompanyId === currentCompanyId) {
+      this.closeCompanyModal();
       return;
     }
 
@@ -173,9 +187,9 @@ export class DashboardComponent {
 
     try {
       await this.auth.switchCompany(targetCompanyId);
+      this.closeCompanyModal();
     } catch (error) {
       this.companySwitchError.set(error instanceof Error ? error.message : 'Unable to switch company.');
-      select.value = currentCompanyId;
     } finally {
       this.isSwitchingCompany.set(false);
     }
