@@ -4,15 +4,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'rd-background': '#fdf9f2',
+        'rd-background': '#fbf7ef',
         'rd-surface': '#ffffff',
-        'rd-card': 'rgba(255, 244, 214, 0.65)',
-        'rd-accent': '#f2b134',
-        'rd-accent-strong': '#e79607',
-        'rd-teal': '#2f8f9d',
-        'rd-muted': '#f3e5c0',
-        'rd-secondary': '#5d6168',
-        'rd-primary': '#222b38',
+        'rd-card': 'rgba(253, 230, 171, 0.75)',
+        'rd-accent': '#f97316',
+        'rd-accent-strong': '#ea580c',
+        'rd-teal': '#0f766e',
+        'rd-muted': '#8b9388',
+        'rd-secondary': '#475569',
+        'rd-primary': '#111827',
       },
       boxShadow: {
         'rd-card': '0 24px 55px -35px rgba(149, 108, 10, 0.35)',

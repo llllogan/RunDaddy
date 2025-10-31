@@ -223,11 +223,10 @@
             and schedules vending bins automatically.
           </p>
           <div
-            class="mt-8 flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed transition"
-            [class]="[
-              'border-rd-primary/20 bg-white/80 px-6 py-12 text-center',
-              isDragging() ? 'border-rd-accent/70 bg-rd-accent/10' : ''
-            ].join(' ')"
+            class="mt-8 flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-rd-primary/30 bg-white/85 px-6 py-12 text-center text-rd-secondary transition duration-200 ease-out"
+            [ngClass]="{
+              'border-rd-accent-strong bg-rd-accent/15 text-rd-primary shadow-[0_0_0_4px_rgba(249,115,22,0.22)] ring-4 ring-rd-accent/25': isDragging()
+            }"
           >
             <p class="mt-5 text-sm font-medium text-rd-primary">
               Drop your Excel or CSV file here
