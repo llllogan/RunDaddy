@@ -22,7 +22,7 @@ RUN npm run build -- --configuration=production
 FROM nginx:alpine AS runtime
 
 # put the Angular files directly into the html root
-COPY --from=build /app/dist/rundaddy/browser/ /usr/share/nginx/html/
+COPY --from=build /app/dist/Site/browser/ /usr/share/nginx/html/
 
 # keep SPA fallback
 COPY nginx.conf /etc/nginx/conf.d/default.conf
