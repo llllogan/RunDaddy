@@ -58,7 +58,7 @@ export class DashboardRunsComponent {
     void this.loadRuns(companyId, true);
   }
 
-  protected trackByRun = (_: number, run: RunOverviewEntry): string => run.id;
+  protected trackByRun = (index: number, run: RunOverviewEntry): string => this.resolveRunId(run) ?? `run-${index}`;
 
   protected formatStatus(status: string | null | undefined): string {
     if (!status) {
@@ -132,11 +132,15 @@ export class DashboardRunsComponent {
       return;
     }
     this.assignmentError.set(null);
-    if (!run.id) {
+    const resolvedRunId = this.resolveRunId(run);
+
+    if (!resolvedRunId) {
       this.assignmentError.set('Unable to determine which run to update.');
+      this.assignmentContext.set({ runId: '', run, role });
       return;
     }
-    this.assignmentContext.set({ runId: run.id, run, role });
+
+    this.assignmentContext.set({ runId: resolvedRunId, run, role });
 
     const shouldLoadMembers = (!this.members().length && !this.membersLoading()) || !!this.membersError();
     if (shouldLoadMembers) {
@@ -196,6 +200,48 @@ export class DashboardRunsComponent {
 
   protected assignmentRoleTitle(role: RunAssignmentRole): string {
     return role === 'PICKER' ? 'Assign picker' : 'Assign runner';
+  }
+
+  private resolveRunId(run: RunOverviewEntry): string | null {
+    const candidate = this.normalizeRunId((run as { id?: unknown }).id);
+    if (candidate) {
+      return candidate;
+    }
+
+    const legacy = run as unknown as Record<string, unknown>;
+    const fallbackKeys = ['runId', 'run_id', 'runID'];
+
+    for (const key of fallbackKeys) {
+      const value = this.normalizeRunId(legacy[key]);
+      if (value) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeRunId(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+
+    if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+      const buffer = value instanceof ArrayBuffer ? new Uint8Array(value) : value;
+      return new TextDecoder().decode(buffer).trim() || null;
+    }
+
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const stringified = String(value).trim();
+      return stringified.length > 0 && stringified !== '[object Object]' ? stringified : null;
+    }
+
+    return null;
   }
 
   private async loadMembers(force = false): Promise<void> {
