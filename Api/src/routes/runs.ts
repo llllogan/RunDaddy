@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
@@ -19,6 +20,107 @@ const extractRows = <T>(result: unknown): T[] => {
     return result as T[];
   }
   return [];
+};
+
+const trimNullTerminators = (value: string): string => value.replace(/\0+$/, '');
+const isPrintableAscii = (value: string): boolean => /^[\x20-\x7E\r\n\t]+$/.test(value);
+
+const formatHexId = (hex: string): string => {
+  if (hex.length === 32) {
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  return hex;
+};
+
+const decodeBufferLike = (buffer: Uint8Array): string | null => {
+  if (!buffer.length) {
+    return null;
+  }
+
+  const utf8 = trimNullTerminators(Buffer.from(buffer).toString('utf8')).trim();
+  if (utf8 && isPrintableAscii(utf8)) {
+    return utf8;
+  }
+
+  const hex = Buffer.from(buffer).toString('hex');
+  return hex ? formatHexId(hex) : null;
+};
+
+const normalizeStoredText = (value: unknown): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string' || value instanceof String) {
+    const trimmed = trimNullTerminators(String(value)).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (value instanceof Uint8Array) {
+    return decodeBufferLike(value);
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    return decodeBufferLike(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return decodeBufferLike(new Uint8Array(value));
+  }
+
+  if (typeof value === 'object' && value) {
+    const candidate = value as { type?: unknown; data?: unknown };
+    if (candidate.type === 'Buffer' && Array.isArray(candidate.data)) {
+      return decodeBufferLike(Uint8Array.from(candidate.data as number[]));
+    }
+    if ('toString' in candidate) {
+      const stringified = trimNullTerminators(String(candidate)).trim();
+      return stringified.length > 0 && stringified !== '[object Object]' ? stringified : null;
+    }
+  }
+
+  return null;
+};
+
+const normalizeStoredId = (value: unknown): string | null => {
+  const normalized = normalizeStoredText(value);
+  if (normalized) {
+    return normalized;
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const fallback = String(value).trim();
+  if (fallback && fallback !== '[object Object]') {
+    return fallback;
+  }
+
+  return null;
+};
+
+const valueFromRow = (row: unknown, column: string, index: number): unknown => {
+  if (!row || typeof row !== 'object') {
+    return undefined;
+  }
+
+  const record = row as Record<string, unknown>;
+  if (column in record) {
+    return record[column];
+  }
+
+  const fallbackKey = `f${index}`;
+  if (fallbackKey in record) {
+    return record[fallbackKey];
+  }
+
+  return undefined;
 };
 
 const createRunSchema = z.object({
@@ -185,23 +287,37 @@ router.get('/overview', async (req, res) => {
   );
   const rows = extractRows<RunOverviewRow>(rowsRaw);
 
-  return res.json(
-    rows.map((row) => ({
-      id: row.run_id,
-      companyId: row.company_id,
-      status: row.run_status,
-      scheduledFor: row.scheduled_for,
-      pickingStartedAt: row.picking_started_at,
-      pickingEndedAt: row.picking_ended_at,
-      createdAt: row.run_created_at,
-      pickerId: row.picker_id,
-      pickerFirstName: row.picker_first_name,
-      pickerLastName: row.picker_last_name,
-      runnerId: row.runner_id,
-      runnerFirstName: row.runner_first_name,
-      runnerLastName: row.runner_last_name,
-    })),
-  );
+  const normalized = rows
+    .map((row) => {
+      const id = normalizeStoredId(valueFromRow(row, 'run_id', 0));
+      const companyId = normalizeStoredId(valueFromRow(row, 'company_id', 1));
+      if (!id || !companyId) {
+        console.warn('Skipping run overview row due to missing identifiers', {
+          run_id: valueFromRow(row, 'run_id', 0),
+          company_id: valueFromRow(row, 'company_id', 1),
+        });
+        return null;
+      }
+
+      return {
+        id,
+        companyId,
+        status: valueFromRow(row, 'run_status', 3) as RunStatus,
+        scheduledFor: valueFromRow(row, 'scheduled_for', 4) as Date | null,
+        pickingStartedAt: valueFromRow(row, 'picking_started_at', 5) as Date | null,
+        pickingEndedAt: valueFromRow(row, 'picking_ended_at', 6) as Date | null,
+        createdAt: valueFromRow(row, 'run_created_at', 7) as Date | null,
+        pickerId: normalizeStoredId(valueFromRow(row, 'picker_id', 8)),
+        pickerFirstName: normalizeStoredText(valueFromRow(row, 'picker_first_name', 9)),
+        pickerLastName: normalizeStoredText(valueFromRow(row, 'picker_last_name', 10)),
+        runnerId: normalizeStoredId(valueFromRow(row, 'runner_id', 11)),
+        runnerFirstName: normalizeStoredText(valueFromRow(row, 'runner_first_name', 12)),
+        runnerLastName: normalizeStoredText(valueFromRow(row, 'runner_last_name', 13)),
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  return res.json(normalized);
 });
 
 router.get('/pick-entries', async (req, res) => {
@@ -506,28 +622,47 @@ router.post('/:runId/assignment', async (req, res) => {
     return res.status(500).json({ error: 'Unable to assign participant to run' });
   }
 
-  const [row] = rows;
+  const row = rows[0]!;
+  const id = normalizeStoredId(valueFromRow(row, 'run_id', 0));
+  const companyId = normalizeStoredId(valueFromRow(row, 'company_id', 1));
+
+  if (!id || !companyId) {
+    console.error('Failed to normalize run assignment identifiers', {
+      run_id: valueFromRow(row, 'run_id', 0),
+      company_id: valueFromRow(row, 'company_id', 1),
+    });
+    return res.status(500).json({ error: 'Unable to assign participant to run.' });
+  }
+
+  const status = valueFromRow(row, 'run_status', 2) as RunStatus;
+  const scheduledFor = valueFromRow(row, 'scheduled_for', 11) as Date | null;
+  const pickingStartedAt = valueFromRow(row, 'picking_started_at', 9) as Date | null;
+  const pickingEndedAt = valueFromRow(row, 'picking_ended_at', 10) as Date | null;
+  const createdAt = valueFromRow(row, 'run_created_at', 12) as Date | null;
+
+  const pickerId = normalizeStoredId(valueFromRow(row, 'picker_id', 3));
+  const runnerId = normalizeStoredId(valueFromRow(row, 'runner_id', 6));
 
   return res.status(200).json({
-    id: row.run_id,
-    companyId: row.company_id,
-    status: row.run_status,
-    scheduledFor: row.scheduled_for,
-    pickingStartedAt: row.picking_started_at,
-    pickingEndedAt: row.picking_ended_at,
-    createdAt: row.run_created_at,
-    picker: row.picker_id
+    id,
+    companyId,
+    status,
+    scheduledFor,
+    pickingStartedAt,
+    pickingEndedAt,
+    createdAt,
+    picker: pickerId
       ? {
-          id: row.picker_id,
-          firstName: row.picker_first_name,
-          lastName: row.picker_last_name,
+          id: pickerId,
+          firstName: normalizeStoredText(valueFromRow(row, 'picker_first_name', 4)),
+          lastName: normalizeStoredText(valueFromRow(row, 'picker_last_name', 5)),
         }
       : null,
-    runner: row.runner_id
+    runner: runnerId
       ? {
-          id: row.runner_id,
-          firstName: row.runner_first_name,
-          lastName: row.runner_last_name,
+          id: runnerId,
+          firstName: normalizeStoredText(valueFromRow(row, 'runner_first_name', 7)),
+          lastName: normalizeStoredText(valueFromRow(row, 'runner_last_name', 8)),
         }
       : null,
   });

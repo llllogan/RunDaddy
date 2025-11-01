@@ -236,6 +236,15 @@ export class DashboardRunsComponent {
       return new TextDecoder().decode(buffer).trim() || null;
     }
 
+    if (value && typeof value === 'object') {
+      const candidate = value as { type?: unknown; data?: unknown };
+      if (candidate.type === 'Buffer' && Array.isArray(candidate.data)) {
+        const buffer = Uint8Array.from(candidate.data as number[]);
+        const decoded = new TextDecoder().decode(buffer).replace(/\0+$/, '').trim();
+        return decoded.length > 0 ? decoded : null;
+      }
+    }
+
     if (value && typeof value === 'object' && 'toString' in value) {
       const stringified = String(value).trim();
       return stringified.length > 0 && stringified !== '[object Object]' ? stringified : null;
