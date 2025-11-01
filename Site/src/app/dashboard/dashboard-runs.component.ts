@@ -1,8 +1,33 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, formatDate } from '@angular/common';
-import { RunsService, RunOverviewEntry, RunAssignmentRole } from './runs.service';
+import { RunsService, RunOverviewEntry, RunAssignmentRole, RunDetails } from './runs.service';
 import { AuthService } from '../auth/auth.service';
 import { UsersService, DashboardUser } from './users.service';
+
+type ExplorerPickEntry = {
+  id: string;
+  skuLabel: string;
+  skuCode: string;
+  status: string;
+  count: number;
+  pickedAt: Date | null;
+  coilCode: string | null;
+  par: number | null;
+};
+
+type ExplorerMachine = {
+  id: string;
+  label: string;
+  description: string | null;
+  locationId: string;
+  pickEntries: ExplorerPickEntry[];
+};
+
+type ExplorerLocation = {
+  id: string;
+  label: string;
+  machines: ExplorerMachine[];
+};
 
 @Component({
   selector: 'app-dashboard-runs',
@@ -29,6 +54,30 @@ export class DashboardRunsComponent {
   protected readonly membersLoading = signal(false);
   protected readonly membersError = signal<string | null>(null);
   protected readonly assignmentError = signal<string | null>(null);
+  protected readonly explorerRunId = signal<string | null>(null);
+  protected readonly explorerRunDetails = signal<RunDetails | null>(null);
+  protected readonly explorerLocations = signal<ExplorerLocation[]>([]);
+  protected readonly explorerLoading = signal(false);
+  protected readonly explorerError = signal<string | null>(null);
+  protected readonly explorerSelectedLocation = signal<string | null>(null);
+  protected readonly explorerSelectedMachine = signal<string | null>(null);
+  protected readonly isExplorerOpen = computed(() => this.explorerRunId() !== null);
+  protected readonly activeExplorerMachines = computed(() => {
+    const locationId = this.explorerSelectedLocation();
+    if (!locationId) {
+      return [] as ExplorerMachine[];
+    }
+    const location = this.explorerLocations().find((candidate) => candidate.id === locationId);
+    return location?.machines ?? [];
+  });
+  protected readonly activeExplorerEntries = computed(() => {
+    const machineId = this.explorerSelectedMachine();
+    if (!machineId) {
+      return [] as ExplorerPickEntry[];
+    }
+    const machine = this.activeExplorerMachines().find((candidate) => candidate.id === machineId);
+    return machine?.pickEntries ?? [];
+  });
 
   protected readonly hasRuns = computed(() => this.runs().length > 0);
   protected readonly company = this.auth.company;
@@ -154,6 +203,66 @@ export class DashboardRunsComponent {
     }
     this.assignmentError.set(null);
     this.assignmentContext.set(null);
+  }
+
+  protected openRunExplorer(run: RunOverviewEntry): void {
+    if (this.explorerLoading() && this.explorerRunId() === run.id) {
+      return;
+    }
+    const requestedRunId = run.id;
+    this.explorerRunId.set(requestedRunId);
+    this.explorerRunDetails.set(null);
+    this.explorerLocations.set([]);
+    this.explorerError.set(null);
+    this.explorerSelectedLocation.set(null);
+    this.explorerSelectedMachine.set(null);
+    this.explorerLoading.set(true);
+
+    void this.runsService
+      .getRunDetails(requestedRunId)
+      .then((details) => {
+        if (this.explorerRunId() !== requestedRunId) {
+          return;
+        }
+        this.explorerRunDetails.set(details);
+        const locations = this.buildExplorerLocations(details);
+        this.explorerLocations.set(locations);
+        const firstLocation = locations[0] ?? null;
+        this.explorerSelectedLocation.set(firstLocation?.id ?? null);
+        const firstMachine = firstLocation?.machines[0] ?? null;
+        this.explorerSelectedMachine.set(firstMachine?.id ?? null);
+      })
+      .catch((error) => {
+        if (this.explorerRunId() !== requestedRunId) {
+          return;
+        }
+        this.explorerError.set(error instanceof Error ? error.message : 'Unable to load run details.');
+      })
+      .finally(() => {
+        if (this.explorerRunId() === requestedRunId) {
+          this.explorerLoading.set(false);
+        }
+      });
+  }
+
+  protected closeRunExplorer(): void {
+    this.explorerRunId.set(null);
+    this.explorerRunDetails.set(null);
+    this.explorerLocations.set([]);
+    this.explorerSelectedLocation.set(null);
+    this.explorerSelectedMachine.set(null);
+    this.explorerError.set(null);
+    this.explorerLoading.set(false);
+  }
+
+  protected selectExplorerLocation(locationId: string): void {
+    this.explorerSelectedLocation.set(locationId);
+    const location = this.explorerLocations().find((candidate) => candidate.id === locationId);
+    this.explorerSelectedMachine.set(location?.machines[0]?.id ?? null);
+  }
+
+  protected selectExplorerMachine(machineId: string): void {
+    this.explorerSelectedMachine.set(machineId);
   }
 
   protected reloadMembers(): void {
@@ -356,5 +465,84 @@ export class DashboardRunsComponent {
 
     const fallbackValue = (fallback ?? '').trim();
     return fallbackValue || null;
+  }
+
+  private buildExplorerLocations(details: RunDetails): ExplorerLocation[] {
+    const locationMap = new Map<string, ExplorerLocation>();
+    const machineMap = new Map<string, ExplorerMachine>();
+
+    const ensureLocation = (machine: RunDetails['pickEntries'][number]['coilItem']['coil']['machine'] | RunDetails['chocolateBoxes'][number]['machine'] | null): ExplorerLocation => {
+      const inferredId = machine?.location?.id ?? 'location-unassigned';
+      const label = (machine?.location?.name ?? '').trim() || 'Unassigned location';
+      let location = locationMap.get(inferredId);
+      if (!location) {
+        location = {
+          id: inferredId,
+          label,
+          machines: [],
+        };
+        locationMap.set(inferredId, location);
+      }
+      return location;
+    };
+
+    const ensureMachine = (
+      machine: RunDetails['pickEntries'][number]['coilItem']['coil']['machine'] | RunDetails['chocolateBoxes'][number]['machine'] | null,
+      fallbackId: string,
+      fallbackLabel: string,
+    ): ExplorerMachine => {
+      const location = ensureLocation(machine);
+      const machineId = machine?.id ?? fallbackId;
+      let record = machineMap.get(machineId);
+      if (!record) {
+        record = {
+          id: machineId,
+          label: fallbackLabel,
+          description: (machine?.description ?? '').trim() || null,
+          locationId: location.id,
+          pickEntries: [],
+        };
+        machineMap.set(machineId, record);
+        location.machines.push(record);
+      }
+      return record;
+    };
+
+    for (const entry of details.pickEntries) {
+      const machine = entry.coilItem.coil.machine;
+      const fallbackId = machine?.id ?? `coil-${entry.coilItem.coil.id}`;
+      const fallbackLabel =
+        (machine?.code ?? '').trim() ||
+        (entry.coilItem.coil.code ?? '').trim() ||
+        'Unknown machine';
+      const machineRecord = ensureMachine(machine, fallbackId, fallbackLabel);
+      machineRecord.pickEntries.push({
+        id: entry.id,
+        skuLabel: (entry.coilItem.sku?.name ?? '').trim() || 'Unnamed SKU',
+        skuCode: (entry.coilItem.sku?.code ?? '').trim() || '—',
+        status: entry.status,
+        count: entry.count,
+        pickedAt: entry.pickedAt,
+        coilCode: entry.coilItem.coil.code ?? null,
+        par: entry.coilItem.par ?? null,
+      });
+    }
+
+    for (const box of details.chocolateBoxes) {
+      const machine = box.machine;
+      if (!machine) {
+        continue;
+      }
+      const fallbackLabel = (machine.code ?? '').trim() || `Machine ${box.number}`;
+      ensureMachine(machine, machine.id ?? `chocolate-${box.id}`, fallbackLabel);
+    }
+
+    return Array.from(locationMap.values()).map((location) => ({
+      ...location,
+      machines: location.machines.map((machine) => ({
+        ...machine,
+        pickEntries: [...machine.pickEntries],
+      })),
+    }));
   }
 }

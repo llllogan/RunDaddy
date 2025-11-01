@@ -189,7 +189,11 @@ const ensureRun = async (companyId: string, runId: string) => {
               sku: true,
               coil: {
                 include: {
-                  machine: true,
+                  machine: {
+                    include: {
+                      location: true,
+                    },
+                  },
                 },
               },
             },
@@ -198,7 +202,11 @@ const ensureRun = async (companyId: string, runId: string) => {
       },
       chocolateBoxes: {
         include: {
-          machine: true,
+          machine: {
+            include: {
+              location: true,
+            },
+          },
         },
       },
     },

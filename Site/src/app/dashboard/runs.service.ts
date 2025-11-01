@@ -21,6 +21,71 @@ export interface RunOverviewEntry {
   createdAt: Date;
 }
 
+export interface RunParticipant {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+export interface RunLocation {
+  id: string;
+  name: string | null;
+  address: string | null;
+}
+
+export interface RunMachine {
+  id: string;
+  code: string | null;
+  description: string | null;
+  location: RunLocation | null;
+}
+
+export interface RunSku {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+}
+
+export interface RunCoilItem {
+  id: string;
+  par: number | null;
+  coil: {
+    id: string;
+    code: string | null;
+    machine: RunMachine | null;
+  };
+  sku: RunSku | null;
+}
+
+export interface RunPickEntry {
+  id: string;
+  count: number;
+  status: string;
+  pickedAt: Date | null;
+  coilItem: RunCoilItem;
+}
+
+export interface RunChocolateBox {
+  id: string;
+  number: number;
+  machine: RunMachine | null;
+}
+
+export interface RunDetails {
+  id: string;
+  status: string;
+  companyId: string;
+  scheduledFor: Date | null;
+  pickingStartedAt: Date | null;
+  pickingEndedAt: Date | null;
+  createdAt: Date;
+  picker: RunParticipant | null;
+  runner: RunParticipant | null;
+  pickEntries: RunPickEntry[];
+  chocolateBoxes: RunChocolateBox[];
+}
+
 interface RunOverviewResponse {
   id: string;
   status: string;
@@ -57,6 +122,71 @@ interface RunAssignmentResponse {
   } | null;
 }
 
+interface RunParticipantResponse {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+interface RunLocationResponse {
+  id: string;
+  name: string | null;
+  address: string | null;
+}
+
+interface RunMachineResponse {
+  id: string;
+  code: string | null;
+  description: string | null;
+  location: RunLocationResponse | null;
+}
+
+interface RunSkuResponse {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+}
+
+interface RunCoilItemResponse {
+  id: string;
+  par: number | null;
+  coil: {
+    id: string;
+    code: string | null;
+    machine: RunMachineResponse | null;
+  };
+  sku: RunSkuResponse | null;
+}
+
+interface RunPickEntryResponse {
+  id: string;
+  count: number;
+  status: string;
+  pickedAt: string | null;
+  coilItem: RunCoilItemResponse;
+}
+
+interface RunChocolateBoxResponse {
+  id: string;
+  number: number;
+  machine: RunMachineResponse | null;
+}
+
+interface RunDetailsResponse {
+  id: string;
+  status: string;
+  companyId: string;
+  scheduledFor: string | null;
+  pickingStartedAt: string | null;
+  pickingEndedAt: string | null;
+  createdAt: string;
+  picker: RunParticipantResponse | null;
+  runner: RunParticipantResponse | null;
+  pickEntries: RunPickEntryResponse[];
+  chocolateBoxes: RunChocolateBoxResponse[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -69,6 +199,17 @@ export class RunsService {
         this.http.get<RunOverviewResponse[]>(`${API_BASE_URL}/runs/overview`),
       );
       return response.map((run) => this.toRunOverviewEntry(run));
+    } catch (error) {
+      throw this.toError(error);
+    }
+  }
+
+  async getRunDetails(runId: string): Promise<RunDetails> {
+    try {
+      const response = await firstValueFrom(
+        this.http.get<RunDetailsResponse>(`${API_BASE_URL}/runs/${runId}`),
+      );
+      return this.toRunDetails(response);
     } catch (error) {
       throw this.toError(error);
     }
@@ -120,6 +261,96 @@ export class RunsService {
       pickingEndedAt: this.parseDate(run.pickingEndedAt),
       scheduledFor: this.parseDate(run.scheduledFor),
       createdAt: this.parseDate(run.createdAt) ?? new Date(),
+    };
+  }
+
+  private toRunDetails(run: RunDetailsResponse): RunDetails {
+    return {
+      id: run.id,
+      status: run.status,
+      companyId: run.companyId,
+      scheduledFor: this.parseDate(run.scheduledFor),
+      pickingStartedAt: this.parseDate(run.pickingStartedAt),
+      pickingEndedAt: this.parseDate(run.pickingEndedAt),
+      createdAt: this.parseDate(run.createdAt) ?? new Date(),
+      picker: this.toParticipant(run.picker),
+      runner: this.toParticipant(run.runner),
+      pickEntries: run.pickEntries.map((entry) => this.toPickEntry(entry)),
+      chocolateBoxes: run.chocolateBoxes.map((box) => this.toChocolateBox(box)),
+    };
+  }
+
+  private toParticipant(participant: RunParticipantResponse | null): RunParticipant | null {
+    if (!participant) {
+      return null;
+    }
+    return {
+      id: participant.id,
+      firstName: participant.firstName,
+      lastName: participant.lastName,
+    };
+  }
+
+  private toPickEntry(entry: RunPickEntryResponse): RunPickEntry {
+    return {
+      id: entry.id,
+      count: entry.count,
+      status: entry.status,
+      pickedAt: this.parseDate(entry.pickedAt),
+      coilItem: this.toCoilItem(entry.coilItem),
+    };
+  }
+
+  private toChocolateBox(box: RunChocolateBoxResponse): RunChocolateBox {
+    return {
+      id: box.id,
+      number: box.number,
+      machine: this.toMachine(box.machine),
+    };
+  }
+
+  private toCoilItem(item: RunCoilItemResponse): RunCoilItem {
+    return {
+      id: item.id,
+      par: item.par ?? null,
+      coil: {
+        id: item.coil.id,
+        code: item.coil.code ?? null,
+        machine: this.toMachine(item.coil.machine),
+      },
+      sku: item.sku ? this.toSku(item.sku) : null,
+    };
+  }
+
+  private toMachine(machine: RunMachineResponse | null): RunMachine | null {
+    if (!machine) {
+      return null;
+    }
+    return {
+      id: machine.id,
+      code: machine.code ?? null,
+      description: machine.description ?? null,
+      location: machine.location ? this.toLocation(machine.location) : null,
+    };
+  }
+
+  private toLocation(location: RunLocationResponse | null): RunLocation | null {
+    if (!location) {
+      return null;
+    }
+    return {
+      id: location.id,
+      name: location.name,
+      address: location.address,
+    };
+  }
+
+  private toSku(sku: RunSkuResponse): RunSku {
+    return {
+      id: sku.id,
+      code: sku.code,
+      name: sku.name,
+      type: sku.type,
     };
   }
 
