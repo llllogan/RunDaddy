@@ -271,9 +271,10 @@ router.get('/overview', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  type RunOverviewRow = {
+  type VRunOverviewRow = {
     run_id: string;
     company_id: string;
+    company_name: string;
     run_status: RunStatus;
     scheduled_for: Date | null;
     picking_started_at: Date | null;
@@ -290,42 +291,28 @@ router.get('/overview', async (req, res) => {
   const { status } = req.query;
   const statusFilter = isRunStatus(status) ? status : null;
 
-  const rowsRaw = await prisma.$queryRaw<RunOverviewRow[][]>(
-    Prisma.sql`CALL sp_get_run_overview(${req.auth.companyId}, ${statusFilter})`,
+  const rows = await prisma.$queryRaw<VRunOverviewRow[]>(
+    Prisma.sql`SELECT * FROM v_run_overview WHERE company_id = ${req.auth.companyId} ${statusFilter ? Prisma.sql`AND run_status = ${statusFilter}` : Prisma.empty} ORDER BY scheduled_for DESC, run_created_at DESC`,
   );
-  const rows = extractRows<RunOverviewRow>(rowsRaw);
 
-  const normalized = rows
-    .map((row) => {
-      const id = normalizeStoredId(valueFromRow(row, 'run_id', 0));
-      const companyId = normalizeStoredId(valueFromRow(row, 'company_id', 1));
-      if (!id || !companyId) {
-        console.warn('Skipping run overview row due to missing identifiers', {
-          run_id: valueFromRow(row, 'run_id', 0),
-          company_id: valueFromRow(row, 'company_id', 1),
-        });
-        return null;
-      }
-
-      return {
-        id,
-        companyId,
-        status: valueFromRow(row, 'run_status', 3) as RunStatus,
-        scheduledFor: valueFromRow(row, 'scheduled_for', 4) as Date | null,
-        pickingStartedAt: valueFromRow(row, 'picking_started_at', 5) as Date | null,
-        pickingEndedAt: valueFromRow(row, 'picking_ended_at', 6) as Date | null,
-        createdAt: valueFromRow(row, 'run_created_at', 7) as Date | null,
-        pickerId: normalizeStoredId(valueFromRow(row, 'picker_id', 8)),
-        pickerFirstName: normalizeStoredText(valueFromRow(row, 'picker_first_name', 9)),
-        pickerLastName: normalizeStoredText(valueFromRow(row, 'picker_last_name', 10)),
-        runnerId: normalizeStoredId(valueFromRow(row, 'runner_id', 11)),
-        runnerFirstName: normalizeStoredText(valueFromRow(row, 'runner_first_name', 12)),
-        runnerLastName: normalizeStoredText(valueFromRow(row, 'runner_last_name', 13)),
-      };
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-  return res.json(normalized);
+  return res.json(
+    rows.map((row) => ({
+      id: row.run_id,
+      companyId: row.company_id,
+      companyName: row.company_name,
+      status: row.run_status,
+      scheduledFor: row.scheduled_for,
+      pickingStartedAt: row.picking_started_at,
+      pickingEndedAt: row.picking_ended_at,
+      createdAt: row.run_created_at,
+      pickerId: row.picker_id,
+      pickerFirstName: row.picker_first_name,
+      pickerLastName: row.picker_last_name,
+      runnerId: row.runner_id,
+      runnerFirstName: row.runner_first_name,
+      runnerLastName: row.runner_last_name,
+    })),
+  );
 });
 
 router.get('/pick-entries', async (req, res) => {
@@ -333,13 +320,15 @@ router.get('/pick-entries', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  type RunPickEntryRow = {
+  type VRunPickEntriesRow = {
     pick_entry_id: string;
     run_id: string;
     coil_item_id: string;
     picked_count: number;
     pick_status: RunItemStatus;
     picked_at: Date | null;
+    company_id: string;
+    company_name: string;
     coil_id: string;
     machine_id: string;
     machine_code: string;
@@ -351,10 +340,9 @@ router.get('/pick-entries', async (req, res) => {
   const { runId } = req.query;
 
   const runIdParam = typeof runId === 'string' ? runId : null;
-  const rowsRaw = await prisma.$queryRaw<RunPickEntryRow[][]>(
-    Prisma.sql`CALL sp_get_run_pick_entries(${req.auth.companyId}, ${runIdParam})`,
+  const rows = await prisma.$queryRaw<VRunPickEntriesRow[]>(
+    Prisma.sql`SELECT * FROM v_run_pick_entries WHERE company_id = ${req.auth.companyId} ${runIdParam ? Prisma.sql`AND run_id = ${runIdParam}` : Prisma.empty} ORDER BY run_id DESC, pick_entry_id ASC`,
   );
-  const rows = extractRows<RunPickEntryRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -384,12 +372,14 @@ router.get('/chocolate-boxes', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  type ChocolateBoxRow = {
+  type VChocolateBoxDetailsRow = {
     chocolate_box_id: string;
     chocolate_box_number: number;
     run_id: string;
     machine_id: string;
     machine_code: string;
+    company_id: string;
+    company_name: string;
     run_status: RunStatus;
     scheduled_for: Date | null;
   };
@@ -397,10 +387,9 @@ router.get('/chocolate-boxes', async (req, res) => {
   const { runId } = req.query;
 
   const runIdParam = typeof runId === 'string' ? runId : null;
-  const rowsRaw = await prisma.$queryRaw<ChocolateBoxRow[][]>(
-    Prisma.sql`CALL sp_get_chocolate_box_details(${req.auth.companyId}, ${runIdParam})`,
+  const rows = await prisma.$queryRaw<VChocolateBoxDetailsRow[]>(
+    Prisma.sql`SELECT * FROM v_chocolate_box_details WHERE company_id = ${req.auth.companyId} ${runIdParam ? Prisma.sql`AND run_id = ${runIdParam}` : Prisma.empty} ORDER BY run_id DESC, chocolate_box_number ASC`,
   );
-  const rows = extractRows<ChocolateBoxRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -606,71 +595,39 @@ router.post('/:runId/assignment', async (req, res) => {
     return res.status(404).json({ error: 'User not found in company' });
   }
 
-  type AssignmentRow = {
-    run_id: string;
-    company_id: string;
-    run_status: RunStatus;
-    picker_id: string | null;
-    picker_first_name: string | null;
-    picker_last_name: string | null;
-    runner_id: string | null;
-    runner_first_name: string | null;
-    runner_last_name: string | null;
-    picking_started_at: Date | null;
-    picking_ended_at: Date | null;
-    scheduled_for: Date | null;
-    run_created_at: Date;
-  };
+  const updateData = parsed.data.role === 'PICKER'
+    ? { pickerId: parsed.data.userId }
+    : { runnerId: parsed.data.userId };
 
-  const rowsRaw = await prisma.$queryRaw<AssignmentRow[][]>(
-    Prisma.sql`CALL sp_assign_run_participant(${req.auth.companyId}, ${run.id}, ${parsed.data.userId}, ${parsed.data.role})`,
-  );
-  const rows = extractRows<AssignmentRow>(rowsRaw);
-  if (!rows.length) {
-    return res.status(500).json({ error: 'Unable to assign participant to run' });
-  }
-
-  const row = rows[0]!;
-  const id = normalizeStoredId(valueFromRow(row, 'run_id', 0));
-  const companyId = normalizeStoredId(valueFromRow(row, 'company_id', 1));
-
-  if (!id || !companyId) {
-    console.error('Failed to normalize run assignment identifiers', {
-      run_id: valueFromRow(row, 'run_id', 0),
-      company_id: valueFromRow(row, 'company_id', 1),
-    });
-    return res.status(500).json({ error: 'Unable to assign participant to run.' });
-  }
-
-  const status = valueFromRow(row, 'run_status', 2) as RunStatus;
-  const scheduledFor = valueFromRow(row, 'scheduled_for', 11) as Date | null;
-  const pickingStartedAt = valueFromRow(row, 'picking_started_at', 9) as Date | null;
-  const pickingEndedAt = valueFromRow(row, 'picking_ended_at', 10) as Date | null;
-  const createdAt = valueFromRow(row, 'run_created_at', 12) as Date | null;
-
-  const pickerId = normalizeStoredId(valueFromRow(row, 'picker_id', 3));
-  const runnerId = normalizeStoredId(valueFromRow(row, 'runner_id', 6));
+  const updatedRun = await prisma.run.update({
+    where: { id: run.id },
+    data: updateData,
+    include: {
+      picker: true,
+      runner: true,
+    },
+  });
 
   return res.status(200).json({
-    id,
-    companyId,
-    status,
-    scheduledFor,
-    pickingStartedAt,
-    pickingEndedAt,
-    createdAt,
-    picker: pickerId
+    id: updatedRun.id,
+    companyId: updatedRun.companyId,
+    status: updatedRun.status,
+    scheduledFor: updatedRun.scheduledFor,
+    pickingStartedAt: updatedRun.pickingStartedAt,
+    pickingEndedAt: updatedRun.pickingEndedAt,
+    createdAt: updatedRun.createdAt,
+    picker: updatedRun.picker
       ? {
-          id: pickerId,
-          firstName: normalizeStoredText(valueFromRow(row, 'picker_first_name', 4)),
-          lastName: normalizeStoredText(valueFromRow(row, 'picker_last_name', 5)),
+          id: updatedRun.picker.id,
+          firstName: updatedRun.picker.firstName,
+          lastName: updatedRun.picker.lastName,
         }
       : null,
-    runner: runnerId
+    runner: updatedRun.runner
       ? {
-          id: runnerId,
-          firstName: normalizeStoredText(valueFromRow(row, 'runner_first_name', 7)),
-          lastName: normalizeStoredText(valueFromRow(row, 'runner_last_name', 8)),
+          id: updatedRun.runner.id,
+          firstName: updatedRun.runner.firstName,
+          lastName: updatedRun.runner.lastName,
         }
       : null,
   });

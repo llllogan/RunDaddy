@@ -108,10 +108,9 @@ router.post('/lookup', async (req, res) => {
   };
 
   const userIdsCsv = parsed.data.userIds.join(',');
-  const rowsRaw = await prisma.$queryRaw<MembershipRow[][]>(
-    Prisma.sql`CALL sp_get_company_members_by_ids(${req.auth.companyId}, ${userIdsCsv})`,
+  const rows = await prisma.$queryRaw<MembershipRow[]>(
+    Prisma.sql`SELECT * FROM v_user_memberships WHERE company_id = ${req.auth.companyId} AND FIND_IN_SET(user_id, ${userIdsCsv}) > 0 ORDER BY user_last_name ASC, user_first_name ASC`,
   );
-  const rows = extractRows<MembershipRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -423,10 +422,9 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
     token_context: string;
   };
 
-  const rowsRaw = await prisma.$queryRaw<RefreshTokenRow[][]>(
-    Prisma.sql`CALL sp_get_user_refresh_tokens(${userId})`,
+  const rows = await prisma.$queryRaw<RefreshTokenRow[]>(
+    Prisma.sql`SELECT * FROM v_user_refresh_tokens WHERE user_id = ${userId}`,
   );
-  const rows = extractRows<RefreshTokenRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({

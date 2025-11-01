@@ -128,10 +128,9 @@ router.get('/details', async (req, res) => {
     location_address: string | null;
   };
 
-  const rowsRaw = await prisma.$queryRaw<MachineDetailsRow[][]>(
-    Prisma.sql`CALL sp_get_machine_details(${req.auth.companyId})`,
+  const rows = await prisma.$queryRaw<MachineDetailsRow[]>(
+    Prisma.sql`SELECT * FROM v_machine_details WHERE company_id = ${req.auth.companyId} ORDER BY machine_code ASC`,
   );
-  const rows = extractRows<MachineDetailsRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({
@@ -177,10 +176,9 @@ router.get('/coil-inventory', async (req, res) => {
   const { machineId } = req.query;
 
   const machineIdParam = typeof machineId === 'string' ? machineId : null;
-  const rowsRaw = await prisma.$queryRaw<CoilInventoryRow[][]>(
-    Prisma.sql`CALL sp_get_coil_inventory(${req.auth.companyId}, ${machineIdParam})`,
+  const rows = await prisma.$queryRaw<CoilInventoryRow[]>(
+    Prisma.sql`SELECT * FROM v_coil_inventory WHERE company_id = ${req.auth.companyId} ${machineIdParam ? Prisma.sql`AND machine_id = ${machineIdParam}` : Prisma.empty} ORDER BY machine_code ASC, coil_code ASC`,
   );
-  const rows = extractRows<CoilInventoryRow>(rowsRaw);
 
   return res.json(
     rows.map((row) => ({

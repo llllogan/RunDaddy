@@ -28,7 +28,7 @@ app.use(express.json());
 
 app.get('/health', async (_req, res) => {
   try {
-    await prisma.$queryRaw`CALL sp_health_check()`;
+    await prisma.$queryRaw`SELECT 1 as ok`;
     res.json({ ok: true, database: 'up' });
   } catch (error) {
     res.status(500).json({ ok: false, database: 'down', error: (error as Error).message });
