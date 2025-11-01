@@ -156,55 +156,29 @@ router.get('/overview', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  type RunOverviewRow = {
-    run_id: string;
-    company_id: string;
-    company_name: string;
-    run_status: RunStatus;
-    scheduled_for: Date | null;
-    picking_started_at: Date | null;
-    picking_ended_at: Date | null;
-    run_created_at: Date;
-    picker_id: string | null;
-    picker_first_name: string | null;
-    picker_last_name: string | null;
-    runner_id: string | null;
-    runner_first_name: string | null;
-    runner_last_name: string | null;
-  };
-
   const { status } = req.query;
   const statusFilter = isRunStatus(status) ? status : null;
 
-  const rowsRaw = await prisma.$queryRaw<RunOverviewRow[][]>(
-    Prisma.sql`CALL sp_get_run_overview(${req.auth.companyId}, ${statusFilter})`,
-  );
-  const rows = extractRows<RunOverviewRow>(rowsRaw);
+  const runs = await prisma.run.findMany({
+    where: {
+      companyId: req.auth.companyId,
+      ...(statusFilter ? { status: statusFilter } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      pickerId: true,
+      runnerId: true,
+      companyId: true,
+      status: true,
+      pickingStartedAt: true,
+      pickingEndedAt: true,
+      scheduledFor: true,
+      createdAt: true,
+    },
+  });
 
-  return res.json(
-    rows.map((row) => ({
-      id: row.run_id,
-      status: row.run_status,
-      scheduledFor: row.scheduled_for,
-      pickingStartedAt: row.picking_started_at,
-      pickingEndedAt: row.picking_ended_at,
-      createdAt: row.run_created_at,
-      picker: row.picker_id
-        ? {
-            id: row.picker_id,
-            firstName: row.picker_first_name,
-            lastName: row.picker_last_name,
-          }
-        : null,
-      runner: row.runner_id
-        ? {
-            id: row.runner_id,
-            firstName: row.runner_first_name,
-            lastName: row.runner_last_name,
-          }
-        : null,
-    })),
-  );
+  return res.json(runs);
 });
 
 router.get('/pick-entries', async (req, res) => {

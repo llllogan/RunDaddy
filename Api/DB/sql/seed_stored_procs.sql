@@ -118,3 +118,40 @@ BEGIN
     ORDER BY run_id DESC, chocolate_box_number ASC;
   END IF;
 END;
+
+CREATE PROCEDURE sp_get_runs_by_company(
+  IN p_company_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  IN p_status VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+)
+BEGIN
+  IF p_status IS NULL OR p_status = '' THEN
+    SELECT
+      id,
+      pickerId,
+      runnerId,
+      companyId,
+      status,
+      pickingStartedAt,
+      pickingEndedAt,
+      scheduledFor,
+      createdAt
+    FROM `Run`
+    WHERE companyId = p_company_id
+    ORDER BY createdAt DESC;
+  ELSE
+    SELECT
+      id,
+      pickerId,
+      runnerId,
+      companyId,
+      status,
+      pickingStartedAt,
+      pickingEndedAt,
+      scheduledFor,
+      createdAt
+    FROM `Run`
+    WHERE companyId = p_company_id
+      AND status = p_status COLLATE utf8mb4_unicode_ci
+    ORDER BY createdAt DESC;
+  END IF;
+END;
