@@ -60,8 +60,8 @@
         <table class="min-w-full text-left text-sm text-rd-secondary">
           <thead>
             <tr class="text-xs uppercase tracking-wide text-rd-muted">
-              <th class="pb-4 font-semibold">Picker ID</th>
-              <th class="pb-4 font-semibold">Runner ID</th>
+              <th class="pb-4 font-semibold">Picker</th>
+              <th class="pb-4 font-semibold">Runner</th>
               <th class="pb-4 font-semibold">Status</th>
               <th class="pb-4 font-semibold">Scheduled</th>
               <th class="pb-4 font-semibold">Picking Started</th>
@@ -71,17 +71,33 @@
           </thead>
           <tbody class="divide-y divide-[#ecd9a0]/60 text-sm">
             <tr *ngFor="let run of runs(); trackBy: trackByRun" class="hover:bg-white">
-              <td class="py-3 font-mono text-xs uppercase tracking-wider text-rd-secondary">
-                {{ run.id }}
+              <td class="py-3 text-xs text-rd-secondary">
+                <span *ngIf="run.pickerId" class="font-semibold text-rd-primary">
+                  {{ participantNameFor(run.pickerId, run.pickerFirstName || run.pickerLastName) }}
+                </span>
+                <button
+                  *ngIf="!run.pickerId"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-rd-primary/12 bg-white/80 px-3 py-1 text-xs font-semibold text-rd-accent transition hover:border-rd-accent hover:bg-rd-accent/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  (click)="openAssignmentModal(run, 'PICKER')"
+                  [disabled]="isAssigning()"
+                >
+                  Assign
+                </button>
               </td>
-              <td class="py-3 font-mono text-xs text-rd-secondary">
-                {{ run.companyId }}
-              </td>
-              <td class="py-3 font-mono text-xs text-rd-secondary">
-                {{ run.pickerId ?? '—' }}
-              </td>
-              <td class="py-3 font-mono text-xs text-rd-secondary">
-                {{ run.runnerId ?? '—' }}
+              <td class="py-3 text-xs text-rd-secondary">
+                <span *ngIf="run.runnerId" class="font-semibold text-rd-primary">
+                  {{ participantNameFor(run.runnerId, run.runnerFirstName || run.runnerLastName) }}
+                </span>
+                <button
+                  *ngIf="!run.runnerId"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-rd-primary/12 bg-white/80 px-3 py-1 text-xs font-semibold text-rd-accent transition hover:border-rd-accent hover:bg-rd-accent/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  (click)="openAssignmentModal(run, 'RUNNER')"
+                  [disabled]="isAssigning()"
+                >
+                  Assign
+                </button>
               </td>
               <td class="py-3">
                 <span
@@ -118,3 +134,121 @@
     </ng-template>
   </div>
 </section>
+
+<ng-container *ngIf="assignmentContext() as context">
+  <div class="fixed inset-0 z-50 flex items-center justify-center px-4 py-10" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" (click)="closeAssignmentModal()"></div>
+    <div
+      class="relative z-10 w-full max-w-md rounded-3xl border border-rd-primary/12 bg-white/95 p-6 text-left shadow-[0_24px_48px_-24px_rgba(32,29,20,0.35)]"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold text-rd-primary">
+            {{ assignmentRoleTitle(context.role) }}
+          </h2>
+          <p class="mt-1 text-sm text-rd-secondary">
+            Choose the {{ assignmentRoleLabel(context.role) }} for this run.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-rd-primary/10 bg-white/70 p-2 text-rd-secondary transition hover:text-rd-primary disabled:opacity-60"
+          (click)="closeAssignmentModal()"
+          [disabled]="isAssigning()"
+          aria-label="Close"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" role="presentation">
+            <path
+              d="M6 6l12 12M6 18 18 6"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        *ngIf="assignmentError()"
+        class="mt-4 rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
+      >
+        {{ assignmentError() }}
+      </div>
+
+      <div class="mt-6 space-y-3">
+        <div *ngIf="membersLoading()" class="space-y-2">
+          <div class="h-12 animate-pulse rounded-2xl bg-rd-primary/10"></div>
+          <div class="h-12 animate-pulse rounded-2xl bg-rd-primary/10"></div>
+        </div>
+
+        <div
+          *ngIf="!membersLoading() && membersError()"
+          class="rounded-2xl border border-[#f87171]/30 bg-[#f87171]/10 px-4 py-3 text-xs text-[#f87171]"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span>{{ membersError() }}</span>
+            <button
+              type="button"
+              class="text-xs font-semibold text-rd-accent transition hover:text-rd-accent-strong disabled:opacity-60"
+              (click)="reloadMembers()"
+              [disabled]="membersLoading()"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+
+        <ul
+          *ngIf="!membersLoading() && !membersError() && members().length"
+          class="space-y-2"
+        >
+          <li *ngFor="let member of members(); trackBy: trackByMember">
+            <button
+              type="button"
+              class="group flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-white/80 px-4 py-3 text-left text-sm transition hover:border-rd-accent hover:bg-rd-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rd-accent/40 disabled:cursor-not-allowed disabled:opacity-60"
+              (click)="assignToUser(context.run?.id ?? null, context.role, member.id)"
+              [disabled]="isAssigning()"
+            >
+              <div>
+                <p class="font-semibold text-rd-primary">
+                  {{ member.firstName || member.lastName || member.email }}
+                </p>
+                <p class="mt-1 text-[11px] font-medium uppercase tracking-[0.28em] text-rd-muted">
+                  {{ member.role | titlecase }}
+                </p>
+              </div>
+              <span
+                class="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.24em] text-rd-secondary transition group-hover:text-rd-accent"
+              >
+                Assign
+                <svg
+                  class="h-3 w-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  role="presentation"
+                >
+                  <path
+                    d="M9 6l6 6-6 6"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+
+        <div
+          *ngIf="!membersLoading() && !membersError() && !members().length"
+          class="rounded-2xl border border-rd-primary/12 bg-white/80 px-4 py-3 text-sm text-rd-secondary"
+        >
+          No team members available to assign.
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-container>

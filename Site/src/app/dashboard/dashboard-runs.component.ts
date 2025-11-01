@@ -1,7 +1,8 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, formatDate } from '@angular/common';
-import { RunsService, RunOverviewEntry } from './runs.service';
+import { RunsService, RunOverviewEntry, RunAssignmentRole } from './runs.service';
 import { AuthService } from '../auth/auth.service';
+import { UsersService, DashboardUser } from './users.service';
 
 @Component({
   selector: 'app-dashboard-runs',
@@ -11,12 +12,23 @@ import { AuthService } from '../auth/auth.service';
 })
 export class DashboardRunsComponent {
   private readonly runsService = inject(RunsService);
+  private readonly usersService = inject(UsersService);
   private readonly auth = inject(AuthService);
   private lastRunsCompanyId: string | null = null;
 
   protected readonly runs = signal<RunOverviewEntry[]>([]);
   protected readonly loadingRuns = signal(false);
   protected readonly runsError = signal<string | null>(null);
+  protected readonly participantNames = signal<Record<string, string>>({});
+  protected readonly loadingParticipantNames = signal(false);
+  protected readonly assignmentContext = signal<
+    { runId: string; run: RunOverviewEntry; role: RunAssignmentRole } | null
+  >(null);
+  protected readonly isAssigning = signal(false);
+  protected readonly members = signal<DashboardUser[]>([]);
+  protected readonly membersLoading = signal(false);
+  protected readonly membersError = signal<string | null>(null);
+  protected readonly assignmentError = signal<string | null>(null);
 
   protected readonly hasRuns = computed(() => this.runs().length > 0);
   protected readonly company = this.auth.company;
@@ -26,6 +38,7 @@ export class DashboardRunsComponent {
       const companyId = this.company()?.id ?? null;
       if (!companyId) {
         this.runs.set([]);
+        this.participantNames.set({});
         this.lastRunsCompanyId = null;
         return;
       }
@@ -90,6 +103,7 @@ export class DashboardRunsComponent {
     try {
       const overview = await this.runsService.getOverview();
       this.runs.set(overview);
+      await this.hydrateParticipantNames(overview);
       this.lastRunsCompanyId = companyId;
     } catch (error) {
       this.runsError.set(error instanceof Error ? error.message : 'Unable to load runs.');
@@ -99,5 +113,193 @@ export class DashboardRunsComponent {
     } finally {
       this.loadingRuns.set(false);
     }
+  }
+
+  protected participantNameFor(userId: string | null, fallback?: string | null): string {
+    if (!userId) {
+      return '—';
+    }
+    const mapped = this.participantNames()[userId];
+    if (mapped) {
+      return mapped;
+    }
+    const safeFallback = (fallback ?? '').trim();
+    return safeFallback || '—';
+  }
+
+  protected openAssignmentModal(run: RunOverviewEntry, role: RunAssignmentRole): void {
+    if (this.isAssigning()) {
+      return;
+    }
+    this.assignmentError.set(null);
+    if (!run.id) {
+      this.assignmentError.set('Unable to determine which run to update.');
+      return;
+    }
+    this.assignmentContext.set({ runId: run.id, run, role });
+
+    const shouldLoadMembers = (!this.members().length && !this.membersLoading()) || !!this.membersError();
+    if (shouldLoadMembers) {
+      void this.loadMembers(this.membersError() !== null);
+    }
+  }
+
+  protected closeAssignmentModal(): void {
+    if (this.isAssigning()) {
+      return;
+    }
+    this.assignmentError.set(null);
+    this.assignmentContext.set(null);
+  }
+
+  protected reloadMembers(): void {
+    if (this.membersLoading()) {
+      return;
+    }
+    void this.loadMembers(true);
+  }
+
+  protected async assignToUser(runId: string | null, role: RunAssignmentRole | null, userId: string): Promise<void> {
+    const context = this.assignmentContext();
+    const effectiveRunId = runId ?? context?.runId ?? null;
+    const effectiveRole = role ?? context?.role ?? null;
+
+    if (!effectiveRunId || !effectiveRole) {
+      this.assignmentError.set('Unable to determine which run to update.');
+      return;
+    }
+
+    if (this.isAssigning()) {
+      return;
+    }
+
+    this.isAssigning.set(true);
+    this.assignmentError.set(null);
+
+    try {
+      const updated = await this.runsService.assignParticipant(effectiveRunId, userId, effectiveRole);
+      this.runs.update((runs) => runs.map((run) => (run.id === updated.id ? updated : run)));
+      this.applyParticipantNames([updated]);
+      this.assignmentContext.set(null);
+    } catch (error) {
+      this.assignmentError.set(error instanceof Error ? error.message : 'Unable to assign run.');
+    } finally {
+      this.isAssigning.set(false);
+    }
+  }
+
+  protected trackByMember = (_: number, member: DashboardUser): string => member.id;
+
+  protected assignmentRoleLabel(role: RunAssignmentRole): string {
+    return role === 'PICKER' ? 'picker' : 'runner';
+  }
+
+  protected assignmentRoleTitle(role: RunAssignmentRole): string {
+    return role === 'PICKER' ? 'Assign picker' : 'Assign runner';
+  }
+
+  private async loadMembers(force = false): Promise<void> {
+    if (!force && (this.members().length || this.membersLoading())) {
+      return;
+    }
+
+    this.membersLoading.set(true);
+    this.membersError.set(null);
+
+    try {
+      const users = await this.usersService.listUsers();
+      this.members.set(users);
+    } catch (error) {
+      this.membersError.set(error instanceof Error ? error.message : 'Unable to load team members.');
+    } finally {
+      this.membersLoading.set(false);
+    }
+  }
+
+  private async hydrateParticipantNames(runs: RunOverviewEntry[]): Promise<void> {
+    if (!runs.length) {
+      this.participantNames.set({});
+      return;
+    }
+
+    const names = this.applyParticipantNames(runs);
+    const missingIds = new Set<string>();
+
+    for (const run of runs) {
+      if (run.pickerId && !names[run.pickerId]) {
+        missingIds.add(run.pickerId);
+      }
+      if (run.runnerId && !names[run.runnerId]) {
+        missingIds.add(run.runnerId);
+      }
+    }
+
+    if (missingIds.size === 0) {
+      this.participantNames.set(names);
+      return;
+    }
+
+    this.loadingParticipantNames.set(true);
+    try {
+      const users = await this.usersService.lookupUsers([...missingIds]);
+      for (const user of users) {
+        const label = this.preferredName(user.firstName, user.lastName, user.email);
+        if (label) {
+          names[user.id] = label;
+        }
+      }
+    } catch {
+      // Ignore lookup failures; fallback names remain unchanged.
+    } finally {
+      this.loadingParticipantNames.set(false);
+      this.participantNames.set(names);
+    }
+  }
+
+  private applyParticipantNames(runs: RunOverviewEntry[]): Record<string, string> {
+    const current = { ...this.participantNames() };
+
+    for (const run of runs) {
+      this.recordParticipantName(current, run.pickerId, run.pickerFirstName, run.pickerLastName);
+      this.recordParticipantName(current, run.runnerId, run.runnerFirstName, run.runnerLastName);
+    }
+
+    this.participantNames.set(current);
+    return current;
+  }
+
+  private recordParticipantName(
+    target: Record<string, string>,
+    userId: string | null,
+    firstName: string | null,
+    lastName: string | null,
+  ): void {
+    if (!userId) {
+      return;
+    }
+
+    const label = this.preferredName(firstName, lastName);
+    if (label) {
+      target[userId] = label;
+    }
+  }
+
+  private preferredName(
+    firstName?: string | null,
+    lastName?: string | null,
+    fallback?: string | null,
+  ): string | null {
+    const primary = (firstName ?? '').trim();
+    if (primary) {
+      return primary;
+    }
+
+    const secondary = (lastName ?? '').trim();
+    if (secondary) {
+      return secondary;
+    }
+
+    const fallbackValue = (fallback ?? '').trim();
+    return fallbackValue || null;
   }
 }

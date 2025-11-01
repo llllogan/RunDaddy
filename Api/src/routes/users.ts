@@ -29,6 +29,10 @@ const updateUserSchema = z.object({
 
 const canManageUsers = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
 
+const userLookupSchema = z.object({
+  userIds: z.array(z.string().cuid()).max(100),
+});
+
 const extractRows = <T>(result: unknown): T[] => {
   if (Array.isArray(result)) {
     if (result.length > 0 && Array.isArray(result[0])) {
@@ -74,6 +78,51 @@ router.get('/', async (req, res) => {
       role: membership.role,
       createdAt: membership.user.createdAt,
       updatedAt: membership.user.updatedAt,
+    })),
+  );
+});
+
+router.post('/lookup', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const parsed = userLookupSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  if (parsed.data.userIds.length === 0) {
+    return res.json([]);
+  }
+
+  type MembershipRow = {
+    user_id: string;
+    user_email: string;
+    user_first_name: string;
+    user_last_name: string;
+    user_phone: string | null;
+    membership_role: UserRole;
+    user_created_at: Date;
+    user_updated_at: Date;
+  };
+
+  const userIdsCsv = parsed.data.userIds.join(',');
+  const rowsRaw = await prisma.$queryRaw<MembershipRow[][]>(
+    Prisma.sql`CALL sp_get_company_members_by_ids(${req.auth.companyId}, ${userIdsCsv})`,
+  );
+  const rows = extractRows<MembershipRow>(rowsRaw);
+
+  return res.json(
+    rows.map((row) => ({
+      id: row.user_id,
+      email: row.user_email,
+      firstName: row.user_first_name,
+      lastName: row.user_last_name,
+      phone: row.user_phone,
+      role: row.membership_role,
+      createdAt: row.user_created_at,
+      updatedAt: row.user_updated_at,
     })),
   );
 });

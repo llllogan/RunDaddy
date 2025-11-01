@@ -51,6 +51,11 @@ const updateChocolateBoxSchema = z.object({
   number: z.number().int().min(1).optional(),
 });
 
+const runAssignmentSchema = z.object({
+  userId: z.string().cuid(),
+  role: z.enum(['PICKER', 'RUNNER']),
+});
+
 const ensureMembership = async (companyId: string, userId: string | undefined | null) => {
   if (!userId) {
     return null;
@@ -156,29 +161,47 @@ router.get('/overview', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  type RunOverviewRow = {
+    run_id: string;
+    company_id: string;
+    run_status: RunStatus;
+    scheduled_for: Date | null;
+    picking_started_at: Date | null;
+    picking_ended_at: Date | null;
+    run_created_at: Date;
+    picker_id: string | null;
+    picker_first_name: string | null;
+    picker_last_name: string | null;
+    runner_id: string | null;
+    runner_first_name: string | null;
+    runner_last_name: string | null;
+  };
+
   const { status } = req.query;
   const statusFilter = isRunStatus(status) ? status : null;
 
-  const runs = await prisma.run.findMany({
-    where: {
-      companyId: req.auth.companyId,
-      ...(statusFilter ? { status: statusFilter } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      pickerId: true,
-      runnerId: true,
-      companyId: true,
-      status: true,
-      pickingStartedAt: true,
-      pickingEndedAt: true,
-      scheduledFor: true,
-      createdAt: true,
-    },
-  });
+  const rowsRaw = await prisma.$queryRaw<RunOverviewRow[][]>(
+    Prisma.sql`CALL sp_get_run_overview(${req.auth.companyId}, ${statusFilter})`,
+  );
+  const rows = extractRows<RunOverviewRow>(rowsRaw);
 
-  return res.json(runs);
+  return res.json(
+    rows.map((row) => ({
+      id: row.run_id,
+      companyId: row.company_id,
+      status: row.run_status,
+      scheduledFor: row.scheduled_for,
+      pickingStartedAt: row.picking_started_at,
+      pickingEndedAt: row.picking_ended_at,
+      createdAt: row.run_created_at,
+      pickerId: row.picker_id,
+      pickerFirstName: row.picker_first_name,
+      pickerLastName: row.picker_last_name,
+      runnerId: row.runner_id,
+      runnerFirstName: row.runner_first_name,
+      runnerLastName: row.runner_last_name,
+    })),
+  );
 });
 
 router.get('/pick-entries', async (req, res) => {
@@ -433,6 +456,81 @@ router.patch('/:runId', async (req, res) => {
   });
 
   return res.json(updated);
+});
+
+router.post('/:runId/assignment', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!canManage(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
+  }
+
+  const parsed = runAssignmentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const run = await ensureRun(req.auth.companyId, req.params.runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const membership = await ensureMembership(req.auth.companyId, parsed.data.userId);
+  if (!membership) {
+    return res.status(404).json({ error: 'User not found in company' });
+  }
+
+  type AssignmentRow = {
+    run_id: string;
+    company_id: string;
+    run_status: RunStatus;
+    picker_id: string | null;
+    picker_first_name: string | null;
+    picker_last_name: string | null;
+    runner_id: string | null;
+    runner_first_name: string | null;
+    runner_last_name: string | null;
+    picking_started_at: Date | null;
+    picking_ended_at: Date | null;
+    scheduled_for: Date | null;
+    run_created_at: Date;
+  };
+
+  const rowsRaw = await prisma.$queryRaw<AssignmentRow[][]>(
+    Prisma.sql`CALL sp_assign_run_participant(${req.auth.companyId}, ${run.id}, ${parsed.data.userId}, ${parsed.data.role})`,
+  );
+  const rows = extractRows<AssignmentRow>(rowsRaw);
+  if (!rows.length) {
+    return res.status(500).json({ error: 'Unable to assign participant to run' });
+  }
+
+  const [row] = rows;
+
+  return res.status(200).json({
+    id: row.run_id,
+    companyId: row.company_id,
+    status: row.run_status,
+    scheduledFor: row.scheduled_for,
+    pickingStartedAt: row.picking_started_at,
+    pickingEndedAt: row.picking_ended_at,
+    createdAt: row.run_created_at,
+    picker: row.picker_id
+      ? {
+          id: row.picker_id,
+          firstName: row.picker_first_name,
+          lastName: row.picker_last_name,
+        }
+      : null,
+    runner: row.runner_id
+      ? {
+          id: row.runner_id,
+          firstName: row.runner_first_name,
+          lastName: row.runner_last_name,
+        }
+      : null,
+  });
 });
 
 router.delete('/:runId', async (req, res) => {

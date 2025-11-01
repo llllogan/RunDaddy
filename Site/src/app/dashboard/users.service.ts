@@ -25,6 +25,17 @@ interface UsersResponseItem {
   updatedAt: string;
 }
 
+interface UserLookupResponseItem {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -55,11 +66,38 @@ export class UsersService {
         updatedAt: this.parseDate(user.updatedAt),
       }));
     } catch (error) {
-      throw this.toError(error);
+      throw this.toError(error, 'Unable to load users.');
     }
   }
 
-  private toError(error: unknown): Error {
+  async lookupUsers(userIds: string[]): Promise<DashboardUser[]> {
+    if (!userIds.length) {
+      return [];
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<UserLookupResponseItem[]>(`${API_BASE_URL}/users/lookup`, {
+          userIds,
+        }),
+      );
+
+      return response.map((user) => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        role: user.role,
+        createdAt: this.parseDate(user.createdAt),
+        updatedAt: this.parseDate(user.updatedAt),
+      }));
+    } catch (error) {
+      throw this.toError(error, 'Unable to look up users.');
+    }
+  }
+
+  private toError(error: unknown, fallback: string): Error {
     if (error instanceof HttpErrorResponse) {
       const message =
         (typeof error.error === 'object' &&
@@ -69,12 +107,12 @@ export class UsersService {
           ? error.error.error
           : null) ??
         error.message ??
-        'Unable to load users.';
+        fallback;
       return new Error(message);
     }
     if (error instanceof Error) {
       return error;
     }
-    return new Error('Unable to load users.');
+    return new Error(fallback);
   }
 }

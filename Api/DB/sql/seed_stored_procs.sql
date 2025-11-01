@@ -8,6 +8,10 @@ DROP PROCEDURE IF EXISTS sp_get_user_refresh_tokens;
 DROP PROCEDURE IF EXISTS sp_get_run_overview;
 DROP PROCEDURE IF EXISTS sp_get_run_pick_entries;
 DROP PROCEDURE IF EXISTS sp_get_chocolate_box_details;
+DROP PROCEDURE IF EXISTS sp_get_company_members_by_ids;
+DROP PROCEDURE IF EXISTS sp_assign_run_participant;
+DROP PROCEDURE IF EXISTS sp_get_runs_by_company;
+
 
 CREATE PROCEDURE sp_health_check()
 BEGIN
@@ -117,6 +121,69 @@ BEGIN
       AND run_id = p_run_id
     ORDER BY run_id DESC, chocolate_box_number ASC;
   END IF;
+END;
+
+CREATE PROCEDURE sp_get_company_members_by_ids(
+  IN p_company_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  IN p_user_ids_csv TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+)
+BEGIN
+  IF p_user_ids_csv IS NULL OR p_user_ids_csv = '' THEN
+    SELECT *
+    FROM v_user_memberships
+    WHERE 1 = 0;
+  ELSE
+    SELECT *
+    FROM v_user_memberships
+    WHERE company_id = p_company_id
+      AND FIND_IN_SET(user_id, p_user_ids_csv) > 0
+    ORDER BY user_last_name ASC, user_first_name ASC;
+  END IF;
+END;
+
+CREATE PROCEDURE sp_assign_run_participant(
+  IN p_company_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  IN p_run_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  IN p_user_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  IN p_participant_role VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+)
+BEGIN
+  DECLARE v_role VARCHAR(16) DEFAULT UPPER(p_participant_role);
+  DECLARE v_effective_user_id VARCHAR(191);
+
+  SET v_effective_user_id = NULLIF(p_user_id, '');
+
+  IF v_role = 'PICKER' THEN
+    UPDATE `Run`
+    SET pickerId = v_effective_user_id
+    WHERE id = p_run_id
+      AND companyId = p_company_id;
+  ELSEIF v_role = 'RUNNER' THEN
+    UPDATE `Run`
+    SET runnerId = v_effective_user_id
+    WHERE id = p_run_id
+      AND companyId = p_company_id;
+  END IF;
+
+  SELECT
+    r.id               AS run_id,
+    r.companyId        AS company_id,
+    r.status           AS run_status,
+    r.pickerId         AS picker_id,
+    picker.firstName   AS picker_first_name,
+    picker.lastName    AS picker_last_name,
+    r.runnerId         AS runner_id,
+    runner.firstName   AS runner_first_name,
+    runner.lastName    AS runner_last_name,
+    r.pickingStartedAt AS picking_started_at,
+    r.pickingEndedAt   AS picking_ended_at,
+    r.scheduledFor     AS scheduled_for,
+    r.createdAt        AS run_created_at
+  FROM `Run` r
+  LEFT JOIN `User` picker ON picker.id = r.pickerId
+  LEFT JOIN `User` runner ON runner.id = r.runnerId
+  WHERE r.id = p_run_id
+    AND r.companyId = p_company_id;
 END;
 
 CREATE PROCEDURE sp_get_runs_by_company(
