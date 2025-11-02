@@ -1,21 +1,38 @@
-import {
-  RunStatus as PrismaRunStatus,
-  RunItemStatus as PrismaRunItemStatus,
-  UserRole as PrismaUserRole,
-  AuthContext as PrismaAuthContext,
-} from '@prisma/client';
+export const RunStatus = {
+  DRAFT: 'DRAFT',
+  PICKING: 'PICKING',
+  READY: 'READY',
+  SCHEDULED: 'SCHEDULED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  HISTORICAL: 'HISTORICAL',
+} as const;
 
-export const RunStatus = PrismaRunStatus;
-export type RunStatus = PrismaRunStatus;
+export type RunStatus = typeof RunStatus[keyof typeof RunStatus];
 
-export const RunItemStatus = PrismaRunItemStatus;
-export type RunItemStatus = PrismaRunItemStatus;
+export const RunItemStatus = {
+  PENDING: 'PENDING',
+  PICKED: 'PICKED',
+  SKIPPED: 'SKIPPED',
+} as const;
 
-export const UserRole = PrismaUserRole;
-export type UserRole = PrismaUserRole;
+export type RunItemStatus = typeof RunItemStatus[keyof typeof RunItemStatus];
 
-export const AuthContext = PrismaAuthContext;
-export type AuthContext = PrismaAuthContext;
+export const UserRole = {
+  ADMIN: 'ADMIN',
+  OWNER: 'OWNER',
+  PICKER: 'PICKER',
+} as const;
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+export const AuthContext = {
+  WEB: 'WEB',
+  APP: 'APP',
+} as const;
+
+export type AuthContext = typeof AuthContext[keyof typeof AuthContext];
 
 export const isRunStatus = (value: unknown): value is RunStatus => {
   return typeof value === 'string' && (Object.values(RunStatus) as string[]).includes(value);

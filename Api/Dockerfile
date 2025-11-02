@@ -20,7 +20,6 @@ ENV PORT=80
 
 COPY package*.json ./
 RUN npm ci --omit=dev
-RUN npm run prisma:generate
 
 COPY --from=build /app/dist ./dist
 
