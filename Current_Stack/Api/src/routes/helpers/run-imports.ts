@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import multer from 'multer';
 import { Prisma } from '@prisma/client';
+import type { RunStatus as PrismaRunStatus } from '@prisma/client';
 import { parseRunWorkbook } from '../../lib/run-import-parser.js';
 import { prisma } from '../../lib/prisma.js';
 import { RunStatus as AppRunStatus } from '../../types/enums.js';
@@ -93,7 +94,7 @@ const persistRunFromWorkbook = async ({ run, companyId }: { run: ParsedRun; comp
       const runRecord = await tx.run.create({
         data: {
           companyId,
-          status: Prisma.$Enums.RunStatus.CREATED,
+          status: AppRunStatus.CREATED as unknown as PrismaRunStatus,
           scheduledFor,
         },
       });

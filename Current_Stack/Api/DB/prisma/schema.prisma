@@ -10,11 +10,7 @@ datasource db {
 enum RunStatus {
   CREATED
   PICKING
-  PICKED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  HISTORICAL
+  READY
 }
 
 enum RunItemStatus {

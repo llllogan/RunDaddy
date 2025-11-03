@@ -1,11 +1,7 @@
 export const RunStatus = {
   CREATED: 'CREATED',
   PICKING: 'PICKING',
-  PICKED: 'PICKED',
-  IN_PROGRESS: 'IN_PROGRESS',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
-  HISTORICAL: 'HISTORICAL',
+  READY: 'READY',
 } as const;
 
 export type RunStatus = typeof RunStatus[keyof typeof RunStatus];
