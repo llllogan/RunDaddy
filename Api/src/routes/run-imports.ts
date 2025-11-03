@@ -102,7 +102,7 @@ const persistRunFromWorkbook = async ({ run, companyId }: { run: ParsedRun; comp
       const runRecord = await tx.run.create({
         data: {
           companyId,
-          status: RunStatus.SCHEDULED,
+          status: RunStatus.CREATED,
           scheduledFor,
         },
       });

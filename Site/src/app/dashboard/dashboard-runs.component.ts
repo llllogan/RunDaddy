@@ -122,14 +122,13 @@ export class DashboardRunsComponent {
 
   protected statusBadgeClass(status: string): string {
     const mapping: Record<string, string> = {
-      COMPLETED: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
-      READY: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
-      IN_PROGRESS: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
+      CREATED: 'border border-rd-primary/12 bg-white/75 text-rd-secondary',
       PICKING: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
-      SCHEDULED: 'border border-[#f9c74f]/30 bg-[#f9c74f]/10 text-[#b96f05]',
-      DRAFT: 'border border-rd-primary/12 bg-white/75 text-rd-secondary',
-      HISTORICAL: 'border border-rd-primary/12 bg-white/60 text-rd-secondary',
+      PICKED: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
+      IN_PROGRESS: 'border border-rd-accent/30 bg-rd-accent/10 text-rd-accent',
+      COMPLETED: 'border border-rd-teal/30 bg-rd-teal/10 text-rd-teal',
       CANCELLED: 'border border-[#f87171]/30 bg-[#f87171]/10 text-[#c24141]',
+      HISTORICAL: 'border border-rd-primary/12 bg-white/60 text-rd-secondary',
     };
     return mapping[status] ?? 'border border-rd-primary/12 bg-white/75 text-rd-secondary';
   }
