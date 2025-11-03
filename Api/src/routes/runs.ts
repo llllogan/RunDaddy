@@ -489,7 +489,7 @@ router.post('/', async (req, res) => {
       companyId: req.auth.companyId,
       pickerId: pickerId ?? null,
       runnerId: runnerId ?? null,
-       status: status ?? RunStatus.CREATED,
+      status: RunStatus.CREATED, // Always start new runs as CREATED
       pickingStartedAt: pickingStartedAt ?? null,
       pickingEndedAt: pickingEndedAt ?? null,
       scheduledFor: scheduledFor ?? null,
