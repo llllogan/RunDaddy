@@ -89,8 +89,8 @@ const respondWithSession = (
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax' as const,
-    path: '/',
+    sameSite: 'strict' as const,
+    path: '/api',
   };
 
   res.cookie('accessToken', data.tokens.accessToken, {
