@@ -6,36 +6,23 @@
 //
 
 import SwiftUI
-import SwiftData
 
 @main
 struct RunDaddyApp: App {
     @StateObject private var sessionController = PackingSessionController()
-
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Run.self,
-            RunCoil.self,
-            Coil.self,
-            Machine.self,
-            Location.self,
-            Item.self,
-        ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [configuration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @State private var isLoggedIn = AuthService.shared.isLoggedIn()
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
-                .environmentObject(sessionController)
-                .environment(\.haptics, HapticFeedbackService.live)
+            if isLoggedIn {
+                RootTabView()
+                    .environmentObject(sessionController)
+                    .environment(\.haptics, HapticFeedbackService.live)
+            } else {
+                LoginView {
+                    isLoggedIn = true
+                }
+            }
         }
-        .modelContainer(sharedModelContainer)
     }
 }

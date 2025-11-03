@@ -12,49 +12,35 @@ struct RootTabView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
 
     var body: some View {
-        TabView {
-            RunHistoryView()
-                .tabItem {
-                    Label("Runs", systemImage: "figure.run")
-                }
-
-            MachinesView()
-                .tabItem {
-                    Label("Info", systemImage: "info.circle")
-                }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-        }
-        .tabViewStyle(.automatic)
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            if sessionController.hasActiveSession {
-                PackingSessionBar()
-            } else {
-                Text("Not currently packing")
-            }
-        }
-        .sheet(isPresented: $sessionController.isSheetPresented,
-               onDismiss: { sessionController.minimizeSession() }) {
-            Group {
-                if let viewModel = sessionController.activeViewModel {
-                    PackingSessionView(viewModel: viewModel, controller: sessionController)
-                } else {
-                    EmptyView()
+        RunHistoryView()
+            .safeAreaInset(edge: .bottom) {
+                if sessionController.hasActiveSession {
+                    PackingSessionBar()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
                 }
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
+            .sheet(isPresented: $sessionController.isSheetPresented,
+                   onDismiss: { sessionController.minimizeSession() }) {
+                Group {
+                    if let viewModel = sessionController.activeViewModel {
+                        PackingSessionView(viewModel: viewModel, controller: sessionController)
+                    } else {
+                        EmptyView()
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
     }
 }
 
 struct PackingSessionBar: View {
     @EnvironmentObject private var sessionController: PackingSessionController
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
     @Environment(\.haptics) private var haptics
 
     private var viewModel: PackingSessionViewModel? {
@@ -76,16 +62,14 @@ struct PackingSessionBar: View {
 
                 Spacer(minLength: 0)
 
-                if placement != .inline {
-                    Button {
-                        haptics.secondaryButtonTap()
-                        sessionController.repeatActiveSession()
-                    } label: {
-                        Label("Repeat", systemImage: "arrow.uturn.left")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.bordered)
+                Button {
+                    haptics.secondaryButtonTap()
+                    sessionController.repeatActiveSession()
+                } label: {
+                    Label("Repeat", systemImage: "arrow.uturn.left")
+                        .labelStyle(.iconOnly)
                 }
+                .buttonStyle(.bordered)
 
                 Button {
                     if viewModel.isSessionComplete {
@@ -102,8 +86,6 @@ struct PackingSessionBar: View {
                 .tint(viewModel.isSessionComplete ? .green : .accentColor)
                 .disabled(!viewModel.isSessionComplete && !viewModel.hasActiveStep)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         } else {
             EmptyView()
