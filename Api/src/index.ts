@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
 import { companiesRouter } from './routes/companies.js';
@@ -24,6 +25,7 @@ app.use(
     credentials: true,
   }),
 );
+app.use(cookieParser());
 app.use(express.json());
 
 // Logging middleware
