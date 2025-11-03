@@ -189,11 +189,12 @@ const ensureRun = async (companyId: string, runId: string) => {
               sku: true,
               coil: {
                 include: {
-                  machine: {
-                    include: {
-                      location: true,
-                    },
-                  },
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
                 },
               },
             },
@@ -205,6 +206,7 @@ const ensureRun = async (companyId: string, runId: string) => {
           machine: {
             include: {
               location: true,
+              machineType: true,
             },
           },
         },

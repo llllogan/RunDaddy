@@ -59,15 +59,19 @@ struct RunHistoryView: View {
                 } else {
                     ForEach(runSections) { section in
                         Section(section.date.formatted(.dateTime.month().day().year())) {
-                             ForEach(section.runs) { run in
-                                 VStack(alignment: .leading, spacing: 4) {
-                                     Text(runTitle(for: run))
-                                         .font(.headline)
-                                     Text(runSubtitle(for: run))
-                                         .font(.caption)
-                                         .foregroundStyle(.secondary)
-                                 }
-                                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                     ForEach(section.runs) { run in
+                                   NavigationLink {
+                                       RunDetailAPIView(runId: run.id)
+                                   } label: {
+                                      VStack(alignment: .leading, spacing: 4) {
+                                          Text(runTitle(for: run))
+                                              .font(.headline)
+                                          Text(runSubtitle(for: run))
+                                              .font(.caption)
+                                              .foregroundStyle(.secondary)
+                                      }
+                                  }
+                                  .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                      Button(role: .destructive) {
                                          runPendingDeletion = run
                                          isConfirmingDeletion = true
@@ -158,7 +162,7 @@ struct RunHistoryView: View {
     private func runSubtitle(for run: APIRun) -> String {
         let status = run.status.capitalized
         let dateText = run.scheduledFor?.formatted(.dateTime.month().day()) ?? run.createdAt.formatted(.dateTime.month().day())
-        return "\(status) - \(dateText)"
+        return "\(status) - Scheduled for \(dateText)"
     }
 }
 
@@ -166,5 +170,4 @@ struct RunHistoryView: View {
 
 #Preview {
     RunHistoryView()
-//        .modelContainer(PreviewFixtures.container)
 }
