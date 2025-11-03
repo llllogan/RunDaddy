@@ -91,6 +91,7 @@ const respondWithSession = (
     secure: isProduction,
     sameSite: 'strict' as const,
     path: '/api',
+    ...(isProduction ? {} : { domain: 'localhost' }),
   };
 
   res.cookie('accessToken', data.tokens.accessToken, {

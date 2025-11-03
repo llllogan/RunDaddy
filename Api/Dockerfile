@@ -16,7 +16,7 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=80
+ENV PORT=3000
 
 COPY package*.json ./
 RUN npm ci --omit=dev
