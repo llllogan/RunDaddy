@@ -24,7 +24,7 @@ export class LocationsService {
   async listLocations(): Promise<LocationSummary[]> {
     try {
       const response = await firstValueFrom(
-        this.http.get<LocationResponseItem[]>(`${API_BASE_URL}/locations`),
+        this.http.get<LocationResponseItem[]>(`${API_BASE_URL}/locations`, { withCredentials: true }),
       );
 
       return response.map((location) => ({

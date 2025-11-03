@@ -104,7 +104,7 @@ export class AuthService {
 
   async register(input: RegisterInput): Promise<void> {
     try {
-      const payload = await firstValueFrom(this.http.post<SessionPayload>(`${API_BASE_URL}/auth/register`, input));
+      const payload = await firstValueFrom(this.http.post<SessionPayload>(`${API_BASE_URL}/auth/register`, input, { withCredentials: true }));
       this.setSession(payload);
     } catch (error) {
       this.handleHttpError(error);
@@ -117,7 +117,7 @@ export class AuthService {
         this.http.post<SessionPayload>(`${API_BASE_URL}/auth/login`, {
           ...input,
           context: AUTH_CONTEXT,
-        }),
+        }, { withCredentials: true }),
       );
       this.setSession(payload);
     } catch (error) {
@@ -140,7 +140,7 @@ export class AuthService {
           companyId,
           persist,
           context: AUTH_CONTEXT,
-        }),
+        }, { withCredentials: true }),
       );
       this.setSession(payload);
     } catch (error) {
@@ -151,7 +151,7 @@ export class AuthService {
   async listMemberships(): Promise<MembershipChoice[]> {
     try {
       const response = await firstValueFrom(
-        this.http.get<CompanyMembershipResponse[]>(`${API_BASE_URL}/companies`),
+        this.http.get<CompanyMembershipResponse[]>(`${API_BASE_URL}/companies`, { withCredentials: true }),
       );
       return response
         .map((membership) => ({
@@ -167,7 +167,7 @@ export class AuthService {
 
   async logout(): Promise<void> {
     try {
-      await firstValueFrom(this.http.post(`${API_BASE_URL}/auth/logout`, {}));
+      await firstValueFrom(this.http.post(`${API_BASE_URL}/auth/logout`, {}, { withCredentials: true }));
     } catch {
       // Ignore errors on logout
     }
@@ -187,7 +187,7 @@ export class AuthService {
       return this.refreshPromise;
     }
 
-    this.refreshPromise = firstValueFrom(this.http.post<SessionPayload>(`${API_BASE_URL}/auth/refresh`, {}))
+    this.refreshPromise = firstValueFrom(this.http.post<SessionPayload>(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true }))
       .then((payload) => {
         this.setSession(payload);
       })
@@ -211,7 +211,7 @@ export class AuthService {
       return this.restorePromise;
     }
 
-    this.restorePromise = firstValueFrom(this.http.get<ProfileResponse>(`${API_BASE_URL}/auth/me`))
+    this.restorePromise = firstValueFrom(this.http.get<ProfileResponse>(`${API_BASE_URL}/auth/me`, { withCredentials: true }))
       .then((profile) => {
         const session: Session = {
           user: profile.user,
