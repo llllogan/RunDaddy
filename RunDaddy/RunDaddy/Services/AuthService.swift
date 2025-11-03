@@ -8,10 +8,8 @@
 import Foundation
 
 class AuthService {
-    private let baseURL = "https://rundaddy.app/api" // TODO: Configure for production
-
     func login(email: String, password: String) async throws -> AuthContext {
-        let url = URL(string: "\(baseURL)/auth/login")!
+        let url = URL(string: "\(APIConfig.baseURL)/auth/login")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -70,6 +68,48 @@ class AuthService {
         let data = try? JSONEncoder().encode(auth)
         UserDefaults.standard.set(data, forKey: "authContext")
     }
+
+    func refreshToken() async throws -> AuthContext {
+        guard let auth = getStoredAuth() else {
+            throw AuthError.notLoggedIn
+        }
+
+        let url = URL(string: "\(APIConfig.baseURL)/auth/refresh")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(auth.refreshToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+
+        if httpResponse.statusCode != 200 {
+            throw AuthError.refreshFailed
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let refreshResponse = try decoder.decode(LoginResponse.self, from: data)
+
+        let newAuth = AuthContext(user: auth.user, company: auth.company, accessToken: refreshResponse.accessToken ?? auth.accessToken, refreshToken: refreshResponse.refreshToken ?? auth.refreshToken, accessTokenExpiresAt: refreshResponse.accessTokenExpiresAt ?? auth.accessTokenExpiresAt, refreshTokenExpiresAt: refreshResponse.refreshTokenExpiresAt ?? auth.refreshTokenExpiresAt, context: auth.context)
+        storeAuth(newAuth)
+        return newAuth
+    }
+
+    func getValidToken() async throws -> String {
+        guard var auth = getStoredAuth() else {
+            throw AuthError.notLoggedIn
+        }
+
+        if auth.accessTokenExpiresAt < Date() {
+            auth = try await refreshToken()
+        }
+
+        return auth.accessToken
+    }
 }
 
 struct LoginResponse: Codable {
@@ -86,4 +126,6 @@ enum AuthError: Error {
     case invalidResponse
     case loginFailed
     case multipleCompanies
+    case notLoggedIn
+    case refreshFailed
 }
