@@ -15,8 +15,8 @@ struct RootView: View {
             switch authViewModel.phase {
             case .loading:
                 LoadingStateView()
-            case let .authenticated(credentials):
-                DashboardView(userID: credentials.userID) {
+            case let .authenticated(session):
+                DashboardView(user: session.profile) {
                     authViewModel.logout()
                 }
             case .login:
@@ -33,7 +33,7 @@ struct RootView: View {
 }
 
 private struct DashboardView: View {
-    let userID: String
+    let user: UserProfile
     let logoutAction: () -> Void
 
     var body: some View {
@@ -52,9 +52,9 @@ private struct DashboardView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Hello \(userID)")
+            .navigationTitle("Hello \(user.displayName)")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button(role: .destructive, action: logoutAction) {
                             Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
@@ -125,6 +125,17 @@ private final class PreviewAuthService: AuthServicing {
 
     func login(email: String, password: String) async throws -> AuthCredentials {
         credentials
+    }
+
+    func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
+        UserProfile(
+            id: userID,
+            email: "logan@example.com",
+            firstName: "Logan",
+            lastName: "Janssen",
+            phone: "555-555-5555",
+            role: "OWNER"
+        )
     }
 
     private var credentials: AuthCredentials {

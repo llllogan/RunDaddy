@@ -13,6 +13,7 @@ protocol AuthServicing {
     func clearStoredCredentials()
     func refresh(using credentials: AuthCredentials) async throws -> AuthCredentials
     func login(email: String, password: String) async throws -> AuthCredentials
+    func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile
 }
 
 final class AuthService: AuthServicing {
@@ -75,6 +76,33 @@ final class AuthService: AuthServicing {
         return response.buildCredentials()
     }
 
+    func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("users")
+        url.appendPathComponent(userID)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw AuthError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(UserResponse.self, from: data)
+        return payload.profile
+    }
+
     private func performRequest<Request: Encodable, Response: Decodable>(
         path: String,
         body: Request
@@ -131,6 +159,26 @@ private struct AuthPayload: Decodable {
             refreshToken: refreshToken,
             userID: user.id,
             expiresAt: expirationDate
+        )
+    }
+}
+
+private struct UserResponse: Decodable {
+    let id: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let role: String
+
+    var profile: UserProfile {
+        UserProfile(
+            id: id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            role: role
         )
     }
 }

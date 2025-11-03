@@ -122,4 +122,15 @@ private final class PreviewAuthService: AuthServicing {
             expiresAt: Date().addingTimeInterval(3600)
         )
     }
+
+    func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
+        UserProfile(
+            id: userID,
+            email: "preview@example.com",
+            firstName: "Preview",
+            lastName: "User",
+            phone: nil,
+            role: "OWNER"
+        )
+    }
 }

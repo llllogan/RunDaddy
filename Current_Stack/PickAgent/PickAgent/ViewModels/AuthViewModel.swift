@@ -12,15 +12,15 @@ import Combine
 final class AuthViewModel: ObservableObject {
     enum Phase: Equatable {
         case loading
-        case authenticated(AuthCredentials)
+        case authenticated(AuthSession)
         case login(message: String?)
 
         static func == (lhs: Phase, rhs: Phase) -> Bool {
             switch (lhs, rhs) {
             case (.loading, .loading):
                 return true
-            case let (.authenticated(lhsCredentials), .authenticated(rhsCredentials)):
-                return lhsCredentials == rhsCredentials
+            case let (.authenticated(lhsSession), .authenticated(rhsSession)):
+                return lhsSession == rhsSession
             case let (.login(lhsMessage), .login(rhsMessage)):
                 return lhsMessage == rhsMessage
             default:
@@ -54,8 +54,10 @@ final class AuthViewModel: ObservableObject {
 
         do {
             let refreshedCredentials = try await service.refresh(using: storedCredentials)
+            let profile = try await service.fetchProfile(userID: refreshedCredentials.userID, credentials: refreshedCredentials)
+            let session = AuthSession(credentials: refreshedCredentials, profile: profile)
             service.store(credentials: refreshedCredentials)
-            phase = .authenticated(refreshedCredentials)
+            phase = .authenticated(session)
         } catch {
             service.clearStoredCredentials()
             if let authError = error as? AuthError, case .unauthorized = authError {
@@ -78,8 +80,10 @@ final class AuthViewModel: ObservableObject {
                 .lowercased()
 
             let credentials = try await service.login(email: normalizedEmail, password: password)
+            let profile = try await service.fetchProfile(userID: credentials.userID, credentials: credentials)
+            let session = AuthSession(credentials: credentials, profile: profile)
             service.store(credentials: credentials)
-            phase = .authenticated(credentials)
+            phase = .authenticated(session)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
