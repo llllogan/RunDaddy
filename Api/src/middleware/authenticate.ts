@@ -3,13 +3,18 @@ import { verifyAccessToken } from '../lib/tokens.js';
 import { prisma } from '../lib/prisma.js';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
+  let token: string | undefined;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization token' });
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
+  } else if (req.cookies.accessToken) {
+    token = req.cookies.accessToken;
   }
 
-  const token = authHeader.slice(7).trim();
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
 
   try {
     const payload = verifyAccessToken(token);
