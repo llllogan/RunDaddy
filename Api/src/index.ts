@@ -45,7 +45,9 @@ app.use((req, res, next) => {
   };
 
   res.on('finish', () => {
-    console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${JSON.stringify(responseBody)}`);
+    const responseStr = JSON.stringify(responseBody);
+    const truncatedResponse = responseStr.length > 20 ? responseStr.substring(0, 20) + '...' : responseStr;
+    console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${truncatedResponse}`);
   });
 
   next();
