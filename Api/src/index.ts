@@ -26,6 +26,29 @@ app.use(
 );
 app.use(express.json());
 
+// Logging middleware
+app.use((req, res, next) => {
+  let responseBody: any;
+
+  const originalJson = res.json;
+  res.json = function (body) {
+    responseBody = body;
+    return originalJson.call(this, body);
+  };
+
+  const originalSend = res.send;
+  res.send = function (body) {
+    responseBody = body;
+    return originalSend.call(this, body);
+  };
+
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${JSON.stringify(responseBody)}`);
+  });
+
+  next();
+});
+
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1 as ok`;
