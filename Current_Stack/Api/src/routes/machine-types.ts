@@ -1,25 +1,15 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import { createMachineTypeSchema, updateMachineTypeSchema } from './helpers/machine-types.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const createSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-});
-
-const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().optional(),
-});
-
-const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
-
+// Lists all machine types in alphabetical order.
 router.get('/', async (_req, res) => {
   const machineTypes = await prisma.machineType.findMany({
     orderBy: { name: 'asc' },
@@ -27,6 +17,7 @@ router.get('/', async (_req, res) => {
   return res.json(machineTypes);
 });
 
+// Looks up a machine type by id.
 router.get('/:machineTypeId', async (req, res) => {
   const { machineTypeId } = req.params;
   const machineType = await prisma.machineType.findUnique({ where: { id: machineTypeId } });
@@ -36,15 +27,16 @@ router.get('/:machineTypeId', async (req, res) => {
   return res.json(machineType);
 });
 
+// Creates a new machine type record.
 router.post('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to create machine types' });
   }
 
-  const parsed = createSchema.safeParse(req.body);
+  const parsed = createMachineTypeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -62,15 +54,16 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Updates an existing machine type when the requester is a manager.
 router.patch('/:machineTypeId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update machine types' });
   }
 
-  const parsed = updateSchema.safeParse(req.body);
+  const parsed = updateMachineTypeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -94,11 +87,12 @@ router.patch('/:machineTypeId', async (req, res) => {
   }
 });
 
+// Deletes a machine type if no machines depend on it.
 router.delete('/:machineTypeId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete machine types' });
   }
 

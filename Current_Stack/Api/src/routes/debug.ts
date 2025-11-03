@@ -1,35 +1,17 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword } from '../lib/password.js';
 import { UserRole } from '../types/enums.js';
+import {
+  createCompanySchema,
+  createUserSchema,
+  createMembershipSchema,
+} from './helpers/debug.js';
 
 const router = Router();
 
-const createCompanySchema = z.object({
-  name: z.string().min(1, 'Company name is required'),
-});
-
-const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  phone: z.string().min(7).optional(),
-  role: z.nativeEnum(UserRole).default(UserRole.PICKER),
-  companyId: z.string().cuid().optional(),
-  membershipRole: z.nativeEnum(UserRole).optional(),
-  setAsDefaultMembership: z.boolean().optional(),
-});
-
-const createMembershipSchema = z.object({
-  userId: z.string().cuid(),
-  companyId: z.string().cuid(),
-  role: z.nativeEnum(UserRole).default(UserRole.PICKER),
-  setAsDefault: z.boolean().optional(),
-});
-
+// Creates a company without authentication for local testing purposes.
 router.post('/companies', async (req, res) => {
   const parsed = createCompanySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -45,6 +27,7 @@ router.post('/companies', async (req, res) => {
   return res.status(201).json(company);
 });
 
+// Deletes a company record by id, ignoring membership requirements.
 router.delete('/companies/:companyId', async (req, res) => {
   const { companyId } = req.params;
 
@@ -59,6 +42,7 @@ router.delete('/companies/:companyId', async (req, res) => {
   }
 });
 
+// Lists all companies currently stored in the database.
 router.get('/companies', async (_req, res) => {
   const companies = await prisma.company.findMany({
     orderBy: { createdAt: 'desc' },
@@ -66,6 +50,7 @@ router.get('/companies', async (_req, res) => {
   return res.json(companies);
 });
 
+// Returns machine details for a company including coils and SKUs.
 router.get('/companies/:companyId/machines', async (req, res) => {
   const { companyId } = req.params;
 
@@ -141,6 +126,7 @@ router.get('/companies/:companyId/machines', async (req, res) => {
   );
 });
 
+// Creates a user and optional membership for debugging workflows.
 router.post('/users', async (req, res) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -214,6 +200,7 @@ router.post('/users', async (req, res) => {
   });
 });
 
+// Deletes a user by id without enforcing company constraints.
 router.delete('/users/:userId', async (req, res) => {
   const { userId } = req.params;
 
@@ -228,6 +215,7 @@ router.delete('/users/:userId', async (req, res) => {
   }
 });
 
+// Lists every user along with their memberships for inspection.
 router.get('/users', async (_req, res) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
@@ -257,6 +245,7 @@ router.get('/users', async (_req, res) => {
   );
 });
 
+// Creates a membership between an existing user and company.
 router.post('/memberships', async (req, res) => {
   const parsed = createMembershipSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -309,6 +298,7 @@ router.post('/memberships', async (req, res) => {
   }
 });
 
+// Removes a membership by id regardless of authentication.
 router.delete('/memberships/:membershipId', async (req, res) => {
   const { membershipId } = req.params;
 
@@ -323,6 +313,7 @@ router.delete('/memberships/:membershipId', async (req, res) => {
   }
 });
 
+// Lists memberships for a specific user, including company names.
 router.get('/memberships', async (req, res) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId : null;
 

@@ -1,25 +1,15 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import { createLocationSchema, updateLocationSchema } from './helpers/locations.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const createSchema = z.object({
-  name: z.string().min(1),
-  address: z.string().optional(),
-});
-
-const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  address: z.string().optional(),
-});
-
-const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
-
+// Lists all locations belonging to the authenticated company.
 router.get('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -33,6 +23,7 @@ router.get('/', async (req, res) => {
   return res.json(locations);
 });
 
+// Fetches a single location ensuring it belongs to the active company.
 router.get('/:locationId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -46,15 +37,16 @@ router.get('/:locationId', async (req, res) => {
   return res.json(location);
 });
 
+// Creates a new location for the active company.
 router.post('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to create locations' });
   }
 
-  const parsed = createSchema.safeParse(req.body);
+  const parsed = createLocationSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -70,15 +62,16 @@ router.post('/', async (req, res) => {
   return res.status(201).json(location);
 });
 
+// Updates an existing location when requested by a company manager.
 router.patch('/:locationId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update locations' });
   }
 
-  const parsed = updateSchema.safeParse(req.body);
+  const parsed = updateLocationSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -104,11 +97,12 @@ router.patch('/:locationId', async (req, res) => {
   return res.json(updated);
 });
 
+// Deletes a location if it is unused by any machines.
 router.delete('/:locationId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete locations' });
   }
 

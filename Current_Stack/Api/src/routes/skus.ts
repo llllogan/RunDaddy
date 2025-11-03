@@ -1,34 +1,21 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import { createSkuSchema, updateSkuSchema } from './helpers/skus.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const createSchema = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
-  type: z.string().min(1),
-  isCheeseAndCrackers: z.boolean().optional(),
-});
-
-const updateSchema = z.object({
-  code: z.string().min(1).optional(),
-  name: z.string().min(1).optional(),
-  type: z.string().min(1).optional(),
-  isCheeseAndCrackers: z.boolean().optional(),
-});
-
-const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
-
+// Lists all SKUs in alphabetical order.
 router.get('/', async (_req, res) => {
   const skus = await prisma.sKU.findMany({ orderBy: { name: 'asc' } });
   return res.json(skus);
 });
 
+// Fetches a SKU by id.
 router.get('/:skuId', async (req, res) => {
   const sku = await prisma.sKU.findUnique({ where: { id: req.params.skuId } });
   if (!sku) {
@@ -37,15 +24,16 @@ router.get('/:skuId', async (req, res) => {
   return res.json(sku);
 });
 
+// Creates a new SKU record for the catalog.
 router.post('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to create SKUs' });
   }
 
-  const parsed = createSchema.safeParse(req.body);
+  const parsed = createSkuSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -65,15 +53,16 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Updates SKU metadata when requested by a manager.
 router.patch('/:skuId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update SKUs' });
   }
 
-  const parsed = updateSchema.safeParse(req.body);
+  const parsed = updateSkuSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
@@ -109,11 +98,12 @@ router.patch('/:skuId', async (req, res) => {
   }
 });
 
+// Deletes a SKU that is not currently assigned to coil items.
 router.delete('/:skuId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete SKUs' });
   }
 

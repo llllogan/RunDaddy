@@ -1,48 +1,17 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { hashPassword } from '../lib/password.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import { createUserSchema, updateUserSchema, userLookupSchema } from './helpers/users.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  phone: z.string().min(7).optional(),
-  role: z.nativeEnum(UserRole).default(UserRole.PICKER),
-});
-
-const updateUserSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  phone: z.string().optional(),
-  password: z.string().min(8).optional(),
-  role: z.nativeEnum(UserRole).optional(),
-});
-
-const canManageUsers = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
-
-const userLookupSchema = z.object({
-  userIds: z.array(z.string().cuid()).max(100),
-});
-
-const extractRows = <T>(result: unknown): T[] => {
-  if (Array.isArray(result)) {
-    if (result.length > 0 && Array.isArray(result[0])) {
-      return result[0] as T[];
-    }
-    return result as T[];
-  }
-  return [];
-};
-
+// Lists company members and their roles.
 router.get('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -82,6 +51,7 @@ router.get('/', async (req, res) => {
   );
 });
 
+// Looks up membership details for a set of user ids.
 router.post('/lookup', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -126,6 +96,7 @@ router.post('/lookup', async (req, res) => {
   );
 });
 
+// Fetches a single user membership within the company.
 router.get('/:userId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -158,12 +129,13 @@ router.get('/:userId', async (req, res) => {
   });
 });
 
+// Invites a user to the company or attaches an existing account.
 router.post('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!canManageUsers(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to invite users' });
   }
 
@@ -247,6 +219,7 @@ router.post('/', async (req, res) => {
   });
 });
 
+// Updates user profile fields or their role within the company.
 router.patch('/:userId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -273,11 +246,11 @@ router.patch('/:userId', async (req, res) => {
   }
 
   const isSelf = req.auth.userId === userId;
-  if (!isSelf && !canManageUsers(req.auth.role)) {
+  if (!isSelf && !isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update other users' });
   }
 
-  if (parsed.data.role && !canManageUsers(req.auth.role)) {
+  if (parsed.data.role && !isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to change roles' });
   }
 
@@ -294,12 +267,12 @@ router.patch('/:userId', async (req, res) => {
   if (parsed.data.password) {
     userUpdates.password = await hashPassword(parsed.data.password);
   }
-  if (parsed.data.role && canManageUsers(req.auth.role)) {
+  if (parsed.data.role && isCompanyManager(req.auth.role)) {
     userUpdates.role = parsed.data.role;
   }
 
   const membershipUpdates: Record<string, unknown> = {};
-  if (parsed.data.role && canManageUsers(req.auth.role)) {
+  if (parsed.data.role && isCompanyManager(req.auth.role)) {
     membershipUpdates.role = parsed.data.role;
   }
 
@@ -343,6 +316,7 @@ router.patch('/:userId', async (req, res) => {
   });
 });
 
+// Removes a user from the company or deletes their account when appropriate.
 router.delete('/:userId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -364,7 +338,7 @@ router.delete('/:userId', async (req, res) => {
   }
 
   const isSelf = req.auth.userId === userId;
-  if (!isSelf && !canManageUsers(req.auth.role)) {
+  if (!isSelf && !isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to remove users' });
   }
 
@@ -393,7 +367,7 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!canManageUsers(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to view refresh tokens' });
   }
 

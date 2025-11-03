@@ -1,17 +1,19 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import {
+  updateCompanySchema,
+  toCompanyMembershipResponse,
+  type CompanyMembershipRecord,
+} from './helpers/companies.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const updateCompanySchema = z.object({
-  name: z.string().min(1),
-});
-
+// Lists all companies the authenticated user belongs to.
 router.get('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -25,24 +27,10 @@ router.get('/', async (req, res) => {
     orderBy: { company: { name: 'asc' } },
   });
 
-  type MembershipRecord = {
-    company: { id: string; name: string; createdAt: Date; updatedAt: Date };
-    role: UserRole;
-  };
-
-  const response = (memberships as MembershipRecord[]).map((membership) => ({
-    company: {
-      id: membership.company.id,
-      name: membership.company.name,
-      createdAt: membership.company.createdAt,
-      updatedAt: membership.company.updatedAt,
-    },
-    role: membership.role,
-  }));
-
-  return res.json(response);
+  return res.json(toCompanyMembershipResponse(memberships as CompanyMembershipRecord[]));
 });
 
+// Fetches the authenticated user's membership details for a specific company.
 router.get('/:companyId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -74,6 +62,7 @@ router.get('/:companyId', async (req, res) => {
   });
 });
 
+// Updates metadata for the current company when requested by a manager.
 router.patch('/:companyId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -84,8 +73,7 @@ router.patch('/:companyId', async (req, res) => {
     return res.status(403).json({ error: 'Cannot modify another company' });
   }
 
-  const allowedRoles = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
-  if (!allowedRoles.has(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update company' });
   }
 
@@ -111,6 +99,7 @@ router.patch('/:companyId', async (req, res) => {
   });
 });
 
+// Permanently deletes the active company when requested by an owner.
 router.delete('/:companyId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });

@@ -1,141 +1,24 @@
 import { Router } from 'express';
-import type { Response } from 'express';
 import type { Prisma } from '@prisma/client';
-import { z } from 'zod';
 import { AuthContext, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
+import {
+  registerSchema,
+  loginSchema,
+  switchCompanySchema,
+  getAllowedRolesForContext,
+  formatMembershipChoices,
+  respondWithSession,
+  buildSessionPayload,
+  type MembershipSummary,
+} from './helpers/auth.js';
 
 const router = Router();
 
-const registerSchema = z.object({
-  companyName: z.string().min(2),
-  userFirstName: z.string().min(1),
-  userLastName: z.string().min(1),
-  userEmail: z.string().email(),
-  userPassword: z.string().min(8),
-  userPhone: z.string().min(7).optional(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-  companyId: z.string().cuid().optional(),
-  context: z.nativeEnum(AuthContext).default(AuthContext.WEB),
-  setAsDefault: z.boolean().optional(),
-});
-
-const refreshSchema = z.object({
-  refreshToken: z.string().min(10),
-});
-
-const switchCompanySchema = z.object({
-  companyId: z.string().cuid(),
-  context: z.nativeEnum(AuthContext).optional(),
-  persist: z.boolean().optional(),
-});
-
-type SessionCompany = { id: string; name: string };
-type SessionUser = {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  phone?: string | null;
-};
-
-type SessionTokens = {
-  accessToken: string;
-  refreshToken: string;
-  accessTokenExpiresAt: Date;
-  refreshTokenExpiresAt: Date;
-  context: AuthContext;
-};
-
-type MembershipSummary = {
-  id: string;
-  companyId: string;
-  role: UserRole;
-  company: { id: string; name: string };
-};
-
-const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
-const ALL_ALLOWED_ROLES = new Set<UserRole>(Object.values(UserRole));
-
-const getAllowedRolesForContext = (context: AuthContext): Set<UserRole> => {
-  return context === AuthContext.WEB ? WEB_ALLOWED_ROLES : ALL_ALLOWED_ROLES;
-};
-
-const formatMembershipChoices = (memberships: MembershipSummary[]) =>
-  memberships.map((member) => ({
-    companyId: member.companyId,
-    companyName: member.company.name,
-    role: member.role,
-  }));
-
-const respondWithSession = (
-  res: Response,
-  data: {
-    company: SessionCompany;
-    user: SessionUser;
-    tokens: SessionTokens;
-  },
-  status = 200,
-) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict' as const,
-    path: '/api',
-    ...(isProduction ? {} : { domain: 'localhost' }),
-  };
-
-  res.cookie('accessToken', data.tokens.accessToken, {
-    ...cookieOptions,
-    expires: data.tokens.accessTokenExpiresAt,
-  });
-  res.cookie('refreshToken', data.tokens.refreshToken, {
-    ...cookieOptions,
-    expires: data.tokens.refreshTokenExpiresAt,
-  });
-
-  const responseData: any = {
-    company: data.company,
-    user: {
-      id: data.user.id,
-      email: data.user.email,
-      firstName: data.user.firstName,
-      lastName: data.user.lastName,
-      role: data.user.role,
-      phone: data.user.phone ?? null,
-    },
-  };
-
-  if (data.tokens.context === AuthContext.APP) {
-    responseData.accessToken = data.tokens.accessToken;
-    responseData.refreshToken = data.tokens.refreshToken;
-    responseData.accessTokenExpiresAt = data.tokens.accessTokenExpiresAt;
-    responseData.refreshTokenExpiresAt = data.tokens.refreshTokenExpiresAt;
-    responseData.context = data.tokens.context;
-  }
-
-  return res.status(status).json(responseData);
-};
-
-const buildSessionPayload = (
-  user: SessionUser,
-  company: SessionCompany,
-  tokens: SessionTokens,
-) => ({
-  company,
-  user,
-  tokens,
-});
-
+// Registers a new company and owner account, returning initial session tokens.
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
 
@@ -210,6 +93,7 @@ router.post('/register', async (req, res) => {
   );
 });
 
+// Authenticates a user and establishes a session for the selected company.
 router.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
@@ -364,6 +248,7 @@ router.post('/login', async (req, res) => {
   );
 });
 
+// Issues a new access token pair when provided with a valid refresh token cookie.
 router.post('/refresh', async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken || typeof refreshToken !== 'string') {
@@ -460,6 +345,7 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+// Switches the active company for the authenticated session and rotates tokens.
 router.post('/switch-company', authenticate, async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -567,12 +453,14 @@ router.post('/switch-company', authenticate, async (req, res) => {
   );
 });
 
+// Clears authentication cookies to log the user out.
 router.post('/logout', (req, res) => {
   res.clearCookie('accessToken');
   res.clearCookie('refreshToken');
   res.status(200).json({ message: 'Logged out' });
 });
 
+// Returns the authenticated user's profile and company context.
 router.get('/me', authenticate, async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });

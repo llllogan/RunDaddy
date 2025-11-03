@@ -1,98 +1,25 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { isCompanyManager } from './helpers/authorization.js';
+import {
+  createMachineSchema,
+  updateMachineSchema,
+  createCoilSchema,
+  updateCoilSchema,
+  createCoilItemSchema,
+  updateCoilItemSchema,
+  ensureMachine,
+  ensureCoil,
+  ensureCoilItem,
+} from './helpers/machines.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-const canManage = (role: UserRole) => role === UserRole.ADMIN || role === UserRole.OWNER;
-
-const extractRows = <T>(result: unknown): T[] => {
-  if (Array.isArray(result)) {
-    if (result.length > 0 && Array.isArray(result[0])) {
-      return result[0] as T[];
-    }
-    return result as T[];
-  }
-  return [];
-};
-
-const createMachineSchema = z.object({
-  code: z.string().min(1),
-  description: z.string().optional(),
-  machineTypeId: z.string().cuid(),
-  locationId: z.string().cuid().optional(),
-});
-
-const updateMachineSchema = z.object({
-  code: z.string().min(1).optional(),
-  description: z.string().optional(),
-  machineTypeId: z.string().cuid().optional(),
-  locationId: z.string().cuid().optional(),
-});
-
-const createCoilSchema = z.object({
-  code: z.string().min(1),
-});
-
-const updateCoilSchema = z.object({
-  code: z.string().min(1).optional(),
-});
-
-const createCoilItemSchema = z.object({
-  skuId: z.string().cuid(),
-  par: z.number().int().min(0),
-});
-
-const updateCoilItemSchema = z.object({
-  skuId: z.string().cuid().optional(),
-  par: z.number().int().min(0).optional(),
-});
-
-const ensureMachine = async (companyId: string, machineId: string) => {
-  const machine = await prisma.machine.findUnique({
-    where: { id: machineId },
-    include: {
-      machineType: true,
-      location: true,
-    },
-  });
-  if (!machine || machine.companyId !== companyId) {
-    return null;
-  }
-  return machine;
-};
-
-const ensureCoil = async (machineId: string, coilId: string) => {
-  const coil = await prisma.coil.findUnique({
-    where: { id: coilId },
-    include: {
-      coilItems: {
-        include: { sku: true },
-      },
-    },
-  });
-  if (!coil || coil.machineId !== machineId) {
-    return null;
-  }
-  return coil;
-};
-
-const ensureCoilItem = async (coilId: string, coilItemId: string) => {
-  const coilItem = await prisma.coilItem.findUnique({
-    where: { id: coilItemId },
-    include: { sku: true, coil: true },
-  });
-  if (!coilItem || coilItem.coilId !== coilId) {
-    return null;
-  }
-  return coilItem;
-};
-
+// Lists all machines for the authenticated company including type and location.
 router.get('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -110,6 +37,7 @@ router.get('/', async (req, res) => {
   return res.json(machines);
 });
 
+// Returns machine details via the reporting view for richer metadata.
 router.get('/details', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -153,6 +81,7 @@ router.get('/details', async (req, res) => {
   );
 });
 
+// Provides coil inventory data with optional filtering by machine id.
 router.get('/coil-inventory', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -209,11 +138,12 @@ router.get('/coil-inventory', async (req, res) => {
   );
 });
 
+// Creates a machine for the authenticated company.
 router.post('/', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to create machines' });
   }
 
@@ -256,6 +186,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Fetches a single machine ensuring it belongs to the active company.
 router.get('/:machineId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -269,11 +200,12 @@ router.get('/:machineId', async (req, res) => {
   return res.json(machine);
 });
 
+// Updates machine details when requested by a company manager.
 router.patch('/:machineId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update machines' });
   }
 
@@ -336,11 +268,12 @@ router.patch('/:machineId', async (req, res) => {
   }
 });
 
+// Deletes a machine that belongs to the active company.
 router.delete('/:machineId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete machines' });
   }
 
@@ -353,6 +286,7 @@ router.delete('/:machineId', async (req, res) => {
   return res.status(204).send();
 });
 
+// Lists all coils for the specified machine.
 router.get('/:machineId/coils', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -376,11 +310,12 @@ router.get('/:machineId/coils', async (req, res) => {
   return res.json(coils);
 });
 
+// Creates a coil for the specified machine.
 router.post('/:machineId/coils', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to create coils' });
   }
 
@@ -410,11 +345,12 @@ router.post('/:machineId/coils', async (req, res) => {
   }
 });
 
+// Updates a coil's metadata when requested by a manager.
 router.patch('/:machineId/coils/:coilId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update coils' });
   }
 
@@ -454,11 +390,12 @@ router.patch('/:machineId/coils/:coilId', async (req, res) => {
   }
 });
 
+// Removes a coil from a machine.
 router.delete('/:machineId/coils/:coilId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete coils' });
   }
 
@@ -476,6 +413,7 @@ router.delete('/:machineId/coils/:coilId', async (req, res) => {
   return res.status(204).send();
 });
 
+// Retrieves all coil items for a specific coil.
 router.get('/:machineId/coils/:coilId/items', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -494,11 +432,12 @@ router.get('/:machineId/coils/:coilId/items', async (req, res) => {
   return res.json(coil.coilItems);
 });
 
+// Assigns a SKU to a coil with a target par level.
 router.post('/:machineId/coils/:coilId/items', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to assign coil items' });
   }
 
@@ -537,11 +476,12 @@ router.post('/:machineId/coils/:coilId/items', async (req, res) => {
   }
 });
 
+// Updates an existing coil item assignment.
 router.patch('/:machineId/coils/:coilId/items/:coilItemId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to update coil items' });
   }
 
@@ -592,11 +532,12 @@ router.patch('/:machineId/coils/:coilId/items/:coilItemId', async (req, res) => 
   }
 });
 
+// Removes a SKU assignment from a coil.
 router.delete('/:machineId/coils/:coilId/items/:coilItemId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (!canManage(req.auth.role)) {
+  if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to delete coil items' });
   }
 
