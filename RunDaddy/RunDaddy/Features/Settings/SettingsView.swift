@@ -13,6 +13,12 @@ enum SettingsKeys {
     static let webhookURL = "settings.webhookURL"
     static let apiKey = "settings.apiKey"
     static let navigationApp = "settings.navigationApp"
+    static let lastLoginDate = "settings.lastLoginDate"
+    static let accessTokenExpiry = "settings.accessTokenExpiry"
+    static let refreshTokenExpiry = "settings.refreshTokenExpiry"
+    static let authUserId = "settings.authUserId"
+    static let authCompanyId = "settings.authCompanyId"
+    static let authContext = "settings.authContext"
 }
 
 enum NavigationApp: String, CaseIterable, Identifiable {
@@ -46,6 +52,12 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.webhookURL) private var webhookURL: String = ""
     @AppStorage(SettingsKeys.apiKey) private var apiKey: String = ""
     @AppStorage(SettingsKeys.navigationApp) private var navigationAppRawValue: String = NavigationApp.appleMaps.rawValue
+    @AppStorage(SettingsKeys.lastLoginDate) private var lastLoginDate: String = ""
+    @AppStorage(SettingsKeys.accessTokenExpiry) private var accessTokenExpiry: String = ""
+    @AppStorage(SettingsKeys.refreshTokenExpiry) private var refreshTokenExpiry: String = ""
+    @AppStorage(SettingsKeys.authUserId) private var authUserId: String = ""
+    @AppStorage(SettingsKeys.authCompanyId) private var authCompanyId: String = ""
+    @AppStorage(SettingsKeys.authContext) private var authContext: String = ""
 
     private var navigationAppBinding: Binding<NavigationApp> {
         Binding<NavigationApp> {
@@ -90,6 +102,15 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.inline)
+                }
+
+                Section("Authentication Debug") {
+                    Text("Last Login: \(lastLoginDate.isEmpty ? "Never" : lastLoginDate)")
+                    Text("Access Token Expiry: \(accessTokenExpiry.isEmpty ? "N/A" : accessTokenExpiry)")
+                    Text("Refresh Token Expiry: \(refreshTokenExpiry.isEmpty ? "N/A" : refreshTokenExpiry)")
+                    Text("User ID: \(authUserId.isEmpty ? "N/A" : authUserId)")
+                    Text("Company ID: \(authCompanyId.isEmpty ? "N/A" : authCompanyId)")
+                    Text("Context: \(authContext.isEmpty ? "N/A" : authContext)")
                 }
             }
             .navigationTitle("Settings")

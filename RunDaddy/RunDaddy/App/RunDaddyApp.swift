@@ -32,7 +32,7 @@ struct RunDaddyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            AuthView()
                 .environmentObject(sessionController)
                 .environment(\.haptics, HapticFeedbackService.live)
         }
