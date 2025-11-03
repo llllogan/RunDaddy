@@ -103,7 +103,7 @@ const respondWithSession = (
     expires: data.tokens.refreshTokenExpiresAt,
   });
 
-  return res.status(status).json({
+  const responseData: any = {
     company: data.company,
     user: {
       id: data.user.id,
@@ -113,7 +113,17 @@ const respondWithSession = (
       role: data.user.role,
       phone: data.user.phone ?? null,
     },
-  });
+  };
+
+  if (data.tokens.context === AuthContext.APP) {
+    responseData.accessToken = data.tokens.accessToken;
+    responseData.refreshToken = data.tokens.refreshToken;
+    responseData.accessTokenExpiresAt = data.tokens.accessTokenExpiresAt;
+    responseData.refreshTokenExpiresAt = data.tokens.refreshTokenExpiresAt;
+    responseData.context = data.tokens.context;
+  }
+
+  return res.status(status).json(responseData);
 };
 
 const buildSessionPayload = (
