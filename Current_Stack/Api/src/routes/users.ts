@@ -11,6 +11,14 @@ const router = Router();
 
 router.use(authenticate);
 
+
+
+
+
+
+
+
+
 // Lists company members and their roles.
 router.get('/', async (req, res) => {
   if (!req.auth) {
@@ -96,7 +104,8 @@ router.post('/lookup', async (req, res) => {
   );
 });
 
-// Fetches a single user membership within the company.
+
+// Get user details by their ID`
 router.get('/:userId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });

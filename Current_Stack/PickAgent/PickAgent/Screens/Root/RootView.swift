@@ -123,7 +123,7 @@ private final class PreviewAuthService: AuthServicing {
         credentials
     }
 
-    func login(username: String, password: String) async throws -> AuthCredentials {
+    func login(email: String, password: String) async throws -> AuthCredentials {
         credentials
     }
 

@@ -67,13 +67,17 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func login(username: String, password: String) async {
+    func login(email: String, password: String) async {
         guard !isProcessing else { return }
         errorMessage = nil
         isProcessing = true
 
         do {
-            let credentials = try await service.login(username: username, password: password)
+            let normalizedEmail = email
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            let credentials = try await service.login(email: normalizedEmail, password: password)
             service.store(credentials: credentials)
             phase = .authenticated(credentials)
         } catch {

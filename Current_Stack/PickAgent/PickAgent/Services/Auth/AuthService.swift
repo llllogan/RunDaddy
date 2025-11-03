@@ -12,13 +12,17 @@ protocol AuthServicing {
     func store(credentials: AuthCredentials)
     func clearStoredCredentials()
     func refresh(using credentials: AuthCredentials) async throws -> AuthCredentials
-    func login(username: String, password: String) async throws -> AuthCredentials
+    func login(email: String, password: String) async throws -> AuthCredentials
 }
 
 final class AuthService: AuthServicing {
     private enum Endpoint {
         static let login = "auth/login"
         static let refresh = "auth/refresh"
+    }
+    
+    private enum AuthContext: String {
+        case app = "APP"
     }
 
     private let credentialStore: CredentialStoring
@@ -62,10 +66,10 @@ final class AuthService: AuthServicing {
         return response.buildCredentials()
     }
 
-    func login(username: String, password: String) async throws -> AuthCredentials {
+    func login(email: String, password: String) async throws -> AuthCredentials {
         let response: AuthPayload = try await performRequest(
             path: Endpoint.login,
-            body: LoginRequest(username: username, password: password)
+            body: LoginRequest(email: email, password: password, context: AuthContext.app.rawValue)
         )
 
         return response.buildCredentials()
@@ -79,6 +83,7 @@ final class AuthService: AuthServicing {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
+        request.httpShouldHandleCookies = true
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -98,8 +103,9 @@ final class AuthService: AuthServicing {
 }
 
 private struct LoginRequest: Encodable {
-    let username: String
+    let email: String
     let password: String
+    let context: String
 }
 
 private struct RefreshRequest: Encodable {
@@ -107,28 +113,23 @@ private struct RefreshRequest: Encodable {
 }
 
 private struct AuthPayload: Decodable {
+    struct UserSummary: Decodable {
+        let id: String
+    }
+
+    let user: UserSummary
     let accessToken: String
     let refreshToken: String
-    let userID: String
-    let expiresIn: TimeInterval?
-    let expiresAt: Date?
+    let accessTokenExpiresAt: Date?
+    let refreshTokenExpiresAt: Date?
 
     func buildCredentials(currentDate: Date = .now) -> AuthCredentials {
-        let expirationDate: Date
-
-        if let expiresAt {
-            expirationDate = expiresAt
-        } else if let expiresIn {
-            expirationDate = currentDate.addingTimeInterval(expiresIn)
-        } else {
-            // Default to one hour if the API omits expiry values.
-            expirationDate = currentDate.addingTimeInterval(3600)
-        }
+        let expirationDate = accessTokenExpiresAt ?? currentDate.addingTimeInterval(3600)
 
         return AuthCredentials(
             accessToken: accessToken,
             refreshToken: refreshToken,
-            userID: userID,
+            userID: user.id,
             expiresAt: expirationDate
         )
     }
@@ -149,7 +150,7 @@ enum AuthError: LocalizedError {
             }
             return "Server responded with an unexpected error (code \(code))."
         case .unauthorized:
-            return "Your username or password is incorrect."
+            return "Your email address or password is incorrect."
         }
     }
 }
