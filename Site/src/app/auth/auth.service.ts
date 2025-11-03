@@ -182,6 +182,14 @@ export class AuthService {
     return this.restoreSession();
   }
 
+  refreshSessionObservable() {
+    return this.http.post<SessionPayload>(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+  }
+
+  updateSession(payload: SessionPayload) {
+    this.setSession(payload);
+  }
+
   private async refreshSession(): Promise<void> {
     if (this.refreshPromise) {
       return this.refreshPromise;

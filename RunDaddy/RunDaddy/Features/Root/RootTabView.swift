@@ -10,6 +10,7 @@ import SwiftData
 
 struct RootTabView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
+    var onLogout: () -> Void
 
     var body: some View {
         TabView {
@@ -23,7 +24,7 @@ struct RootTabView: View {
                     Label("Info", systemImage: "info.circle")
                 }
 
-            SettingsView()
+            SettingsView(onLogout: onLogout)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -172,7 +173,7 @@ private struct PackingSessionSummaryView: View {
 
 
 #Preview {
-    RootTabView()
+    RootTabView(onLogout: {})
         .environmentObject(PackingSessionController())
         .modelContainer(PreviewFixtures.container)
 }

@@ -14,7 +14,7 @@ struct AuthView: View {
     var body: some View {
         Group {
             if isLoggedIn {
-                RootTabView()
+                RootTabView(onLogout: logout)
             } else {
                 LoginView(onLoginSuccess: {
                     isLoggedIn = true
@@ -28,5 +28,12 @@ struct AuthView: View {
 
     private func checkAuth() {
         isLoggedIn = authService.getStoredAuth() != nil
+    }
+
+    private func logout() {
+        Task {
+            await authService.logout()
+            isLoggedIn = false
+        }
     }
 }

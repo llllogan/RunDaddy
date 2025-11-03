@@ -47,6 +47,8 @@ enum NavigationApp: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    var onLogout: () -> Void
+
     @AppStorage(SettingsKeys.userName) private var userName: String = ""
     @AppStorage(SettingsKeys.userEmail) private var userEmail: String = ""
     @AppStorage(SettingsKeys.webhookURL) private var webhookURL: String = ""
@@ -112,6 +114,12 @@ struct SettingsView: View {
                     Text("Company ID: \(authCompanyId.isEmpty ? "N/A" : authCompanyId)")
                     Text("Context: \(authContext.isEmpty ? "N/A" : authContext)")
                 }
+
+                Section {
+                    Button("Log Out", role: .destructive) {
+                        onLogout()
+                    }
+                }
             }
             .navigationTitle("Settings")
         }
@@ -119,5 +127,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(onLogout: {})
 }

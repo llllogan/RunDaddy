@@ -54,7 +54,22 @@ class AuthService {
         return AuthContext(user: user, company: company, accessToken: accessToken, refreshToken: refreshToken, accessTokenExpiresAt: accessExpires, refreshTokenExpiresAt: refreshExpires, context: context)
     }
 
-    func logout() {
+    func logout() async {
+        // Call logout API endpoint
+        if let auth = getStoredAuth() {
+            let url = URL(string: "\(APIConfig.baseURL)/auth/logout")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(auth.accessToken)", forHTTPHeaderField: "Authorization")
+
+            do {
+                _ = try await URLSession.shared.data(for: request)
+            } catch {
+                // Ignore logout API errors
+            }
+        }
+
         // Clear stored auth
         UserDefaults.standard.removeObject(forKey: "authContext")
     }
@@ -105,10 +120,48 @@ class AuthService {
         }
 
         if auth.accessTokenExpiresAt < Date() {
-            auth = try await refreshToken()
+            do {
+                auth = try await refreshToken()
+            } catch AuthError.refreshFailed {
+                // Refresh failed, likely due to 401, logout
+                await logout()
+                throw AuthError.unauthorized
+            }
         }
 
         return auth.accessToken
+    }
+
+    func performAuthenticatedRequest(_ request: URLRequest, retryOn401: Bool = true) async throws -> (Data, HTTPURLResponse) {
+        let token = try await getValidToken()
+
+        var authenticatedRequest = request
+        authenticatedRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 && retryOn401 {
+            // Try to refresh token and retry once
+            do {
+                _ = try await refreshToken()
+                // Retry the request (without further retries to prevent loops)
+                return try await performAuthenticatedRequest(request, retryOn401: false)
+            } catch {
+                // Refresh failed, logout
+                await logout()
+                throw AuthError.unauthorized
+            }
+        } else if httpResponse.statusCode == 401 {
+            // Already tried refresh, logout
+            await logout()
+            throw AuthError.unauthorized
+        }
+
+        return (data, httpResponse)
     }
 }
 
@@ -128,4 +181,5 @@ enum AuthError: Error {
     case multipleCompanies
     case notLoggedIn
     case refreshFailed
+    case unauthorized
 }
