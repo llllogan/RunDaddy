@@ -2,7 +2,7 @@
 @token = paste-your-jwt-here
 
 ### Upload the sample Excel workbook
-POST {{baseUrl}}/run-imports/runs
+POST {{baseUrl}}/api/run-imports/runs
 # Authorization: Bearer {{token}}
 Content-Type: multipart/form-data; boundary=----RunDaddyBoundary
 

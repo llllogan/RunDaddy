@@ -1,3 +1,4 @@
+@baseUrl = http://localhost:3000
 @COMPANY_ID=cmhe2gr1100008holqfm3bryk
 
 @USER_ID=cmhe26ks000018hi0mm9pz0r8
@@ -5,7 +6,7 @@
 
 
 ### Create a company for debugging
-POST http://localhost:3000/debug/companies
+POST {{baseUrl}}/api/debug/companies
 Content-Type: application/json
 
 {
@@ -15,17 +16,17 @@ Content-Type: application/json
 ###
 
 ### List companies
-GET http://10.10.20.4:3000/debug/companies
+GET {{baseUrl}}/api/debug/companies
 
 ###
 
 ### Delete a company (replace COMPANY_ID)
-DELETE http://localhost:3000/debug/companies/{{COMPANY_ID}}
+DELETE {{baseUrl}}/api/debug/companies/{{COMPANY_ID}}
 
 ###
 
 ### Create a user and optionally attach to a company
-POST http://localhost:3000/debug/users
+POST {{baseUrl}}/api/debug/users
 Content-Type: application/json
 
 {
@@ -43,17 +44,17 @@ Content-Type: application/json
 ###
 
 ### Delete a user (replace USER_ID)
-DELETE http://localhost:3000/debug/users/{{USER_ID}}
+DELETE {{baseUrl}}/api/debug/users/{{USER_ID}}
 
 ###
 
 ### List users
-GET http://localhost:3000/debug/users
+GET {{baseUrl}}/api/debug/users
 
 ###
 
 ### Create a membership (attach an existing user to an existing company)
-POST http://localhost:3000/debug/memberships
+POST {{baseUrl}}/api/debug/memberships
 Content-Type: application/json
 
 {
@@ -66,12 +67,12 @@ Content-Type: application/json
 ###
 
 ### Delete a membership (replace MEMBERSHIP_ID)
-DELETE http://localhost:3000/debug/memberships/{{MEMBERSHIP_ID}}
+DELETE {{baseUrl}}/api/debug/memberships/{{MEMBERSHIP_ID}}
 
 ###
 
 ### List memberships for a user
-GET http://localhost:3000/debug/memberships?userId={{USER_ID}}
+GET {{baseUrl}}/api/debug/memberships?userId={{USER_ID}}
 
 ### List machines for a company
-GET http://localhost:3000/debug/companies/{{COMPANY_ID}}/machines
+GET {{baseUrl}}/api/debug/companies/{{COMPANY_ID}}/machines

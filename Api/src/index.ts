@@ -49,7 +49,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/health', async (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1 as ok`;
     res.json({ ok: true, database: 'up' });
@@ -58,16 +58,16 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-app.use('/auth', authRouter);
-app.use('/companies', companiesRouter);
-app.use('/users', usersRouter);
-app.use('/machine-types', machineTypesRouter);
-app.use('/locations', locationsRouter);
-app.use('/machines', machinesRouter);
-app.use('/skus', skusRouter);
-app.use('/runs', runsRouter);
-app.use('/run-imports', runImportsRouter);
-app.use('/debug', debugRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/companies', companiesRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/machine-types', machineTypesRouter);
+app.use('/api/locations', locationsRouter);
+app.use('/api/machines', machinesRouter);
+app.use('/api/skus', skusRouter);
+app.use('/api/runs', runsRouter);
+app.use('/api/run-imports', runImportsRouter);
+app.use('/api/debug', debugRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 let server: ReturnType<typeof app.listen> | undefined;
