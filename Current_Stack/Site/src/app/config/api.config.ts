@@ -6,4 +6,4 @@ declare global {
   }
 }
 
-export const API_BASE_URL = (window as any).__env?.apiBaseUrl || 'http://localhost:3000';
+export const API_BASE_URL = (window as any).__env?.apiBaseUrl || '/api';

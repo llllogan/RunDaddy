@@ -196,7 +196,7 @@ export class RunsService {
   async getOverview(): Promise<RunOverviewEntry[]> {
     try {
       const response = await firstValueFrom(
-        this.http.get<RunOverviewResponse[]>(`${API_BASE_URL}/runs/overview`),
+        this.http.get<RunOverviewResponse[]>(`${API_BASE_URL}/runs/overview`, { withCredentials: true }),
       );
       return response.map((run) => this.toRunOverviewEntry(run));
     } catch (error) {
@@ -207,7 +207,7 @@ export class RunsService {
   async getRunDetails(runId: string): Promise<RunDetails> {
     try {
       const response = await firstValueFrom(
-        this.http.get<RunDetailsResponse>(`${API_BASE_URL}/runs/${runId}`),
+        this.http.get<RunDetailsResponse>(`${API_BASE_URL}/runs/${runId}`, { withCredentials: true }),
       );
       return this.toRunDetails(response);
     } catch (error) {
@@ -221,7 +221,7 @@ export class RunsService {
         this.http.post<RunAssignmentResponse>(`${API_BASE_URL}/runs/${runId}/assignment`, {
           userId,
           role,
-        }),
+        }, { withCredentials: true }),
       );
 
       const normalized: RunOverviewResponse = {

@@ -32,7 +32,7 @@ export class RunImportsService {
 
     try {
       return await firstValueFrom(
-        this.http.post<RunImportPreview>(`${API_BASE_URL}/run-imports/runs`, formData),
+        this.http.post<RunImportPreview>(`${API_BASE_URL}/run-imports/runs`, formData, { withCredentials: true }),
       );
     } catch (error) {
       throw this.toError(error);

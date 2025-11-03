@@ -189,11 +189,12 @@ const ensureRun = async (companyId: string, runId: string) => {
               sku: true,
               coil: {
                 include: {
-                  machine: {
-                    include: {
-                      location: true,
-                    },
-                  },
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
                 },
               },
             },
@@ -205,6 +206,7 @@ const ensureRun = async (companyId: string, runId: string) => {
           machine: {
             include: {
               location: true,
+              machineType: true,
             },
           },
         },
@@ -293,6 +295,54 @@ router.get('/overview', async (req, res) => {
 
   const rows = await prisma.$queryRaw<VRunOverviewRow[]>(
     Prisma.sql`SELECT * FROM v_run_overview WHERE company_id = ${req.auth.companyId} ${statusFilter ? Prisma.sql`AND run_status = ${statusFilter}` : Prisma.empty} ORDER BY scheduled_for DESC, run_created_at DESC`,
+  );
+
+  return res.json(
+    rows.map((row) => ({
+      id: row.run_id,
+      companyId: row.company_id,
+      companyName: row.company_name,
+      status: row.run_status,
+      scheduledFor: row.scheduled_for,
+      pickingStartedAt: row.picking_started_at,
+      pickingEndedAt: row.picking_ended_at,
+      createdAt: row.run_created_at,
+      pickerId: row.picker_id,
+      pickerFirstName: row.picker_first_name,
+      pickerLastName: row.picker_last_name,
+      runnerId: row.runner_id,
+      runnerFirstName: row.runner_first_name,
+      runnerLastName: row.runner_last_name,
+    })),
+  );
+});
+
+router.get('/tobepicked', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  type VRunOverviewRow = {
+    run_id: string;
+    company_id: string;
+    company_name: string;
+    run_status: RunStatus;
+    scheduled_for: Date | null;
+    picking_started_at: Date | null;
+    picking_ended_at: Date | null;
+    run_created_at: Date;
+    picker_id: string | null;
+    picker_first_name: string | null;
+    picker_last_name: string | null;
+    runner_id: string | null;
+    runner_first_name: string | null;
+    runner_last_name: string | null;
+  };
+
+  const now = new Date();
+
+  const rows = await prisma.$queryRaw<VRunOverviewRow[]>(
+    Prisma.sql`SELECT * FROM v_run_overview WHERE company_id = ${req.auth.companyId} AND run_status IN ('CREATED', 'PICKING') AND scheduled_for >= ${now} ORDER BY scheduled_for ASC`,
   );
 
   return res.json(
@@ -441,7 +491,7 @@ router.post('/', async (req, res) => {
       companyId: req.auth.companyId,
       pickerId: pickerId ?? null,
       runnerId: runnerId ?? null,
-      status: status ?? RunStatus.DRAFT,
+      status: RunStatus.CREATED, // Always start new runs as CREATED
       pickingStartedAt: pickingStartedAt ?? null,
       pickingEndedAt: pickingEndedAt ?? null,
       scheduledFor: scheduledFor ?? null,

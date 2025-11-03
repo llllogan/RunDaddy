@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
 import { companiesRouter } from './routes/companies.js';
@@ -24,9 +25,35 @@ app.use(
     credentials: true,
   }),
 );
+app.use(cookieParser());
 app.use(express.json());
 
-app.get('/health', async (_req, res) => {
+// Logging middleware
+app.use((req, res, next) => {
+  let responseBody: any;
+
+  const originalJson = res.json;
+  res.json = function (body) {
+    responseBody = body;
+    return originalJson.call(this, body);
+  };
+
+  const originalSend = res.send;
+  res.send = function (body) {
+    responseBody = body;
+    return originalSend.call(this, body);
+  };
+
+  res.on('finish', () => {
+    const responseStr = JSON.stringify(responseBody);
+    const truncatedResponse = responseStr.length > 20 ? responseStr.substring(0, 20) + '...' : responseStr;
+    console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${truncatedResponse}`);
+  });
+
+  next();
+});
+
+app.get('/api/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1 as ok`;
     res.json({ ok: true, database: 'up' });
@@ -35,16 +62,16 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-app.use('/auth', authRouter);
-app.use('/companies', companiesRouter);
-app.use('/users', usersRouter);
-app.use('/machine-types', machineTypesRouter);
-app.use('/locations', locationsRouter);
-app.use('/machines', machinesRouter);
-app.use('/skus', skusRouter);
-app.use('/runs', runsRouter);
-app.use('/run-imports', runImportsRouter);
-app.use('/debug', debugRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/companies', companiesRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/machine-types', machineTypesRouter);
+app.use('/api/locations', locationsRouter);
+app.use('/api/machines', machinesRouter);
+app.use('/api/skus', skusRouter);
+app.use('/api/runs', runsRouter);
+app.use('/api/run-imports', runImportsRouter);
+app.use('/api/debug', debugRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 let server: ReturnType<typeof app.listen> | undefined;

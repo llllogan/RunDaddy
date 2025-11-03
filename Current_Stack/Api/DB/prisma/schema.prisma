@@ -8,10 +8,9 @@ datasource db {
 }
 
 enum RunStatus {
-  DRAFT
+  CREATED
   PICKING
-  READY
-  SCHEDULED
+  PICKED
   IN_PROGRESS
   COMPLETED
   CANCELLED
@@ -165,7 +164,7 @@ model Run {
   pickerId         String?
   runnerId         String?
   companyId        String
-  status           RunStatus  @default(DRAFT)
+  status           RunStatus  @default(CREATED)
   pickingStartedAt DateTime?
   pickingEndedAt   DateTime?
   scheduledFor     DateTime?

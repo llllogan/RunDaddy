@@ -10,18 +10,41 @@ import SwiftData
 
 struct RootTabView: View {
     @EnvironmentObject private var sessionController: PackingSessionController
+    var onLogout: () -> Void
 
     var body: some View {
-        RunHistoryView()
-            .safeAreaInset(edge: .bottom) {
-                if sessionController.hasActiveSession {
-                    PackingSessionBar()
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
+        TabView {
+            RunHistoryView()
+                .tabItem {
+                    Label("Runs", systemImage: "figure.run")
+                }
+
+            MachinesView()
+                .tabItem {
+                    Label("Info", systemImage: "info.circle")
+                }
+
+            SettingsView(onLogout: onLogout)
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+        }
+        .tabViewStyle(.automatic)
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory {
+            if sessionController.hasActiveSession {
+                PackingSessionBar()
+            } else {
+                Text("Not currently packing")
+            }
+        }
+        .sheet(isPresented: $sessionController.isSheetPresented,
+               onDismiss: { sessionController.minimizeSession() }) {
+            Group {
+                if let viewModel = sessionController.activeViewModel {
+                    PackingSessionView(viewModel: viewModel, controller: sessionController)
+                } else {
+                    EmptyView()
                 }
             }
             .sheet(isPresented: $sessionController.isSheetPresented,
@@ -154,7 +177,7 @@ private struct PackingSessionSummaryView: View {
 
 
 #Preview {
-    RootTabView()
+    RootTabView(onLogout: {})
         .environmentObject(PackingSessionController())
         .modelContainer(PreviewFixtures.container)
 }

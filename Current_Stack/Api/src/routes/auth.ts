@@ -85,7 +85,25 @@ const respondWithSession = (
   },
   status = 200,
 ) => {
-  return res.status(status).json({
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict' as const,
+    path: '/api',
+    ...(isProduction ? {} : { domain: 'localhost' }),
+  };
+
+  res.cookie('accessToken', data.tokens.accessToken, {
+    ...cookieOptions,
+    expires: data.tokens.accessTokenExpiresAt,
+  });
+  res.cookie('refreshToken', data.tokens.refreshToken, {
+    ...cookieOptions,
+    expires: data.tokens.refreshTokenExpiresAt,
+  });
+
+  const responseData: any = {
     company: data.company,
     user: {
       id: data.user.id,
@@ -95,14 +113,17 @@ const respondWithSession = (
       role: data.user.role,
       phone: data.user.phone ?? null,
     },
-    tokens: {
-      accessToken: data.tokens.accessToken,
-      refreshToken: data.tokens.refreshToken,
-      accessTokenExpiresAt: data.tokens.accessTokenExpiresAt.toISOString(),
-      refreshTokenExpiresAt: data.tokens.refreshTokenExpiresAt.toISOString(),
-      context: data.tokens.context,
-    },
-  });
+  };
+
+  if (data.tokens.context === AuthContext.APP) {
+    responseData.accessToken = data.tokens.accessToken;
+    responseData.refreshToken = data.tokens.refreshToken;
+    responseData.accessTokenExpiresAt = data.tokens.accessTokenExpiresAt;
+    responseData.refreshTokenExpiresAt = data.tokens.refreshTokenExpiresAt;
+    responseData.context = data.tokens.context;
+  }
+
+  return res.status(status).json(responseData);
 };
 
 const buildSessionPayload = (
@@ -344,13 +365,10 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/refresh', async (req, res) => {
-  const parsed = refreshSchema.safeParse(req.body);
-
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return res.status(401).json({ error: 'Refresh token required' });
   }
-
-  const { refreshToken } = parsed.data;
 
   try {
     const payload = verifyRefreshToken(refreshToken);
@@ -547,6 +565,12 @@ router.post('/switch-company', authenticate, async (req, res) => {
       tokens,
     ),
   );
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
+  res.status(200).json({ message: 'Logged out' });
 });
 
 router.get('/me', authenticate, async (req, res) => {

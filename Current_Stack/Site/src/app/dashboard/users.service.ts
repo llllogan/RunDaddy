@@ -52,7 +52,7 @@ export class UsersService {
   async listUsers(): Promise<DashboardUser[]> {
     try {
       const response = await firstValueFrom(
-        this.http.get<UsersResponseItem[]>(`${API_BASE_URL}/users`),
+        this.http.get<UsersResponseItem[]>(`${API_BASE_URL}/users`, { withCredentials: true }),
       );
 
       return response.map((user) => ({
@@ -79,7 +79,7 @@ export class UsersService {
       const response = await firstValueFrom(
         this.http.post<UserLookupResponseItem[]>(`${API_BASE_URL}/users/lookup`, {
           userIds,
-        }),
+        }, { withCredentials: true }),
       );
 
       return response.map((user) => ({

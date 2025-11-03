@@ -14,15 +14,9 @@ struct RunDaddyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if isLoggedIn {
-                RootTabView()
-                    .environmentObject(sessionController)
-                    .environment(\.haptics, HapticFeedbackService.live)
-            } else {
-                LoginView {
-                    isLoggedIn = true
-                }
-            }
+            AuthView()
+                .environmentObject(sessionController)
+                .environment(\.haptics, HapticFeedbackService.live)
         }
     }
 }
