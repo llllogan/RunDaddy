@@ -3,15 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
-import { companiesRouter } from './routes/companies.js';
 import { usersRouter } from './routes/users.js';
-import { machineTypesRouter } from './routes/machine-types.js';
-import { locationsRouter } from './routes/locations.js';
-import { machinesRouter } from './routes/machines.js';
-import { skusRouter } from './routes/skus.js';
-import { runsRouter } from './routes/runs.js';
 import { runImportsRouter } from './routes/run-imports.js';
-import { debugRouter } from './routes/debug.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -63,15 +56,8 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
-app.use('/api/companies', companiesRouter);
 app.use('/api/users', usersRouter);
-app.use('/api/machine-types', machineTypesRouter);
-app.use('/api/locations', locationsRouter);
-app.use('/api/machines', machinesRouter);
-app.use('/api/skus', skusRouter);
-app.use('/api/runs', runsRouter);
 app.use('/api/run-imports', runImportsRouter);
-app.use('/api/debug', debugRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 let server: ReturnType<typeof app.listen> | undefined;
