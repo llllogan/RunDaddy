@@ -22,6 +22,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
+COPY DB/prisma/schema.prisma ./DB/prisma/schema.prisma
+RUN npx prisma generate --schema DB/prisma/schema.prisma
 
 EXPOSE 80
 CMD ["node", "dist/index.js"]
