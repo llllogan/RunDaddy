@@ -12,7 +12,7 @@ fi
 env_file_path=${ENV_FILE_PATH:-"${dist_dir}/assets/env.js"}
 mkdir -p "$(dirname "$env_file_path")"
 
-api_base_url=${API_BASE_URL:-http://localhost:3000}
+api_base_url=${API_BASE_URL:-}
 
 escaped_api_base_url=${api_base_url//\\/\\\\}
 escaped_api_base_url=${escaped_api_base_url//\"/\\\"}
