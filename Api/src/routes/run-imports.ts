@@ -12,7 +12,8 @@ import type {
   ParsedPickEntry,
   ParsedRun,
 } from '../types/run-import.js';
-import { Prisma, RunStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { RunStatus } from '../types/enums.js';
 
 class RunImportError extends Error {
   constructor(message: string) {
