@@ -216,6 +216,98 @@ struct RunOverviewBento: View {
     }
 }
 
+struct LocationOverviewSummary {
+    let title: String
+    let address: String?
+    let machineCount: Int
+    let totalCoils: Int
+    let packedCoils: Int
+    let totalItems: Int
+
+    var remainingCoils: Int {
+        max(totalCoils - packedCoils, 0)
+    }
+}
+
+struct LocationOverviewBento: View {
+    let summary: LocationOverviewSummary
+
+    private var items: [BentoItem] {
+        var cards: [BentoItem] = []
+
+        cards.append(
+            BentoItem(title: "Location",
+                      value: summary.title,
+                      subtitle: summary.address,
+                      symbolName: "mappin.circle",
+                      symbolTint: .orange,
+                      allowsMultilineValue: true)
+        )
+
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "\(summary.machineCount)",
+                      symbolName: "building.2",
+                      symbolTint: .cyan)
+        )
+
+        cards.append(
+            BentoItem(title: "Total Coils",
+                      value: "\(summary.totalCoils)",
+                      symbolName: "scope",
+                      symbolTint: .purple)
+        )
+
+        if summary.totalCoils > 0 {
+            let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "\(summary.packedCoils) of \(summary.totalCoils)",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green,
+                          customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   totalCount: summary.totalItems,
+                                                                   tint: .green)))
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "0",
+                          subtitle: "Awaiting items",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green)
+            )
+        }
+
+        if summary.totalItems > 0 {
+            cards.append(
+                BentoItem(title: "Total Items",
+                          value: "\(summary.totalItems)",
+                          symbolName: "cube",
+                          symbolTint: .indigo,
+                          isProminent: true)
+            )
+        }
+
+        cards.append(
+            BentoItem(title: "Remaining",
+                      value: "\(summary.remainingCoils)",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
+                      symbolName: "cart",
+                      symbolTint: .pink,
+                      isProminent: summary.remainingCoils > 0)
+        )
+
+        return cards
+    }
+
+    var body: some View {
+        StaggeredBentoGrid(items: items, columnCount: 2)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
+    }
+}
+
 struct PackedGaugeChart: View {
     let progress: Double
     let totalCount: Int

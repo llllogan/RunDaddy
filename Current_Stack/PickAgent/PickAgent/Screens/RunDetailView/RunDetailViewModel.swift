@@ -48,15 +48,31 @@ struct RunLocationSection: Identifiable, Equatable {
     }
 }
 
+struct RunLocationDetail: Equatable {
+    let section: RunLocationSection
+    let machines: [RunDetail.Machine]
+    let pickItemsByMachine: [String: [RunDetail.PickItem]]
+
+    var pickItems: [RunDetail.PickItem] {
+        pickItemsByMachine.values.flatMap { $0 }
+    }
+
+    func pickItems(for machine: RunDetail.Machine) -> [RunDetail.PickItem] {
+        pickItemsByMachine[machine.id] ?? []
+    }
+}
+
 @MainActor
 final class RunDetailViewModel: ObservableObject {
     @Published private(set) var detail: RunDetail?
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var locationSections: [RunLocationSection] = []
 
     private let runId: String
     private let session: AuthSession
     private let service: RunsServicing
+    private var locationContextsByID: [String: LocationContext] = [:]
 
     init(runId: String, session: AuthSession, service: RunsServicing) {
         self.runId = runId
@@ -77,6 +93,7 @@ final class RunDetailViewModel: ObservableObject {
         do {
             let detail = try await service.fetchRunDetail(withId: runId, credentials: session.credentials)
             self.detail = detail
+            rebuildLocationData(from: detail)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -86,6 +103,8 @@ final class RunDetailViewModel: ObservableObject {
                 errorMessage = "We couldn't load this run right now. Please try again."
             }
             detail = nil
+            locationSections = []
+            locationContextsByID = [:]
         }
 
         isLoading = false
@@ -115,21 +134,38 @@ final class RunDetailViewModel: ObservableObject {
         )
     }
 
-    var locationSections: [RunLocationSection] {
-        guard let detail else { return [] }
-        return buildLocationSections(from: detail)
+    func locationDetail(for sectionID: String) -> RunLocationDetail? {
+        guard let context = locationContextsByID[sectionID] else {
+            return nil
+        }
+
+        let machines = context.machines.values.sorted { lhs, rhs in
+            lhs.code.localizedCaseInsensitiveCompare(rhs.code) == .orderedAscending
+        }
+
+        var byMachine: [String: [RunDetail.PickItem]] = Dictionary(uniqueKeysWithValues: machines.map { ($0.id, []) })
+        for item in context.pickItems {
+            guard let machineId = item.machine?.id else { continue }
+            byMachine[machineId, default: []].append(item)
+        }
+
+        return RunLocationDetail(section: context.section, machines: machines, pickItemsByMachine: byMachine)
     }
 
-    private struct LocationAccumulator {
+    private struct LocationContext {
+        var section: RunLocationSection
+        var machines: [String: RunDetail.Machine]
+        var pickItems: [RunDetail.PickItem]
+    }
+
+    private struct LocationContextBuilder {
         var location: RunDetail.Location?
-        var machineIds: Set<String>
-        var totalCoils: Int
-        var packedCoils: Int
-        var totalItems: Int
+        var machines: [String: RunDetail.Machine] = [:]
+        var pickItems: [RunDetail.PickItem] = []
     }
 
-    private func buildLocationSections(from detail: RunDetail) -> [RunLocationSection] {
-        var accumulators: [String: LocationAccumulator] = [:]
+    private func rebuildLocationData(from detail: RunDetail) {
+        var builders: [String: LocationContextBuilder] = [:]
 
         func key(for location: RunDetail.Location?) -> String {
             location?.id ?? RunLocationSection.unassignedIdentifier
@@ -137,65 +173,61 @@ final class RunDetailViewModel: ObservableObject {
 
         for location in detail.locations {
             let locationKey = key(for: location)
-            accumulators[locationKey] = LocationAccumulator(
-                location: location,
-                machineIds: [],
-                totalCoils: 0,
-                packedCoils: 0,
-                totalItems: 0
-            )
+            var builder = builders[locationKey] ?? LocationContextBuilder(location: location)
+            builder.location = location
+            builders[locationKey] = builder
         }
 
         for machine in detail.machines {
             let locationKey = key(for: machine.location)
-            var accumulator = accumulators[locationKey] ?? LocationAccumulator(
-                location: machine.location,
-                machineIds: [],
-                totalCoils: 0,
-                packedCoils: 0,
-                totalItems: 0
-            )
-            accumulator.machineIds.insert(machine.id)
-            accumulators[locationKey] = accumulator
+            var builder = builders[locationKey] ?? LocationContextBuilder(location: machine.location)
+            builder.machines[machine.id] = machine
+            builders[locationKey] = builder
         }
 
         for item in detail.pickItems {
             let locationKey = key(for: item.location ?? item.machine?.location)
-            var accumulator = accumulators[locationKey] ?? LocationAccumulator(
-                location: item.location ?? item.machine?.location,
-                machineIds: [],
-                totalCoils: 0,
-                packedCoils: 0,
-                totalItems: 0
-            )
-
-            if let machineId = item.machine?.id {
-                accumulator.machineIds.insert(machineId)
+            var builder = builders[locationKey] ?? LocationContextBuilder(location: item.location ?? item.machine?.location)
+            builder.pickItems.append(item)
+            if let machine = item.machine {
+                builder.machines[machine.id] = machine
             }
-
-            accumulator.totalCoils += 1
-            accumulator.totalItems += max(item.count, 0)
-            if item.isPicked {
-                accumulator.packedCoils += 1
-            }
-
-            accumulators[locationKey] = accumulator
+            builders[locationKey] = builder
         }
 
-        return accumulators.values
-            .map { accumulator in
-                let id = accumulator.location?.id ?? RunLocationSection.unassignedIdentifier
-                return RunLocationSection(
-                    id: id,
-                    location: accumulator.location,
-                    machineCount: accumulator.machineIds.count,
-                    totalCoils: accumulator.totalCoils,
-                    packedCoils: accumulator.packedCoils,
-                    totalItems: accumulator.totalItems
-                )
+        let contexts: [(String, LocationContext)] = builders.map { key, builder in
+            let machines = Array(builder.machines.values)
+            let totalCoils = builder.pickItems.count
+            let packedCoils = builder.pickItems.reduce(into: 0) { partialResult, item in
+                if item.isPicked {
+                    partialResult += 1
+                }
             }
+            let totalItems = builder.pickItems.reduce(0) { $0 + max($1.count, 0) }
+
+            let section = RunLocationSection(
+                id: key,
+                location: builder.location,
+                machineCount: machines.count,
+                totalCoils: totalCoils,
+                packedCoils: packedCoils,
+                totalItems: totalItems
+            )
+
+            let context = LocationContext(
+                section: section,
+                machines: builder.machines,
+                pickItems: builder.pickItems
+            )
+            return (key, context)
+        }
+
+        let sortedSections = contexts.map { $0.1.section }
             .sorted { lhs, rhs in
                 lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
+
+        locationSections = sortedSections
+        locationContextsByID = Dictionary(uniqueKeysWithValues: contexts.map { ($0.0, $0.1) })
     }
 }

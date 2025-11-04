@@ -47,7 +47,15 @@ struct RunDetailView: View {
                         .padding(.vertical, 4)
                 } else {
                     ForEach(viewModel.locationSections) { section in
-                        LocationSummaryRow(section: section)
+                        if let locationDetail = viewModel.locationDetail(for: section.id) {
+                            NavigationLink {
+                                LocationDetailView(detail: locationDetail)
+                            } label: {
+                                LocationSummaryRow(section: section)
+                            }
+                        } else {
+                            LocationSummaryRow(section: section)
+                        }
                     }
                 }
             }
