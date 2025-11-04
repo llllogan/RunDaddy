@@ -31,7 +31,7 @@ struct RunDetailView: View {
             if let overview = viewModel.overview {
                 Section {
                     RunOverviewBento(summary: overview)
-                        .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
+                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 } header: {
