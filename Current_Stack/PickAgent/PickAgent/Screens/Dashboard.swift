@@ -111,15 +111,29 @@ private struct RunRow: View {
 ////                }
 //            }
 
-            if let pickerName = run.picker?.displayName {
-                LabeledContent("Picker", value: pickerName)
-                    .textCase(nil)
+//            if let pickerName = run.picker?.displayName {
+//                LabeledContent("Picker", value: pickerName)
+//                    .textCase(nil)
+//            }
+//
+//            if let runnerName = run.runner?.displayName {
+//                LabeledContent("Runner", value: runnerName)
+//                    .textCase(nil)
+//            }
+            
+            Text("\(run.locationCount) \(run.locationCount > 1 ? "Locations" : "Location")")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            HStack(spacing: 0) {
+                Text("Runner: ")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("\(run.runner?.displayName ?? "No runner yet")")
+                    .font(.subheadline)
             }
-
-            if let runnerName = run.runner?.displayName {
-                LabeledContent("Runner", value: runnerName)
-                    .textCase(nil)
-            }
+            .padding(.bottom, 4)
+            
 
             HStack(spacing: 6) {
                 PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
@@ -132,7 +146,7 @@ private struct RunRow: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 0)
     }
 
     private var statusBackgroundColor: Color {
@@ -183,6 +197,7 @@ private extension RunSummary {
             pickingStartedAt: nil,
             pickingEndedAt: nil,
             createdAt: previewDate(hour: 8, minute: 15),
+            locationCount: 3,
             picker: RunSummary.Participant(
                 id: "picker-1",
                 firstName: "Jordan",
@@ -200,6 +215,7 @@ private extension RunSummary {
             pickingStartedAt: previewDate(hour: 10, minute: 30),
             pickingEndedAt: nil,
             createdAt: previewDate(hour: 9, minute: 0),
+            locationCount: 5,
             picker: RunSummary.Participant(
                 id: "picker-2",
                 firstName: "Riley",
@@ -221,6 +237,7 @@ private extension RunSummary {
             pickingStartedAt: previewDate(hour: 11, minute: 10),
             pickingEndedAt: previewDate(hour: 11, minute: 48),
             createdAt: previewDate(hour: 9, minute: 45),
+            locationCount: 2,
             picker: RunSummary.Participant(
                 id: "picker-3",
                 firstName: "Cameron",

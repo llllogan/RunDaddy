@@ -51,6 +51,7 @@ struct RunSummary: Identifiable, Equatable {
     let pickingStartedAt: Date?
     let pickingEndedAt: Date?
     let createdAt: Date
+    let locationCount: Int
     let picker: Participant?
     let runner: Participant?
 
@@ -116,6 +117,7 @@ private struct RunResponse: Decodable {
     let pickingStartedAt: Date?
     let pickingEndedAt: Date?
     let createdAt: Date
+    let locationCount: Int?
     let pickerId: String?
     let runnerId: String?
     let picker: Participant?
@@ -128,6 +130,7 @@ private struct RunResponse: Decodable {
         case pickingStartedAt
         case pickingEndedAt
         case createdAt
+        case locationCount
         case pickerId
         case runnerId
         case picker
@@ -142,6 +145,7 @@ private struct RunResponse: Decodable {
             pickingStartedAt: pickingStartedAt,
             pickingEndedAt: pickingEndedAt,
             createdAt: createdAt,
+            locationCount: locationCount ?? 0,
             picker: resolvedParticipant(from: picker, fallbackID: pickerId),
             runner: resolvedParticipant(from: runner, fallbackID: runnerId)
         )
