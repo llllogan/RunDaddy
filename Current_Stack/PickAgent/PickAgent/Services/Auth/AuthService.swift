@@ -169,7 +169,7 @@ private struct UserResponse: Decodable {
     let firstName: String
     let lastName: String
     let phone: String?
-    let role: String
+    let role: String?
 
     var profile: UserProfile {
         UserProfile(

@@ -24,7 +24,7 @@ struct UserProfile: Equatable {
     let firstName: String
     let lastName: String
     let phone: String?
-    let role: String
+    let role: String?
 
     var displayName: String {
         let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)

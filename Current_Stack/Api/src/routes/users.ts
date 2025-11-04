@@ -122,19 +122,45 @@ router.get('/:userId', async (req, res) => {
     include: { user: true },
   });
 
-  if (!membership) {
-    return res.status(404).json({ error: 'User not found in this company' });
+  if (membership) {
+    return res.json({
+      id: membership.user.id,
+      email: membership.user.email,
+      firstName: membership.user.firstName,
+      lastName: membership.user.lastName,
+      phone: membership.user.phone,
+      role: membership.role,
+      createdAt: membership.user.createdAt,
+      updatedAt: membership.user.updatedAt,
+    });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
   }
 
   return res.json({
-    id: membership.user.id,
-    email: membership.user.email,
-    firstName: membership.user.firstName,
-    lastName: membership.user.lastName,
-    phone: membership.user.phone,
-    role: membership.role,
-    createdAt: membership.user.createdAt,
-    updatedAt: membership.user.updatedAt,
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
+    role: null,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   });
 });
 

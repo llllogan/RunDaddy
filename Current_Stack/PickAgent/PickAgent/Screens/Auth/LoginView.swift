@@ -109,28 +109,3 @@ struct LoginView: View {
     return PreviewContent()
 }
 
-private final class PreviewAuthService: AuthServicing {
-    func loadStoredCredentials() -> AuthCredentials? { nil }
-    func store(credentials: AuthCredentials) {}
-    func clearStoredCredentials() {}
-    func refresh(using credentials: AuthCredentials) async throws -> AuthCredentials { credentials }
-    func login(email: String, password: String) async throws -> AuthCredentials {
-        AuthCredentials(
-            accessToken: "demo",
-            refreshToken: "demo",
-            userID: "preview",
-            expiresAt: Date().addingTimeInterval(3600)
-        )
-    }
-
-    func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
-        UserProfile(
-            id: userID,
-            email: "preview@example.com",
-            firstName: "Preview",
-            lastName: "User",
-            phone: nil,
-            role: "OWNER"
-        )
-    }
-}
