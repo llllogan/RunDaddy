@@ -74,6 +74,11 @@ app.use('/api/users', usersRouter);
 app.use('/api/run-imports', runImportsRouter);
 app.use('/api/runs', runRouter);
 
+if (process.env.NODE_ENV !== 'production') {
+  const { debugRouter } = await import('./routes/debug.js');
+  app.use('/api/debug', debugRouter);
+}
+
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 let server: ReturnType<typeof app.listen> | undefined;
 

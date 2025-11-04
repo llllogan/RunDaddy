@@ -85,7 +85,7 @@ export const uploadRunWorkbook = async (req: Request, res: Response) => {
 
 type TransactionClient = Prisma.TransactionClient;
 
-const persistRunFromWorkbook = async ({ run, companyId }: { run: ParsedRun; companyId: string }) => {
+export const persistRunFromWorkbook = async ({ run, companyId }: { run: ParsedRun; companyId: string }) => {
   const scheduledFor = run.runDate ?? new Date();
 
   return prisma.$transaction(

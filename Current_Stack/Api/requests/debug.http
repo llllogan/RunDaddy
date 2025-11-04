@@ -1,78 +1,18 @@
 @baseUrl = http://localhost:3000
-@COMPANY_ID=cmhe2gr1100008holqfm3bryk
+@COMPANY_ID = cmhiqip7p05gpp601n70r1xn1
+@WORKBOOK_PATH = ./6389763003164739434.xlsx
 
-@USER_ID=cmhe26ks000018hi0mm9pz0r8
-
-
-
-### Create a company for debugging
-POST {{baseUrl}}/api/debug/companies
-Content-Type: application/json
-
-{
-  "name": "Debug Warehouse Co"
-}
-
-###
-
-### List companies
+### List companies (debug only)
 GET {{baseUrl}}/api/debug/companies
 
-###
+### List users (optional ?companyId= filter, debug only)
+GET {{baseUrl}}/api/debug/users?companyId={{COMPANY_ID}}
 
-### Delete a company (replace COMPANY_ID)
-DELETE {{baseUrl}}/api/debug/companies/{{COMPANY_ID}}
-
-###
-
-### Create a user and optionally attach to a company
-POST {{baseUrl}}/api/debug/users
+### Import a run workbook for a company (debug only; not available in production)
+POST {{baseUrl}}/api/debug/run-imports
 Content-Type: application/json
 
 {
-  "email": "picker@example.com",
-  "password": "debugPassword1!",
-  "firstName": "Paula",
-  "lastName": "Picker",
-  "phone": "+18885550123",
-  "role": "PICKER",
   "companyId": "{{COMPANY_ID}}",
-  "membershipRole": "PICKER",
-  "setAsDefaultMembership": true
+  "workbookPath": "{{WORKBOOK_PATH}}"
 }
-
-###
-
-### Delete a user (replace USER_ID)
-DELETE {{baseUrl}}/api/debug/users/{{USER_ID}}
-
-###
-
-### List users
-GET {{baseUrl}}/api/debug/users
-
-###
-
-### Create a membership (attach an existing user to an existing company)
-POST {{baseUrl}}/api/debug/memberships
-Content-Type: application/json
-
-{
-  "userId": "{{USER_ID}}",
-  "companyId": "{{COMPANY_ID}}",
-  "role": "ADMIN",
-  "setAsDefault": false
-}
-
-###
-
-### Delete a membership (replace MEMBERSHIP_ID)
-DELETE {{baseUrl}}/api/debug/memberships/{{MEMBERSHIP_ID}}
-
-###
-
-### List memberships for a user
-GET {{baseUrl}}/api/debug/memberships?userId={{USER_ID}}
-
-### List machines for a company
-GET {{baseUrl}}/api/debug/companies/{{COMPANY_ID}}/machines
