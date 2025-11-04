@@ -145,14 +145,32 @@ private struct ErrorRow: View {
         }
 
         func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
-            let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
-            let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
-            let machine = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: machineType, location: location)
-            let coil = RunDetail.Coil(id: "coil-1", code: "C1", machineId: machine.id)
-            let coilItem = RunDetail.CoilItem(id: "coil-item-1", par: 10, coil: coil)
-            let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
-            let pickItem = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItem, sku: sku, machine: machine, location: location)
-            let chocolateBox = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machine)
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let uptown = RunDetail.Location(id: "loc-2", name: "Uptown Annex", address: "456 Oak Avenue")
+
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let drinkType = RunDetail.MachineTypeDescriptor(id: "type-2", name: "Drink Machine", description: nil)
+
+            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
+            let machineC = RunDetail.Machine(id: "machine-3", code: "C-08", description: "Front Vestibule", machineType: drinkType, location: uptown)
+
+            let coilA = RunDetail.Coil(id: "coil-1", code: "C1", machineId: machineA.id)
+            let coilB = RunDetail.Coil(id: "coil-2", code: "C2", machineId: machineB.id)
+            let coilC = RunDetail.Coil(id: "coil-3", code: "C3", machineId: machineC.id)
+
+            let coilItemA = RunDetail.CoilItem(id: "coil-item-1", par: 10, coil: coilA)
+            let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
+            let coilItemC = RunDetail.CoilItem(id: "coil-item-3", par: 12, coil: coilC)
+
+            let skuSnack = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
+            let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", isCheeseAndCrackers: false)
+
+            let pickA = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown)
+            let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuSnack, machine: machineB, location: downtown)
+            let pickC = RunDetail.PickItem(id: "pick-3", count: 9, status: "PICKED", pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown)
+
+            let chocolateBox = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
 
             return RunDetail(
                 id: runId,
@@ -164,9 +182,9 @@ private struct ErrorRow: View {
                 createdAt: Date().addingTimeInterval(-7200),
                 picker: RunParticipant(id: "picker-1", firstName: "Jordan", lastName: "Smith"),
                 runner: RunParticipant(id: "runner-1", firstName: "Avery", lastName: "Lee"),
-                locations: [location],
-                machines: [machine],
-                pickItems: [pickItem],
+                locations: [downtown, uptown],
+                machines: [machineA, machineB, machineC],
+                pickItems: [pickA, pickB, pickC],
                 chocolateBoxes: [chocolateBox]
             )
         }
