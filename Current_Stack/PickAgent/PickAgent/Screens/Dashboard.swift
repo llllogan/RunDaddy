@@ -11,18 +11,47 @@ struct DashboardView: View {
     let session: AuthSession
     let logoutAction: () -> Void
 
+    @StateObject private var viewModel: DashboardViewModel
     @State private var isShowingProfile = false
     @Namespace private var profileNamespace
+
+    init(session: AuthSession, logoutAction: @escaping () -> Void) {
+        self.session = session
+        self.logoutAction = logoutAction
+        _viewModel = StateObject(wrappedValue: DashboardViewModel(session: session))
+    }
 
     var body: some View {
         NavigationStack {
             List {
+                if let message = viewModel.errorMessage {
+                    Section {
+                        ErrorStateRow(message: message)
+                    }
+                }
+
                 Section("Runs for Today") {
-                    EmptyStateRow(message: "You're all set. No runs scheduled for today.")
+                    if viewModel.isLoading && viewModel.todayRuns.isEmpty {
+                        LoadingStateRow()
+                    } else if viewModel.todayRuns.isEmpty {
+                        EmptyStateRow(message: "You're all set. No runs scheduled for today.")
+                    } else {
+                        ForEach(viewModel.todayRuns) { run in
+                            RunRow(run: run)
+                        }
+                    }
                 }
 
                 Section("Runs to be Packed") {
-                    EmptyStateRow(message: "Nothing to pack right now. New runs will appear here.")
+                    if viewModel.isLoading && viewModel.runsToPack.isEmpty {
+                        LoadingStateRow()
+                    } else if viewModel.runsToPack.isEmpty {
+                        EmptyStateRow(message: "Nothing to pack right now. New runs will appear here.")
+                    } else {
+                        ForEach(viewModel.runsToPack) { run in
+                            RunRow(run: run)
+                        }
+                    }
                 }
 
                 Section("Insights") {
@@ -45,6 +74,12 @@ struct DashboardView: View {
             }
         }
         .tint(Theme.packageBrown)
+        .task {
+            await viewModel.loadRuns()
+        }
+        .refreshable {
+            await viewModel.loadRuns(force: true)
+        }
         .sheet(isPresented: $isShowingProfile) {
             ProfileSheetView(
                 profileNamespace: profileNamespace,
@@ -62,6 +97,96 @@ struct DashboardView: View {
 }
 
 
+private struct RunRow: View {
+    let run: RunSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(run.statusDisplay)
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(statusBackgroundColor)
+                    .foregroundStyle(statusForegroundColor)
+                    .clipShape(Capsule())
+
+                Spacer()
+
+                if let scheduled = run.scheduledFor {
+                    Label(scheduled.formatted(date: .omitted, time: .shortened), systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let pickerName = run.picker?.displayName {
+                LabeledContent("Picker", value: pickerName)
+                    .textCase(nil)
+            }
+
+            if let runnerName = run.runner?.displayName {
+                LabeledContent("Runner", value: runnerName)
+                    .textCase(nil)
+            }
+
+            HStack(spacing: 16) {
+                if let started = run.pickingStartedAt {
+                    TimelinePill(title: "Started", date: started)
+                }
+                if let ended = run.pickingEndedAt {
+                    TimelinePill(title: "Ended", date: ended)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var statusBackgroundColor: Color {
+        switch run.status {
+        case "READY":
+            return Theme.packageBrown.opacity(0.12)
+        case "PICKING":
+            return .orange.opacity(0.15)
+        case "PICKED":
+            return .green.opacity(0.15)
+        default:
+            return Color(.systemGray5)
+        }
+    }
+
+    private var statusForegroundColor: Color {
+        switch run.status {
+        case "READY":
+            return Theme.packageBrown
+        case "PICKING":
+            return .orange
+        case "PICKED":
+            return .green
+        default:
+            return .secondary
+        }
+    }
+}
+
+private struct TimelinePill: View {
+    let title: String
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title.uppercased())
+                .font(.caption2.bold())
+            Text(date.formatted(date: .omitted, time: .shortened))
+                .font(.caption2)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Color(.systemGray6))
+        .clipShape(Capsule())
+    }
+}
+
 private struct EmptyStateRow: View {
     let message: String
 
@@ -71,6 +196,36 @@ private struct EmptyStateRow: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 12)
+    }
+}
+
+private struct LoadingStateRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+                .tint(Theme.packageBrown)
+            Text("Loading…")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct ErrorStateRow: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.orange)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 }
 

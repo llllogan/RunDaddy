@@ -38,8 +38,21 @@ app.use((req, res, next) => {
   };
 
   res.on('finish', () => {
-    const responseStr = JSON.stringify(responseBody);
-    const truncatedResponse = responseStr.length > 20 ? responseStr.substring(0, 20) + '...' : responseStr;
+    let responseStr = '';
+
+    if (typeof responseBody === 'string') {
+      responseStr = responseBody;
+    } else if (Buffer.isBuffer(responseBody)) {
+      responseStr = responseBody.toString('utf8');
+    } else if (responseBody !== undefined) {
+      try {
+        responseStr = JSON.stringify(responseBody);
+      } catch {
+        responseStr = '[unserializable response]';
+      }
+    }
+
+    const truncatedResponse = responseStr.length > 20 ? `${responseStr.substring(0, 20)}...` : responseStr;
     console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${truncatedResponse}`);
   });
 
