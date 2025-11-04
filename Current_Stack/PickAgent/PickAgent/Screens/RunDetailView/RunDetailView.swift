@@ -11,35 +11,24 @@ struct RunDetailView: View {
     let runId: String
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Run ID")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                        .kerning(1.2)
-
-                    Text(runId)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.packageBrown)
-                        .textSelection(.enabled)
+        NavigationStack {
+            List {
+                Section {
+                    RunOverviewBento(run: run,
+                                     locationSections: locationSections,
+                                     machineCount: machineCount,
+                                     totalCoils: totalCoils,
+                                     packedCount: packedCount,
+                                     notPackedCount: notPackedCount)
+                    .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } header: {
+                    Text("Run Overview")
                 }
-
-                Text("More details about this run will appear here in a future update.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle("Run Details")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
