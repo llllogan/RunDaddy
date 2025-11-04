@@ -37,8 +37,13 @@ struct DashboardView: View {
                         EmptyStateRow(message: "You're all set. No runs scheduled for today.")
                     } else {
                         ForEach(viewModel.todayRuns) { run in
-                            RunRow(run: run)
+                            NavigationLink {
+                                RunDetailView(runId: run.id)
+                            } label: {
+                                RunRow(run: run)
+                            }
                         }
+                        Text("View 2 more")
                     }
                 }
 
@@ -49,8 +54,13 @@ struct DashboardView: View {
                         EmptyStateRow(message: "Nothing to pack right now. New runs will appear here.")
                     } else {
                         ForEach(viewModel.runsToPack) { run in
-                            RunRow(run: run)
+                            NavigationLink {
+                                RunDetailView(runId: run.id)
+                            } label: {
+                                RunRow(run: run)
+                            }
                         }
+                        Text("View 5 more")
                     }
                 }
 
