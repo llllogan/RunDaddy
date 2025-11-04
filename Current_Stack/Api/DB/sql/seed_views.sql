@@ -73,6 +73,61 @@ JOIN `Company` c ON c.id = r.companyId
 LEFT JOIN `User` picker ON picker.id = r.pickerId
 LEFT JOIN `User` runner ON runner.id = r.runnerId;
 
+CREATE OR REPLACE VIEW v_run_daily_locations AS
+SELECT
+  rov.run_id,
+  rov.company_id,
+  rov.company_name,
+  DATE(rov.scheduled_for) AS scheduled_date,
+  rov.scheduled_for,
+  rov.run_status,
+  rov.picking_started_at,
+  rov.picking_ended_at,
+  rov.run_created_at,
+  rov.picker_id,
+  rov.picker_first_name,
+  rov.picker_last_name,
+  rov.runner_id,
+  rov.runner_first_name,
+  rov.runner_last_name,
+  COUNT(DISTINCT rl.location_id) AS location_count
+FROM v_run_overview rov
+LEFT JOIN (
+  SELECT
+    cb.runId        AS run_id,
+    mach.locationId AS location_id
+  FROM `ChocolateBox` cb
+  JOIN `Machine` mach ON mach.id = cb.machineId
+  WHERE mach.locationId IS NOT NULL
+
+  UNION
+
+  SELECT
+    pe.runId        AS run_id,
+    mach.locationId AS location_id
+  FROM `PickEntry` pe
+  JOIN `CoilItem` ci ON ci.id = pe.coilItemId
+  JOIN `Coil` coil ON coil.id = ci.coilId
+  JOIN `Machine` mach ON mach.id = coil.machineId
+  WHERE mach.locationId IS NOT NULL
+) rl ON rl.run_id = rov.run_id
+GROUP BY
+  rov.run_id,
+  rov.company_id,
+  rov.company_name,
+  DATE(rov.scheduled_for),
+  rov.scheduled_for,
+  rov.run_status,
+  rov.picking_started_at,
+  rov.picking_ended_at,
+  rov.run_created_at,
+  rov.picker_id,
+  rov.picker_first_name,
+  rov.picker_last_name,
+  rov.runner_id,
+  rov.runner_first_name,
+  rov.runner_last_name;
+
 CREATE OR REPLACE VIEW v_run_pick_entries AS
 SELECT
   re.id              AS pick_entry_id,

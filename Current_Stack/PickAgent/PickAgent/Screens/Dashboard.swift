@@ -102,23 +102,14 @@ private struct RunRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(run.statusDisplay)
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(statusBackgroundColor)
-                    .foregroundStyle(statusForegroundColor)
-                    .clipShape(Capsule())
-
-                Spacer()
-
-                if let scheduled = run.scheduledFor {
-                    Label(scheduled.formatted(date: .omitted, time: .shortened), systemImage: "clock")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+//            HStack {
+//
+////                if let scheduled = run.scheduledFor {
+////                    Label(scheduled.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+////                        .font(.caption)
+////                        .foregroundStyle(.secondary)
+////                }
+//            }
 
             if let pickerName = run.picker?.displayName {
                 LabeledContent("Picker", value: pickerName)
@@ -130,16 +121,18 @@ private struct RunRow: View {
                     .textCase(nil)
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: 6) {
+                PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
+                
                 if let started = run.pickingStartedAt {
-                    TimelinePill(title: "Started", date: started)
+                    PillChip(title: "Started", date: started, text: nil, colour: nil, foregroundColour: nil)
                 }
                 if let ended = run.pickingEndedAt {
-                    TimelinePill(title: "Ended", date: ended)
+                    PillChip(title: "Ended", date: ended, text: nil, colour: nil, foregroundColour: nil)
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 
     private var statusBackgroundColor: Color {
@@ -169,20 +162,111 @@ private struct RunRow: View {
     }
 }
 
-private struct TimelinePill: View {
-    let title: String
-    let date: Date
+#Preview("Run Row States") {
+    List {
+        Section("Runs for Today") {
+            RunRow(run: .previewReady)
+            RunRow(run: .previewPicking)
+            RunRow(run: .previewPicked)
+        }
+    }
+    .listStyle(.insetGrouped)
+    .tint(Theme.packageBrown)
+}
+
+private extension RunSummary {
+    static var previewReady: RunSummary {
+        RunSummary(
+            id: "run-ready",
+            status: "READY",
+            scheduledFor: previewDate(hour: 9, minute: 30),
+            pickingStartedAt: nil,
+            pickingEndedAt: nil,
+            createdAt: previewDate(hour: 8, minute: 15),
+            picker: RunSummary.Participant(
+                id: "picker-1",
+                firstName: "Jordan",
+                lastName: "Smith"
+            ),
+            runner: nil
+        )
+    }
+
+    static var previewPicking: RunSummary {
+        RunSummary(
+            id: "run-picking",
+            status: "PICKING",
+            scheduledFor: previewDate(hour: 10, minute: 45),
+            pickingStartedAt: previewDate(hour: 10, minute: 30),
+            pickingEndedAt: nil,
+            createdAt: previewDate(hour: 9, minute: 0),
+            picker: RunSummary.Participant(
+                id: "picker-2",
+                firstName: "Riley",
+                lastName: "Chen"
+            ),
+            runner: RunSummary.Participant(
+                id: "runner-1",
+                firstName: "Morgan",
+                lastName: "Lee"
+            )
+        )
+    }
+
+    static var previewPicked: RunSummary {
+        RunSummary(
+            id: "run-picked",
+            status: "PICKED",
+            scheduledFor: previewDate(hour: 12, minute: 0),
+            pickingStartedAt: previewDate(hour: 11, minute: 10),
+            pickingEndedAt: previewDate(hour: 11, minute: 48),
+            createdAt: previewDate(hour: 9, minute: 45),
+            picker: RunSummary.Participant(
+                id: "picker-3",
+                firstName: "Cameron",
+                lastName: "Diaz"
+            ),
+            runner: RunSummary.Participant(
+                id: "runner-2",
+                firstName: "Alex",
+                lastName: "Johnson"
+            )
+        )
+    }
+
+    private static func previewDate(hour: Int, minute: Int) -> Date {
+        let components = DateComponents(year: 2025, month: 4, day: 11, hour: hour, minute: minute)
+        return Calendar(identifier: .gregorian).date(from: components) ?? .now
+    }
+}
+
+private struct PillChip: View {
+    let title: String?
+    let date: Date?
+    let text: String?
+    let colour: Color?
+    let foregroundColour: Color?
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2.bold())
-            Text(date.formatted(date: .omitted, time: .shortened))
-                .font(.caption2)
+            if let title = title {
+                Text(title.uppercased())
+                    .font(.caption2.bold())
+            }
+            
+            if let text = text {
+                Text(text)
+                    .foregroundStyle(foregroundColour!)
+                    .font(.caption2.bold())
+                
+            } else if let date = date {
+                Text(date.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(Color(.systemGray6))
+        .background(colour != nil ? Color(colour!) : Color(.systemGray6))
         .clipShape(Capsule())
     }
 }

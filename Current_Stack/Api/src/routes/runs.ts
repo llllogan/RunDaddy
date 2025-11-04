@@ -49,6 +49,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get all runs scheduled for today
+// Include the number of locations
 router.get('/today', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -73,6 +74,8 @@ router.get('/today', async (req, res) => {
       runner: true,
     },
   });
+
+
 
   return res.json(runs);
 });
