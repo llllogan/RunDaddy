@@ -108,6 +108,24 @@ router.get('/tomorrow/ready', async (req, res) => {
   return res.json(runs);
 });
 
+router.get('/:runId', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  const payload = await getRunDetailPayload(req.auth.companyId, runId);
+  if (!payload) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  return res.json(payload);
+});
+
 // Assigns or unassigns a picker or runner to a run.
 router.post('/:runId/assignment', async (req, res) => {
   if (!req.auth) {
@@ -189,6 +207,253 @@ router.delete('/:runId', async (req, res) => {
   await prisma.run.delete({ where: { id: run.id } });
   return res.status(204).send();
 });
+
+type RunDetailSource = NonNullable<Awaited<ReturnType<typeof ensureRun>>>;
+
+type LocationPayload = {
+  id: string;
+  name: string | null;
+  address: string | null;
+};
+
+type MachineTypePayload = {
+  id: string;
+  name: string;
+  description: string | null;
+} | null;
+
+type MachinePayload = {
+  id: string;
+  code: string;
+  description: string | null;
+  machineType: MachineTypePayload;
+  location: LocationPayload | null;
+};
+
+type PickItemPayload = {
+  id: string;
+  count: number;
+  status: RunItemStatusValue;
+  pickedAt: Date | null;
+  coilItem: {
+    id: string;
+    par: number;
+  };
+  coil: {
+    id: string;
+    code: string;
+    machineId: string | null;
+  };
+  sku: null | {
+    id: string;
+    code: string;
+    name: string;
+    type: string;
+    isCheeseAndCrackers: boolean;
+  };
+  machine: MachinePayload | null;
+  location: LocationPayload | null;
+};
+
+type RunDetailPayload = {
+  id: string;
+  status: PrismaRunStatus;
+  companyId: string;
+  scheduledFor: Date | null;
+  pickingStartedAt: Date | null;
+  pickingEndedAt: Date | null;
+  createdAt: Date;
+  picker: null | {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+  runner: null | {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+  locations: LocationPayload[];
+  machines: MachinePayload[];
+  pickItems: PickItemPayload[];
+  pickEntries: Array<{
+    id: string;
+    count: number;
+    status: RunItemStatusValue;
+    pickedAt: Date | null;
+    coilItem: {
+      id: string;
+      par: number;
+      coil: {
+        id: string;
+        code: string;
+        machine: MachinePayload | null;
+      };
+      sku: PickItemPayload['sku'];
+    };
+  }>;
+  chocolateBoxes: Array<{
+    id: string;
+    number: number;
+    machine: MachinePayload | null;
+  }>;
+};
+
+function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
+  const machinesById = new Map<string, MachinePayload>();
+  const locationsById = new Map<string, LocationPayload>();
+
+  const serializeLocation = (
+    location: RunDetailSource['pickEntries'][number]['coilItem']['coil']['machine']['location'],
+  ): LocationPayload | null => {
+    if (!location) {
+      return null;
+    }
+
+    const existing = locationsById.get(location.id);
+    if (existing) {
+      return existing;
+    }
+
+    const serialized: LocationPayload = {
+      id: location.id,
+      name: location.name,
+      address: location.address,
+    };
+    locationsById.set(location.id, serialized);
+    return serialized;
+  };
+
+  const serializeMachine = (
+    machine: RunDetailSource['pickEntries'][number]['coilItem']['coil']['machine'] | null | undefined,
+  ): MachinePayload | null => {
+    if (!machine) {
+      return null;
+    }
+
+    const existing = machinesById.get(machine.id);
+    if (existing) {
+      return existing;
+    }
+
+    const serialized: MachinePayload = {
+      id: machine.id,
+      code: machine.code,
+      description: machine.description,
+      machineType: machine.machineType
+        ? {
+            id: machine.machineType.id,
+            name: machine.machineType.name,
+            description: machine.machineType.description,
+          }
+        : null,
+      location: serializeLocation(machine.location),
+    };
+
+    machinesById.set(machine.id, serialized);
+    return serialized;
+  };
+
+  const pickItems: PickItemPayload[] = run.pickEntries.map((entry) => {
+    const machine = entry.coilItem.coil.machine;
+    const serializedMachine = serializeMachine(machine);
+    const serializedLocation = machine ? serializeLocation(machine.location) : null;
+
+    return {
+      id: entry.id,
+      count: entry.count,
+      status: entry.status as RunItemStatusValue,
+      pickedAt: entry.pickedAt,
+      coilItem: {
+        id: entry.coilItem.id,
+        par: entry.coilItem.par,
+      },
+      coil: {
+        id: entry.coilItem.coil.id,
+        code: entry.coilItem.coil.code,
+        machineId: machine?.id ?? null,
+      },
+      sku: entry.coilItem.sku
+        ? {
+            id: entry.coilItem.sku.id,
+            code: entry.coilItem.sku.code,
+            name: entry.coilItem.sku.name,
+            type: entry.coilItem.sku.type,
+            isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+          }
+        : null,
+      machine: serializedMachine,
+      location: serializedLocation,
+    };
+  });
+
+  const chocolateBoxes = run.chocolateBoxes.map((box) => ({
+    id: box.id,
+    number: box.number,
+    machine: serializeMachine(box.machine),
+  }));
+
+  return {
+    id: run.id,
+    status: run.status,
+    companyId: run.companyId,
+    scheduledFor: run.scheduledFor,
+    pickingStartedAt: run.pickingStartedAt,
+    pickingEndedAt: run.pickingEndedAt,
+    createdAt: run.createdAt,
+    picker: run.picker
+      ? {
+          id: run.picker.id,
+          firstName: run.picker.firstName,
+          lastName: run.picker.lastName,
+        }
+      : null,
+    runner: run.runner
+      ? {
+          id: run.runner.id,
+          firstName: run.runner.firstName,
+          lastName: run.runner.lastName,
+        }
+      : null,
+    locations: Array.from(locationsById.values()),
+    machines: Array.from(machinesById.values()),
+    pickItems,
+    pickEntries: run.pickEntries.map((entry) => ({
+      id: entry.id,
+      count: entry.count,
+      status: entry.status as RunItemStatusValue,
+      pickedAt: entry.pickedAt,
+      coilItem: {
+        id: entry.coilItem.id,
+        par: entry.coilItem.par,
+        coil: {
+          id: entry.coilItem.coil.id,
+          code: entry.coilItem.coil.code,
+          machine: serializeMachine(entry.coilItem.coil.machine),
+        },
+        sku: entry.coilItem.sku
+          ? {
+              id: entry.coilItem.sku.id,
+              code: entry.coilItem.sku.code,
+              name: entry.coilItem.sku.name,
+              type: entry.coilItem.sku.type,
+              isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+            }
+          : null,
+      },
+    })),
+    chocolateBoxes,
+  };
+}
+
+export async function getRunDetailPayload(companyId: string, runId: string): Promise<RunDetailPayload | null> {
+  const run = await ensureRun(companyId, runId);
+  if (!run) {
+    return null;
+  }
+
+  return buildRunDetailPayload(run);
+}
 
 type RunDailyLocationRow = {
   run_id: string;

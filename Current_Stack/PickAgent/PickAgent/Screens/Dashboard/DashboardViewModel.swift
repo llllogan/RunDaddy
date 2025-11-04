@@ -18,7 +18,11 @@ final class DashboardViewModel: ObservableObject {
     private let session: AuthSession
     private let service: RunsServicing
 
-    init(session: AuthSession, service: RunsServicing = RunsService()) {
+    convenience init(session: AuthSession) {
+        self.init(session: session, service: RunsService())
+    }
+
+    init(session: AuthSession, service: RunsServicing) {
         self.session = session
         self.service = service
     }

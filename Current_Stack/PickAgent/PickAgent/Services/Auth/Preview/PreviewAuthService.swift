@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 final class PreviewAuthService: AuthServicing {
     private var storedCredentials: AuthCredentials?

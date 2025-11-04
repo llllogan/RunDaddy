@@ -38,7 +38,7 @@ struct DashboardView: View {
                     } else {
                         ForEach(viewModel.todayRuns) { run in
                             NavigationLink {
-                                RunDetailView(runId: run.id)
+                                RunDetailView(runId: run.id, session: session)
                             } label: {
                                 RunRow(run: run)
                             }
@@ -55,7 +55,7 @@ struct DashboardView: View {
                     } else {
                         ForEach(viewModel.runsToPack) { run in
                             NavigationLink {
-                                RunDetailView(runId: run.id)
+                                RunDetailView(runId: run.id, session: session)
                             } label: {
                                 RunRow(run: run)
                             }

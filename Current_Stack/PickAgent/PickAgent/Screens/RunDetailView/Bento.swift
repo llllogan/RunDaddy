@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct BentoCard: View {
     let item: BentoItem
@@ -111,29 +112,43 @@ struct BentoItem: Identifiable {
 }
 
 
+struct StaggeredBentoGrid: View {
+    let items: [BentoItem]
+    let columnCount: Int
+
+    private var columns: [GridItem] {
+        let safeCount = max(columnCount, 1)
+        return Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: safeCount)
+    }
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(items) { item in
+                BentoCard(item: item)
+            }
+        }
+    }
+}
+
+
 struct RunOverviewBento: View {
-    let run: Run
-    let locationSections: [RunLocationSection]
-    let machineCount: Int
-    let totalCoils: Int
-    let packedCount: Int
-    let notPackedCount: Int
+    let summary: RunOverviewSummary
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
 
         cards.append(
             BentoItem(title: "Run Date",
-                      value: run.date.formatted(.dateTime.day().month().year()),
-                      subtitle: run.date.formatted(.dateTime.weekday(.wide)),
+                      value: summary.runDate.formatted(.dateTime.day().month().year()),
+                      subtitle: summary.runDate.formatted(.dateTime.weekday(.wide)),
                       symbolName: "calendar",
                       symbolTint: .indigo)
         )
 
-        if !run.runner.isEmpty {
+        if let runner = summary.runnerName, !runner.isEmpty {
             cards.append(
                 BentoItem(title: "Runner",
-                          value: run.runner,
+                          value: runner,
                           symbolName: "person.crop.circle",
                           symbolTint: .blue,
                           allowsMultilineValue: true)
@@ -142,28 +157,27 @@ struct RunOverviewBento: View {
 
         cards.append(
             BentoItem(title: "Machines",
-                      value: "\(machineCount)",
+                      value: "\(summary.machineCount)",
                       symbolName: "building.2",
                       symbolTint: .cyan)
         )
 
         cards.append(
             BentoItem(title: "Total Coils",
-                      value: "\(totalCoils)",
+                      value: "\(summary.totalCoils)",
                       symbolName: "scope",
                       symbolTint: .purple)
         )
 
-        if totalCoils > 0 {
-            let completion = Double(packedCount) / Double(totalCoils)
-            let totalItemCount = run.runCoils.reduce(into: 0) { $0 += max(Int($1.pick), 0) }
+        if summary.totalCoils > 0 {
+            let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
             cards.append(
                 BentoItem(title: "Packed",
-                          value: "\(packedCount) of \(totalCoils)",
+                          value: "\(summary.packedCoils) of \(summary.totalCoils)",
                           symbolName: "checkmark.circle",
                           symbolTint: .green,
                           customContent: AnyView(PackedGaugeChart(progress: completion,
-                                                                   totalCount: totalItemCount,
+                                                                   totalCount: summary.totalItems,
                                                                    tint: .green)))
             )
         } else {
@@ -178,13 +192,11 @@ struct RunOverviewBento: View {
 
         cards.append(
             BentoItem(title: "Remaining",
-                      value: "\(notPackedCount)",
-                      subtitle: "View items",
+                      value: "\(summary.remainingCoils)",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
                       symbolName: "cart",
                       symbolTint: .pink,
-                      isProminent: true,
-                      destination: { AnyView(NotPackedItemsView(run: run)) },
-                      showsChevron: true)
+                      isProminent: true)
         )
 
         return cards
