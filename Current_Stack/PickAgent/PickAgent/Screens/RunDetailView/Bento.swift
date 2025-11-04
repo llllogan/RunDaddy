@@ -116,17 +116,31 @@ struct StaggeredBentoGrid: View {
     let items: [BentoItem]
     let columnCount: Int
 
-    private var columns: [GridItem] {
+    private var columns: [[BentoItem]] {
         let safeCount = max(columnCount, 1)
-        return Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: safeCount)
+        guard safeCount > 1 else {
+            return [items]
+        }
+
+        var buckets: [[BentoItem]] = Array(repeating: [], count: safeCount)
+        for (index, item) in items.enumerated() {
+            buckets[index % safeCount].append(item)
+        }
+        return buckets
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            ForEach(items) { item in
-                BentoCard(item: item)
+        HStack(alignment: .top, spacing: 12) {
+            ForEach(columns.indices, id: \.self) { index in
+                VStack(spacing: 12) {
+                    ForEach(columns[index]) { item in
+                        BentoCard(item: item)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -160,13 +174,6 @@ struct RunOverviewBento: View {
                       value: "\(summary.machineCount)",
                       symbolName: "building.2",
                       symbolTint: .cyan)
-        )
-
-        cards.append(
-            BentoItem(title: "Total Coils",
-                      value: "\(summary.totalCoils)",
-                      symbolName: "scope",
-                      symbolTint: .purple)
         )
 
         if summary.totalCoils > 0 {
