@@ -222,3 +222,4 @@ router.delete('/:runId', async (req, res) => {
   return res.status(204).send();
 });
 
+export const runRouter = router;

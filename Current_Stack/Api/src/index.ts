@@ -5,6 +5,7 @@ import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { runImportsRouter } from './routes/run-imports.js';
+import { runRouter } from './routes/runs.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -71,6 +72,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/run-imports', runImportsRouter);
+app.use('/api/runs', runRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 let server: ReturnType<typeof app.listen> | undefined;
