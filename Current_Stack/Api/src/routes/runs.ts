@@ -108,7 +108,7 @@ router.get('/tomorrow/ready', async (req, res) => {
   return res.json(runs);
 });
 
-router.get('/runs/:runId', async (req, res) => {
+router.get('/:runId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -127,7 +127,7 @@ router.get('/runs/:runId', async (req, res) => {
 });
 
 // Assigns or unassigns a picker or runner to a run.
-router.post('/runs/:runId/assignment', async (req, res) => {
+router.post('/:runId/assignment', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -188,7 +188,7 @@ router.post('/runs/:runId/assignment', async (req, res) => {
 });
 
 // Deletes a run and all related records.
-router.delete('/runs/:runId', async (req, res) => {
+router.delete('/:runId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
