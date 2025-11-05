@@ -132,10 +132,6 @@ router.post('/:runId/assignment', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!isCompanyManager(req.auth.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
-  }
-
   const parsed = runAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
@@ -149,6 +145,22 @@ router.post('/:runId/assignment', async (req, res) => {
   const membership = await ensureMembership(req.auth.companyId, parsed.data.userId);
   if (!membership) {
     return res.status(404).json({ error: 'User not found in company' });
+  }
+
+  const isSelfAssignment = parsed.data.userId === req.auth.userId;
+  const isManager = isCompanyManager(req.auth.role);
+
+  if (!isManager && !isSelfAssignment) {
+    return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
+  }
+
+  // For self-assignment, check if the role is already taken
+  if (isSelfAssignment && !isManager) {
+    const isPickerTaken = parsed.data.role === 'PICKER' && run.pickerId != null && run.pickerId !== req.auth.userId;
+    const isRunnerTaken = parsed.data.role === 'RUNNER' && run.runnerId != null && run.runnerId !== req.auth.userId;
+    if (isPickerTaken || isRunnerTaken) {
+      return res.status(409).json({ error: 'Role is already assigned to another user' });
+    }
   }
 
   const updateData = parsed.data.role === 'PICKER'
