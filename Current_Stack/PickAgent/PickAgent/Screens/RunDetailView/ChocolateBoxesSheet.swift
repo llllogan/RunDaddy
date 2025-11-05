@@ -76,19 +76,20 @@ struct ChocolateBoxRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Box #\(box.number)")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
                 
                 if let machine = box.machine {
-                    Text(machine.code)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                     
-                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(description)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+                        
+                        Text(machine.code)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .fontWeight(.regular)
                     }
                     
                     if let machineType = machine.machineType {
@@ -110,9 +111,13 @@ struct ChocolateBoxRow: View {
             
             Spacer()
             
-            Image(systemName: "shippingbox.fill")
-                .font(.title2)
-                .foregroundStyle(.brown)
+            HStack(spacing: 4) {
+                Text("Box")
+                    .font(.title)
+                    .foregroundStyle(.secondary)
+                Text("\(box.number)")
+                    .font(.title)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -242,7 +247,24 @@ struct AddChocolateBoxSheet: View {
     }
 }
 
-#Preview {
+
+
+#Preview("Chocolate Box Row - With Machine") {
+    let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+    let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+    let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+    let chocolateBox = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
+    
+    return ChocolateBoxRow(box: chocolateBox, viewModel: RunDetailViewModel(runId: "run-12345", session: AuthSession(credentials: AuthCredentials(accessToken: "token", refreshToken: "refresh", userID: "user-1", expiresAt: Date().addingTimeInterval(3600)), profile: UserProfile(id: "user-1", email: "test@example.com", firstName: "Test", lastName: "User", phone: nil, role: "PICKER")), service: PreviewRunsService()))
+}
+
+#Preview("Chocolate Box Row - No Machine") {
+    let chocolateBox = RunDetail.ChocolateBox(id: "box-2", number: 5, machine: nil)
+    
+    return ChocolateBoxRow(box: chocolateBox, viewModel: RunDetailViewModel(runId: "run-12345", session: AuthSession(credentials: AuthCredentials(accessToken: "token", refreshToken: "refresh", userID: "user-1", expiresAt: Date().addingTimeInterval(3600)), profile: UserProfile(id: "user-1", email: "test@example.com", firstName: "Test", lastName: "User", phone: nil, role: "PICKER")), service: PreviewRunsService()))
+}
+
+#Preview("Chocolate Boxes Sheet") {
     let credentials = AuthCredentials(
         accessToken: "preview-token",
         refreshToken: "preview-refresh",
@@ -259,90 +281,18 @@ struct AddChocolateBoxSheet: View {
     )
     let session = AuthSession(credentials: credentials, profile: profile)
     
-    struct PreviewRunsService: RunsServicing {
-        func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
-            []
-        }
-        
-        func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
-            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
-            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
-            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
-            let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
-            
-            let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
-            let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)
-            let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
-            
-            return RunDetail(
-                id: runId,
-                status: "PICKING",
-                companyId: "company-1",
-                scheduledFor: Date().addingTimeInterval(3600),
-                pickingStartedAt: Date().addingTimeInterval(-1800),
-                pickingEndedAt: nil,
-                createdAt: Date().addingTimeInterval(-7200),
-                picker: RunParticipant(id: "picker-1", firstName: "Jordan", lastName: "Smith"),
-                runner: nil,
-                locations: [downtown],
-                machines: [machineA, machineB],
-                pickItems: [],
-                chocolateBoxes: [chocolateBox1, chocolateBox2, chocolateBox3]
-            )
-        }
-        
-        func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
-            // Preview does nothing
-        }
-        
-        func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser] {
-            []
-        }
-        
-        func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
-            // Preview does nothing
-        }
-        
-        func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
-            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
-            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
-            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
-            let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
-            
-            let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
-            let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)
-            let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
-            
-            return [chocolateBox1, chocolateBox2, chocolateBox3]
-        }
-        
-        func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
-            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
-            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
-            let machineA = RunDetail.Machine(id: machineId, code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
-            
-            return RunDetail.ChocolateBox(id: "new-box", number: number, machine: machineA)
-        }
-        
-        func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
-            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
-            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
-            let machineA = RunDetail.Machine(id: machineId ?? "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
-            
-            return RunDetail.ChocolateBox(id: boxId, number: number ?? 1, machine: machineA)
-        }
-        
-        func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
-            // Preview does nothing
-        }
-    }
-    
     let viewModel = RunDetailViewModel(runId: "run-12345", session: session, service: PreviewRunsService())
+    
+    // Load the preview data to get the actual machines and chocolate boxes
     let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
     let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+    let drinkType = RunDetail.MachineTypeDescriptor(id: "type-2", name: "Drink Machine", description: "Cold beverages")
     let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
-    let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
-    let locationMachines = [machineA, machineB]
+    let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: drinkType, location: downtown)
+    let machineC = RunDetail.Machine(id: "machine-3", code: "C-08", description: "Front Vestibule", machineType: drinkType, location: downtown)
+    let locationMachines = [machineA, machineB, machineC]
     
-    return ChocolateBoxesSheet(viewModel: viewModel, locationMachines: locationMachines)
+    return NavigationStack {
+        ChocolateBoxesSheet(viewModel: viewModel, locationMachines: locationMachines)
+    }
 }
