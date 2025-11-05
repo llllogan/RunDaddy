@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LocationDetailView: View {
     let detail: RunLocationDetail
+    @State private var selectedMachineFilter: String?
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -25,6 +26,14 @@ struct LocationDetailView: View {
         detail.machines
     }
 
+    private var filteredPickItems: [RunDetail.PickItem] {
+        let allPickItems = detail.pickItems
+        if let machineId = selectedMachineFilter {
+            return allPickItems.filter { $0.machine?.id == machineId }
+        }
+        return allPickItems
+    }
+
     var body: some View {
         List {
             Section {
@@ -36,17 +45,49 @@ struct LocationDetailView: View {
                 Text("Location Overview")
             }
 
-            Section("Machines") {
-                if machines.isEmpty {
-                    Text("No machines assigned to this location yet.")
+            Section {
+                HStack {
+//                    Image(systemName: "line.3.horizontal.decrease")
+//                        .font(.subheadline)
+//                        .foregroundStyle(.secondary)
+                    Menu {
+                        Button("All Machines") {
+                            selectedMachineFilter = nil
+                        }
+                        Divider()
+                        ForEach(machines, id: \.id) { machine in
+                            Button(machine.description ?? machine.code) {
+                                selectedMachineFilter = machine.id
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                    }
+                }
+                
+                if filteredPickItems.isEmpty {
+                    Text("No picks found.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
                 } else {
-                    ForEach(machines, id: \.id) { machine in
-                        MachineSummaryRow(machine: machine, pickItems: detail.pickItems(for: machine))
+                    ForEach(filteredPickItems, id: \.id) { pickItem in
+                        PickEntryRow(pickItem: pickItem)
                     }
                 }
+            } header: {
+                Text("Picks")
             }
         }
         .listStyle(.insetGrouped)
@@ -54,35 +95,18 @@ struct LocationDetailView: View {
     }
 }
 
-private struct MachineSummaryRow: View {
-    let machine: RunDetail.Machine
-    let pickItems: [RunDetail.PickItem]
-
-    private var packedCount: Int {
-        pickItems.reduce(into: 0) { result, item in
-            if item.isPicked {
-                result += 1
-            }
-        }
-    }
-
-    private var remainingCount: Int {
-        max(pickItems.count - packedCount, 0)
-    }
-
-    private var totalItemCount: Int {
-        pickItems.reduce(0) { $0 + max($1.count, 0) }
-    }
+private struct PickEntryRow: View {
+    let pickItem: RunDetail.PickItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(machine.code)
+                Text(pickItem.sku?.name ?? "Unknown SKU")
                     .font(.headline)
                     .fontWeight(.semibold)
 
-                if let typeName = machine.machineType?.name {
-                    Text(typeName)
+                if let skuCode = pickItem.sku?.code {
+                    Text(skuCode)
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -91,31 +115,27 @@ private struct MachineSummaryRow: View {
                 }
             }
 
-            if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(description)
+            if let machineCode = pickItem.machine?.code {
+                Text("Machine: \(machineCode)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 12) {
-                Label("\(pickItems.count) coils", systemImage: "scope")
+                Label("\(pickItem.count) items", systemImage: "cube")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if totalItemCount > 0 {
-                    Label("\(totalItemCount) items", systemImage: "cube")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Label(pickItem.coilItem.coil.code, systemImage: "scope")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                if packedCount > 0 {
-                    Label("\(packedCount) packed", systemImage: "checkmark.circle")
+                if pickItem.isPicked {
+                    Label("Picked", systemImage: "checkmark.circle")
                         .font(.caption)
                         .foregroundStyle(.green)
-                }
-
-                if remainingCount > 0 {
-                    Label("\(remainingCount) remaining", systemImage: "cart")
+                } else {
+                    Label("Pending", systemImage: "cart")
                         .font(.caption)
                         .foregroundStyle(.pink)
                 }
