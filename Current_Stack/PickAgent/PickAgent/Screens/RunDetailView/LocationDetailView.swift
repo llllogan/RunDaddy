@@ -55,17 +55,41 @@ struct LocationDetailView: View {
             allPickItems
         }
         
-        return filteredItems.sorted { item1, item2 in
-            let coil1 = item1.coilItem.coil.code
-            let coil2 = item2.coilItem.coil.code
-            
-            switch coilSortOrder {
-            case .ascending:
-                return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedAscending
-            case .descending:
-                return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedDescending
-            }
+        // Group by machine first, then sort within each machine group
+        let groupedByMachine = Dictionary(grouping: filteredItems) { item in
+            item.machine?.id ?? "unknown"
         }
+        
+        // Sort machines by their code/description for consistent ordering
+        let sortedMachineIds = groupedByMachine.keys.sorted { machineId1, machineId2 in
+            let machine1 = machines.first { $0.id == machineId1 }
+            let machine2 = machines.first { $0.id == machineId2 }
+            
+            let code1 = machine1?.code ?? machineId1
+            let code2 = machine2?.code ?? machineId2
+            
+            return code1.localizedCaseInsensitiveCompare(code2) == .orderedAscending
+        }
+        
+        // Flatten the groups while maintaining coil sort order within each machine
+        var result: [RunDetail.PickItem] = []
+        for machineId in sortedMachineIds {
+            let machineItems = groupedByMachine[machineId] ?? []
+            let sortedItems = machineItems.sorted { item1, item2 in
+                let coil1 = item1.coilItem.coil.code
+                let coil2 = item2.coilItem.coil.code
+                
+                switch coilSortOrder {
+                case .ascending:
+                    return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedAscending
+                case .descending:
+                    return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedDescending
+                }
+            }
+            result.append(contentsOf: sortedItems)
+        }
+        
+        return result
     }
 
     var body: some View {
@@ -192,12 +216,12 @@ private struct PickEntryRow: View {
                 ZStack {
                     Circle()
                         .stroke(pickItem.isPicked ? Color.green : Color.gray, lineWidth: 2)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 20, height: 20)
                         .background(Circle().fill(Color.white))
                     
                     if pickItem.isPicked {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.green)
                     }
                 }
