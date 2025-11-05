@@ -221,11 +221,7 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
   const pickEntry = await prisma.pickEntry.findFirst({
     where: {
       id: pickId,
-      coilItem: {
-        coil: {
-          runId: runId
-        }
-      }
+      runId: runId
     }
   });
 
