@@ -28,7 +28,7 @@ struct LocationDetailView: View {
     var body: some View {
         List {
             Section {
-                LocationOverviewBento(summary: overviewSummary)
+                LocationOverviewBento(summary: overviewSummary, machines: machines)
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)

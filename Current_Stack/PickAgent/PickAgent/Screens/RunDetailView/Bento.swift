@@ -348,6 +348,12 @@ struct LocationOverviewSummary {
 
 struct LocationOverviewBento: View {
     let summary: LocationOverviewSummary
+    let machines: [RunDetail.Machine]
+
+    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = []) {
+        self.summary = summary
+        self.machines = machines
+    }
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -360,21 +366,7 @@ struct LocationOverviewBento: View {
                       symbolTint: .orange,
                       allowsMultilineValue: true)
         )
-
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "\(summary.machineCount)",
-                      symbolName: "building.2",
-                      symbolTint: .cyan)
-        )
-
-        cards.append(
-            BentoItem(title: "Total Coils",
-                      value: "\(summary.totalCoils)",
-                      symbolName: "scope",
-                      symbolTint: .purple)
-        )
-
+        
         if summary.totalCoils > 0 {
             let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
             cards.append(
@@ -395,6 +387,63 @@ struct LocationOverviewBento: View {
                           symbolTint: .green)
             )
         }
+
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "",
+                      symbolName: "building.2",
+                      symbolTint: .cyan,
+                      customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(machines, id: \.id) { machine in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    
+                                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text(description)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    HStack {
+                                        Text(machine.code)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                    }
+                                    
+                                    if let machineType = machine.machineType {
+                                        Text(machineType.name)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(.systemGray5))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                            
+                            if machines.isEmpty {
+                                Text("No machines")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
+        )
+
+        cards.append(
+            BentoItem(title: "Total Coils",
+                      value: "\(summary.totalCoils)",
+                      symbolName: "scope",
+                      symbolTint: .purple)
+        )
+
+        
 
         if summary.totalItems > 0 {
             cards.append(
