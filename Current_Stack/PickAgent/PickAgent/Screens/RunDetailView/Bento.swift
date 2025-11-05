@@ -239,7 +239,8 @@ struct RunOverviewBento: View {
                                 }
                                 .buttonStyle(.bordered)
                                 Spacer()
-                            })
+                            }
+                         )
                          )
             )
         }

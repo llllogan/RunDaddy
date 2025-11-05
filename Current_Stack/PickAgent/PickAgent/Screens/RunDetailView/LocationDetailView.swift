@@ -47,9 +47,6 @@ struct LocationDetailView: View {
 
             Section {
                 HStack {
-//                    Image(systemName: "line.3.horizontal.decrease")
-//                        .font(.subheadline)
-//                        .foregroundStyle(.secondary)
                     Menu {
                         Button("All Machines") {
                             selectedMachineFilter = nil
@@ -99,14 +96,32 @@ private struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(pickItem.sku?.name ?? "Unknown SKU")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-
-                if let skuCode = pickItem.sku?.code {
-                    Text(skuCode)
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(pickItem.sku?.name ?? "Unknown SKU")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    if let skuCode = pickItem.sku?.code {
+                        Text(skuCode)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .fontWeight(.regular)
+                    }
+                }
+                
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let machineCode = pickItem.machine?.code {
+                        Text("Machine: \(machineCode)")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(.systemGray5))
+                            .clipShape(Capsule())
+                    }
+                    
+                    Text("Coil: \(pickItem.coilItem.coil.code)")
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -114,35 +129,13 @@ private struct PickEntryRow: View {
                         .clipShape(Capsule())
                 }
             }
-
-            if let machineCode = pickItem.machine?.code {
-                Text("Machine: \(machineCode)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 12) {
-                Label("\(pickItem.count) items", systemImage: "cube")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Label(pickItem.coilItem.coil.code, systemImage: "scope")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if pickItem.isPicked {
-                    Label("Picked", systemImage: "checkmark.circle")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                } else {
-                    Label("Pending", systemImage: "cart")
-                        .font(.caption)
-                        .foregroundStyle(.pink)
-                }
-            }
-            .accessibilityElement(children: .combine)
+            .padding(.vertical, 6)
+            
+            Spacer()
+            
+            Text("\(pickItem.count)")
+                .font(.title)
         }
-        .padding(.vertical, 6)
     }
 }
 
