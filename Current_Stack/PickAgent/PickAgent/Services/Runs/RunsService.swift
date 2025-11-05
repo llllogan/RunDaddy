@@ -190,7 +190,7 @@ final class RunsService: RunsServicing {
 
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
         var url = AppConfig.apiBaseURL
-        url.appendPathComponent("run")
+        url.appendPathComponent("runs")
         url.appendPathComponent(runId)
 
         var request = URLRequest(url: url)
@@ -220,7 +220,7 @@ final class RunsService: RunsServicing {
 
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
         var url = AppConfig.apiBaseURL
-        url.appendPathComponent("run")
+        url.appendPathComponent("runs")
         url.appendPathComponent(runId)
         url.appendPathComponent("assignment")
 
