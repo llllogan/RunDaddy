@@ -132,12 +132,16 @@ router.post('/:runId/assignment', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  const runId = req.params.runId.trim();
+  console.log('Assignment request: runId=', runId, 'companyId=', req.auth.companyId, 'userId=', req.auth.userId);
+
   const parsed = runAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const run = await ensureRun(req.auth.companyId, req.params.runId);
+  const run = await ensureRun(req.auth.companyId, runId);
+  console.log('Run found:', !!run, run?.companyId);
   if (!run) {
     return res.status(404).json({ error: 'Run not found' });
   }

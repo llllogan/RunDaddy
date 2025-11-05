@@ -147,6 +147,7 @@ struct StaggeredBentoGrid: View {
 
 struct RunOverviewBento: View {
     let summary: RunOverviewSummary
+    let assignAction: (String) -> Void
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -191,10 +192,24 @@ struct RunOverviewBento: View {
         } else {
             cards.append(
                 BentoItem(title: "Runner",
-                          value: "Not set",
+                          value: "",
                           symbolName: "person.crop.circle.badge.questionmark",
                           symbolTint: .blue,
-                          allowsMultilineValue: false)
+                          allowsMultilineValue: false,
+                          customContent: AnyView(
+                            HStack {
+                                Button(action: {
+                                    assignAction("RUNNER") }
+                                ) {
+                                    Text("Assign me")
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 4)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                Spacer()
+                            }
+                          )
+                         )
             )
         }
 
@@ -209,10 +224,21 @@ struct RunOverviewBento: View {
         } else {
             cards.append(
                 BentoItem(title: "Picker",
-                          value: "Not set",
+                          value: "",
                           symbolName: "person.crop.circle.badge.questionmark",
                           symbolTint: .blue,
-                          allowsMultilineValue: false)
+                          allowsMultilineValue: false,
+                          customContent: AnyView(
+                            Button(action: { assignAction("PICKER") }) {
+                                Text("Assign me")
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .foregroundColor(.blue)
+                                    .clipShape(Capsule())
+                            }
+                          ))
             )
         }
 
@@ -445,5 +471,86 @@ struct SemiCircleClipShape: Shape {
         let clipRect = CGRect(x: 0, y: 0, width: rect.width, height: rect.height / 2)
         path.addRect(clipRect)
         return path
+    }
+}
+
+
+
+
+#Preview {
+    struct PreviewRunsService: RunsServicing {
+        func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
+            []
+        }
+
+        func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let uptown = RunDetail.Location(id: "loc-2", name: "Uptown Annex", address: "456 Oak Avenue")
+
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let drinkType = RunDetail.MachineTypeDescriptor(id: "type-2", name: "Drink Machine", description: nil)
+
+            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
+            let machineC = RunDetail.Machine(id: "machine-3", code: "C-08", description: "Front Vestibule", machineType: drinkType, location: uptown)
+
+            let coilA = RunDetail.Coil(id: "coil-1", code: "C1", machineId: machineA.id)
+            let coilB = RunDetail.Coil(id: "coil-2", code: "C2", machineId: machineB.id)
+            let coilC = RunDetail.Coil(id: "coil-3", code: "C3", machineId: machineC.id)
+
+            let coilItemA = RunDetail.CoilItem(id: "coil-item-1", par: 10, coil: coilA)
+            let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
+            let coilItemC = RunDetail.CoilItem(id: "coil-item-3", par: 12, coil: coilC)
+
+            let skuSnack = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
+            let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", isCheeseAndCrackers: false)
+
+            let pickA = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown)
+            let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuSnack, machine: machineB, location: downtown)
+            let pickC = RunDetail.PickItem(id: "pick-3", count: 9, status: "PICKED", pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown)
+
+            let chocolateBox = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
+
+            return RunDetail(
+                id: runId,
+                status: "PICKING",
+                companyId: "company-1",
+                scheduledFor: Date().addingTimeInterval(3600),
+                pickingStartedAt: Date().addingTimeInterval(-1800),
+                pickingEndedAt: nil,
+                createdAt: Date().addingTimeInterval(-7200),
+                picker: RunParticipant(id: "picker-1", firstName: "Jordan", lastName: "Smith"),
+                runner: nil,
+                locations: [downtown, uptown],
+                machines: [machineA, machineB, machineC],
+                pickItems: [pickA, pickB, pickC],
+                chocolateBoxes: [chocolateBox]
+            )
+        }
+
+        func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
+        }
+    }
+
+    let credentials = AuthCredentials(
+        accessToken: "preview-token",
+        refreshToken: "preview-refresh",
+        userID: "user-1",
+        expiresAt: Date().addingTimeInterval(3600)
+    )
+    let profile = UserProfile(
+        id: "user-1",
+        email: "jordan@example.com",
+        firstName: "Jordan",
+        lastName: "Smith",
+        phone: nil,
+        role: "PICKER"
+    )
+    let session = AuthSession(credentials: credentials, profile: profile)
+
+    return NavigationStack {
+        RunDetailView(runId: "run-12345", session: session, service: PreviewRunsService())
+            .environment(\.colorScheme, .light)
     }
 }

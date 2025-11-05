@@ -30,7 +30,11 @@ struct RunDetailView: View {
 
             if let overview = viewModel.overview {
                 Section {
-                    RunOverviewBento(summary: overview)
+                    RunOverviewBento(summary: overview, assignAction: { role in
+                        Task {
+                            await viewModel.assignUser(to: role)
+                        }
+                    })
                         .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
@@ -177,12 +181,16 @@ private struct ErrorRow: View {
                 pickingEndedAt: nil,
                 createdAt: Date().addingTimeInterval(-7200),
                 picker: RunParticipant(id: "picker-1", firstName: "Jordan", lastName: "Smith"),
-                runner: RunParticipant(id: "runner-1", firstName: "Avery", lastName: "Lee"),
+                runner: nil,
                 locations: [downtown, uptown],
                 machines: [machineA, machineB, machineC],
                 pickItems: [pickA, pickB, pickC],
                 chocolateBoxes: [chocolateBox]
             )
+        }
+
+        func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
         }
     }
 
@@ -204,5 +212,6 @@ private struct ErrorRow: View {
 
     return NavigationStack {
         RunDetailView(runId: "run-12345", session: session, service: PreviewRunsService())
+            .environment(\.colorScheme, .light)
     }
 }

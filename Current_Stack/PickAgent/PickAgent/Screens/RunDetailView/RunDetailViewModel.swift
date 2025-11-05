@@ -154,6 +154,28 @@ final class RunDetailViewModel: ObservableObject {
         return RunLocationDetail(section: context.section, machines: machines, pickItemsByMachine: byMachine)
     }
 
+    func assignUser(to role: String) async {
+        guard let runId = detail?.id else { return }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await service.assignUser(to: runId, userId: session.profile.id, role: role, credentials: session.credentials)
+            // Reload the detail after assignment
+            try await load(force: true)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to assign role. Please try again."
+            }
+        }
+
+        isLoading = false
+    }
+
     private struct LocationContext {
         var section: RunLocationSection
         var machines: [String: RunDetail.Machine]

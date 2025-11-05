@@ -10,6 +10,7 @@ import Foundation
 protocol RunsServicing {
     func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
+    func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
 }
 
 enum RunsSchedule {
@@ -215,6 +216,44 @@ final class RunsService: RunsServicing {
 
         let payload = try decoder.decode(RunDetailResponse.self, from: data)
         return payload.toDetail()
+    }
+
+    func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("run")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("assignment")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = ["userId": userId, "role": role]
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            if httpResponse.statusCode == 409 {
+                throw RunsServiceError.roleAlreadyAssigned
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
     }
 }
 
@@ -435,6 +474,8 @@ enum RunsServiceError: LocalizedError {
     case invalidResponse
     case serverError(code: Int)
     case runNotFound
+    case insufficientPermissions
+    case roleAlreadyAssigned
 
     var errorDescription: String? {
         switch self {
@@ -444,6 +485,10 @@ enum RunsServiceError: LocalizedError {
             return "Fetching runs failed with an unexpected error (code \(code))."
         case .runNotFound:
             return "We couldn't find details for that run. It may have been removed."
+        case .insufficientPermissions:
+            return "You don't have permission to assign this role."
+        case .roleAlreadyAssigned:
+            return "This role is already assigned to another user."
         }
     }
 }
