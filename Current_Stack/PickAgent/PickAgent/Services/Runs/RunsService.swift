@@ -220,7 +220,7 @@ final class RunsService: RunsServicing {
 
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
         var url = AppConfig.apiBaseURL
-        url.appendPathComponent("runs")
+        url.appendPathComponent("run")
         url.appendPathComponent(runId)
         url.appendPathComponent("assignment")
 

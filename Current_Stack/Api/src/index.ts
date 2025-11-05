@@ -73,23 +73,6 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/run-imports', runImportsRouter);
-app.get('/api/run/:runId', authenticate, async (req, res) => {
-  if (!req.auth) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const { runId } = req.params;
-  if (!runId) {
-    return res.status(400).json({ error: 'Run ID is required' });
-  }
-
-  const payload = await getRunDetailPayload(req.auth.companyId, runId);
-  if (!payload) {
-    return res.status(404).json({ error: 'Run not found' });
-  }
-
-  return res.json(payload);
-});
 app.use('/api/runs', runRouter);
 
 if (process.env.NODE_ENV !== 'production') {

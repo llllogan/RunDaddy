@@ -25,7 +25,7 @@ const router = Router();
 router.use(authenticate);
 
 // Lists runs for the current company, optionally filtered by status.
-router.get('/', async (req, res) => {
+router.get('', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -108,7 +108,7 @@ router.get('/tomorrow/ready', async (req, res) => {
   return res.json(runs);
 });
 
-router.get('/:runId', async (req, res) => {
+router.get('/run/:runId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -127,7 +127,7 @@ router.get('/:runId', async (req, res) => {
 });
 
 // Assigns or unassigns a picker or runner to a run.
-router.post('/:runId/assignment', async (req, res) => {
+router.post('/run/:runId/assignment', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -188,7 +188,7 @@ router.post('/:runId/assignment', async (req, res) => {
 });
 
 // Deletes a run and all related records.
-router.delete('/:runId', async (req, res) => {
+router.delete('/run/:runId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
