@@ -196,6 +196,62 @@ router.post('/:runId/assignment', async (req, res) => {
   });
 });
 
+// Updates a pick item status (PICKED/PENDING)
+router.patch('/:runId/picks/:pickId', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const { status } = req.body;
+  if (!status || !['PICKED', 'PENDING'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be PICKED or PENDING' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  // Find the pick entry
+  const pickEntry = await prisma.pickEntry.findFirst({
+    where: {
+      id: pickId,
+      coilItem: {
+        coil: {
+          runId: runId
+        }
+      }
+    }
+  });
+
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  const updateData: any = { status };
+  if (status === 'PICKED' && !pickEntry.pickedAt) {
+    updateData.pickedAt = new Date();
+  } else if (status === 'PENDING') {
+    updateData.pickedAt = null;
+  }
+
+  const updatedPickEntry = await prisma.pickEntry.update({
+    where: { id: pickEntry.id },
+    data: updateData
+  });
+
+  return res.json({
+    id: updatedPickEntry.id,
+    status: updatedPickEntry.status,
+    pickedAt: updatedPickEntry.pickedAt
+  });
+});
+
 // Deletes a run and all related records.
 router.delete('/:runId', async (req, res) => {
   if (!req.auth) {
