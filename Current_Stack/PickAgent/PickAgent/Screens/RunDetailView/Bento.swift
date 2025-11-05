@@ -497,7 +497,13 @@ struct LocationOverviewBento: View {
     }
 
     private var chocolateBoxNumbersText: String {
-        let numbers = viewModel.chocolateBoxes.map { $0.number }.sorted()
+        // Filter chocolate boxes to only include those assigned to machines in this location
+        let locationMachineIds = Set(machines.map { $0.id })
+        let locationChocolateBoxes = viewModel.chocolateBoxes.filter { box in
+            box.machine?.id != nil && locationMachineIds.contains(box.machine!.id)
+        }
+        
+        let numbers = locationChocolateBoxes.map { $0.number }.sorted()
         if numbers.isEmpty {
             return "None"
         } else if numbers.count <= 3 {

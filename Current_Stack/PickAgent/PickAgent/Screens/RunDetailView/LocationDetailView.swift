@@ -183,7 +183,7 @@ struct LocationDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(detail.section.title)
         .sheet(isPresented: $showingChocolateBoxesSheet) {
-            ChocolateBoxesSheet(viewModel: viewModel)
+            ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
         }
         .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
             showingChocolateBoxesSheet = showing

@@ -9,20 +9,28 @@ import SwiftUI
 
 struct ChocolateBoxesSheet: View {
     @ObservedObject var viewModel: RunDetailViewModel
+    let locationMachines: [RunDetail.Machine]
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddBoxSheet = false
+    
+    private var locationChocolateBoxes: [RunDetail.ChocolateBox] {
+        let locationMachineIds = Set(locationMachines.map { $0.id })
+        return viewModel.chocolateBoxes.filter { box in
+            box.machine?.id != nil && locationMachineIds.contains(box.machine!.id)
+        }
+    }
     
     var body: some View {
         NavigationStack {
             List {
-                if viewModel.chocolateBoxes.isEmpty {
+                if locationChocolateBoxes.isEmpty {
                     ContentUnavailableView(
                         "No Chocolate Boxes",
                         systemImage: "shippingbox",
                         description: Text("Add chocolate boxes to track their machine assignments")
                     )
                 } else {
-                    ForEach(viewModel.chocolateBoxes) { box in
+                    ForEach(locationChocolateBoxes) { box in
                         ChocolateBoxRow(box: box, viewModel: viewModel)
                     }
                     .onDelete(perform: deleteChocolateBoxes)
@@ -46,14 +54,14 @@ struct ChocolateBoxesSheet: View {
                 }
             }
             .sheet(isPresented: $showingAddBoxSheet) {
-                AddChocolateBoxSheet(viewModel: viewModel)
+                AddChocolateBoxSheet(viewModel: viewModel, locationMachines: locationMachines)
             }
         }
     }
     
     private func deleteChocolateBoxes(offsets: IndexSet) {
         for index in offsets {
-            let box = viewModel.chocolateBoxes[index]
+            let box = locationChocolateBoxes[index]
             Task {
                 await viewModel.deleteChocolateBox(boxId: box.id)
             }
@@ -112,16 +120,13 @@ struct ChocolateBoxRow: View {
 
 struct AddChocolateBoxSheet: View {
     @ObservedObject var viewModel: RunDetailViewModel
+    let locationMachines: [RunDetail.Machine]
     @Environment(\.dismiss) private var dismiss
     
     @State private var boxNumber: String = ""
     @State private var selectedMachineId: String = ""
     @State private var isCreating = false
     @State private var errorMessage: String?
-    
-    private var machines: [RunDetail.Machine] {
-        viewModel.detail?.machines ?? []
-    }
     
     private var isFormValid: Bool {
         !boxNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -143,14 +148,14 @@ struct AddChocolateBoxSheet: View {
                 }
                 
                 Section("Machine Assignment") {
-                    if machines.isEmpty {
-                        Text("No machines available for this run")
+                    if locationMachines.isEmpty {
+                        Text("No machines available for this location")
                             .foregroundStyle(.secondary)
                             .italic()
                     } else {
                         Picker("Machine", selection: $selectedMachineId) {
                             Text("Select a machine").tag("")
-                            ForEach(machines) { machine in
+                            ForEach(locationMachines) { machine in
                                 HStack {
                                     Text(machine.code)
                                     Spacer()
@@ -333,6 +338,11 @@ struct AddChocolateBoxSheet: View {
     }
     
     let viewModel = RunDetailViewModel(runId: "run-12345", session: session, service: PreviewRunsService())
+    let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+    let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+    let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+    let machineB = RunDetail.Machine(id: "machine-2", code: "B-204", description: "Breakroom", machineType: snackType, location: downtown)
+    let locationMachines = [machineA, machineB]
     
-    return ChocolateBoxesSheet(viewModel: viewModel)
+    return ChocolateBoxesSheet(viewModel: viewModel, locationMachines: locationMachines)
 }
