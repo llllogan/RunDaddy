@@ -229,7 +229,7 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
     return res.status(404).json({ error: 'Pick entry not found' });
   }
 
-  const updateData: any = { status };
+  const updateData: Prisma.PickEntryUpdateInput = { status };
   if (status === 'PICKED' && !pickEntry.pickedAt) {
     updateData.pickedAt = new Date();
   } else if (status === 'PENDING') {
@@ -264,6 +264,245 @@ router.delete('/:runId', async (req, res) => {
   }
 
   await prisma.run.delete({ where: { id: run.id } });
+  return res.status(204).send();
+});
+
+// Chocolate Boxes endpoints
+
+// Get all chocolate boxes for a run
+router.get('/:runId/chocolate-boxes', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const chocolateBoxes = await prisma.chocolateBox.findMany({
+    where: { runId },
+    include: {
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
+    },
+    orderBy: { number: 'asc' },
+  });
+
+  return res.json(chocolateBoxes.map(box => ({
+    id: box.id,
+    number: box.number,
+    machine: box.machine ? {
+      id: box.machine.id,
+      code: box.machine.code,
+      description: box.machine.description,
+      machineType: box.machine.machineType ? {
+        id: box.machine.machineType.id,
+        name: box.machine.machineType.name,
+        description: box.machine.machineType.description,
+      } : null,
+      location: box.machine.location ? {
+        id: box.machine.location.id,
+        name: box.machine.location.name,
+        address: box.machine.location.address,
+      } : null,
+    } : null,
+  })));
+});
+
+// Create a new chocolate box for a run
+router.post('/:runId/chocolate-boxes', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const parsed = createChocolateBoxSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  // Check if machine belongs to the company
+  const machine = await ensureMachine(req.auth.companyId, parsed.data.machineId);
+  if (!machine) {
+    return res.status(404).json({ error: 'Machine not found' });
+  }
+
+  // Check if chocolate box number already exists for this run
+  const existingBox = await prisma.chocolateBox.findUnique({
+    where: {
+      runId_number: {
+        runId,
+        number: parsed.data.number,
+      },
+    },
+  });
+
+  if (existingBox) {
+    return res.status(409).json({ error: 'Chocolate box number already exists for this run' });
+  }
+
+  const chocolateBox = await prisma.chocolateBox.create({
+    data: {
+      runId,
+      machineId: parsed.data.machineId,
+      number: parsed.data.number,
+    },
+    include: {
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
+    },
+  });
+
+  return res.status(201).json({
+    id: chocolateBox.id,
+    number: chocolateBox.number,
+    machine: chocolateBox.machine ? {
+      id: chocolateBox.machine.id,
+      code: chocolateBox.machine.code,
+      description: chocolateBox.machine.description,
+      machineType: chocolateBox.machine.machineType ? {
+        id: chocolateBox.machine.machineType.id,
+        name: chocolateBox.machine.machineType.name,
+        description: chocolateBox.machine.machineType.description,
+      } : null,
+      location: chocolateBox.machine.location ? {
+        id: chocolateBox.machine.location.id,
+        name: chocolateBox.machine.location.name,
+        address: chocolateBox.machine.location.address,
+      } : null,
+    } : null,
+  });
+});
+
+// Update a chocolate box
+router.patch('/:runId/chocolate-boxes/:boxId', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId, boxId } = req.params;
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const parsed = updateChocolateBoxSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  // Check if chocolate box exists and belongs to the run
+  const existingBox = await prisma.chocolateBox.findFirst({
+    where: {
+      id: boxId,
+      runId,
+    },
+  });
+
+  if (!existingBox) {
+    return res.status(404).json({ error: 'Chocolate box not found' });
+  }
+
+  // If updating machine, check if it belongs to the company
+  if (parsed.data.machineId) {
+    const machine = await ensureMachine(req.auth.companyId, parsed.data.machineId);
+    if (!machine) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+  }
+
+  // If updating number, check if it already exists for this run (excluding this box)
+  if (parsed.data.number) {
+    const duplicateBox = await prisma.chocolateBox.findFirst({
+      where: {
+        runId,
+        number: parsed.data.number,
+        id: { not: boxId },
+      },
+    });
+
+    if (duplicateBox) {
+      return res.status(409).json({ error: 'Chocolate box number already exists for this run' });
+    }
+  }
+
+  const chocolateBox = await prisma.chocolateBox.update({
+    where: { id: boxId },
+    data: parsed.data as Prisma.ChocolateBoxUpdateInput,
+    include: {
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
+    },
+  });
+
+  return res.json({
+    id: chocolateBox.id,
+    number: chocolateBox.number,
+    machine: chocolateBox.machine ? {
+      id: chocolateBox.machine.id,
+      code: chocolateBox.machine.code,
+      description: chocolateBox.machine.description,
+      machineType: chocolateBox.machine.machineType ? {
+        id: chocolateBox.machine.machineType.id,
+        name: chocolateBox.machine.machineType.name,
+        description: chocolateBox.machine.machineType.description,
+      } : null,
+      location: chocolateBox.machine.location ? {
+        id: chocolateBox.machine.location.id,
+        name: chocolateBox.machine.location.name,
+        address: chocolateBox.machine.location.address,
+      } : null,
+    } : null,
+  });
+});
+
+// Delete a chocolate box
+router.delete('/:runId/chocolate-boxes/:boxId', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId, boxId } = req.params;
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  // Check if chocolate box exists and belongs to the run
+  const existingBox = await prisma.chocolateBox.findFirst({
+    where: {
+      id: boxId,
+      runId,
+    },
+  });
+
+  if (!existingBox) {
+    return res.status(404).json({ error: 'Chocolate box not found' });
+  }
+
+  await prisma.chocolateBox.delete({
+    where: { id: boxId },
+  });
+
   return res.status(204).send();
 });
 
