@@ -437,24 +437,24 @@ struct LocationOverviewBento: View {
                       ))
         )
 
-        cards.append(
-            BentoItem(title: "Total Coils",
-                      value: "\(summary.totalCoils)",
-                      symbolName: "scope",
-                      symbolTint: .purple)
-        )
+//        cards.append(
+//            BentoItem(title: "Total Coils",
+//                      value: "\(summary.totalCoils)",
+//                      symbolName: "scope",
+//                      symbolTint: .purple)
+//        )
 
         
 
-        if summary.totalItems > 0 {
-            cards.append(
-                BentoItem(title: "Total Items",
-                          value: "\(summary.totalItems)",
-                          symbolName: "cube",
-                          symbolTint: .indigo,
-                          isProminent: true)
-            )
-        }
+//        if summary.totalItems > 0 {
+//            cards.append(
+//                BentoItem(title: "Total Items",
+//                          value: "\(summary.totalItems)",
+//                          symbolName: "cube",
+//                          symbolTint: .indigo,
+//                          isProminent: true)
+//            )
+//        }
 
         cards.append(
             BentoItem(title: "Remaining",
@@ -463,6 +463,28 @@ struct LocationOverviewBento: View {
                       symbolName: "cart",
                       symbolTint: .pink,
                       isProminent: summary.remainingCoils > 0)
+        )
+        
+        cards.append(
+            BentoItem(title: "Chocolate Boxes",
+                      value: "",
+                      symbolName: "shippingbox",
+                      symbolTint: .brown,
+                     customContent: AnyView(
+                        HStack{
+                            Text("3, 34, 5")
+                                .font(.title3.weight(.semibold))
+                                .multilineTextAlignment(.leading)
+                            Spacer()
+                            Button(action: {}) {
+                                Image(systemName: "magnifyingglass")
+                                    .padding(6)
+                                    .background(Color(.systemGray5))
+                                    .clipShape(Circle())
+                                    .tint(.primary)
+                            }
+                        }
+                     ))
         )
 
         return cards
