@@ -184,24 +184,6 @@ router.post('/:runId/assignment', async (req, res) => {
     id: updatedRun.id,
     companyId: updatedRun.companyId,
     status: updatedRun.status,
-    scheduledFor: updatedRun.scheduledFor,
-    pickingStartedAt: updatedRun.pickingStartedAt,
-    pickingEndedAt: updatedRun.pickingEndedAt,
-    createdAt: updatedRun.createdAt,
-    picker: updatedRun.picker
-      ? {
-          id: updatedRun.picker.id,
-          firstName: updatedRun.picker.firstName,
-          lastName: updatedRun.picker.lastName,
-        }
-      : null,
-    runner: updatedRun.runner
-      ? {
-          id: updatedRun.runner.id,
-          firstName: updatedRun.runner.firstName,
-          lastName: updatedRun.runner.lastName,
-        }
-      : null,
   });
 });
 
