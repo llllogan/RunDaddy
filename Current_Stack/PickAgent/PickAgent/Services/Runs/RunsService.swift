@@ -11,6 +11,7 @@ protocol RunsServicing {
     func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
+    func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
 }
 
 enum RunsSchedule {
@@ -68,6 +69,30 @@ struct RunSummary: Identifiable, Equatable {
 }
 
 typealias RunParticipant = RunSummary.Participant
+
+struct CompanyUser: Identifiable, Equatable {
+    let id: String
+    let email: String
+    let firstName: String?
+    let lastName: String?
+    let phone: String?
+    let role: String?
+    
+    var displayName: String {
+        let trimmedFirst = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedLast = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        if !trimmedFirst.isEmpty && !trimmedLast.isEmpty {
+            return "\(trimmedFirst) \(trimmedLast)"
+        } else if !trimmedFirst.isEmpty {
+            return trimmedFirst
+        } else if !trimmedLast.isEmpty {
+            return trimmedLast
+        } else {
+            return email
+        }
+    }
+}
 
 struct RunDetail: Equatable {
     struct Location: Identifiable, Equatable {
@@ -230,8 +255,8 @@ final class RunsService: RunsServicing {
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = ["userId": userId, "role": role]
-        request.httpBody = try JSONEncoder().encode(body)
+        let body: [String: Any] = userId.isEmpty ? ["role": role] : ["userId": userId, "role": role]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await urlSession.data(for: request)
 
@@ -254,6 +279,32 @@ final class RunsService: RunsServicing {
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
+    }
+    
+    func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser] {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("users")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode([CompanyUserResponse].self, from: data)
+        return payload.map { $0.toCompanyUser() }
     }
 }
 
@@ -466,6 +517,26 @@ private struct RunDetailResponse: Decodable {
             machines: machines.map { $0.toMachine() },
             pickItems: pickItems.map { $0.toPickItem() },
             chocolateBoxes: chocolateBoxes.map { $0.toChocolateBox() }
+        )
+    }
+}
+
+private struct CompanyUserResponse: Decodable {
+    let id: String
+    let email: String
+    let firstName: String?
+    let lastName: String?
+    let phone: String?
+    let role: String?
+    
+    func toCompanyUser() -> CompanyUser {
+        CompanyUser(
+            id: id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            role: role
         )
     }
 }

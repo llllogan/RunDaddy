@@ -146,30 +146,39 @@ router.post('/:runId/assignment', async (req, res) => {
     return res.status(404).json({ error: 'Run not found' });
   }
 
-  const membership = await ensureMembership(req.auth.companyId, parsed.data.userId);
-  if (!membership) {
-    return res.status(404).json({ error: 'User not found in company' });
-  }
+  // If userId is provided, validate membership and permissions
+  if (parsed.data.userId) {
+    const membership = await ensureMembership(req.auth.companyId, parsed.data.userId);
+    if (!membership) {
+      return res.status(404).json({ error: 'User not found in company' });
+    }
 
-  const isSelfAssignment = parsed.data.userId === req.auth.userId;
-  const isManager = isCompanyManager(req.auth.role);
+    const isSelfAssignment = parsed.data.userId === req.auth.userId;
+    const isManager = isCompanyManager(req.auth.role);
 
-  if (!isManager && !isSelfAssignment) {
-    return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
-  }
+    if (!isManager && !isSelfAssignment) {
+      return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
+    }
 
-  // For self-assignment, check if the role is already taken
-  if (isSelfAssignment && !isManager) {
-    const isPickerTaken = parsed.data.role === 'PICKER' && run.pickerId != null && run.pickerId !== req.auth.userId;
-    const isRunnerTaken = parsed.data.role === 'RUNNER' && run.runnerId != null && run.runnerId !== req.auth.userId;
-    if (isPickerTaken || isRunnerTaken) {
-      return res.status(409).json({ error: 'Role is already assigned to another user' });
+    // For self-assignment, check if the role is already taken
+    if (isSelfAssignment && !isManager) {
+      const isPickerTaken = parsed.data.role === 'PICKER' && run.pickerId != null && run.pickerId !== req.auth.userId;
+      const isRunnerTaken = parsed.data.role === 'RUNNER' && run.runnerId != null && run.runnerId !== req.auth.userId;
+      if (isPickerTaken || isRunnerTaken) {
+        return res.status(409).json({ error: 'Role is already assigned to another user' });
+      }
+    }
+  } else {
+    // For unassignment, only managers can unassign users
+    if (!isCompanyManager(req.auth.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions to unassign runs' });
     }
   }
 
+  const userId = parsed.data.userId && parsed.data.userId.trim() !== "" ? parsed.data.userId : null;
   const updateData = parsed.data.role === 'PICKER'
-    ? { pickerId: parsed.data.userId }
-    : { runnerId: parsed.data.userId };
+    ? { pickerId: userId }
+    : { runnerId: userId };
 
   const updatedRun = await prisma.run.update({
     where: { id: run.id },

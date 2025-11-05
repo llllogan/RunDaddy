@@ -33,7 +33,7 @@ export const updateChocolateBoxSchema = z.object({
 });
 
 export const runAssignmentSchema = z.object({
-  userId: z.string().cuid(),
+  userId: z.string().cuid().optional(),
   role: z.enum(['PICKER', 'RUNNER']),
 });
 

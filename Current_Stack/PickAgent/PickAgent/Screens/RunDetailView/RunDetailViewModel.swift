@@ -69,6 +69,7 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var locationSections: [RunLocationSection] = []
+    @Published private(set) var companyUsers: [CompanyUser] = []
 
     private let runId: String
     private let session: AuthSession
@@ -92,8 +93,14 @@ final class RunDetailViewModel: ObservableObject {
         }
 
         do {
-            let detail = try await service.fetchRunDetail(withId: runId, credentials: session.credentials)
+            async let detailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
+            async let usersTask = service.fetchCompanyUsers(credentials: session.credentials)
+            
+            let detail = try await detailTask
+            let users = try await usersTask
+            
             self.detail = detail
+            self.companyUsers = users
             rebuildLocationData(from: detail)
         } catch {
             if let authError = error as? AuthError {
@@ -104,6 +111,7 @@ final class RunDetailViewModel: ObservableObject {
                 errorMessage = "We couldn't load this run right now. Please try again."
             }
             detail = nil
+            companyUsers = []
             locationSections = []
             locationContextsByID = [:]
         }
@@ -170,6 +178,50 @@ final class RunDetailViewModel: ObservableObject {
                 errorMessage = runError.localizedDescription
             } else {
                 errorMessage = "Failed to assign role. Please try again."
+            }
+        }
+
+        isLoading = false
+    }
+    
+    func assignUser(userId: String, to role: String) async {
+        guard let runId = detail?.id else { return }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await service.assignUser(to: runId, userId: userId, role: role, credentials: session.credentials)
+            // Reload the detail after assignment
+            try await load(force: true)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to assign role. Please try again."
+            }
+        }
+
+        isLoading = false
+    }
+    
+    func unassignUser(from role: String) async {
+        guard let runId = detail?.id else { return }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await service.assignUser(to: runId, userId: "", role: role, credentials: session.credentials)
+            // Reload the detail after unassignment
+            try await load(force: true)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to unassign role. Please try again."
             }
         }
 

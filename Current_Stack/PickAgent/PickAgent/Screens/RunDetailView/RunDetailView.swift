@@ -30,7 +30,7 @@ struct RunDetailView: View {
 
             if let overview = viewModel.overview {
                 Section {
-                    RunOverviewBento(summary: overview, assignAction: { role in
+                    RunOverviewBento(summary: overview, viewModel: viewModel, assignAction: { role in
                         Task {
                             await viewModel.assignUser(to: role)
                         }

@@ -147,6 +147,7 @@ struct StaggeredBentoGrid: View {
 
 struct RunOverviewBento: View {
     let summary: RunOverviewSummary
+    let viewModel: RunDetailViewModel
     let assignAction: (String) -> Void
 
     private var items: [BentoItem] {
@@ -190,8 +191,19 @@ struct RunOverviewBento: View {
                           allowsMultilineValue: false,
                           customContent: AnyView(
                             Menu {
-                                Button("Hello") { }
-                                Button("World") { }
+                                ForEach(viewModel.companyUsers) { user in
+                                    Button(user.displayName) {
+                                        Task {
+                                            await viewModel.assignUser(userId: user.id, to: "RUNNER")
+                                        }
+                                    }
+                                }
+                                Divider()
+                                Button("Unassign") {
+                                    Task {
+                                        await viewModel.unassignUser(from: "RUNNER")
+                                    }
+                                }
                             } label: {
                                 HStack(spacing: 2) {
                                     Text(runner)
@@ -214,16 +226,29 @@ struct RunOverviewBento: View {
                           symbolTint: .blue,
                           allowsMultilineValue: false,
                           customContent: AnyView(
-                            HStack {
-                                Button(action: {
-                                    assignAction("RUNNER") }
-                                ) {
-                                    Text("Assign me")
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 4)
+                            Menu {
+                                ForEach(viewModel.companyUsers) { user in
+                                    Button(user.displayName) {
+                                        Task {
+                                            await viewModel.assignUser(userId: user.id, to: "RUNNER")
+                                        }
+                                    }
                                 }
-                                .buttonStyle(.borderedProminent)
-                                Spacer()
+                            } label: {
+                                HStack {
+                                    Button(action: {
+                                        assignAction("RUNNER") }
+                                    ) {
+                                        Text("Assign me")
+                                            .font(.subheadline)
+                                            .padding(.horizontal, 4)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundColor(.secondary)
+                                }
                             }
                           )
                          )
@@ -239,8 +264,19 @@ struct RunOverviewBento: View {
                           allowsMultilineValue: false,
                           customContent: AnyView(
                             Menu {
-                                Button("Hello") { }
-                                Button("World") { }
+                                ForEach(viewModel.companyUsers) { user in
+                                    Button(user.displayName) {
+                                        Task {
+                                            await viewModel.assignUser(userId: user.id, to: "PICKER")
+                                        }
+                                    }
+                                }
+                                Divider()
+                                Button("Unassign") {
+                                    Task {
+                                        await viewModel.unassignUser(from: "PICKER")
+                                    }
+                                }
                             } label: {
                                 HStack(spacing: 2) {
                                     Text(picker)
@@ -263,14 +299,30 @@ struct RunOverviewBento: View {
                           symbolTint: .blue,
                           allowsMultilineValue: false,
                           customContent: AnyView(
-                            Button(action: { assignAction("PICKER") }) {
-                                Text("Assign me")
-                                    .font(.caption)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.blue.opacity(0.1))
-                                    .foregroundColor(.blue)
-                                    .clipShape(Capsule())
+                            Menu {
+                                ForEach(viewModel.companyUsers) { user in
+                                    Button(user.displayName) {
+                                        Task {
+                                            await viewModel.assignUser(userId: user.id, to: "PICKER")
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Button(action: { assignAction("PICKER") }) {
+                                        Text("Assign me")
+                                            .font(.caption)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(Color.blue.opacity(0.1))
+                                            .foregroundColor(.blue)
+                                            .clipShape(Capsule())
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundColor(.secondary)
+                                }
                             }
                           ))
             )
@@ -564,6 +616,14 @@ struct SemiCircleClipShape: Shape {
 
         func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
             // Preview does nothing
+        }
+        
+        func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser] {
+            return [
+                CompanyUser(id: "user-1", email: "jordan@example.com", firstName: "Jordan", lastName: "Smith", phone: nil, role: "PICKER"),
+                CompanyUser(id: "user-2", email: "alex@example.com", firstName: "Alex", lastName: "Johnson", phone: nil, role: "RUNNER"),
+                CompanyUser(id: "user-3", email: "sam@example.com", firstName: "Sam", lastName: "Brown", phone: nil, role: "PICKER")
+            ]
         }
     }
 
