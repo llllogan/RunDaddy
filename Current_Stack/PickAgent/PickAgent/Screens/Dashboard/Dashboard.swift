@@ -83,7 +83,6 @@ struct DashboardView: View {
                 .matchedTransitionSource(id: "profile", in: profileNamespace)
             }
         }
-        .tint(.primary)
         .task {
             await viewModel.loadRuns()
         }

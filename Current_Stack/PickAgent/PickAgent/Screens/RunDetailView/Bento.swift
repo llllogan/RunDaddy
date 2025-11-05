@@ -215,6 +215,7 @@ struct RunOverviewBento: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
                             }
+                            .tint(.primary)
                           )
                          )
             )
@@ -229,14 +230,14 @@ struct RunOverviewBento: View {
                             HStack {
                                 Button(action: {
                                     Task {
-                                        await viewModel.assignUser(userId: "LOGGED_IN_USER", to: "RUNNER")
+                                        await viewModel.assignUser(to: "RUNNER")
                                     }
                                 }) {
                                     Text("Assign me")
                                         .font(.subheadline)
                                         .padding(.horizontal, 4)
                                 }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.bordered)
                                 Spacer()
                             })
                          )
@@ -276,6 +277,7 @@ struct RunOverviewBento: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
                             }
+                            .tint(.primary)
                           )
                          )
             )
@@ -290,16 +292,17 @@ struct RunOverviewBento: View {
                             HStack {
                                 Button(action: {
                                     Task {
-                                        await viewModel.assignUser(userId: "LOGGED_IN_USER", to: "PICKER")
+                                        await viewModel.assignUser(to: "PICKER")
                                     }
                                 }) {
                                     Text("Assign me")
                                         .font(.subheadline)
                                         .padding(.horizontal, 4)
                                 }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.bordered)
                                 Spacer()
-                            })
+                            }
+                          )
                          )
             )
         }
