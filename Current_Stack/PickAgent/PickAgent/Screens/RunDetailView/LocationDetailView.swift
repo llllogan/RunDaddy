@@ -7,9 +7,24 @@
 
 import SwiftUI
 
+enum CoilSortOrder: CaseIterable {
+    case ascending
+    case descending
+    
+    var displayName: String {
+        switch self {
+        case .ascending:
+            return "Coil: Decending"
+        case .descending:
+            return "Coil: Ascending"
+        }
+    }
+}
+
 struct LocationDetailView: View {
     let detail: RunLocationDetail
     @State private var selectedMachineFilter: String?
+    @State private var coilSortOrder: CoilSortOrder = .ascending
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -28,10 +43,23 @@ struct LocationDetailView: View {
 
     private var filteredPickItems: [RunDetail.PickItem] {
         let allPickItems = detail.pickItems
-        if let machineId = selectedMachineFilter {
-            return allPickItems.filter { $0.machine?.id == machineId }
+        let filteredItems = if let machineId = selectedMachineFilter {
+            allPickItems.filter { $0.machine?.id == machineId }
+        } else {
+            allPickItems
         }
-        return allPickItems
+        
+        return filteredItems.sorted { item1, item2 in
+            let coil1 = item1.coilItem.coil.code
+            let coil2 = item2.coilItem.coil.code
+            
+            switch coilSortOrder {
+            case .ascending:
+                return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedAscending
+            case .descending:
+                return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedDescending
+            }
+        }
     }
 
     var body: some View {
@@ -71,6 +99,29 @@ struct LocationDetailView: View {
                         .background(Color(.systemGray5))
                         .clipShape(Capsule())
                     }
+                    
+                    Menu {
+                        ForEach(CoilSortOrder.allCases, id: \.self) { order in
+                            Button(order.displayName) {
+                                coilSortOrder = order
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(coilSortOrder.displayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                    }
+                    
+                    Spacer()
                 }
                 
                 if filteredPickItems.isEmpty {
