@@ -95,9 +95,9 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var locationSections: [RunLocationSection] = []
     @Published private(set) var companyUsers: [CompanyUser] = []
 
-    private let runId: String
-    private let session: AuthSession
-    private let service: RunsServicing
+    let runId: String
+    let session: AuthSession
+    let service: RunsServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
     init(runId: String, session: AuthSession, service: RunsServicing) {

@@ -53,7 +53,17 @@ struct RunDetailView: View {
                     ForEach(viewModel.locationSections) { section in
                         if let locationDetail = viewModel.locationDetail(for: section.id) {
                             NavigationLink {
-                                LocationDetailView(detail: locationDetail)
+                                LocationDetailView(
+                                    detail: locationDetail,
+                                    runId: viewModel.detail?.id ?? "",
+                                    session: viewModel.session,
+                                    service: viewModel.service,
+                                    onPickStatusChanged: {
+                                        Task {
+                                            await viewModel.load(force: true)
+                                        }
+                                    }
+                                )
                             } label: {
                                 LocationSummaryRow(section: section)
                             }
@@ -199,6 +209,10 @@ private struct ErrorRow: View {
                 CompanyUser(id: "user-2", email: "alex@example.com", firstName: "Alex", lastName: "Johnson", phone: nil, role: "RUNNER"),
                 CompanyUser(id: "user-3", email: "sam@example.com", firstName: "Sam", lastName: "Brown", phone: nil, role: "PICKER")
             ]
+        }
+        
+        func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
         }
     }
 

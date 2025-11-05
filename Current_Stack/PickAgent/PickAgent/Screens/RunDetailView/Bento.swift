@@ -654,6 +654,10 @@ struct SemiCircleClipShape: Shape {
                 CompanyUser(id: "user-3", email: "sam@example.com", firstName: "Sam", lastName: "Brown", phone: nil, role: "PICKER")
             ]
         }
+        
+        func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
+        }
     }
 
     let credentials = AuthCredentials(

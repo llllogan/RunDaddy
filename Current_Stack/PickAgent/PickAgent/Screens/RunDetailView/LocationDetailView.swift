@@ -23,8 +23,14 @@ enum CoilSortOrder: CaseIterable {
 
 struct LocationDetailView: View {
     let detail: RunLocationDetail
+    let runId: String
+    let session: AuthSession
+    let service: RunsServicing
+    let onPickStatusChanged: () -> Void
+    
     @State private var selectedMachineFilter: String?
     @State private var coilSortOrder: CoilSortOrder = .ascending
+    @State private var updatingPickIds: Set<String> = []
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -131,7 +137,15 @@ struct LocationDetailView: View {
                         .padding(.vertical, 4)
                 } else {
                     ForEach(filteredPickItems, id: \.id) { pickItem in
-                        PickEntryRow(pickItem: pickItem)
+                        PickEntryRow(
+                            pickItem: pickItem,
+                            onToggle: {
+                                Task {
+                                    await togglePickStatus(pickItem)
+                                }
+                            }
+                        )
+                        .disabled(updatingPickIds.contains(pickItem.id))
                     }
                 }
             } header: {
@@ -141,13 +155,55 @@ struct LocationDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(detail.section.title)
     }
+    
+    private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
+        updatingPickIds.insert(pickItem.id)
+        
+        let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
+        
+        do {
+            try await service.updatePickItemStatus(
+                runId: runId,
+                pickId: pickItem.id,
+                status: newStatus,
+                credentials: session.credentials
+            )
+            await MainActor.run {
+                onPickStatusChanged()
+            }
+        } catch {
+            // Handle error - could show an alert
+            print("Failed to update pick status: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+        }
+    }
 }
 
 private struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
-
+    let onToggle: () -> Void
+    
     var body: some View {
         HStack {
+            Button(action: onToggle) {
+                ZStack {
+                    Circle()
+                        .stroke(pickItem.isPicked ? Color.green : Color.gray, lineWidth: 2)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.white))
+                    
+                    if pickItem.isPicked {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(pickItem.sku?.name ?? "Unknown SKU")
@@ -190,6 +246,58 @@ private struct PickEntryRow: View {
     }
 }
 
+struct PreviewRunsService: RunsServicing {
+    func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
+        []
+    }
+
+    func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
+        let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+        let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+        let machineA = RunDetail.Machine(id: "machine-1", code: "A-01", description: "Lobby", machineType: machineType, location: location)
+        let machineB = RunDetail.Machine(id: "machine-2", code: "B-12", description: "Breakroom", machineType: machineType, location: location)
+
+        let coilA = RunDetail.Coil(id: "coil-1", code: "C1", machineId: machineA.id)
+        let coilB = RunDetail.Coil(id: "coil-2", code: "C2", machineId: machineB.id)
+
+        let coilItemA = RunDetail.CoilItem(id: "coil-item-1", par: 12, coil: coilA)
+        let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
+
+        let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
+
+        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location)
+        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location)
+
+        return RunDetail(
+            id: "run-1",
+            status: "PICKING",
+            companyId: "company-1",
+            scheduledFor: Date(),
+            pickingStartedAt: Date().addingTimeInterval(-3600),
+            pickingEndedAt: nil,
+            createdAt: Date().addingTimeInterval(-7200),
+            picker: nil,
+            runner: nil,
+            locations: [location],
+            machines: [machineA, machineB],
+            pickItems: [pickA, pickB],
+            chocolateBoxes: []
+        )
+    }
+
+    func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
+    func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser] {
+        []
+    }
+    
+    func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+}
+
 #Preview {
     let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
     let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
@@ -225,7 +333,28 @@ private struct PickEntryRow: View {
         ]
     )
 
-    return NavigationStack {
-        LocationDetailView(detail: detail)
+    NavigationStack {
+        LocationDetailView(
+            detail: detail,
+            runId: "preview-run",
+            session: AuthSession(
+                credentials: AuthCredentials(
+                    accessToken: "preview-token",
+                    refreshToken: "preview-refresh",
+                    userID: "user-1",
+                    expiresAt: Date().addingTimeInterval(3600)
+                ),
+                profile: UserProfile(
+                    id: "user-1",
+                    email: "preview@example.com",
+                    firstName: "Preview",
+                    lastName: "User",
+                    phone: nil,
+                    role: "PICKER"
+                )
+            ),
+            service: PreviewRunsService(),
+            onPickStatusChanged: {}
+        )
     }
 }
