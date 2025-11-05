@@ -525,7 +525,7 @@ private struct RunDetailResponse: Decodable {
             runner: runner?.toParticipant(),
             locations: locations.map { $0.toLocation() },
             machines: machines.map { $0.toMachine() },
-            pickItems: pickItems.map { $0.toPickItem() },
+            pickItems: pickItems.filter { $0.count > 0 }.map { $0.toPickItem() },
             chocolateBoxes: chocolateBoxes.map { $0.toChocolateBox() }
         )
     }
