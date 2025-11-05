@@ -352,12 +352,14 @@ struct LocationOverviewBento: View {
     let machines: [RunDetail.Machine]
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
+    let cheeseItems: [RunDetail.PickItem]
 
-    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = [], viewModel: RunDetailViewModel, onChocolateBoxesTap: (() -> Void)? = nil) {
+    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = [], viewModel: RunDetailViewModel, onChocolateBoxesTap: (() -> Void)? = nil, cheeseItems: [RunDetail.PickItem] = []) {
         self.summary = summary
         self.machines = machines
         self.viewModel = viewModel
         self.onChocolateBoxesTap = onChocolateBoxesTap
+        self.cheeseItems = cheeseItems
     }
 
     private var items: [BentoItem] {
@@ -467,6 +469,15 @@ struct LocationOverviewBento: View {
                       symbolName: "cart",
                       symbolTint: .pink,
                       isProminent: summary.remainingCoils > 0)
+        )
+        
+        cards.append(
+            BentoItem(title: "Cheese Items",
+                      value: "\(cheeseItems.count)",
+                      subtitle: cheeseItems.count == 0 ? "No cheese items" : "Items marked as cheese",
+                      symbolName: "list.bullet.clipboard",
+                      symbolTint: .yellow,
+                      isProminent: cheeseItems.count > 0)
         )
         
         cards.append(

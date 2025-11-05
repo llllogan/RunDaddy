@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { runImportsRouter } from './routes/run-imports.js';
 import { runRouter, getRunDetailPayload } from './routes/runs.js';
+import { skuRouter } from './routes/skus.js';
 import { authenticate } from './middleware/authenticate.js';
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/run-imports', runImportsRouter);
 app.use('/api/runs', runRouter);
+app.use('/api/skus', skuRouter);
 
 if (process.env.NODE_ENV !== 'production') {
   const { debugRouter } = await import('./routes/debug.js');

@@ -33,9 +33,10 @@ struct PreviewRunsService: RunsServicing {
 
         let skuSnack = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
         let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", isCheeseAndCrackers: false)
+        let skuCheese = RunDetail.Sku(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Snack", isCheeseAndCrackers: true)
 
         let pickA = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown)
-        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuSnack, machine: machineB, location: downtown)
+        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown)
         let pickC = RunDetail.PickItem(id: "pick-3", count: 9, status: "PICKED", pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown)
 
         let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
@@ -106,6 +107,10 @@ struct PreviewRunsService: RunsServicing {
     }
     
     func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
+    func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
 }

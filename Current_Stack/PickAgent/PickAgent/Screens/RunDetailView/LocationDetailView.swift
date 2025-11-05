@@ -32,6 +32,7 @@ struct LocationDetailView: View {
     @State private var selectedMachineFilter: String?
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
+    @State private var updatingSkuIds: Set<String> = []
     @State private var showingChocolateBoxesSheet = false
 
     private var overviewSummary: LocationOverviewSummary {
@@ -43,6 +44,12 @@ struct LocationDetailView: View {
             packedCoils: detail.section.packedCoils,
             totalItems: detail.section.totalItems
         )
+    }
+    
+    private var cheeseItems: [RunDetail.PickItem] {
+        detail.pickItems.filter { pickItem in
+            pickItem.sku?.isCheeseAndCrackers == true
+        }
     }
 
     private var machines: [RunDetail.Machine] {
@@ -97,9 +104,15 @@ struct LocationDetailView: View {
     var body: some View {
         List {
             Section {
-                LocationOverviewBento(summary: overviewSummary, machines: machines, viewModel: viewModel, onChocolateBoxesTap: {
-                    showingChocolateBoxesSheet = true
-                })
+                LocationOverviewBento(
+                    summary: overviewSummary, 
+                    machines: machines, 
+                    viewModel: viewModel, 
+                    onChocolateBoxesTap: {
+                        showingChocolateBoxesSheet = true
+                    },
+                    cheeseItems: cheeseItems
+                )
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -173,7 +186,31 @@ struct LocationDetailView: View {
                                 }
                             }
                         )
-                        .disabled(updatingPickIds.contains(pickItem.id))
+                        .disabled(updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? ""))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                Task {
+                                    await toggleCheeseStatus(pickItem)
+                                }
+                            } label: {
+                                Label(pickItem.sku?.isCheeseAndCrackers == true ? "Remove Cheese" : "Add as Cheese", systemImage: pickItem.sku?.isCheeseAndCrackers == true ? "minus.circle" : "plus.circle")
+                            }
+                            .tint(pickItem.sku?.isCheeseAndCrackers == true ? .orange : .yellow)
+                            
+                            Button {
+                                // TODO: Impliment select which number drives the needed count
+                            } label: {
+                                Label("Change Input Field", systemImage: "square.and.pencil")
+                            }
+                            .tint(.blue)
+                            
+                            Button {
+                                // TODO: Implement delete functionality
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
                     }
                 }
             } header: {
@@ -214,6 +251,32 @@ struct LocationDetailView: View {
         
         _ = await MainActor.run {
             updatingPickIds.remove(pickItem.id)
+        }
+    }
+    
+    private func toggleCheeseStatus(_ pickItem: RunDetail.PickItem) async {
+        guard let skuId = pickItem.sku?.id else { return }
+        
+        updatingSkuIds.insert(skuId)
+        
+        let newCheeseStatus = !(pickItem.sku?.isCheeseAndCrackers ?? false)
+        
+        do {
+            try await service.updateSkuCheeseStatus(
+                skuId: skuId,
+                isCheeseAndCrackers: newCheeseStatus,
+                credentials: session.credentials
+            )
+            await MainActor.run {
+                onPickStatusChanged()
+            }
+        } catch {
+            // Handle error - could show an alert
+            print("Failed to update SKU cheese status: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingSkuIds.remove(skuId)
         }
     }
 }
