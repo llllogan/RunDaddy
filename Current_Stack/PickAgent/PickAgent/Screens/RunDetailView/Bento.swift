@@ -184,10 +184,27 @@ struct RunOverviewBento: View {
         if let runner = summary.runnerName, !runner.isEmpty {
             cards.append(
                 BentoItem(title: "Runner",
-                          value: runner,
+                          value: "",
                           symbolName: "person.crop.circle",
                           symbolTint: .blue,
-                          allowsMultilineValue: true)
+                          allowsMultilineValue: false,
+                          customContent: AnyView(
+                            Menu {
+                                Button("Hello") { }
+                                Button("World") { }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(runner)
+                                        .font(.title3.weight(.semibold))
+                                        .lineLimit(1)
+                                    Image(systemName: "chevron.down")
+                                        .font(.headline.weight(.medium))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.leading)
+                            }
+                          )
+                         )
             )
         } else {
             cards.append(
@@ -216,10 +233,27 @@ struct RunOverviewBento: View {
         if let picker = summary.pickerName, !picker.isEmpty {
             cards.append(
                 BentoItem(title: "Picker",
-                          value: picker,
+                          value: "",
                           symbolName: "person.crop.circle",
                           symbolTint: .blue,
-                          allowsMultilineValue: true)
+                          allowsMultilineValue: false,
+                          customContent: AnyView(
+                            Menu {
+                                Button("Hello") { }
+                                Button("World") { }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(picker)
+                                        .font(.title3.weight(.semibold))
+                                        .lineLimit(1)
+                                    Image(systemName: "chevron.down")
+                                        .font(.headline.weight(.medium))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.leading)
+                            }
+                          )
+                         )
             )
         } else {
             cards.append(
