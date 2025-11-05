@@ -350,10 +350,14 @@ struct LocationOverviewSummary {
 struct LocationOverviewBento: View {
     let summary: LocationOverviewSummary
     let machines: [RunDetail.Machine]
+    let viewModel: RunDetailViewModel
+    let onChocolateBoxesTap: (() -> Void)?
 
-    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = []) {
+    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = [], viewModel: RunDetailViewModel, onChocolateBoxesTap: (() -> Void)? = nil) {
         self.summary = summary
         self.machines = machines
+        self.viewModel = viewModel
+        self.onChocolateBoxesTap = onChocolateBoxesTap
     }
 
     private var items: [BentoItem] {
@@ -472,11 +476,13 @@ struct LocationOverviewBento: View {
                       symbolTint: .brown,
                      customContent: AnyView(
                         HStack{
-                            Text("3, 34, 5")
+                            Text(chocolateBoxNumbersText)
                                 .font(.title3.weight(.semibold))
                                 .multilineTextAlignment(.leading)
                             Spacer()
-                            Button(action: {}) {
+                            Button(action: {
+                                onChocolateBoxesTap?()
+                            }) {
                                 Image(systemName: "magnifyingglass")
                                     .padding(6)
                                     .background(Color(.systemGray5))
@@ -488,6 +494,17 @@ struct LocationOverviewBento: View {
         )
 
         return cards
+    }
+
+    private var chocolateBoxNumbersText: String {
+        let numbers = viewModel.chocolateBoxes.map { $0.number }.sorted()
+        if numbers.isEmpty {
+            return "None"
+        } else if numbers.count <= 3 {
+            return numbers.map(String.init).joined(separator: ", ")
+        } else {
+            return "\(numbers[0]), \(numbers[1]), \(numbers[2])..."
+        }
     }
 
     var body: some View {
@@ -678,6 +695,38 @@ struct SemiCircleClipShape: Shape {
         }
         
         func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
+        }
+        
+        func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
+            let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineA)
+            let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
+            
+            return [chocolateBox1, chocolateBox2, chocolateBox3]
+        }
+        
+        func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: machineId, code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            return RunDetail.ChocolateBox(id: "new-box", number: number, machine: machineA)
+        }
+        
+        func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: machineId ?? "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            return RunDetail.ChocolateBox(id: boxId, number: number ?? 1, machine: machineA)
+        }
+        
+        func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
             // Preview does nothing
         }
     }

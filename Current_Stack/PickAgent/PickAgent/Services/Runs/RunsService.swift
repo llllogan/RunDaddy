@@ -13,6 +13,10 @@ protocol RunsServicing {
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws
+    func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox]
+    func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
+    func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
+    func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws
 }
 
 enum RunsSchedule {
@@ -316,6 +320,150 @@ final class RunsService: RunsServicing {
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
     }
+    
+    func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("chocolate-boxes")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode([ChocolateBoxResponse].self, from: data)
+        return payload.map { $0.toChocolateBox() }
+    }
+    
+    func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("chocolate-boxes")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = ["number": number, "machineId": machineId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            if httpResponse.statusCode == 409 {
+                throw RunsServiceError.chocolateBoxNumberExists
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(ChocolateBoxResponse.self, from: data)
+        return payload.toChocolateBox()
+    }
+    
+    func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("chocolate-boxes")
+        url.appendPathComponent(boxId)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var body: [String: Any] = [:]
+        if let number = number {
+            body["number"] = number
+        }
+        if let machineId = machineId {
+            body["machineId"] = machineId
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            if httpResponse.statusCode == 409 {
+                throw RunsServiceError.chocolateBoxNumberExists
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(ChocolateBoxResponse.self, from: data)
+        return payload.toChocolateBox()
+    }
+    
+    func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("chocolate-boxes")
+        url.appendPathComponent(boxId)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
 }
 
 private struct RunResponse: Decodable {
@@ -531,6 +679,16 @@ private struct RunDetailResponse: Decodable {
     }
 }
 
+private struct ChocolateBoxResponse: Decodable {
+    let id: String
+    let number: Int
+    let machine: RunDetailResponse.Machine?
+
+    func toChocolateBox() -> RunDetail.ChocolateBox {
+        RunDetail.ChocolateBox(id: id, number: number, machine: machine?.toMachine())
+    }
+}
+
 private struct CompanyUserResponse: Decodable {
     let id: String
     let email: String
@@ -557,6 +715,7 @@ enum RunsServiceError: LocalizedError {
     case runNotFound
     case insufficientPermissions
     case roleAlreadyAssigned
+    case chocolateBoxNumberExists
 
     var errorDescription: String? {
         switch self {
@@ -570,6 +729,8 @@ enum RunsServiceError: LocalizedError {
             return "You don't have permission to assign this role."
         case .roleAlreadyAssigned:
             return "This role is already assigned to another user."
+        case .chocolateBoxNumberExists:
+            return "This chocolate box number already exists for this run."
         }
     }
 }

@@ -26,11 +26,13 @@ struct LocationDetailView: View {
     let runId: String
     let session: AuthSession
     let service: RunsServicing
+    let viewModel: RunDetailViewModel
     let onPickStatusChanged: () -> Void
     
     @State private var selectedMachineFilter: String?
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
+    @State private var showingChocolateBoxesSheet = false
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -95,7 +97,9 @@ struct LocationDetailView: View {
     var body: some View {
         List {
             Section {
-                LocationOverviewBento(summary: overviewSummary, machines: machines)
+                LocationOverviewBento(summary: overviewSummary, machines: machines, viewModel: viewModel, onChocolateBoxesTap: {
+                    showingChocolateBoxesSheet = true
+                })
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -178,6 +182,12 @@ struct LocationDetailView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(detail.section.title)
+        .sheet(isPresented: $showingChocolateBoxesSheet) {
+            ChocolateBoxesSheet(viewModel: viewModel)
+        }
+        .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
+            showingChocolateBoxesSheet = showing
+        }
     }
     
     private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
@@ -320,6 +330,38 @@ struct PreviewRunsService: RunsServicing {
     func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
+    
+    func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
+        let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+        let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+        let machineA = RunDetail.Machine(id: "machine-1", code: "A-01", description: "Lobby", machineType: machineType, location: location)
+        
+        let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
+        let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineA)
+        let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
+        
+        return [chocolateBox1, chocolateBox2, chocolateBox3]
+    }
+    
+    func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+        let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+        let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+        let machineA = RunDetail.Machine(id: machineId, code: "A-01", description: "Lobby", machineType: machineType, location: location)
+        
+        return RunDetail.ChocolateBox(id: "new-box", number: number, machine: machineA)
+    }
+    
+    func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+        let location = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+        let machineType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+        let machineA = RunDetail.Machine(id: machineId ?? "machine-1", code: "A-01", description: "Lobby", machineType: machineType, location: location)
+        
+        return RunDetail.ChocolateBox(id: boxId, number: number ?? 1, machine: machineA)
+    }
+    
+    func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
 }
 
 #Preview {
@@ -378,6 +420,22 @@ struct PreviewRunsService: RunsServicing {
                 )
             ),
             service: PreviewRunsService(),
+            viewModel: RunDetailViewModel(runId: "preview-run", session: AuthSession(
+                credentials: AuthCredentials(
+                    accessToken: "preview-token",
+                    refreshToken: "preview-refresh",
+                    userID: "user-1",
+                    expiresAt: Date().addingTimeInterval(3600)
+                ),
+                profile: UserProfile(
+                    id: "user-1",
+                    email: "preview@example.com",
+                    firstName: "Preview",
+                    lastName: "User",
+                    phone: nil,
+                    role: "PICKER"
+                )
+            ), service: PreviewRunsService()),
             onPickStatusChanged: {}
         )
     }

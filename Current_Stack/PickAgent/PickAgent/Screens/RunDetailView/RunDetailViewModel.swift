@@ -94,6 +94,8 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var locationSections: [RunLocationSection] = []
     @Published private(set) var companyUsers: [CompanyUser] = []
+    @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
+    @Published var showingChocolateBoxesSheet = false
 
     let runId: String
     let session: AuthSession
@@ -119,12 +121,15 @@ final class RunDetailViewModel: ObservableObject {
         do {
             async let detailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
             async let usersTask = service.fetchCompanyUsers(credentials: session.credentials)
+            async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
             
             let detail = try await detailTask
             let users = try await usersTask
+            let chocolateBoxes = try await chocolateBoxesTask
             
             self.detail = detail
             self.companyUsers = users
+            self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
             rebuildLocationData(from: detail)
         } catch {
             if let authError = error as? AuthError {
@@ -141,6 +146,58 @@ final class RunDetailViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+    
+    func loadChocolateBoxes() async {
+        guard let runId = detail?.id else { return }
+        
+        do {
+            let chocolateBoxes = try await service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
+            self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to load chocolate boxes. Please try again."
+            }
+        }
+    }
+    
+    func createChocolateBox(number: Int, machineId: String) async {
+        guard let runId = detail?.id else { return }
+        
+        do {
+            let newBox = try await service.createChocolateBox(for: runId, number: number, machineId: machineId, credentials: session.credentials)
+            chocolateBoxes.append(newBox)
+            chocolateBoxes.sort { $0.number < $1.number }
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to create chocolate box. Please try again."
+            }
+        }
+    }
+    
+    func deleteChocolateBox(boxId: String) async {
+        guard let runId = detail?.id else { return }
+        
+        do {
+            try await service.deleteChocolateBox(for: runId, boxId: boxId, credentials: session.credentials)
+            chocolateBoxes.removeAll { $0.id == boxId }
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to delete chocolate box. Please try again."
+            }
+        }
     }
 
     var overview: RunOverviewSummary? {

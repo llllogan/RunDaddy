@@ -51,6 +51,7 @@ struct RunDetailView: View {
                                         runId: viewModel.detail?.id ?? "",
                                         session: viewModel.session,
                                         service: viewModel.service,
+                                        viewModel: viewModel,
                                         onPickStatusChanged: {
                                             Task {
                                                 await viewModel.load(force: true)
@@ -212,6 +213,38 @@ private struct ErrorRow: View {
         }
         
         func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+            // Preview does nothing
+        }
+        
+        func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
+            let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineA)
+            let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
+            
+            return [chocolateBox1, chocolateBox2, chocolateBox3]
+        }
+        
+        func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: machineId, code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            return RunDetail.ChocolateBox(id: "new-box", number: number, machine: machineA)
+        }
+        
+        func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox {
+            let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
+            let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")
+            let machineA = RunDetail.Machine(id: machineId ?? "machine-1", code: "A-101", description: "Lobby", machineType: snackType, location: downtown)
+            
+            return RunDetail.ChocolateBox(id: boxId, number: number ?? 1, machine: machineA)
+        }
+        
+        func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws {
             // Preview does nothing
         }
     }
