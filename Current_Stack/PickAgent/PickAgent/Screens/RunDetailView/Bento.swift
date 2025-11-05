@@ -226,31 +226,19 @@ struct RunOverviewBento: View {
                           symbolTint: .blue,
                           allowsMultilineValue: false,
                           customContent: AnyView(
-                            Menu {
-                                ForEach(viewModel.companyUsers) { user in
-                                    Button(user.displayName) {
-                                        Task {
-                                            await viewModel.assignUser(userId: user.id, to: "RUNNER")
-                                        }
+                            HStack {
+                                Button(action: {
+                                    Task {
+                                        await viewModel.assignUser(userId: "LOGGED_IN_USER", to: "RUNNER")
                                     }
+                                }) {
+                                    Text("Assign me")
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 4)
                                 }
-                            } label: {
-                                HStack {
-                                    Button(action: {
-                                        assignAction("RUNNER") }
-                                    ) {
-                                        Text("Assign me")
-                                            .font(.subheadline)
-                                            .padding(.horizontal, 4)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    Spacer()
-                                    Image(systemName: "chevron.down")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                          )
+                                .buttonStyle(.borderedProminent)
+                                Spacer()
+                            })
                          )
             )
         }
@@ -299,32 +287,20 @@ struct RunOverviewBento: View {
                           symbolTint: .blue,
                           allowsMultilineValue: false,
                           customContent: AnyView(
-                            Menu {
-                                ForEach(viewModel.companyUsers) { user in
-                                    Button(user.displayName) {
-                                        Task {
-                                            await viewModel.assignUser(userId: user.id, to: "PICKER")
-                                        }
+                            HStack {
+                                Button(action: {
+                                    Task {
+                                        await viewModel.assignUser(userId: "LOGGED_IN_USER", to: "PICKER")
                                     }
+                                }) {
+                                    Text("Assign me")
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 4)
                                 }
-                            } label: {
-                                HStack {
-                                    Button(action: { assignAction("PICKER") }) {
-                                        Text("Assign me")
-                                            .font(.caption)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(Color.blue.opacity(0.1))
-                                            .foregroundColor(.blue)
-                                            .clipShape(Capsule())
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.down")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                          ))
+                                .buttonStyle(.borderedProminent)
+                                Spacer()
+                            })
+                         )
             )
         }
 

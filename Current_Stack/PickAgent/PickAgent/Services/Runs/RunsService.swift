@@ -70,30 +70,6 @@ struct RunSummary: Identifiable, Equatable {
 
 typealias RunParticipant = RunSummary.Participant
 
-struct CompanyUser: Identifiable, Equatable {
-    let id: String
-    let email: String
-    let firstName: String?
-    let lastName: String?
-    let phone: String?
-    let role: String?
-    
-    var displayName: String {
-        let trimmedFirst = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let trimmedLast = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
-        if !trimmedFirst.isEmpty && !trimmedLast.isEmpty {
-            return "\(trimmedFirst) \(trimmedLast)"
-        } else if !trimmedFirst.isEmpty {
-            return trimmedFirst
-        } else if !trimmedLast.isEmpty {
-            return trimmedLast
-        } else {
-            return email
-        }
-    }
-}
-
 struct RunDetail: Equatable {
     struct Location: Identifiable, Equatable {
         let id: String

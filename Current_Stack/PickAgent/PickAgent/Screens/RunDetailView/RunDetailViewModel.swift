@@ -8,6 +8,30 @@
 import Foundation
 import Combine
 
+struct CompanyUser: Identifiable, Equatable {
+    let id: String
+    let email: String
+    let firstName: String?
+    let lastName: String?
+    let phone: String?
+    let role: String?
+    
+    var displayName: String {
+        let trimmedFirst = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedLast = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        if !trimmedFirst.isEmpty && !trimmedLast.isEmpty {
+            return "\(trimmedFirst) \(trimmedLast)"
+        } else if !trimmedFirst.isEmpty {
+            return trimmedFirst
+        } else if !trimmedLast.isEmpty {
+            return trimmedLast
+        } else {
+            return email
+        }
+    }
+}
+
 struct RunOverviewSummary: Equatable {
     let runDate: Date
     let runnerName: String?
@@ -169,8 +193,8 @@ final class RunDetailViewModel: ObservableObject {
 
         do {
             try await service.assignUser(to: runId, userId: session.profile.id, role: role, credentials: session.credentials)
-            // Reload the detail after assignment
-            try await load(force: true)
+            // Reload() detail after assignment
+            await load(force: true)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -192,7 +216,7 @@ final class RunDetailViewModel: ObservableObject {
         do {
             try await service.assignUser(to: runId, userId: userId, role: role, credentials: session.credentials)
             // Reload the detail after assignment
-            try await load(force: true)
+            await load(force: true)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -214,7 +238,7 @@ final class RunDetailViewModel: ObservableObject {
         do {
             try await service.assignUser(to: runId, userId: "", role: role, credentials: session.credentials)
             // Reload the detail after unassignment
-            try await load(force: true)
+            await load(force: true)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription

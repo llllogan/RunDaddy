@@ -192,6 +192,14 @@ private struct ErrorRow: View {
         func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
             // Preview does nothing
         }
+        
+        func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser] {
+            return [
+                CompanyUser(id: "user-1", email: "jordan@example.com", firstName: "Jordan", lastName: "Smith", phone: nil, role: "PICKER"),
+                CompanyUser(id: "user-2", email: "alex@example.com", firstName: "Alex", lastName: "Johnson", phone: nil, role: "RUNNER"),
+                CompanyUser(id: "user-3", email: "sam@example.com", firstName: "Sam", lastName: "Brown", phone: nil, role: "PICKER")
+            ]
+        }
     }
 
     let credentials = AuthCredentials(
