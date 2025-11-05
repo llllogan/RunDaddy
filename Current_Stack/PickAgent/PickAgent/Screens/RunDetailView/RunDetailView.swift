@@ -91,10 +91,6 @@ private struct LocationSummaryRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Label("\(section.totalCoils) coils", systemImage: "scope")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 if section.remainingCoils > 0 {
                     Label("\(section.remainingCoils) remaining", systemImage: "cart")
                         .font(.caption)

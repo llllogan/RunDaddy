@@ -158,24 +158,7 @@ struct RunOverviewBento: View {
                       symbolName: "calendar",
                       symbolTint: .indigo)
         )
-
-        if let runner = summary.runnerName, !runner.isEmpty {
-            cards.append(
-                BentoItem(title: "Runner",
-                          value: runner,
-                          symbolName: "person.crop.circle",
-                          symbolTint: .blue,
-                          allowsMultilineValue: true)
-            )
-        }
-
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "\(summary.machineCount)",
-                      symbolName: "building.2",
-                      symbolTint: .cyan)
-        )
-
+        
         if summary.totalCoils > 0 {
             let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
             cards.append(
@@ -196,6 +179,49 @@ struct RunOverviewBento: View {
                           symbolTint: .green)
             )
         }
+
+        if let runner = summary.runnerName, !runner.isEmpty {
+            cards.append(
+                BentoItem(title: "Runner",
+                          value: runner,
+                          symbolName: "person.crop.circle",
+                          symbolTint: .blue,
+                          allowsMultilineValue: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Runner",
+                          value: "Not set",
+                          symbolName: "person.crop.circle.badge.questionmark",
+                          symbolTint: .blue,
+                          allowsMultilineValue: false)
+            )
+        }
+
+        if let picker = summary.pickerName, !picker.isEmpty {
+            cards.append(
+                BentoItem(title: "Picker",
+                          value: picker,
+                          symbolName: "person.crop.circle",
+                          symbolTint: .blue,
+                          allowsMultilineValue: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Picker",
+                          value: "Not set",
+                          symbolName: "person.crop.circle.badge.questionmark",
+                          symbolTint: .blue,
+                          allowsMultilineValue: false)
+            )
+        }
+
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "\(summary.machineCount)",
+                      symbolName: "building.2",
+                      symbolTint: .cyan)
+        )
 
         cards.append(
             BentoItem(title: "Remaining",

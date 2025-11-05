@@ -11,6 +11,7 @@ import Combine
 struct RunOverviewSummary: Equatable {
     let runDate: Date
     let runnerName: String?
+    let pickerName: String?
     let machineCount: Int
     let totalCoils: Int
     let packedCoils: Int
@@ -126,6 +127,7 @@ final class RunDetailViewModel: ObservableObject {
         return RunOverviewSummary(
             runDate: detail.runDate,
             runnerName: detail.runner?.displayName,
+            pickerName: detail.picker?.displayName,
             machineCount: detail.machines.count,
             totalCoils: totalCoils,
             packedCoils: packedCoils,
