@@ -162,10 +162,14 @@ struct AddChocolateBoxSheet: View {
                             Text("Select a machine").tag("")
                             ForEach(locationMachines) { machine in
                                 HStack {
-                                    Text(machine.code)
-                                    Spacer()
-                                    if let description = machine.description {
+                                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                         Text(description)
+                                    } else {
+                                        Text(machine.code)
+                                    }
+                                    Spacer()
+                                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text(machine.code)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

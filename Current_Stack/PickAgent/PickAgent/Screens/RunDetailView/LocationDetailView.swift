@@ -184,6 +184,8 @@ struct LocationDetailView: View {
         .navigationTitle(detail.section.title)
         .sheet(isPresented: $showingChocolateBoxesSheet) {
             ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
+                .presentationDetents([.fraction(0.5), .large])
+                .presentationDragIndicator(.visible)
         }
         .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
             showingChocolateBoxesSheet = showing
