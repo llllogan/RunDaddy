@@ -2,7 +2,7 @@
 @COMPANY_ID = cmhiqip7p05gpp601n70r1xn1
 @WORKBOOK_PATH = ./6389763003164739434.xlsx
 @ACCESS_TOKEN = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbWhpcWlwN3kwNWdxcDYwMWVhdDZ6YWZ5IiwiY29tcGFueUlkIjoiY21oaXFpcDdwMDVncHA2MDFuNzByMXhuMSIsImVtYWlsIjoibG9nYW4uamFuc3NlbkBpY2xvdWQuY29tIiwicm9sZSI6Ik9XTkVSIiwiY29udGV4dCI6IkFQUCIsImlhdCI6MTc2MjMwMzM4OCwiZXhwIjoxNzYyOTA4MTg4fQ.uFrox5XRzmH6GesHqo15ZqgTcTGloLtOUxl9LL7ARUU
-@RUN_ID = cmhiqmmt70001up01hmayodcw
+@RUN_ID = cmhk1zz1r036dsbb7hyyf3jy4
 
 ### Login for debug (returns bearer token)
 POST {{baseUrl}}/api/auth/login
@@ -39,3 +39,6 @@ Content-Type: application/json
   "userId": "cmhiqip7y05gqp601eat6zafy",
   "role": "RUNNER"
 }
+
+### Delete a run (debug only; not available in production)
+DELETE {{baseUrl}}/api/debug/runs/{{RUN_ID}}?companyId={{COMPANY_ID}}

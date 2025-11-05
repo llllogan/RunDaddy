@@ -29,7 +29,7 @@ struct LocationDetailView: View {
     let onPickStatusChanged: () -> Void
     
     @State private var selectedMachineFilter: String?
-    @State private var coilSortOrder: CoilSortOrder = .ascending
+    @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
 
     private var overviewSummary: LocationOverviewSummary {

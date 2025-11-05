@@ -214,38 +214,43 @@ const parseCoilItem = (row: SheetRow): ParsedCoilItemRow => {
 
 const flattenPickEntries = (machines: ParsedRunMachine[]): ParsedPickEntry[] => {
   return machines.flatMap((machine) =>
-    machine.coilItems.map((coilItem) => {
-      const machineType: ParsedMachineType | null = machine.machineType
-        ? { ...machine.machineType }
-        : null;
-      const location: ParsedMachineLocation | null = machine.location
-        ? { ...machine.location }
-        : null;
-      const machineSummary: ParsedMachine = {
-        code: machine.machineCode,
-        name: machine.machineName,
-        runDate: machine.runDate,
-        machineType,
-        location,
-      };
-      const coil: ParsedCoil = {
-        code: coilItem.coilCode,
-        machine: machineSummary,
-      };
-      const coilItemSummary: ParsedCoilItem = {
-        sku: { ...coilItem.sku },
-        coil,
-      };
-      return {
-        coilItem: coilItemSummary,
-        count: coilItem.total ?? null,
-        current: coilItem.current ?? null,
-        par: coilItem.par ?? null,
-        need: coilItem.need ?? null,
-        forecast: coilItem.forecast ?? null,
-        notes: coilItem.notes ?? null,
-      };
-    }),
+    machine.coilItems
+      .filter((coilItem) => {
+        const count = coilItem.total ?? null;
+        return count !== null && count !== 0;
+      })
+      .map((coilItem) => {
+        const machineType: ParsedMachineType | null = machine.machineType
+          ? { ...machine.machineType }
+          : null;
+        const location: ParsedMachineLocation | null = machine.location
+          ? { ...machine.location }
+          : null;
+        const machineSummary: ParsedMachine = {
+          code: machine.machineCode,
+          name: machine.machineName,
+          runDate: machine.runDate,
+          machineType,
+          location,
+        };
+        const coil: ParsedCoil = {
+          code: coilItem.coilCode,
+          machine: machineSummary,
+        };
+        const coilItemSummary: ParsedCoilItem = {
+          sku: { ...coilItem.sku },
+          coil,
+        };
+        return {
+          coilItem: coilItemSummary,
+          count: coilItem.total ?? null,
+          current: coilItem.current ?? null,
+          par: coilItem.par ?? null,
+          need: coilItem.need ?? null,
+          forecast: coilItem.forecast ?? null,
+          notes: coilItem.notes ?? null,
+        };
+      }),
   );
 };
 

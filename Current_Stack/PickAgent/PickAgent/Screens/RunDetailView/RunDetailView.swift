@@ -20,57 +20,57 @@ struct RunDetailView: View {
                 Section {
                     LoadingRow()
                 }
+            } else {
+                if let overview = viewModel.overview {
+                    Section {
+                        RunOverviewBento(summary: overview, viewModel: viewModel, assignAction: { role in
+                            Task {
+                                await viewModel.assignUser(to: role)
+                            }
+                        })
+                            .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    } header: {
+                        Text("Run Overview")
+                    }
+                }
+
+                Section("Locations") {
+                    if viewModel.locationSections.isEmpty {
+                        Text("No locations are assigned to this run yet.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        ForEach(viewModel.locationSections) { section in
+                            if let locationDetail = viewModel.locationDetail(for: section.id) {
+                                NavigationLink {
+                                    LocationDetailView(
+                                        detail: locationDetail,
+                                        runId: viewModel.detail?.id ?? "",
+                                        session: viewModel.session,
+                                        service: viewModel.service,
+                                        onPickStatusChanged: {
+                                            Task {
+                                                await viewModel.load(force: true)
+                                            }
+                                        }
+                                    )
+                                } label: {
+                                    LocationSummaryRow(section: section)
+                                }
+                            } else {
+                                LocationSummaryRow(section: section)
+                            }
+                        }
+                    }
+                }
             }
 
             if let message = viewModel.errorMessage {
                 Section {
                     ErrorRow(message: message)
-                }
-            }
-
-            if let overview = viewModel.overview {
-                Section {
-                    RunOverviewBento(summary: overview, viewModel: viewModel, assignAction: { role in
-                        Task {
-                            await viewModel.assignUser(to: role)
-                        }
-                    })
-                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } header: {
-                    Text("Run Overview")
-                }
-            }
-
-            Section("Locations") {
-                if viewModel.locationSections.isEmpty {
-                    Text("No locations are assigned to this run yet.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                } else {
-                    ForEach(viewModel.locationSections) { section in
-                        if let locationDetail = viewModel.locationDetail(for: section.id) {
-                            NavigationLink {
-                                LocationDetailView(
-                                    detail: locationDetail,
-                                    runId: viewModel.detail?.id ?? "",
-                                    session: viewModel.session,
-                                    service: viewModel.service,
-                                    onPickStatusChanged: {
-                                        Task {
-                                            await viewModel.load(force: true)
-                                        }
-                                    }
-                                )
-                            } label: {
-                                LocationSummaryRow(section: section)
-                            }
-                        } else {
-                            LocationSummaryRow(section: section)
-                        }
-                    }
                 }
             }
         }

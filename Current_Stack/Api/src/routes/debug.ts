@@ -152,4 +152,62 @@ router.post('/run-imports', async (req, res) => {
   }
 });
 
+router.delete('/runs/:runId', async (req, res) => {
+  const { runId } = req.params;
+  const { companyId } = req.query;
+
+  if (!runId || typeof runId !== 'string') {
+    return res.status(400).json({ error: 'runId is required' });
+  }
+
+  if (!companyId || typeof companyId !== 'string') {
+    return res.status(400).json({ error: 'companyId is required' });
+  }
+
+  try {
+    // First verify the run exists and belongs to the company
+    const run = await prisma.run.findUnique({
+      where: { id: runId },
+      include: {
+        _count: {
+          select: {
+            pickEntries: true,
+            chocolateBoxes: true,
+          },
+        },
+      },
+    });
+
+    if (!run) {
+      return res.status(404).json({ error: 'Run not found' });
+    }
+
+    if (run.companyId !== companyId) {
+      return res.status(403).json({ error: 'Run does not belong to the specified company' });
+    }
+
+    // Delete the run (cascading deletes will handle pickEntries and chocolateBoxes)
+    await prisma.run.delete({
+      where: { id: runId },
+    });
+
+    return res.json({
+      message: 'Run deleted successfully',
+      deletedRun: {
+        id: run.id,
+        status: run.status,
+        scheduledFor: run.scheduledFor,
+        createdAt: run.createdAt,
+        deletedCounts: run._count,
+      },
+    });
+  } catch (error) {
+    console.error('Debug delete run failed', error);
+    return res.status(500).json({
+      error: 'Unable to delete run',
+      detail: (error as Error).message,
+    });
+  }
+});
+
 export const debugRouter = router;
