@@ -315,9 +315,17 @@ router.patch('/:runId/status', async (req, res) => {
     return res.status(403).json({ error: 'Insufficient permissions to update run status' });
   }
 
+  // Prepare update data
+  const updateData: Prisma.RunUpdateInput = { status: status as PrismaRunStatus };
+  
+  // Set pickingEndedAt when status changes to PENDING_FRESH or READY, only if not already set
+  if ((status === 'PENDING_FRESH' || status === 'READY') && !run.pickingEndedAt) {
+    updateData.pickingEndedAt = new Date();
+  }
+
   const updatedRun = await prisma.run.update({
     where: { id: run.id },
-    data: { status: status as PrismaRunStatus },
+    data: updateData,
     include: {
       picker: true,
       runner: true,
@@ -374,6 +382,14 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
     where: { id: pickEntry.id },
     data: updateData
   });
+
+  // If this is the first pick entry being packed, update pickingStartedAt
+  if (status === 'PICKED' && !run.pickingStartedAt) {
+    await prisma.run.update({
+      where: { id: run.id },
+      data: { pickingStartedAt: new Date() }
+    });
+  }
 
   return res.json({
     id: updatedPickEntry.id,
