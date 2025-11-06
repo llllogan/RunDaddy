@@ -270,7 +270,7 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
     return created;
   };
 
-  const ensureSku = async (sku: ParsedCoilItem['sku']): Promise<{ id: string }> => {
+  const ensureSku = async (sku: ParsedCoilItem['sku']): Promise<{ id: string; countNeededPointer?: string | null }> => {
     const code = sku.code?.trim();
     if (!code) {
       throw new RunImportError('Encountered a SKU without a code in the workbook.');
@@ -292,6 +292,10 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
       if (type && existing.type !== type) {
         updates.type = type;
       }
+      const category = sku.category?.trim() || null;
+      if (category && existing.category !== category) {
+        updates.category = category;
+      }
       if (Object.keys(updates).length) {
         const updated = await tx.sKU.update({
           where: { id: existing.id },
@@ -308,6 +312,7 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
         code,
         name: sku.name?.trim() || code,
         type: sku.type?.trim() || 'General',
+        category: sku.category?.trim() || null,
       },
     });
     skuCache.set(key, created);
@@ -382,17 +387,41 @@ const persistPickEntry = async (
   const skuRecord = await helpers.ensureSku(entry.coilItem.sku);
   const coilItemRecord = await helpers.ensureCoilItem(coilRecord.id, skuRecord.id, entry);
 
-  const countValue =
-    normalizeInteger(entry.count) ??
-    normalizeInteger(entry.need) ??
-    normalizeInteger(entry.forecast) ??
-    0;
+  // Use the SKU's countNeededPointer to determine which field to use
+  const countPointer = skuRecord.countNeededPointer || 'total';
+  let countValue = 0;
+
+  switch (countPointer.toLowerCase()) {
+    case 'count':
+      countValue = normalizeInteger(entry.count, 0);
+      break;
+    case 'need':
+      countValue = normalizeInteger(entry.need, 0);
+      break;
+    case 'forecast':
+      countValue = normalizeInteger(entry.forecast, 0);
+      break;
+    case 'total':
+    default:
+      // Default behavior: try count, then need, then forecast, then fallback to 0
+      countValue =
+        normalizeInteger(entry.count, undefined) ??
+        normalizeInteger(entry.need, undefined) ??
+        normalizeInteger(entry.forecast, undefined) ??
+        0;
+      break;
+  }
 
   await tx.pickEntry.create({
     data: {
       runId,
       coilItemId: coilItemRecord.id,
       count: countValue,
+      current: normalizeInteger(entry.current),
+      par: normalizeInteger(entry.par),
+      need: normalizeInteger(entry.need),
+      forecast: normalizeInteger(entry.forecast),
+      total: normalizeInteger(entry.total),
     },
   });
 };

@@ -43,6 +43,7 @@ export interface ParsedPickEntry {
   par: number | null;
   need: number | null;
   forecast: number | null;
+  total: number | null;
   notes: string | null;
 }
 
@@ -68,6 +69,7 @@ export interface ParsedSku {
   code: string;
   name: string;
   type?: string | null;
+  category?: string | null;
 }
 
 export interface ParsedMachineLocation {

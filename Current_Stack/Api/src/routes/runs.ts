@@ -716,9 +716,32 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     const serializedMachine = serializeMachine(machine);
     const serializedLocation = machine ? serializeLocation(machine.location) : null;
 
+    // Determine count based on SKU's countNeededPointer
+    const countPointer = entry.coilItem.sku?.countNeededPointer || 'total';
+    let calculatedCount = entry.count; // fallback to stored count
+
+    switch (countPointer.toLowerCase()) {
+      case 'current':
+        calculatedCount = entry.current ?? entry.count;
+        break;
+      case 'par':
+        calculatedCount = entry.par ?? entry.count;
+        break;
+      case 'need':
+        calculatedCount = entry.need ?? entry.count;
+        break;
+      case 'forecast':
+        calculatedCount = entry.forecast ?? entry.count;
+        break;
+      case 'total':
+      default:
+        calculatedCount = entry.total ?? entry.count;
+        break;
+    }
+
     return {
       id: entry.id,
-      count: entry.count,
+      count: calculatedCount,
       status: entry.status as RunItemStatusValue,
       pickedAt: entry.pickedAt,
       coilItem: {
@@ -775,30 +798,55 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     locations: Array.from(locationsById.values()),
     machines: Array.from(machinesById.values()),
     pickItems,
-    pickEntries: run.pickEntries.map((entry) => ({
-      id: entry.id,
-      count: entry.count,
-      status: entry.status as RunItemStatusValue,
-      pickedAt: entry.pickedAt,
-      coilItem: {
-        id: entry.coilItem.id,
-        par: entry.coilItem.par,
-        coil: {
-          id: entry.coilItem.coil.id,
-          code: entry.coilItem.coil.code,
-          machine: serializeMachine(entry.coilItem.coil.machine),
+    pickEntries: run.pickEntries.map((entry) => {
+      // Determine count based on SKU's countNeededPointer
+      const countPointer = entry.coilItem.sku?.countNeededPointer || 'total';
+      let calculatedCount = entry.count; // fallback to stored count
+
+      switch (countPointer.toLowerCase()) {
+        case 'current':
+          calculatedCount = entry.current ?? entry.count;
+          break;
+        case 'par':
+          calculatedCount = entry.par ?? entry.count;
+          break;
+        case 'need':
+          calculatedCount = entry.need ?? entry.count;
+          break;
+        case 'forecast':
+          calculatedCount = entry.forecast ?? entry.count;
+          break;
+        case 'total':
+        default:
+          calculatedCount = entry.total ?? entry.count;
+          break;
+      }
+
+      return {
+        id: entry.id,
+        count: calculatedCount,
+        status: entry.status as RunItemStatusValue,
+        pickedAt: entry.pickedAt,
+        coilItem: {
+          id: entry.coilItem.id,
+          par: entry.coilItem.par,
+          coil: {
+            id: entry.coilItem.coil.id,
+            code: entry.coilItem.coil.code,
+            machine: serializeMachine(entry.coilItem.coil.machine),
+          },
+          sku: entry.coilItem.sku
+            ? {
+                id: entry.coilItem.sku.id,
+                code: entry.coilItem.sku.code,
+                name: entry.coilItem.sku.name,
+                type: entry.coilItem.sku.type,
+                isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+              }
+            : null,
         },
-        sku: entry.coilItem.sku
-          ? {
-              id: entry.coilItem.sku.id,
-              code: entry.coilItem.sku.code,
-              name: entry.coilItem.sku.name,
-              type: entry.coilItem.sku.type,
-              isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
-            }
-          : null,
-      },
-    })),
+      };
+    }),
     chocolateBoxes,
   };
 }

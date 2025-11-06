@@ -150,6 +150,8 @@ model SKU {
   code                String   @unique
   name                String
   type                String
+  category            String?
+  countNeededPointer  String?  @default("total")
   isCheeseAndCrackers Boolean  @default(false)
 
   coilItems CoilItem[]
@@ -183,6 +185,11 @@ model PickEntry {
   runId      String
   coilItemId String
   count      Int
+  current    Int?
+  par        Int?
+  need       Int?
+  forecast   Int?
+  total      Int?
   status     RunItemStatus @default(PENDING)
   pickedAt   DateTime?
 
@@ -194,62 +201,6 @@ model PickEntry {
   @@index([coilItemId])
 }
 
-model RunImport {
-  id           String   @id @default(cuid())
-  companyId    String
-  sheetName    String
-  locationName String
-  address      String?
-  runDate      DateTime?
-  createdAt    DateTime @default(now())
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  machines RunImportMachine[]
-
-  @@index([companyId])
-  @@index([companyId, createdAt])
-}
-
-model RunImportMachine {
-  id             String   @id @default(cuid())
-  runImportId    String
-  machineCode    String
-  machineName    String?
-  category       String?
-  machineTypeName String?
-  runDate        DateTime?
-
-  runImport RunImport          @relation(fields: [runImportId], references: [id], onDelete: Cascade)
-  coilItems RunImportCoilItem[]
-
-  @@index([runImportId])
-  @@index([machineCode])
-}
-
-model RunImportCoilItem {
-  id                 String  @id @default(cuid())
-  runImportMachineId String
-  coilCode           String?
-  skuCode            String?
-  skuName            String?
-  skuType            String?
-  short              Int?
-  inventoryFlag      String?
-  spoil              Int?
-  inventoryCount     Int?
-  current            Int?
-  par                Int?
-  need               Int?
-  forecast           Int?
-  total              Int?
-  notes              String?
-
-  runImportMachine RunImportMachine @relation(fields: [runImportMachineId], references: [id], onDelete: Cascade)
-
-  @@index([runImportMachineId])
-  @@index([coilCode])
-  @@index([skuCode])
-}
 
 model ChocolateBox {
   id        String @id @default(cuid())

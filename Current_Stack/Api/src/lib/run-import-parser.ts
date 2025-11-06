@@ -23,13 +23,18 @@ type SheetRow = Array<string | number | null | undefined>;
 export const parseRunWorkbook = (workbookBuffer: Buffer): ParsedRunWorkbook => {
   const workbook = read(workbookBuffer, { type: 'buffer' });
   const locations: ParsedRunLocation[] = [];
+  
+  // Extract category from first sheet
+  const firstSheetName = workbook.SheetNames[0];
+  const firstSheet = workbook.Sheets[firstSheetName as string];
+  const globalCategory = firstSheet ? extractCategoryFromSheet(firstSheet) : null;
 
   workbook.SheetNames.slice(1).forEach((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
       return;
     }
-    const location = parseLocationSheet(sheet, sheetName);
+    const location = parseLocationSheet(sheet, sheetName, globalCategory);
     if (location) {
       locations.push(location);
     }
@@ -51,7 +56,7 @@ export const parseRunWorkbook = (workbookBuffer: Buffer): ParsedRunWorkbook => {
   return { run };
 };
 
-const parseLocationSheet = (sheet: WorkSheet, sheetName: string): ParsedRunLocation | null => {
+const parseLocationSheet = (sheet: WorkSheet, sheetName: string, globalCategory: string | null): ParsedRunLocation | null => {
   const rows = utils.sheet_to_json<SheetRow>(sheet, {
     header: 1,
     raw: false,
@@ -89,6 +94,7 @@ const parseLocationSheet = (sheet: WorkSheet, sheetName: string): ParsedRunLocat
         startIndex: index,
         locationName,
         locationAddress: address,
+        globalCategory,
       });
       machines.push(machine);
       index = nextIndex;
@@ -112,11 +118,13 @@ const parseMachineBlock = ({
   startIndex,
   locationName,
   locationAddress,
+  globalCategory,
 }: {
   rows: SheetRow[];
   startIndex: number;
   locationName: string;
   locationAddress: string;
+  globalCategory: string | null;
 }): { machine: ParsedRunMachine; nextIndex: number } => {
   const machineHeaderRow = rows[startIndex];
   const machineInfoRow = rows[startIndex + 1] ?? [];
@@ -125,7 +133,7 @@ const parseMachineBlock = ({
   const machineInfoValue = getCellAsString(machineInfoRow, 0);
 
   const machineCode = parseMachineCode(machineHeaderValue, locationName);
-  const { machineName, category, machineTypeName, runDate } = parseMachineInfo(machineInfoValue);
+  const { machineName, category, machineTypeName, runDate } = parseMachineInfo(machineInfoValue, globalCategory);
 
   let cursor = startIndex + 2;
 
@@ -167,7 +175,7 @@ const parseMachineBlock = ({
     }
 
     if (coilCode || skuRaw) {
-      coilItems.push(parseCoilItem(row));
+      coilItems.push(parseCoilItem(row, globalCategory));
     }
 
     cursor += 1;
@@ -196,9 +204,9 @@ const parseMachineBlock = ({
   };
 };
 
-const parseCoilItem = (row: SheetRow): ParsedCoilItemRow => {
+const parseCoilItem = (row: SheetRow, globalCategory: string | null): ParsedCoilItemRow => {
   const coilCode = getCellAsString(row, 4);
-  const sku = parseSku(getCellAsString(row, 5));
+  const sku = parseSku(getCellAsString(row, 5), globalCategory);
 
   return {
     coilCode,
@@ -248,6 +256,7 @@ const flattenPickEntries = (machines: ParsedRunMachine[]): ParsedPickEntry[] => 
           par: coilItem.par ?? null,
           need: coilItem.need ?? null,
           forecast: coilItem.forecast ?? null,
+          total: coilItem.total ?? null,
           notes: coilItem.notes ?? null,
         };
       }),
@@ -268,27 +277,34 @@ const deriveRunDate = (locations: ParsedRunLocation[]): Date | null => {
   return earliest ?? null;
 };
 
-const parseSku = (value: string): ParsedSku => {
+const parseSku = (value: string, globalCategory: string | null): ParsedSku => {
   if (!value) {
-    return { code: '', name: '', type: null };
+    return { code: '', name: '', type: null, category: globalCategory };
   }
 
   const parts = value.split(' - ').map((item) => item.trim()).filter(Boolean);
 
   if (!parts.length) {
-    return { code: '', name: '', type: null };
+    return { code: '', name: '', type: null, category: globalCategory };
   }
 
   const [codeSegment, ...others] = parts;
   const code = codeSegment ?? '';
 
+  // Try to get category from the global mapping first
+  let category = globalCategory;
+  const categoryMap = (global as any).categoryMap as Map<string, string>;
+  if (categoryMap && categoryMap.has(code.toLowerCase())) {
+    category = categoryMap.get(code.toLowerCase())!;
+  }
+
   if (!others.length) {
-    return { code, name: '', type: null };
+    return { code, name: '', type: null, category };
   }
 
   if (others.length === 1) {
     const [nameOnly] = others;
-    return { code, name: nameOnly ?? '', type: null };
+    return { code, name: nameOnly ?? '', type: null, category };
   }
 
   const typeCandidate = others[others.length - 1] ?? null;
@@ -296,7 +312,7 @@ const parseSku = (value: string): ParsedSku => {
   const name = nameSegments.length ? nameSegments.join(' - ') : typeCandidate ?? '';
   const type = nameSegments.length ? typeCandidate : null;
 
-  return { code, name, type };
+  return { code, name, type, category };
 };
 
 const parseLocationHeader = (value: string): { locationName: string; runDate: Date | null } => {
@@ -323,6 +339,7 @@ const parseMachineCode = (value: string, locationName: string): string => {
 
 const parseMachineInfo = (
   value: string,
+  globalCategory: string | null,
 ): {
   machineName: string;
   category: string | null;
@@ -353,7 +370,7 @@ const parseMachineInfo = (
 
   const [rawName, ...categoryParts] = remaining.split(',').map((part) => part.trim()).filter(Boolean);
   const machineName = rawName ?? '';
-  const category = categoryParts.length ? categoryParts.join(', ') : null;
+  const category = categoryParts.length ? categoryParts.join(', ') : globalCategory;
 
   return {
     machineName,
@@ -430,4 +447,72 @@ const isRowMostlyEmpty = (row: SheetRow | undefined): boolean => {
   }
   const significantCells = row.filter((cell, idx) => idx <= 11).filter((cell) => normalizeString(cell));
   return significantCells.length === 0;
+};
+
+const extractCategoryFromSheet = (sheet: WorkSheet): string | null => {
+  const rows = utils.sheet_to_json<SheetRow>(sheet, {
+    header: 1,
+    raw: false,
+    defval: '',
+    blankrows: false,
+  });
+
+  if (!rows.length) {
+    return null;
+  }
+
+  // Look for header row to find column indices
+  let headerRow: SheetRow | null = null;
+  let headerRowIndex = -1;
+  
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const firstCell = getCellAsString(row, 0);
+    if (firstCell.toLowerCase().includes('item code') || firstCell.toLowerCase().includes('itemname')) {
+      headerRow = row || null;
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  if (!headerRow) {
+    return null;
+  }
+
+  // Find column indices
+  let itemCodeCol = -1;
+  let categoryCol = -1;
+  
+  for (let i = 0; i < headerRow.length; i++) {
+    const cell = getCellAsString(headerRow, i).toLowerCase();
+    if (cell.includes('item code')) {
+      itemCodeCol = i;
+    } else if (cell.includes('category')) {
+      categoryCol = i;
+    }
+  }
+
+  if (itemCodeCol === -1 || categoryCol === -1) {
+    return null;
+  }
+
+  // Create category mapping from all data rows
+  const categoryMap = new Map<string, string>();
+  
+  for (let i = headerRowIndex + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const itemCode = getCellAsString(row, itemCodeCol);
+    const category = getCellAsString(row, categoryCol);
+    
+    if (itemCode && category) {
+      categoryMap.set(itemCode.trim().toLowerCase(), category.trim());
+    }
+  }
+
+  // Store the mapping globally for use during SKU parsing
+  (global as any).categoryMap = categoryMap;
+  
+  // Return a default category (first one found) for fallback
+  const categories = Array.from(categoryMap.values());
+  return categories.length > 0 ? (categories[0] || null) : null;
 };
