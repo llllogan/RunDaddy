@@ -53,9 +53,7 @@ struct RunDetailView: View {
                                         service: viewModel.service,
                                         viewModel: viewModel,
                                         onPickStatusChanged: {
-                                            Task {
-                                                await viewModel.load(force: true)
-                                            }
+                                            await viewModel.load(force: true)
                                         }
                                     )
                                 } label: {

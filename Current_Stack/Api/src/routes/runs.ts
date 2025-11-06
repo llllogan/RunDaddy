@@ -765,6 +765,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             name: entry.coilItem.sku.name,
             type: entry.coilItem.sku.type,
             isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+            countNeededPointer: (entry.coilItem.sku as any).countNeededPointer,
           }
         : null,
       machine: serializedMachine,

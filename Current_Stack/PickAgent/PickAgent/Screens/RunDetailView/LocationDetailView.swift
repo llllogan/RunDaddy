@@ -27,14 +27,14 @@ struct LocationDetailView: View {
     let session: AuthSession
     let service: RunsServicing
     let viewModel: RunDetailViewModel
-    let onPickStatusChanged: () -> Void
+    let onPickStatusChanged: () async -> Void
     
     @State private var selectedMachineFilter: String?
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
     @State private var showingChocolateBoxesSheet = false
-    @State private var showingCountPointerSheet = false
+
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
 
     private var overviewSummary: LocationOverviewSummary {
@@ -201,7 +201,6 @@ struct LocationDetailView: View {
                             
                             Button {
                                 selectedPickItemForCountPointer = pickItem
-                                showingCountPointerSheet = true
                             } label: {
                                 Label("Change Input Field", systemImage: "square.and.pencil")
                             }
@@ -230,23 +229,21 @@ struct LocationDetailView: View {
         .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
             showingChocolateBoxesSheet = showing
         }
-        .sheet(isPresented: $showingCountPointerSheet) {
-            if let pickItem = selectedPickItemForCountPointer {
-                CountPointerSelectionSheet(
-                    pickItem: pickItem,
-                    onDismiss: {
-                        showingCountPointerSheet = false
-                        selectedPickItemForCountPointer = nil
-                    },
-                    onPointerSelected: { newPointer in
-                        Task {
-                            await updateCountPointer(pickItem, newPointer: newPointer)
-                        }
+        .sheet(item: $selectedPickItemForCountPointer) { pickItem in
+            CountPointerSelectionSheet(
+                pickItem: pickItem,
+                onDismiss: {
+                    selectedPickItemForCountPointer = nil
+                },
+                onPointerSelected: { newPointer in
+                    Task {
+                        await updateCountPointer(pickItem, newPointer: newPointer)
                     }
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
+                },
+                viewModel: viewModel
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
     
@@ -262,9 +259,7 @@ struct LocationDetailView: View {
                 status: newStatus,
                 credentials: session.credentials
             )
-            await MainActor.run {
-                onPickStatusChanged()
-            }
+            await onPickStatusChanged()
         } catch {
             // Handle error - could show an alert
             print("Failed to update pick status: \(error)")
@@ -288,9 +283,7 @@ struct LocationDetailView: View {
                 isCheeseAndCrackers: newCheeseStatus,
                 credentials: session.credentials
             )
-            await MainActor.run {
-                onPickStatusChanged()
-            }
+            await onPickStatusChanged()
         } catch {
             // Handle error - could show an alert
             print("Failed to update SKU cheese status: \(error)")
@@ -312,9 +305,9 @@ struct LocationDetailView: View {
                 countNeededPointer: newPointer,
                 credentials: session.credentials
             )
+            // Wait for the data to refresh before closing the sheet
+            await onPickStatusChanged()
             await MainActor.run {
-                onPickStatusChanged()
-                showingCountPointerSheet = false
                 selectedPickItemForCountPointer = nil
             }
         } catch {
@@ -332,6 +325,7 @@ struct CountPointerSelectionSheet: View {
     let pickItem: RunDetail.PickItem
     let onDismiss: () -> Void
     let onPointerSelected: (String) -> Void
+    @ObservedObject var viewModel: RunDetailViewModel
     
     private let countPointers = [
         ("current", "Current", "Current inventory count"),
@@ -341,36 +335,21 @@ struct CountPointerSelectionSheet: View {
         ("total", "Total", "Total count")
     ]
     
+    private var currentSelection: String {
+        // Find the updated pickItem from the refreshed data
+        let updatedPickItem = viewModel.detail?.pickItems.first { $0.id == pickItem.id }
+        return updatedPickItem?.sku?.countNeededPointer ?? pickItem.sku?.countNeededPointer ?? "total"
+    }
+    
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(pickItem.sku?.name ?? "Unknown SKU")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                        
-                        if let machineCode = pickItem.machine?.code {
-                            Text("Machine: \(machineCode)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Text("Coil: \(pickItem.coilItem.coil.code)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Item Details")
-                }
-                
                 Section {
                     ForEach(countPointers, id: \.0) { pointer in
                         CountPointerRow(
                             pointer: pointer,
                             currentCount: pickItem.countForPointer(pointer.0),
-                            isSelected: false
+                            isSelected: pointer.0 == currentSelection
                         ) {
                             onPointerSelected(pointer.0)
                         }
@@ -382,7 +361,7 @@ struct CountPointerSelectionSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Change Input Field")
+            .navigationTitle(pickItem.sku?.name ?? "Unknown SKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -425,16 +404,15 @@ private struct CountPointerRow: View {
                     Text("N/A")
                         .font(.title2)
                         .fontWeight(.medium)
-                        .foregroundStyle(.tertiary)
-                        .italic()
+                        .foregroundStyle(.secondary)
                 }
                 
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
-                }
+                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                    .foregroundColor(isSelected ? .blue : .gray)
+                    .font(.title2)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .buttonStyle(PlainButtonStyle())
     }
 }
@@ -527,7 +505,7 @@ private struct PickEntryRow: View {
     let coilItemA = RunDetail.CoilItem(id: "coil-item-1", par: 12, coil: coilA)
     let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
 
-    let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
+    let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false, countNeededPointer: "total")
 
     let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location)
     let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location)

@@ -106,6 +106,7 @@ struct RunDetail: Equatable {
         let name: String
         let type: String
         let isCheeseAndCrackers: Bool
+        let countNeededPointer: String?
     }
 
     struct Coil: Equatable {
@@ -732,9 +733,10 @@ private struct RunDetailResponse: Decodable {
         let name: String
         let type: String
         let isCheeseAndCrackers: Bool
+        let countNeededPointer: String?
 
         func toSku() -> RunDetail.Sku {
-            RunDetail.Sku(id: id, code: code, name: name, type: type, isCheeseAndCrackers: isCheeseAndCrackers)
+            RunDetail.Sku(id: id, code: code, name: name, type: type, isCheeseAndCrackers: isCheeseAndCrackers, countNeededPointer: countNeededPointer)
         }
     }
 
