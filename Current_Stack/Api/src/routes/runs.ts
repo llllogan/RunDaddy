@@ -114,6 +114,38 @@ router.get('/all', async (req, res) => {
     `
   );
 
+  // Fetch chocolate boxes for all runs
+  const runIds = rows.map(row => row.run_id);
+  const chocolateBoxes = runIds.length > 0 ? await prisma.chocolateBox.findMany({
+    where: {
+      runId: { in: runIds }
+    },
+    include: {
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
+    },
+    orderBy: {
+      number: 'asc'
+    }
+  }) : [];
+
+  // Group chocolate boxes by run
+  const chocolateBoxesByRun = new Map<string, Array<{id: string, number: number, machine: any}>>();
+  chocolateBoxes.forEach(box => {
+    if (!chocolateBoxesByRun.has(box.runId)) {
+      chocolateBoxesByRun.set(box.runId, []);
+    }
+    chocolateBoxesByRun.get(box.runId)!.push({
+      id: box.id,
+      number: box.number,
+      machine: box.machine
+    });
+  });
+
   return res.json(rows.map((row) => ({
     id: row.run_id,
     status: row.run_status,
@@ -122,6 +154,7 @@ router.get('/all', async (req, res) => {
     pickingEndedAt: row.picking_ended_at,
     createdAt: row.run_created_at,
     locationCount: Number(row.location_count ?? 0),
+    chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
     picker: row.picker_id ? {
       id: row.picker_id,
       firstName: row.picker_first_name,
@@ -943,6 +976,25 @@ type RunDailyResponse = {
   pickerId: string | null;
   runnerId: string | null;
   locationCount: number;
+  chocolateBoxes: Array<{
+    id: string;
+    number: number;
+    machine: {
+      id: string;
+      code: string;
+      description: string | null;
+      machineType: {
+        id: string;
+        name: string;
+        description: string | null;
+      } | null;
+      location: {
+        id: string;
+        name: string | null;
+        address: string | null;
+      } | null;
+    } | null;
+  }>;
   picker: null | {
     id: string;
     firstName: string | null;
@@ -984,6 +1036,38 @@ async function fetchScheduledRuns(companyId: string, scheduledDate: Date): Promi
     `,
   );
 
+  // Fetch chocolate boxes for all runs
+  const runIds = rows.map(row => row.run_id);
+  const chocolateBoxes = runIds.length > 0 ? await prisma.chocolateBox.findMany({
+    where: {
+      runId: { in: runIds }
+    },
+    include: {
+      machine: {
+        include: {
+          location: true,
+          machineType: true,
+        },
+      },
+    },
+    orderBy: {
+      number: 'asc'
+    }
+  }) : [];
+
+  // Group chocolate boxes by run
+  const chocolateBoxesByRun = new Map<string, Array<{id: string, number: number, machine: any}>>();
+  chocolateBoxes.forEach(box => {
+    if (!chocolateBoxesByRun.has(box.runId)) {
+      chocolateBoxesByRun.set(box.runId, []);
+    }
+    chocolateBoxesByRun.get(box.runId)!.push({
+      id: box.id,
+      number: box.number,
+      machine: box.machine
+    });
+  });
+
   return rows.map((row) => ({
     id: row.run_id,
     companyId: row.company_id,
@@ -995,6 +1079,7 @@ async function fetchScheduledRuns(companyId: string, scheduledDate: Date): Promi
     pickerId: row.picker_id,
     runnerId: row.runner_id,
     locationCount: Number(row.location_count ?? 0),
+    chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
     picker: buildParticipant(row.picker_id, row.picker_first_name, row.picker_last_name),
     runner: buildParticipant(row.runner_id, row.runner_first_name, row.runner_last_name),
   }));

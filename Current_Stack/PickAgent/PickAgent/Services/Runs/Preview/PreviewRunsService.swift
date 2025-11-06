@@ -150,6 +150,10 @@ extension RunSummary {
             pickingEndedAt: nil,
             createdAt: previewDate(hour: 8, minute: 15),
             locationCount: 3,
+            chocolateBoxes: [
+                RunSummary.ChocolateBox(id: "box-1", number: 1, machine: nil),
+                RunSummary.ChocolateBox(id: "box-2", number: 3, machine: nil)
+            ],
             picker: RunSummary.Participant(
                 id: "picker-1",
                 firstName: "Jordan",
@@ -168,6 +172,11 @@ extension RunSummary {
             pickingEndedAt: nil,
             createdAt: previewDate(hour: 9, minute: 0),
             locationCount: 5,
+            chocolateBoxes: [
+                RunSummary.ChocolateBox(id: "box-3", number: 2, machine: nil),
+                RunSummary.ChocolateBox(id: "box-4", number: 7, machine: nil),
+                RunSummary.ChocolateBox(id: "box-5", number: 12, machine: nil)
+            ],
             picker: RunSummary.Participant(
                 id: "picker-2",
                 firstName: "Riley",
@@ -190,6 +199,9 @@ extension RunSummary {
             pickingEndedAt: previewDate(hour: 11, minute: 48),
             createdAt: previewDate(hour: 9, minute: 45),
             locationCount: 2,
+            chocolateBoxes: [
+                RunSummary.ChocolateBox(id: "box-6", number: 5, machine: nil)
+            ],
             picker: RunSummary.Participant(
                 id: "picker-3",
                 firstName: "Cameron",

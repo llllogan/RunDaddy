@@ -26,13 +26,24 @@ struct RunRow: View {
             .padding(.bottom, 4)
             
             HStack(spacing: 6) {
-                PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
+                PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
+                
+                if !run.chocolateBoxes.isEmpty {
+                    PillChip(
+                        title: nil,
+                        date: nil,
+                        text: run.chocolateBoxesDisplay,
+                        colour: Theme.packageBrown.opacity(0.15),
+                        foregroundColour: Theme.packageBrown,
+                        icon: "box"
+                    )
+                }
                 
                 if let started = run.pickingStartedAt {
-                    PillChip(title: "Started", date: started, text: nil, colour: nil, foregroundColour: nil)
+                    PillChip(title: "Started", date: started, text: nil, colour: nil, foregroundColour: nil, icon: nil)
                 }
                 if let ended = run.pickingEndedAt {
-                    PillChip(title: "Ended", date: ended, text: nil, colour: nil, foregroundColour: nil)
+                    PillChip(title: "Ended", date: ended, text: nil, colour: nil, foregroundColour: nil, icon: nil)
                 }
             }
         }
@@ -72,9 +83,16 @@ struct PillChip: View {
     let text: String?
     let colour: Color?
     let foregroundColour: Color?
+    let icon: String?
 
     var body: some View {
         HStack(spacing: 4) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundStyle(foregroundColour ?? .secondary)
+            }
+            
             if let title = title {
                 Text(title.uppercased())
                     .font(.caption2.bold())

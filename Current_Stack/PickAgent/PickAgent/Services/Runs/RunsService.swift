@@ -58,6 +58,32 @@ struct RunSummary: Identifiable, Equatable {
         }
     }
 
+    struct ChocolateBox: Identifiable, Equatable {
+        let id: String
+        let number: Int
+        let machine: Machine?
+    }
+    
+    struct Machine: Identifiable, Equatable {
+        let id: String
+        let code: String
+        let description: String?
+        let machineType: MachineType?
+        let location: Location?
+    }
+    
+    struct MachineType: Identifiable, Equatable {
+        let id: String
+        let name: String
+        let description: String?
+    }
+    
+    struct Location: Identifiable, Equatable {
+        let id: String
+        let name: String?
+        let address: String?
+    }
+
     let id: String
     let status: String
     let scheduledFor: Date?
@@ -65,6 +91,7 @@ struct RunSummary: Identifiable, Equatable {
     let pickingEndedAt: Date?
     let createdAt: Date
     let locationCount: Int
+    let chocolateBoxes: [ChocolateBox]
     let picker: Participant?
     let runner: Participant?
 
@@ -75,6 +102,11 @@ struct RunSummary: Identifiable, Equatable {
             .split(separator: " ")
             .map { $0.capitalized }
             .joined(separator: " ")
+    }
+    
+    var chocolateBoxesDisplay: String {
+        let sortedBoxes = chocolateBoxes.sorted { $0.number < $1.number }
+        return sortedBoxes.map { "\($0.number)" }.joined(separator: ", ")
     }
 }
 
@@ -656,6 +688,32 @@ private struct RunResponse: Decodable {
         let firstName: String?
         let lastName: String?
     }
+    
+    struct ChocolateBox: Decodable {
+        let id: String
+        let number: Int
+        let machine: Machine?
+    }
+    
+    struct Machine: Decodable {
+        let id: String
+        let code: String
+        let description: String?
+        let machineType: MachineType?
+        let location: Location?
+    }
+    
+    struct MachineType: Decodable {
+        let id: String
+        let name: String
+        let description: String?
+    }
+    
+    struct Location: Decodable {
+        let id: String
+        let name: String?
+        let address: String?
+    }
 
     let id: String
     let status: String
@@ -664,6 +722,7 @@ private struct RunResponse: Decodable {
     let pickingEndedAt: Date?
     let createdAt: Date
     let locationCount: Int?
+    let chocolateBoxes: [ChocolateBox]
     let pickerId: String?
     let runnerId: String?
     let picker: Participant?
@@ -677,6 +736,7 @@ private struct RunResponse: Decodable {
         case pickingEndedAt
         case createdAt
         case locationCount
+        case chocolateBoxes
         case pickerId
         case runnerId
         case picker
@@ -692,6 +752,33 @@ private struct RunResponse: Decodable {
             pickingEndedAt: pickingEndedAt,
             createdAt: createdAt,
             locationCount: locationCount ?? 0,
+            chocolateBoxes: chocolateBoxes.map { box in
+                RunSummary.ChocolateBox(
+                    id: box.id,
+                    number: box.number,
+                    machine: box.machine.map { machine in
+                        RunSummary.Machine(
+                            id: machine.id,
+                            code: machine.code,
+                            description: machine.description,
+                            machineType: machine.machineType.map { type in
+                                RunSummary.MachineType(
+                                    id: type.id,
+                                    name: type.name,
+                                    description: type.description
+                                )
+                            },
+                            location: machine.location.map { location in
+                                RunSummary.Location(
+                                    id: location.id,
+                                    name: location.name,
+                                    address: location.address
+                                )
+                            }
+                        )
+                    }
+                )
+            },
             picker: resolvedParticipant(from: picker, fallbackID: pickerId),
             runner: resolvedParticipant(from: runner, fallbackID: runnerId)
         )
