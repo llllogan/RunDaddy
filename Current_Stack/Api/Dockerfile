@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ----- build -----
-FROM node:20-alpine AS build
+FROM node:20 AS build
 WORKDIR /app
 
 COPY package*.json ./
@@ -9,8 +9,8 @@ RUN npm ci
 
 COPY . ./
 
-# Copy pre-generated Prisma client
-COPY prisma-generated/.prisma ./node_modules/.prisma
+# Generate Prisma client
+RUN npm run prisma:generate
 
 RUN npm run build
 
