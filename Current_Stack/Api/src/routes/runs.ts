@@ -119,7 +119,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
     orderBy: [
       { coilItem: { coil: { machine: { location: { name: 'asc' } } } } },
       { coilItem: { coil: { machine: { code: 'asc' } } } },
-      { coilItem: { par: 'desc' }, // Largest par first (largest coil)
+      { coilItem: { par: 'desc' } }, // Largest par first (largest coil)
       { coilItem: { coil: { code: 'asc' } } },
       { coilItem: { sku: { name: 'asc' } } }
     ]
