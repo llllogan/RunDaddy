@@ -116,7 +116,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         if canGoForward {
-            await goForward()
+            currentIndex += 1
+            await speakCurrentCommand()
         } else {
             completeSession()
         }
