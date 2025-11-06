@@ -7,6 +7,79 @@
 
 import SwiftUI
 
+struct FlowLayout: Layout {
+    let spacing: CGFloat
+    
+    init(spacing: CGFloat = 8) {
+        self.spacing = spacing
+    }
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var totalHeight: CGFloat = 0
+        
+        for row in rows {
+            let maxHeight = row.map { subview in
+                subview.sizeThatFits(.unspecified).height
+            }.max() ?? 0
+            totalHeight += maxHeight
+        }
+        
+        totalHeight += spacing * CGFloat(max(0, rows.count - 1))
+        
+        return CGSize(
+            width: proposal.width ?? 0,
+            height: totalHeight
+        )
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        
+        for row in rows {
+            var x = bounds.minX
+            let maxHeight = row.map { subview in
+                subview.sizeThatFits(.unspecified).height
+            }.max() ?? 0
+            
+            for subview in row {
+                let size = subview.sizeThatFits(.unspecified)
+                subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            
+            y += maxHeight + spacing
+        }
+    }
+    
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[LayoutSubview]] {
+        var rows: [[LayoutSubview]] = []
+        var currentRow: [LayoutSubview] = []
+        var currentWidth: CGFloat = 0
+        let maxWidth = proposal.width ?? .infinity
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            
+            if currentWidth + size.width > maxWidth && !currentRow.isEmpty {
+                rows.append(currentRow)
+                currentRow = [subview]
+                currentWidth = size.width
+            } else {
+                currentRow.append(subview)
+                currentWidth += size.width + spacing
+            }
+        }
+        
+        if !currentRow.isEmpty {
+            rows.append(currentRow)
+        }
+        
+        return rows
+    }
+}
+
 struct RunRow: View {
     let run: RunSummary
 
@@ -25,7 +98,7 @@ struct RunRow: View {
             }
             .padding(.bottom, 4)
             
-            HStack(spacing: 6) {
+            FlowLayout(spacing: 6) {
                 PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
                 
                 if !run.chocolateBoxes.isEmpty {
