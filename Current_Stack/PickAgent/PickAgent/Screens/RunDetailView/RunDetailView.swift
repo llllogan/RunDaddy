@@ -81,6 +81,18 @@ struct RunDetailView: View {
         .refreshable {
             await viewModel.load(force: true)
         }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Label("Directions", systemImage: "map")
+            }
+            
+            ToolbarItem(placement: .bottomBar) {
+                Button("Start Picking", systemImage: "play") {
+                    
+                }
+                .labelStyle(.titleOnly)
+            }
+        }
     }
 }
 
