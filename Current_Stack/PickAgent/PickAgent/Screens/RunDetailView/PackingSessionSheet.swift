@@ -205,9 +205,17 @@ struct CurrentCommandView: View {
                     .background(
                         Group {
                             if command.type == "machine" {
-                                Color.orange.gradient.opacity(0.8)
+                                LinearGradient(
+                                    colors: [Color.orange, Color.orange.opacity(0.8)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             } else {
-                                Color.blue.gradient.opacity(0.8)
+                                LinearGradient(
+                                    colors: [Color.blue, Color.blue.opacity(0.8)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             }
                         }
                     )
@@ -303,7 +311,11 @@ struct CircularButtonStyle: ButtonStyle {
             .background(
                 Group {
                     if primary {
-                        Color.blue.gradient
+                        LinearGradient(
+                            colors: [Color.blue, Color.blue.opacity(0.8)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                     } else {
                         Color(.systemGray5)
                     }
