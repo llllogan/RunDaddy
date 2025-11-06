@@ -172,6 +172,27 @@ struct RunOverviewBento: View {
                       symbolTint: .indigo)
         )
         
+        if summary.totalCoils > 0 {
+            let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "\(summary.packedCoils) of \(summary.totalCoils)",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green,
+                          customContent: AnyView(PackedGaugeChart(progress: completion,
+                                                                   totalCount: summary.totalItems,
+                                                                   tint: .green)))
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Packed",
+                          value: "0",
+                          subtitle: "Awaiting items",
+                          symbolName: "checkmark.circle",
+                          symbolTint: .green)
+            )
+        }
+        
         if let currentStatus = viewModel.detail?.status {
             cards.append(
                 BentoItem(title: "Status",
@@ -186,14 +207,14 @@ struct RunOverviewBento: View {
                                         await viewModel.updateRunStatus(to: "CREATED")
                                     }
                                 }
-                                Button("Pending Fresh") {
-                                    Task {
-                                        await viewModel.updateRunStatus(to: "PENDING_FRESH")
-                                    }
-                                }
                                 Button("Picking") {
                                     Task {
                                         await viewModel.updateRunStatus(to: "PICKING")
+                                    }
+                                }
+                                Button("Pending Fresh") {
+                                    Task {
+                                        await viewModel.updateRunStatus(to: "PENDING_FRESH")
                                     }
                                 }
                                 Button("Ready") {
@@ -218,27 +239,13 @@ struct RunOverviewBento: View {
             )
         }
         
-        if summary.totalCoils > 0 {
-            let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
-            cards.append(
-                BentoItem(title: "Packed",
-                          value: "\(summary.packedCoils) of \(summary.totalCoils)",
-                          symbolName: "checkmark.circle",
-                          symbolTint: .green,
-                          customContent: AnyView(PackedGaugeChart(progress: completion,
-                                                                   totalCount: summary.totalItems,
-                                                                   tint: .green)))
-            )
-        } else {
-            cards.append(
-                BentoItem(title: "Packed",
-                          value: "0",
-                          subtitle: "Awaiting items",
-                          symbolName: "checkmark.circle",
-                          symbolTint: .green)
-            )
-        }
-
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "\(summary.machineCount)",
+                      symbolName: "building.2",
+                      symbolTint: .cyan)
+        )
+        
         if let runner = summary.runnerName, !runner.isEmpty {
             cards.append(
                 BentoItem(title: "Runner",
@@ -301,6 +308,15 @@ struct RunOverviewBento: View {
                          )
             )
         }
+        
+        cards.append(
+            BentoItem(title: "Remaining",
+                      value: "\(summary.remainingCoils)",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
+                      symbolName: "cart",
+                      symbolTint: .pink,
+                      isProminent: true)
+        )
 
         if let picker = summary.pickerName, !picker.isEmpty {
             cards.append(
@@ -364,22 +380,6 @@ struct RunOverviewBento: View {
                          )
             )
         }
-
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "\(summary.machineCount)",
-                      symbolName: "building.2",
-                      symbolTint: .cyan)
-        )
-
-        cards.append(
-            BentoItem(title: "Remaining",
-                      value: "\(summary.remainingCoils)",
-                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
-                      symbolName: "cart",
-                      symbolTint: .pink,
-                      isProminent: true)
-        )
 
         return cards
     }
