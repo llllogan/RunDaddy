@@ -76,6 +76,128 @@ router.get('/tomorrow', async (req, res) => {
   return res.json(runs);
 });
 
+// Get audio commands for a run's packing session
+router.get('/:runId/audio-commands', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  // Get pick entries that need to be packed
+  const pickEntries = await prisma.pickEntry.findMany({
+    where: {
+      runId: runId,
+      status: 'PENDING',
+      count: { gt: 0 }
+    },
+    include: {
+      coilItem: {
+        include: {
+          coil: {
+            include: {
+              machine: {
+                include: {
+                  location: true,
+                  machineType: true
+                }
+              }
+            }
+          },
+          sku: true
+        }
+      }
+    },
+    orderBy: [
+      { coilItem: { coil: { machine: { code: 'asc' } } } },
+      { coilItem: { coil: { code: 'asc' } } },
+      { coilItem: { sku: { name: 'asc' } } }
+    ]
+  });
+
+  // Group by machine and create audio commands
+  const machineMap = new Map<string, any>();
+  const audioCommands: Array<{
+    id: string;
+    audioCommand: string;
+    pickEntryId: string;
+    type: 'machine' | 'item';
+    machineName?: string;
+    skuName?: string;
+    skuCode?: string;
+    count: number;
+    coilCode?: string;
+  }> = [];
+
+  // First, add machine announcements
+  const uniqueMachines = new Set<string>();
+  pickEntries.forEach(entry => {
+    const machine = entry.coilItem.coil.machine;
+    if (machine && !uniqueMachines.has(machine.id)) {
+      uniqueMachines.add(machine.id);
+      audioCommands.push({
+        id: `machine-${machine.id}`,
+        audioCommand: `Machine ${machine.code || machine.description || 'Unknown'}`,
+        pickEntryId: '',
+        type: 'machine',
+        machineName: machine.code || machine.description || 'Unknown',
+        count: 0
+      });
+    }
+  });
+
+  // Then add item announcements
+  pickEntries.forEach(entry => {
+    const sku = entry.coilItem.sku;
+    const coil = entry.coilItem.coil;
+    const machine = coil.machine;
+    
+    if (sku) {
+      const count = entry.count;
+      const skuName = sku.name || 'Unknown item';
+      const skuCode = sku.code || '';
+      const coilCode = coil.code || '';
+      
+      // Build audio command similar to RunDaddy app
+      let audioCommand = `${skuName}`;
+      if (sku.type && sku.type.trim()) {
+        audioCommand += `, ${sku.type}`;
+      }
+      audioCommand += `. Need ${count}`;
+      if (coilCode) {
+        audioCommand += `. Coil ${coilCode}`;
+      }
+      
+      audioCommands.push({
+        id: entry.id,
+        audioCommand: audioCommand,
+        pickEntryId: entry.id,
+        type: 'item',
+        machineName: machine?.code || machine?.description || 'Unknown',
+        skuName: skuName,
+        skuCode: skuCode,
+        count: count,
+        coilCode: coilCode
+      });
+    }
+  });
+
+  return res.json({
+    runId: runId,
+    audioCommands: audioCommands,
+    totalItems: audioCommands.filter(cmd => cmd.type === 'item').length,
+    hasItems: audioCommands.some(cmd => cmd.type === 'item')
+  });
+});
+
 // Get all runs for the company
 router.get('/all', async (req, res) => {
   if (!req.auth) {
@@ -350,8 +472,8 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
   }
 
   const { status } = req.body;
-  if (!status || !['PICKED', 'PENDING'].includes(status)) {
-    return res.status(400).json({ error: 'Status must be PICKED or PENDING' });
+  if (!status || !['PICKED', 'PENDING', 'SKIPPED'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be PICKED, PENDING, or SKIPPED' });
   }
 
   const run = await ensureRun(req.auth.companyId, runId);
@@ -374,7 +496,7 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
   const updateData: Prisma.PickEntryUpdateInput = { status };
   if (status === 'PICKED' && !pickEntry.pickedAt) {
     updateData.pickedAt = new Date();
-  } else if (status === 'PENDING') {
+  } else if (status === 'PENDING' || status === 'SKIPPED') {
     updateData.pickedAt = null;
   }
 
@@ -395,6 +517,61 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
     id: updatedPickEntry.id,
     status: updatedPickEntry.status,
     pickedAt: updatedPickEntry.pickedAt
+  });
+});
+
+// Bulk update pick entries status for packing session
+router.patch('/:runId/picks/bulk', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  const { pickIds, status } = req.body;
+  if (!Array.isArray(pickIds) || pickIds.length === 0) {
+    return res.status(400).json({ error: 'Pick IDs array is required' });
+  }
+
+  if (!status || !['PICKED', 'PENDING', 'SKIPPED'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be PICKED, PENDING, or SKIPPED' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  // Update all specified pick entries
+  const updateData: Prisma.PickEntryUpdateInput = { status };
+  if (status === 'PICKED') {
+    updateData.pickedAt = new Date();
+  } else {
+    updateData.pickedAt = null;
+  }
+
+  const updatedPickEntries = await prisma.pickEntry.updateMany({
+    where: {
+      id: { in: pickIds },
+      runId: runId
+    },
+    data: updateData
+  });
+
+  // If this is the first pick entry being packed, update pickingStartedAt
+  if (status === 'PICKED' && !run.pickingStartedAt) {
+    await prisma.run.update({
+      where: { id: run.id },
+      data: { pickingStartedAt: new Date() }
+    });
+  }
+
+  return res.json({
+    updatedCount: updatedPickEntries.count,
+    status: status
   });
 });
 

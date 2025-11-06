@@ -22,6 +22,7 @@ protocol RunsServicing {
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
+    func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
 }
 
 enum RunsSchedule {
@@ -111,6 +112,25 @@ struct RunSummary: Identifiable, Equatable {
 }
 
 typealias RunParticipant = RunSummary.Participant
+
+struct AudioCommandsResponse: Equatable, Decodable {
+    struct AudioCommand: Equatable, Decodable {
+        let id: String
+        let audioCommand: String
+        let pickEntryId: String
+        let type: String // 'machine' or 'item'
+        let machineName: String?
+        let skuName: String?
+        let skuCode: String?
+        let count: Int
+        let coilCode: String?
+    }
+
+    let runId: String
+    let audioCommands: [AudioCommand]
+    let totalItems: Int
+    let hasItems: Bool
+}
 
 struct RunDetail: Equatable {
     struct Location: Identifiable, Equatable {
@@ -679,6 +699,37 @@ final class RunsService: RunsServicing {
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
+    }
+    
+    func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("audio-commands")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(AudioCommandsResponse.self, from: data)
+        return payload
     }
 }
 

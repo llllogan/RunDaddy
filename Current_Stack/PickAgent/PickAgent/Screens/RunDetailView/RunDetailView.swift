@@ -9,6 +9,7 @@ import SwiftUI
 
 struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
+    @State private var showingPackingSession = false
 
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
@@ -88,9 +89,12 @@ struct RunDetailView: View {
             
             ToolbarItem(placement: .bottomBar) {
                 Button("Start Picking", systemImage: "play") {
-                    
+                    showingPackingSession = true
                 }
                 .labelStyle(.titleOnly)
+                .sheet(isPresented: $showingPackingSession) {
+                    PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
+                }
             }
         }
     }
