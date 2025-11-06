@@ -34,6 +34,8 @@ struct LocationDetailView: View {
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
     @State private var showingChocolateBoxesSheet = false
+    @State private var showingCountPointerSheet = false
+    @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -198,7 +200,8 @@ struct LocationDetailView: View {
                             .tint(pickItem.sku?.isCheeseAndCrackers == true ? .orange : .yellow)
                             
                             Button {
-                                // TODO: Impliment select which number drives the needed count
+                                selectedPickItemForCountPointer = pickItem
+                                showingCountPointerSheet = true
                             } label: {
                                 Label("Change Input Field", systemImage: "square.and.pencil")
                             }
@@ -226,6 +229,24 @@ struct LocationDetailView: View {
         }
         .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
             showingChocolateBoxesSheet = showing
+        }
+        .sheet(isPresented: $showingCountPointerSheet) {
+            if let pickItem = selectedPickItemForCountPointer {
+                CountPointerSelectionSheet(
+                    pickItem: pickItem,
+                    onDismiss: {
+                        showingCountPointerSheet = false
+                        selectedPickItemForCountPointer = nil
+                    },
+                    onPointerSelected: { newPointer in
+                        Task {
+                            await updateCountPointer(pickItem, newPointer: newPointer)
+                        }
+                    }
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
     
@@ -278,6 +299,135 @@ struct LocationDetailView: View {
         _ = await MainActor.run {
             updatingSkuIds.remove(skuId)
         }
+    }
+    
+    private func updateCountPointer(_ pickItem: RunDetail.PickItem, newPointer: String) async {
+        guard let skuId = pickItem.sku?.id else { return }
+        
+        updatingSkuIds.insert(skuId)
+        
+        do {
+            try await service.updateSkuCountPointer(
+                skuId: skuId,
+                countNeededPointer: newPointer,
+                credentials: session.credentials
+            )
+            await MainActor.run {
+                onPickStatusChanged()
+                showingCountPointerSheet = false
+                selectedPickItemForCountPointer = nil
+            }
+        } catch {
+            // Handle error - could show an alert
+            print("Failed to update SKU count pointer: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingSkuIds.remove(skuId)
+        }
+    }
+}
+
+struct CountPointerSelectionSheet: View {
+    let pickItem: RunDetail.PickItem
+    let onDismiss: () -> Void
+    let onPointerSelected: (String) -> Void
+    
+    private let countPointers = [
+        ("current", "Current", "Current inventory count"),
+        ("par", "PAR", "Par level count"),
+        ("need", "Need", "Needed count"),
+        ("forecast", "Forecast", "Forecast count"),
+        ("total", "Total", "Total count")
+    ]
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(pickItem.sku?.name ?? "Unknown SKU")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        if let machineCode = pickItem.machine?.code {
+                            Text("Machine: \(machineCode)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Text("Coil: \(pickItem.coilItem.coil.code)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Item Details")
+                }
+                
+                Section {
+                    ForEach(countPointers, id: \.0) { pointer in
+                        CountPointerRow(
+                            pointer: pointer,
+                            currentCount: pickItem.count,
+                            isSelected: false
+                        ) {
+                            onPointerSelected(pointer.0)
+                        }
+                    }
+                } header: {
+                    Text("Select Count Source")
+                } footer: {
+                    Text("Choose which field determines the needed count for this item.")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Change Input Field")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        onDismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct CountPointerRow: View {
+    let pointer: (String, String, String)
+    let currentCount: Int
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pointer.1)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    
+                    Text(pointer.2)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Text("\(currentCount)")
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.blue)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
