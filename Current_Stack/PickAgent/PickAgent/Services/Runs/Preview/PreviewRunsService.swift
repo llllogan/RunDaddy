@@ -126,6 +126,14 @@ struct PreviewRunsService: RunsServicing {
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
+    
+    func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
+    func deleteRun(runId: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
 }
 
 extension RunSummary {

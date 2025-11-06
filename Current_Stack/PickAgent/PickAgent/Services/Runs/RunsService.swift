@@ -20,6 +20,7 @@ protocol RunsServicing {
     func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
+    func deleteRun(runId: String, credentials: AuthCredentials) async throws
 }
 
 enum RunsSchedule {
@@ -544,6 +545,36 @@ final class RunsService: RunsServicing {
 
         let body = ["countNeededPointer": countNeededPointer]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+    
+    func deleteRun(runId: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
 
         let (_, response) = try await urlSession.data(for: request)
 
