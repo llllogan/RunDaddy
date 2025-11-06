@@ -89,6 +89,10 @@ struct PreviewRunsService: RunsServicing {
         // Preview does nothing
     }
     
+    func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
     func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox] {
         let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
         let snackType = RunDetail.MachineTypeDescriptor(id: "type-1", name: "Snack Machine", description: "Classic snacks")

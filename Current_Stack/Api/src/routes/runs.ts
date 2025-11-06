@@ -255,6 +255,48 @@ router.post('/:runId/assignment', async (req, res) => {
   });
 });
 
+// Updates a run status
+router.patch('/:runId/status', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  const { status } = req.body;
+  
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  if (!status || !isRunStatus(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be one of: CREATED, PENDING_FRESH, PICKING, READY' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  // Only managers can update run status
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update run status' });
+  }
+
+  const updatedRun = await prisma.run.update({
+    where: { id: run.id },
+    data: { status: status as PrismaRunStatus },
+    include: {
+      picker: true,
+      runner: true,
+    },
+  });
+
+  return res.status(200).json({
+    id: updatedRun.id,
+    status: updatedRun.status,
+  });
+});
+
 // Updates a pick item status (PICKED/PENDING)
 router.patch('/:runId/picks/:pickId', async (req, res) => {
   if (!req.auth) {
