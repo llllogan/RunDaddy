@@ -140,12 +140,26 @@ struct PreviewRunsService: RunsServicing {
     }
     
     func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
-        // Return sample audio commands for preview
+        // Return sample audio commands for preview with location ordering
+        let locationCommand1 = AudioCommandsResponse.AudioCommand(
+            id: "location-1",
+            audioCommand: "Location Downtown HQ",
+            pickEntryId: "",
+            type: "location",
+            locationName: "Downtown HQ",
+            machineName: nil,
+            skuName: nil,
+            skuCode: nil,
+            count: 0,
+            coilCode: nil
+        )
+        
         let machineCommand1 = AudioCommandsResponse.AudioCommand(
             id: "machine-1",
             audioCommand: "Machine A-101",
             pickEntryId: "",
             type: "machine",
+            locationName: nil,
             machineName: "A-101",
             skuName: nil,
             skuCode: nil,
@@ -158,6 +172,7 @@ struct PreviewRunsService: RunsServicing {
             audioCommand: "Trail Mix, Snack. Need 6. Coil C1.",
             pickEntryId: "pick-1",
             type: "item",
+            locationName: nil,
             machineName: "A-101",
             skuName: "Trail Mix",
             skuCode: "SKU-001",
@@ -170,6 +185,7 @@ struct PreviewRunsService: RunsServicing {
             audioCommand: "Machine B-204",
             pickEntryId: "",
             type: "machine",
+            locationName: nil,
             machineName: "B-204",
             skuName: nil,
             skuCode: nil,
@@ -182,6 +198,7 @@ struct PreviewRunsService: RunsServicing {
             audioCommand: "Cheese & Crackers, Snack. Need 4. Coil C2.",
             pickEntryId: "pick-2",
             type: "item",
+            locationName: nil,
             machineName: "B-204",
             skuName: "Cheese & Crackers",
             skuCode: "SKU-003",
@@ -189,11 +206,25 @@ struct PreviewRunsService: RunsServicing {
             coilCode: "C2"
         )
         
+        let locationCommand2 = AudioCommandsResponse.AudioCommand(
+            id: "location-2",
+            audioCommand: "Location Uptown Annex",
+            pickEntryId: "",
+            type: "location",
+            locationName: "Uptown Annex",
+            machineName: nil,
+            skuName: nil,
+            skuCode: nil,
+            count: 0,
+            coilCode: nil
+        )
+        
         let machineCommand3 = AudioCommandsResponse.AudioCommand(
             id: "machine-3",
             audioCommand: "Machine C-08",
             pickEntryId: "",
             type: "machine",
+            locationName: nil,
             machineName: "C-08",
             skuName: nil,
             skuCode: nil,
@@ -206,6 +237,7 @@ struct PreviewRunsService: RunsServicing {
             audioCommand: "Sparkling Water, Beverage. Need 9. Coil C3.",
             pickEntryId: "pick-3",
             type: "item",
+            locationName: nil,
             machineName: "C-08",
             skuName: "Sparkling Water",
             skuCode: "SKU-002",
@@ -213,7 +245,7 @@ struct PreviewRunsService: RunsServicing {
             coilCode: "C3"
         )
         
-        let commands = [machineCommand1, itemCommand1, machineCommand2, itemCommand2, machineCommand3, itemCommand3]
+        let commands = [locationCommand1, machineCommand1, itemCommand1, machineCommand2, itemCommand2, locationCommand2, machineCommand3, itemCommand3]
         let itemCommands = commands.filter { $0.type == "item" }
         
         return AudioCommandsResponse(

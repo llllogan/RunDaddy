@@ -119,7 +119,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
     orderBy: [
       { coilItem: { coil: { machine: { location: { name: 'asc' } } } } },
       { coilItem: { coil: { machine: { code: 'asc' } } } },
-      { count: 'desc' }, // Largest count first (largest coil)
+      { coilItem: { par: 'desc' }, // Largest par first (largest coil)
       { coilItem: { coil: { code: 'asc' } } },
       { coilItem: { sku: { name: 'asc' } } }
     ]
@@ -204,13 +204,37 @@ router.get('/:runId/audio-commands', async (req, res) => {
         });
       }
       
-      // Add item announcements (already sorted by count descending for largest to smallest)
-      machineGroup.entries.forEach(entry => {
+      // Sort entries by par (coil size) descending for largest to smallest coils
+      const sortedEntries = machineGroup.entries.sort((a, b) => b.coilItem.par - a.coilItem.par);
+      
+      sortedEntries.forEach(entry => {
         const sku = entry.coilItem.sku;
         const coil = entry.coilItem.coil;
         
         if (sku) {
-          const count = entry.count;
+          // Determine count based on SKU's countNeededPointer
+          const countPointer = sku.countNeededPointer || 'total';
+          let count = entry.count; // fallback to stored count
+          
+          switch (countPointer.toLowerCase()) {
+            case 'current':
+              count = entry.current ?? entry.count;
+              break;
+            case 'par':
+              count = entry.par ?? entry.count;
+              break;
+            case 'need':
+              count = entry.need ?? entry.count;
+              break;
+            case 'forecast':
+              count = entry.forecast ?? entry.count;
+              break;
+            case 'total':
+            default:
+              count = entry.total ?? entry.count;
+              break;
+          }
+          
           const skuName = sku.name || 'Unknown item';
           const skuCode = sku.code || '';
           const coilCode = coil.code || '';
