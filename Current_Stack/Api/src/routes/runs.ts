@@ -76,6 +76,51 @@ router.get('/tomorrow', async (req, res) => {
   return res.json(runs);
 });
 
+// Get all runs for the company
+router.get('/all', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { limit = 50, offset = 0 } = req.query;
+  const limitNum = Math.min(Number(limit) || 50, 200); // Cap at 200 runs
+  const offsetNum = Number(offset) || 0;
+
+  const runs = await prisma.run.findMany({
+    where: { companyId: req.auth.companyId },
+    orderBy: [
+      { scheduledFor: 'desc' },
+      { createdAt: 'desc' }
+    ],
+    include: {
+      picker: true,
+      runner: true,
+    },
+    take: limitNum,
+    skip: offsetNum,
+  });
+
+  return res.json(runs.map(run => ({
+    id: run.id,
+    status: run.status,
+    scheduledFor: run.scheduledFor,
+    pickingStartedAt: run.pickingStartedAt,
+    pickingEndedAt: run.pickingEndedAt,
+    createdAt: run.createdAt,
+    locationCount: 0, // Will be calculated differently if needed
+    picker: run.picker ? {
+      id: run.picker.id,
+      firstName: run.picker.firstName,
+      lastName: run.picker.lastName,
+    } : null,
+    runner: run.runner ? {
+      id: run.runner.id,
+      firstName: run.runner.firstName,
+      lastName: run.runner.lastName,
+    } : null,
+  })));
+});
+
 // Get runs scheduled for tomorrow with a status of READY
 router.get('/tomorrow/ready', async (req, res) => {
   if (!req.auth) {

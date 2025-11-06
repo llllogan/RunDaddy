@@ -9,6 +9,7 @@ import Foundation
 
 protocol RunsServicing {
     func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary]
+    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
@@ -172,6 +173,33 @@ final class RunsService: RunsServicing {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("runs")
         url.appendPathComponent(schedule.pathComponent)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode([RunResponse].self, from: data)
+        return payload.map { $0.toSummary() }
+    }
+
+    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent("all")
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"

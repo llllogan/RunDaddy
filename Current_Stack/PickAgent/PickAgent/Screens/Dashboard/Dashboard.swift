@@ -64,6 +64,22 @@ struct DashboardView: View {
                     }
                 }
 
+                Section("All Runs") {
+                    NavigationLink {
+                        AllRunsView(session: session)
+                    } label: {
+                        HStack {
+                            Text("View All Runs")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Section("Insights") {
                     EmptyStateRow(message: "Insights will show up once you start running orders.")
                 }
@@ -102,6 +118,7 @@ struct DashboardView: View {
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
         }
+
     }
 }
 
@@ -197,74 +214,7 @@ private struct RunRow: View {
     .tint(Theme.packageBrown)
 }
 
-private extension RunSummary {
-    static var previewReady: RunSummary {
-        RunSummary(
-            id: "run-ready",
-            status: "READY",
-            scheduledFor: previewDate(hour: 9, minute: 30),
-            pickingStartedAt: nil,
-            pickingEndedAt: nil,
-            createdAt: previewDate(hour: 8, minute: 15),
-            locationCount: 3,
-            picker: RunSummary.Participant(
-                id: "picker-1",
-                firstName: "Jordan",
-                lastName: "Smith"
-            ),
-            runner: nil
-        )
-    }
 
-    static var previewPicking: RunSummary {
-        RunSummary(
-            id: "run-picking",
-            status: "PICKING",
-            scheduledFor: previewDate(hour: 10, minute: 45),
-            pickingStartedAt: previewDate(hour: 10, minute: 30),
-            pickingEndedAt: nil,
-            createdAt: previewDate(hour: 9, minute: 0),
-            locationCount: 5,
-            picker: RunSummary.Participant(
-                id: "picker-2",
-                firstName: "Riley",
-                lastName: "Chen"
-            ),
-            runner: RunSummary.Participant(
-                id: "runner-1",
-                firstName: "Morgan",
-                lastName: "Lee"
-            )
-        )
-    }
-
-    static var previewPicked: RunSummary {
-        RunSummary(
-            id: "run-picked",
-            status: "PICKED",
-            scheduledFor: previewDate(hour: 12, minute: 0),
-            pickingStartedAt: previewDate(hour: 11, minute: 10),
-            pickingEndedAt: previewDate(hour: 11, minute: 48),
-            createdAt: previewDate(hour: 9, minute: 45),
-            locationCount: 2,
-            picker: RunSummary.Participant(
-                id: "picker-3",
-                firstName: "Cameron",
-                lastName: "Diaz"
-            ),
-            runner: RunSummary.Participant(
-                id: "runner-2",
-                firstName: "Alex",
-                lastName: "Johnson"
-            )
-        )
-    }
-
-    private static func previewDate(hour: Int, minute: Int) -> Date {
-        let components = DateComponents(year: 2025, month: 4, day: 11, hour: hour, minute: minute)
-        return Calendar(identifier: .gregorian).date(from: components) ?? .now
-    }
-}
 
 private struct PillChip: View {
     let title: String?

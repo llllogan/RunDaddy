@@ -12,6 +12,19 @@ struct PreviewRunsService: RunsServicing {
         []
     }
     
+    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
+        // Return some sample runs for testing
+        return [
+            .previewReady,
+            .previewPicking,
+            .previewPicked
+        ].sorted { run1, run2 in
+            let date1 = run1.scheduledFor ?? run1.createdAt
+            let date2 = run2.scheduledFor ?? run2.createdAt
+            return date1 > date2
+        }
+    }
+    
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail {
         let downtown = RunDetail.Location(id: "loc-1", name: "Downtown HQ", address: "123 Main Street")
         let uptown = RunDetail.Location(id: "loc-2", name: "Uptown Annex", address: "456 Oak Avenue")
@@ -112,5 +125,74 @@ struct PreviewRunsService: RunsServicing {
     
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws {
         // Preview does nothing
+    }
+}
+
+extension RunSummary {
+    static var previewReady: RunSummary {
+        RunSummary(
+            id: "run-ready",
+            status: "READY",
+            scheduledFor: previewDate(hour: 9, minute: 30),
+            pickingStartedAt: nil,
+            pickingEndedAt: nil,
+            createdAt: previewDate(hour: 8, minute: 15),
+            locationCount: 3,
+            picker: RunSummary.Participant(
+                id: "picker-1",
+                firstName: "Jordan",
+                lastName: "Smith"
+            ),
+            runner: nil
+        )
+    }
+
+    static var previewPicking: RunSummary {
+        RunSummary(
+            id: "run-picking",
+            status: "PICKING",
+            scheduledFor: previewDate(hour: 10, minute: 45),
+            pickingStartedAt: previewDate(hour: 10, minute: 30),
+            pickingEndedAt: nil,
+            createdAt: previewDate(hour: 9, minute: 0),
+            locationCount: 5,
+            picker: RunSummary.Participant(
+                id: "picker-2",
+                firstName: "Riley",
+                lastName: "Chen"
+            ),
+            runner: RunSummary.Participant(
+                id: "runner-1",
+                firstName: "Morgan",
+                lastName: "Lee"
+            )
+        )
+    }
+
+    static var previewPicked: RunSummary {
+        RunSummary(
+            id: "run-picked",
+            status: "PICKED",
+            scheduledFor: previewDate(hour: 12, minute: 0),
+            pickingStartedAt: previewDate(hour: 11, minute: 10),
+            pickingEndedAt: previewDate(hour: 11, minute: 48),
+            createdAt: previewDate(hour: 9, minute: 45),
+            locationCount: 2,
+            picker: RunSummary.Participant(
+                id: "picker-3",
+                firstName: "Cameron",
+                lastName: "Diaz"
+            ),
+            runner: RunSummary.Participant(
+                id: "runner-2",
+                firstName: "Alex",
+                lastName: "Johnson"
+            )
+        )
+    }
+
+    private static func previewDate(hour: Int, minute: Int) -> Date {
+        let components = DateComponents(year: 2025, month: 11, day: 6, hour: hour, minute: minute)
+        return Calendar(identifier: .gregorian).date(from: components) ?? .now
     }
 }

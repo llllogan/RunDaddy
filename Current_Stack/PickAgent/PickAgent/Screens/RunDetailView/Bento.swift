@@ -473,11 +473,41 @@ struct LocationOverviewBento: View {
         
         cards.append(
             BentoItem(title: "Cheese Items",
-                      value: "\(cheeseItems.count)",
+                      value: "",
                       subtitle: cheeseItems.count == 0 ? "No cheese items" : "Items marked as cheese",
                       symbolName: "list.bullet.clipboard",
                       symbolTint: .yellow,
-                      isProminent: cheeseItems.count > 0)
+                      isProminent: cheeseItems.count > 0,
+                      customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 4) {
+                            if cheeseItems.isEmpty {
+                                Text("None")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                let groupedCheeseItems = Dictionary(grouping: cheeseItems) { item in
+                                    item.sku?.type ?? "Unknown SKU"
+                                }
+                                
+                                ForEach(Array(groupedCheeseItems.keys.sorted()), id: \.self) { skuType in
+                                    let items = groupedCheeseItems[skuType] ?? []
+                                    let totalCount = items.reduce(0) { $0 + $1.count }
+                                    
+                                    HStack {
+                                        Text(skuType)
+                                            .font(.caption)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text("\(totalCount)")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
         )
         
         cards.append(
