@@ -260,9 +260,6 @@ router.get('/:runId/audio-commands', async (req, res) => {
             audioCommand += `, ${sku.type}`;
           }
           audioCommand += `. Need ${count}`;
-          if (coilCode) {
-            audioCommand += `. Coil ${coilCode}`;
-          }
           
           audioCommands.push({
             id: entry.id,
