@@ -20,6 +20,20 @@ import {
   ensureMachine,
 } from './helpers/runs.js';
 
+interface AudioCommand {
+  id: string;
+  audioCommand: string;
+  pickEntryId: string;
+  type: 'location' | 'machine' | 'item';
+  locationName?: string;
+  machineName?: string;
+  skuName?: string;
+  skuCode?: string;
+  count: number;
+  coilCode?: string;
+  order: number;
+}
+
 const router = Router();
 
 router.use(authenticate);
@@ -126,18 +140,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
   });
 
   // Group by location and machine to create audio commands
-  const audioCommands: Array<{
-    id: string;
-    audioCommand: string;
-    pickEntryId: string;
-    type: 'location' | 'machine' | 'item';
-    locationName?: string;
-    machineName?: string;
-    skuName?: string;
-    skuCode?: string;
-    count: number;
-    coilCode?: string;
-  }> = [];
+  const audioCommands: AudioCommand[] = [];
 
   // Track unique locations and machines to avoid duplicates
   const uniqueLocations = new Set<string>();
