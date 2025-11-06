@@ -308,6 +308,28 @@ final class RunDetailViewModel: ObservableObject {
 
         isLoading = false
     }
+    
+    func updateRunStatus(to status: String) async {
+        guard let runId = detail?.id else { return }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await service.updateRunStatus(runId: runId, status: status, credentials: session.credentials)
+            // Reload the detail after status update
+            await load(force: true)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to update run status. Please try again."
+            }
+        }
+
+        isLoading = false
+    }
 
     private struct LocationContext {
         var section: RunLocationSection

@@ -1,5 +1,6 @@
 export const RunStatus = {
   CREATED: 'CREATED',
+  PENDING_FRESH: 'PENDING_FRESH',
   PICKING: 'PICKING',
   READY: 'READY',
 } as const;

@@ -145,6 +145,17 @@ struct StaggeredBentoGrid: View {
 }
 
 
+extension String {
+    var statusDisplay: String {
+        self
+            .replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+            .split(separator: " ")
+            .map { $0.capitalized }
+            .joined(separator: " ")
+    }
+}
+
 struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
@@ -160,6 +171,52 @@ struct RunOverviewBento: View {
                       symbolName: "calendar",
                       symbolTint: .indigo)
         )
+        
+        if let currentStatus = viewModel.detail?.status {
+            cards.append(
+                BentoItem(title: "Status",
+                          value: "",
+                          symbolName: "flag",
+                          symbolTint: .orange,
+                          allowsMultilineValue: false,
+                          customContent: AnyView(
+                            Menu {
+                                Button("Created") {
+                                    Task {
+                                        await viewModel.updateRunStatus(to: "CREATED")
+                                    }
+                                }
+                                Button("Pending Fresh") {
+                                    Task {
+                                        await viewModel.updateRunStatus(to: "PENDING_FRESH")
+                                    }
+                                }
+                                Button("Picking") {
+                                    Task {
+                                        await viewModel.updateRunStatus(to: "PICKING")
+                                    }
+                                }
+                                Button("Ready") {
+                                    Task {
+                                        await viewModel.updateRunStatus(to: "READY")
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(currentStatus.statusDisplay)
+                                        .font(.title3.weight(.semibold))
+                                        .lineLimit(1)
+                                    Image(systemName: "chevron.down")
+                                        .font(.headline.weight(.medium))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.leading)
+                            }
+                            .tint(.primary)
+                          )
+                         )
+            )
+        }
         
         if summary.totalCoils > 0 {
             let completion = Double(summary.packedCoils) / Double(summary.totalCoils)
