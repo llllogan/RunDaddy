@@ -309,11 +309,18 @@ private struct PickEntryRow: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                     
-                    if let skuCode = pickItem.sku?.code {
-                        Text(skuCode)
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .fontWeight(.regular)
+                    if let skuType = pickItem.sku?.type {
+                        if skuType != "General" {
+                            Text("| \(skuType)")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .fontWeight(.semibold)
+                        } else if let skuCode = pickItem.sku?.code {
+                            Text(skuCode)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .fontWeight(.regular)
+                        }
                     }
                 }
                 
@@ -341,6 +348,7 @@ private struct PickEntryRow: View {
             
             Text("\(pickItem.count)")
                 .font(.title)
+                .fontDesign(.rounded)
         }
     }
 }

@@ -86,37 +86,51 @@ router.get('/all', async (req, res) => {
   const limitNum = Math.min(Number(limit) || 50, 200); // Cap at 200 runs
   const offsetNum = Number(offset) || 0;
 
-  const runs = await prisma.run.findMany({
-    where: { companyId: req.auth.companyId },
-    orderBy: [
-      { scheduledFor: 'desc' },
-      { createdAt: 'desc' }
-    ],
-    include: {
-      picker: true,
-      runner: true,
-    },
-    take: limitNum,
-    skip: offsetNum,
-  });
+  // Use the same view as today/tomorrow endpoints for consistency
+  const rows = await prisma.$queryRaw<RunDailyLocationRow[]>(
+    Prisma.sql`
+      SELECT
+        run_id,
+        company_id,
+        company_name,
+        scheduled_date,
+        scheduled_for,
+        run_status,
+        picking_started_at,
+        picking_ended_at,
+        run_created_at,
+        picker_id,
+        picker_first_name,
+        picker_last_name,
+        runner_id,
+        runner_first_name,
+        runner_last_name,
+        location_count
+      FROM v_run_daily_locations
+      WHERE company_id = ${req.auth.companyId}
+      ORDER BY scheduled_for DESC, run_created_at DESC
+      LIMIT ${limitNum}
+      OFFSET ${offsetNum}
+    `
+  );
 
-  return res.json(runs.map(run => ({
-    id: run.id,
-    status: run.status,
-    scheduledFor: run.scheduledFor,
-    pickingStartedAt: run.pickingStartedAt,
-    pickingEndedAt: run.pickingEndedAt,
-    createdAt: run.createdAt,
-    locationCount: 0, // Will be calculated differently if needed
-    picker: run.picker ? {
-      id: run.picker.id,
-      firstName: run.picker.firstName,
-      lastName: run.picker.lastName,
+  return res.json(rows.map((row) => ({
+    id: row.run_id,
+    status: row.run_status,
+    scheduledFor: row.scheduled_for,
+    pickingStartedAt: row.picking_started_at,
+    pickingEndedAt: row.picking_ended_at,
+    createdAt: row.run_created_at,
+    locationCount: Number(row.location_count ?? 0),
+    picker: row.picker_id ? {
+      id: row.picker_id,
+      firstName: row.picker_first_name,
+      lastName: row.picker_last_name,
     } : null,
-    runner: run.runner ? {
-      id: run.runner.id,
-      firstName: run.runner.firstName,
-      lastName: run.runner.lastName,
+    runner: row.runner_id ? {
+      id: row.runner_id,
+      firstName: row.runner_first_name,
+      lastName: row.runner_last_name,
     } : null,
   })));
 });

@@ -71,10 +71,6 @@ struct DashboardView: View {
                         HStack {
                             Text("View All Runs")
                                 .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)

@@ -474,7 +474,7 @@ struct LocationOverviewBento: View {
         cards.append(
             BentoItem(title: "Cheese Items",
                       value: "",
-                      subtitle: cheeseItems.count == 0 ? "No cheese items" : "Items marked as cheese",
+                      subtitle: cheeseItems.count == 0 ? "No cheese products" : "",
                       symbolName: "list.bullet.clipboard",
                       symbolTint: .yellow,
                       isProminent: cheeseItems.count > 0,
@@ -495,12 +495,12 @@ struct LocationOverviewBento: View {
                                     
                                     HStack {
                                         Text(skuType)
-                                            .font(.caption)
+                                            .font(.subheadline)
                                             .foregroundStyle(.primary)
                                             .lineLimit(1)
                                         Spacer()
                                         Text("\(totalCount)")
-                                            .font(.caption.weight(.semibold))
+                                            .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(.secondary)
                                     }
                                 }
