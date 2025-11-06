@@ -1,18 +1,23 @@
 # syntax=docker/dockerfile:1.7
 
 # ----- build -----
-FROM node:20 AS build
+FROM node:20-alpine AS build
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+# Use a single RUN command to reduce layers and cleanup immediately
+RUN apk add --no-cache python3 make g++ && \
+    npm config set cache /tmp/.npm && \
+    cp package*.json ./ && \
+    npm ci && \
+    rm -rf /tmp/.npm
 
 COPY . ./
 
-# Generate Prisma client
-RUN npm run prisma:generate
-
-RUN npm run build
+# Generate and build in one step with cleanup
+RUN npm run prisma:generate && \
+    npm run build && \
+    npm cache clean --force && \
+    rm -rf /root/.cache /tmp/* /var/tmp/*
 
 # ----- runtime -----
 FROM node:20-alpine AS runtime
@@ -22,7 +27,9 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && \
+    npm cache clean --force && \
+    rm -rf /root/.cache /tmp/* /var/tmp/*
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
