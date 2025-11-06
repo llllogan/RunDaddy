@@ -23,41 +23,6 @@ struct PackingSessionSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                // Progress Header
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Packing Session")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Button("Done") {
-                            viewModel.stopSession()
-                            dismiss()
-                        }
-                        .fontWeight(.medium)
-                        .foregroundColor(.blue)
-                        .buttonStyle(.bordered)
-                    }
-                    
-                    HStack {
-                        Text("\(viewModel.completedCount) / \(viewModel.totalItems)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(Int(viewModel.progress * 100))%")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    ProgressView(value: viewModel.progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                        .scaleEffect(y: 1.5)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 // Current Command Display
                 if viewModel.isSessionComplete {
@@ -117,6 +82,27 @@ struct PackingSessionSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
                 
+                VStack {
+                    
+                    HStack {
+                        Text("\(viewModel.completedCount) / \(viewModel.totalItems)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(viewModel.progress * 100))%")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    ProgressView(value: viewModel.progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                        .scaleEffect(y: 1.5)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                
                 Spacer()
                 
                 // Control Buttons
@@ -175,8 +161,16 @@ struct PackingSessionSheet: View {
                     .padding()
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Stop Packing", systemImage: "stop.fill") {
+                        viewModel.stopSession()
+                        dismiss()
+                    }
+                    .tint(.red)
+                }
+            }
             .padding()
-            .navigationBarHidden(true)
         }
         .onAppear {
             Task {
@@ -195,102 +189,71 @@ struct CurrentCommandView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Command Type Header
-            HStack {
-                Text(command.type == "machine" ? "🏭 Machine" : "📦 Item")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Group {
-                            if command.type == "machine" {
-                                LinearGradient(
-                                    colors: [Color.orange, Color.orange.opacity(0.8)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            } else {
-                                LinearGradient(
-                                    colors: [Color.blue, Color.blue.opacity(0.8)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            }
-                        }
-                    )
-                    .foregroundColor(.white)
-                    .clipShape(Capsule())
-                    .shadow(color: command.type == "machine" ? .orange.opacity(0.3) : .blue.opacity(0.3), radius: 4, x: 0, y: 2)
-                
-                Spacer()
-                
-                if isSpeaking {
-                    HStack(spacing: 4) {
-                        ForEach(0..<3) { index in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.blue.gradient)
-                                .frame(width: 4, height: 20)
-                                .scaleEffect(isSpeaking ? 1.0 : 0.5, anchor: .bottom)
-                                .animation(
-                                    .easeInOut(duration: 0.8)
-                                    .repeatForever(autoreverses: true)
-                                    .delay(Double(index) * 0.15),
-                                    value: isSpeaking
-                                )
-                        }
-                    }
-                    .frame(height: 20)
-                }
-            }
             
-            // Command Content
-            if command.type == "machine" {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(command.machineName ?? "Unknown Machine")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-                    
-                    Text("Use the controls below to navigate through items")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(command.skuName ?? "Unknown Item")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-                    
-                    if let skuCode = command.skuCode, !skuCode.isEmpty {
-                        Text(skuCode)
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if let coilCode = command.coilCode, !coilCode.isEmpty {
-                        Text("Coil \(coilCode)")
+            HStack {
+                
+                // Command Content
+                if command.type == "location" {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(command.locationName ?? "Unknown Location")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.leading)
+                        
+                        Text("Navigate to this location to continue packing")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    
-                    HStack {
-                        Text("NEED")
-                            .font(.caption2)
+                } else if command.type == "machine" {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(command.machineName ?? "Unknown Machine")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.leading)
+                        
+                        Text("Use the controls below to navigate through items")
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(command.count)")
-                            .font(.system(size: 48, weight: .heavy, design: .rounded))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
                     }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(command.skuName ?? "Unknown Item")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.leading)
+                        
+                        if let skuCode = command.skuCode, !skuCode.isEmpty {
+                            Text(skuCode)
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let coilCode = command.coilCode, !coilCode.isEmpty {
+                            Text("Coil \(coilCode)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack {
+                            Text("NEED")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(command.count)")
+                                .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
                 }
+                
+                Spacer()
             }
         }
+        .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
