@@ -74,7 +74,6 @@ model Company {
   runs           Run[]
   locations      Location[]
   machines       Machine[]
-  runImports     RunImport[]
 }
 
 model MachineType {
