@@ -8,7 +8,10 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . ./
-RUN npm run prisma:generate
+
+# Copy pre-generated Prisma client from local
+COPY node_modules/.prisma ./node_modules/.prisma
+
 RUN npm run build
 
 # ----- runtime -----
