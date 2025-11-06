@@ -742,6 +742,11 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     return {
       id: entry.id,
       count: calculatedCount,
+      current: entry.current,
+      par: entry.par,
+      need: entry.need,
+      forecast: entry.forecast,
+      total: entry.total,
       status: entry.status as RunItemStatusValue,
       pickedAt: entry.pickedAt,
       coilItem: {
@@ -825,6 +830,11 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       return {
         id: entry.id,
         count: calculatedCount,
+        current: entry.current,
+        par: entry.par,
+        need: entry.need,
+        forecast: entry.forecast,
+        total: entry.total,
         status: entry.status as RunItemStatusValue,
         pickedAt: entry.pickedAt,
         coilItem: {

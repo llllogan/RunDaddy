@@ -369,7 +369,7 @@ struct CountPointerSelectionSheet: View {
                     ForEach(countPointers, id: \.0) { pointer in
                         CountPointerRow(
                             pointer: pointer,
-                            currentCount: pickItem.count,
+                            currentCount: pickItem.countForPointer(pointer.0),
                             isSelected: false
                         ) {
                             onPointerSelected(pointer.0)
@@ -397,7 +397,7 @@ struct CountPointerSelectionSheet: View {
 
 private struct CountPointerRow: View {
     let pointer: (String, String, String)
-    let currentCount: Int
+    let currentCount: Int?
     let isSelected: Bool
     let onTap: () -> Void
     
@@ -416,10 +416,18 @@ private struct CountPointerRow: View {
                 
                 Spacer()
                 
-                Text("\(currentCount)")
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                if let count = currentCount {
+                    Text("\(count)")
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("N/A")
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.tertiary)
+                        .italic()
+                }
                 
                 if isSelected {
                     Image(systemName: "checkmark")
@@ -521,8 +529,8 @@ private struct PickEntryRow: View {
 
     let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false)
 
-    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location)
-    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location)
+    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location)
+    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location)
 
     let section = RunLocationSection(
         id: location.id,

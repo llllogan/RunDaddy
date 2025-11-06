@@ -123,6 +123,11 @@ struct RunDetail: Equatable {
     struct PickItem: Identifiable, Equatable {
         let id: String
         let count: Int
+        let current: Int?
+        let par: Int?
+        let need: Int?
+        let forecast: Int?
+        let total: Int?
         let status: String
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -132,6 +137,17 @@ struct RunDetail: Equatable {
 
         var isPicked: Bool {
             status == "PICKED"
+        }
+        
+        func countForPointer(_ pointer: String) -> Int? {
+            switch pointer.lowercased() {
+            case "current": return current
+            case "par": return par
+            case "need": return need
+            case "forecast": return forecast
+            case "total": return total
+            default: return count
+            }
         }
     }
 
@@ -744,6 +760,11 @@ private struct RunDetailResponse: Decodable {
     struct PickItem: Decodable {
         let id: String
         let count: Int
+        let current: Int?
+        let par: Int?
+        let need: Int?
+        let forecast: Int?
+        let total: Int?
         let status: String
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -757,6 +778,11 @@ private struct RunDetailResponse: Decodable {
             return RunDetail.PickItem(
                 id: id,
                 count: count,
+                current: current,
+                par: par,
+                need: need,
+                forecast: forecast,
+                total: total,
                 status: status,
                 pickedAt: pickedAt,
                 coilItem: coilItem.toCoilItem(with: coilDomain),
