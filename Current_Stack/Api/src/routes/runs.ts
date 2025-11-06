@@ -210,8 +210,17 @@ router.get('/:runId/audio-commands', async (req, res) => {
         });
       }
       
-      // Sort entries by par (coil size) descending for largest to smallest coils
-      const sortedEntries = machineGroup.entries.sort((a, b) => b.coilItem.par - a.coilItem.par);
+      // Sort entries by coil code numerically descending (58 -> 57 -> 56, etc.)
+      const sortedEntries = machineGroup.entries.sort((a, b) => {
+        const coilCodeA = a.coilItem.coil?.code || '';
+        const coilCodeB = b.coilItem.coil?.code || '';
+        
+        // Extract numeric part from coil code and sort descending
+        const numA = parseInt(coilCodeA.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(coilCodeB.replace(/\D/g, ''), 10) || 0;
+        
+        return numB - numA; // Descending order
+      });
       
       sortedEntries.forEach(entry => {
         const sku = entry.coilItem.sku;
