@@ -170,6 +170,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
   }, {} as Record<string, { location: any, machines: Record<string, { machine: any, entries: any[] }> }>);
 
   // Generate audio commands in the correct order
+  let orderCounter = 0;
   Object.values(groupedEntries).forEach(locationGroup => {
     // Add location announcement
     const location = locationGroup.location;
@@ -182,7 +183,8 @@ router.get('/:runId/audio-commands', async (req, res) => {
         pickEntryId: '',
         type: 'location',
         locationName: location.name || 'Unknown',
-        count: 0
+        count: 0,
+        order: orderCounter++
       });
     }
     
@@ -200,7 +202,8 @@ router.get('/:runId/audio-commands', async (req, res) => {
           pickEntryId: '',
           type: 'machine',
           machineName: machine.code || machine.description || 'Unknown',
-          count: 0
+          count: 0,
+          order: orderCounter++
         });
       }
       
@@ -258,7 +261,8 @@ router.get('/:runId/audio-commands', async (req, res) => {
             skuName: skuName,
             skuCode: skuCode,
             count: count,
-            coilCode: coilCode
+            coilCode: coilCode,
+            order: orderCounter++
           });
         }
       });

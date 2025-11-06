@@ -151,7 +151,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: nil,
             skuCode: nil,
             count: 0,
-            coilCode: nil
+            coilCode: nil,
+            order: 0
         )
         
         let machineCommand1 = AudioCommandsResponse.AudioCommand(
@@ -164,7 +165,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: nil,
             skuCode: nil,
             count: 0,
-            coilCode: nil
+            coilCode: nil,
+            order: 1
         )
         
         let itemCommand1 = AudioCommandsResponse.AudioCommand(
@@ -177,7 +179,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: "Trail Mix",
             skuCode: "SKU-001",
             count: 6,
-            coilCode: "C1"
+            coilCode: "C1",
+            order: 2
         )
         
         let machineCommand2 = AudioCommandsResponse.AudioCommand(
@@ -190,7 +193,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: nil,
             skuCode: nil,
             count: 0,
-            coilCode: nil
+            coilCode: nil,
+            order: 3
         )
         
         let itemCommand2 = AudioCommandsResponse.AudioCommand(
@@ -203,7 +207,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: "Cheese & Crackers",
             skuCode: "SKU-003",
             count: 4,
-            coilCode: "C2"
+            coilCode: "C2",
+            order: 4
         )
         
         let locationCommand2 = AudioCommandsResponse.AudioCommand(
@@ -216,7 +221,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: nil,
             skuCode: nil,
             count: 0,
-            coilCode: nil
+            coilCode: nil,
+            order: 5
         )
         
         let machineCommand3 = AudioCommandsResponse.AudioCommand(
@@ -229,7 +235,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: nil,
             skuCode: nil,
             count: 0,
-            coilCode: nil
+            coilCode: nil,
+            order: 6
         )
         
         let itemCommand3 = AudioCommandsResponse.AudioCommand(
@@ -242,7 +249,8 @@ struct PreviewRunsService: RunsServicing {
             skuName: "Sparkling Water",
             skuCode: "SKU-002",
             count: 9,
-            coilCode: "C3"
+            coilCode: "C3",
+            order: 7
         )
         
         let commands = [locationCommand1, machineCommand1, itemCommand1, machineCommand2, itemCommand2, locationCommand2, machineCommand3, itemCommand3]

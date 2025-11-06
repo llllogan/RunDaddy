@@ -125,6 +125,7 @@ struct AudioCommandsResponse: Equatable, Decodable {
         let skuCode: String?
         let count: Int
         let coilCode: String?
+        let order: Int
     }
 
     let runId: String
