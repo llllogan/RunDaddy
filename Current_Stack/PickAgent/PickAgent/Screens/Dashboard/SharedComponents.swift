@@ -35,7 +35,7 @@ struct RunRow: View {
                         text: run.chocolateBoxesDisplay,
                         colour: Theme.packageBrown.opacity(0.15),
                         foregroundColour: Theme.packageBrown,
-                        icon: "box"
+                        icon: "shippingbox"
                     )
                 }
                 
