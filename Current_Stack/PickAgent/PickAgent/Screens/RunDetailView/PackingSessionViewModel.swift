@@ -89,7 +89,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         // Mark current item as completed if it's an item
         if let currentCommand = currentCommand, currentCommand.type == "item" {
-            await markAsPacked(pickEntryId: currentCommand.pickEntryId)
+            await markAsPacked(pickEntryIds: currentCommand.pickEntryIds)
         }
         
         if canGoForward {
@@ -112,7 +112,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         // Mark as skipped if it's an item
         if let currentCommand = currentCommand, currentCommand.type == "item" {
-            await markAsSkipped(pickEntryId: currentCommand.pickEntryId)
+            await markAsSkipped(pickEntryIds: currentCommand.pickEntryIds)
         }
         
         if canGoForward {
@@ -168,34 +168,42 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         synthesizer.speak(utterance)
     }
     
-    private func markAsPacked(pickEntryId: String) async {
-        guard !pickEntryId.isEmpty else { return }
+    private func markAsPacked(pickEntryIds: [String]) async {
+        guard !pickEntryIds.isEmpty else { return }
         
-        do {
-            try await service.updatePickItemStatus(
-                runId: runId,
-                pickId: pickEntryId,
-                status: "PICKED",
-                credentials: session.credentials
-            )
-            completedItems.insert(pickEntryId)
-        } catch {
-            print("Failed to mark item as packed: \(error)")
+        for pickEntryId in pickEntryIds {
+            guard !pickEntryId.isEmpty else { continue }
+            
+            do {
+                try await service.updatePickItemStatus(
+                    runId: runId,
+                    pickId: pickEntryId,
+                    status: "PICKED",
+                    credentials: session.credentials
+                )
+                completedItems.insert(pickEntryId)
+            } catch {
+                print("Failed to mark item as packed: \(error)")
+            }
         }
     }
     
-    private func markAsSkipped(pickEntryId: String) async {
-        guard !pickEntryId.isEmpty else { return }
+    private func markAsSkipped(pickEntryIds: [String]) async {
+        guard !pickEntryIds.isEmpty else { return }
         
-        do {
-            try await service.updatePickItemStatus(
-                runId: runId,
-                pickId: pickEntryId,
-                status: "SKIPPED",
-                credentials: session.credentials
-            )
-        } catch {
-            print("Failed to mark item as skipped: \(error)")
+        for pickEntryId in pickEntryIds {
+            guard !pickEntryId.isEmpty else { continue }
+            
+            do {
+                try await service.updatePickItemStatus(
+                    runId: runId,
+                    pickId: pickEntryId,
+                    status: "SKIPPED",
+                    credentials: session.credentials
+                )
+            } catch {
+                print("Failed to mark item as skipped: \(error)")
+            }
         }
     }
     

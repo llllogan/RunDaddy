@@ -144,7 +144,7 @@ struct PreviewRunsService: RunsServicing {
         let locationCommand1 = AudioCommandsResponse.AudioCommand(
             id: "location-1",
             audioCommand: "Location Downtown HQ",
-            pickEntryId: "",
+            pickEntryIds: [],
             type: "location",
             locationName: "Downtown HQ",
             machineName: nil,
@@ -158,7 +158,7 @@ struct PreviewRunsService: RunsServicing {
         let machineCommand1 = AudioCommandsResponse.AudioCommand(
             id: "machine-1",
             audioCommand: "Machine A-101",
-            pickEntryId: "",
+            pickEntryIds: [],
             type: "machine",
             locationName: nil,
             machineName: "A-101",
@@ -172,7 +172,7 @@ struct PreviewRunsService: RunsServicing {
         let itemCommand1 = AudioCommandsResponse.AudioCommand(
             id: "pick-1",
             audioCommand: "Trail Mix, Snack. Need 6. Coil C1.",
-            pickEntryId: "pick-1",
+            pickEntryIds: ["pick-1", "pick-1b"], // Example of grouped entries
             type: "item",
             locationName: nil,
             machineName: "A-101",
@@ -186,7 +186,7 @@ struct PreviewRunsService: RunsServicing {
         let machineCommand2 = AudioCommandsResponse.AudioCommand(
             id: "machine-2",
             audioCommand: "Machine B-204",
-            pickEntryId: "",
+            pickEntryIds: [],
             type: "machine",
             locationName: nil,
             machineName: "B-204",
@@ -200,7 +200,7 @@ struct PreviewRunsService: RunsServicing {
         let itemCommand2 = AudioCommandsResponse.AudioCommand(
             id: "pick-2",
             audioCommand: "Cheese & Crackers, Snack. Need 4. Coil C2.",
-            pickEntryId: "pick-2",
+            pickEntryIds: ["pick-2"],
             type: "item",
             locationName: nil,
             machineName: "B-204",
@@ -214,7 +214,7 @@ struct PreviewRunsService: RunsServicing {
         let locationCommand2 = AudioCommandsResponse.AudioCommand(
             id: "location-2",
             audioCommand: "Location Uptown Annex",
-            pickEntryId: "",
+            pickEntryIds: [],
             type: "location",
             locationName: "Uptown Annex",
             machineName: nil,
@@ -228,7 +228,7 @@ struct PreviewRunsService: RunsServicing {
         let machineCommand3 = AudioCommandsResponse.AudioCommand(
             id: "machine-3",
             audioCommand: "Machine C-08",
-            pickEntryId: "",
+            pickEntryIds: [],
             type: "machine",
             locationName: nil,
             machineName: "C-08",
@@ -242,7 +242,7 @@ struct PreviewRunsService: RunsServicing {
         let itemCommand3 = AudioCommandsResponse.AudioCommand(
             id: "pick-3",
             audioCommand: "Sparkling Water, Beverage. Need 9. Coil C3.",
-            pickEntryId: "pick-3",
+            pickEntryIds: ["pick-3", "pick-3a", "pick-3b"], // Example of grouped entries
             type: "item",
             locationName: nil,
             machineName: "C-08",

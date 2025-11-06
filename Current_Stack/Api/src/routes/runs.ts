@@ -23,7 +23,7 @@ import {
 interface AudioCommand {
   id: string;
   audioCommand: string;
-  pickEntryId: string;
+  pickEntryIds: string[];
   type: 'location' | 'machine' | 'item';
   locationName?: string;
   machineName?: string;
@@ -183,7 +183,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
       audioCommands.push({
         id: `location-${locationKey}`,
         audioCommand: `Location ${location.name || 'Unknown'}`,
-        pickEntryId: '',
+        pickEntryIds: [],
         type: 'location',
         locationName: location.name || 'Unknown',
         count: 0,
@@ -202,7 +202,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
         audioCommands.push({
           id: `machine-${machineKey}`,
           audioCommand: `Machine ${machine.code || machine.description || 'Unknown'}`,
-          pickEntryId: '',
+          pickEntryIds: [],
           type: 'machine',
           machineName: machine.code || machine.description || 'Unknown',
           count: 0,
@@ -222,33 +222,55 @@ router.get('/:runId/audio-commands', async (req, res) => {
         return numB - numA; // Descending order
       });
       
+      // Group entries by SKU within this machine
+      const skuGroups = new Map<string, typeof sortedEntries>();
+      
       sortedEntries.forEach(entry => {
         const sku = entry.coilItem.sku;
-        const coil = entry.coilItem.coil;
+        if (sku) {
+          const skuKey = sku.id;
+          if (!skuGroups.has(skuKey)) {
+            skuGroups.set(skuKey, []);
+          }
+          skuGroups.get(skuKey)!.push(entry);
+        }
+      });
+      
+      // Generate audio commands for each SKU group
+      skuGroups.forEach((entries, skuKey) => {
+        const firstEntry = entries[0];
+        const sku = firstEntry.coilItem.sku;
+        const coil = firstEntry.coilItem.coil;
         
         if (sku) {
-          // Determine count based on SKU's countNeededPointer
+          // Calculate total count for this SKU group
           const countPointer = sku.countNeededPointer || 'total';
-          let count = entry.count; // fallback to stored count
+          let totalCount = 0;
           
-          switch (countPointer.toLowerCase()) {
-            case 'current':
-              count = entry.current ?? entry.count;
-              break;
-            case 'par':
-              count = entry.par ?? entry.count;
-              break;
-            case 'need':
-              count = entry.need ?? entry.count;
-              break;
-            case 'forecast':
-              count = entry.forecast ?? entry.count;
-              break;
-            case 'total':
-            default:
-              count = entry.total ?? entry.count;
-              break;
-          }
+          entries.forEach(entry => {
+            let count = entry.count; // fallback to stored count
+            
+            switch (countPointer.toLowerCase()) {
+              case 'current':
+                count = entry.current ?? entry.count;
+                break;
+              case 'par':
+                count = entry.par ?? entry.count;
+                break;
+              case 'need':
+                count = entry.need ?? entry.count;
+                break;
+              case 'forecast':
+                count = entry.forecast ?? entry.count;
+                break;
+              case 'total':
+              default:
+                count = entry.total ?? entry.count;
+                break;
+            }
+            
+            totalCount += count;
+          });
           
           const skuName = sku.name || 'Unknown item';
           const skuCode = sku.code || '';
@@ -259,17 +281,20 @@ router.get('/:runId/audio-commands', async (req, res) => {
           if (sku.type && sku.type.trim()) {
             audioCommand += `, ${sku.type}`;
           }
-          audioCommand += `. Need ${count}`;
+          audioCommand += `. Need ${totalCount}`;
+          
+          // Collect all pick entry IDs for this group
+          const pickEntryIds = entries.map(entry => entry.id);
           
           audioCommands.push({
-            id: entry.id,
+            id: `sku-${skuKey}-${machineKey}`,
             audioCommand: audioCommand,
-            pickEntryId: entry.id,
+            pickEntryIds: pickEntryIds,
             type: 'item',
             machineName: machine?.code || machine?.description || 'Unknown',
             skuName: skuName,
             skuCode: skuCode,
-            count: count,
+            count: totalCount,
             coilCode: coilCode,
             order: orderCounter++
           });
