@@ -292,7 +292,7 @@ private struct PickEntryRow: View {
                     Circle()
                         .stroke(pickItem.isPicked ? Color.green : Color.gray, lineWidth: 2)
                         .frame(width: 20, height: 20)
-                        .background(Circle().fill(Color.white))
+//                        .background(Circle().fill(Color.white))
                     
                     if pickItem.isPicked {
                         Image(systemName: "checkmark")
@@ -330,6 +330,7 @@ private struct PickEntryRow: View {
                             .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
+                            .foregroundStyle(.secondary)
                             .background(Color(.systemGray5))
                             .clipShape(Capsule())
                     }
@@ -338,6 +339,7 @@ private struct PickEntryRow: View {
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
+                        .foregroundStyle(.secondary)
                         .background(Color(.systemGray5))
                         .clipShape(Capsule())
                 }

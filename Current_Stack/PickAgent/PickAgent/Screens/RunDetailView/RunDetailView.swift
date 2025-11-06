@@ -100,20 +100,32 @@ private struct LocationSummaryRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-
-            HStack(spacing: 12) {
-                Label("\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")", systemImage: "building.2")
+            
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")")
                     .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                     .foregroundStyle(.secondary)
-
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+                
                 if section.remainingCoils > 0 {
-                    Label("\(section.remainingCoils) remaining", systemImage: "cart")
+                    Text("\(section.remainingCoils) remaining")
                         .font(.caption)
-                        .foregroundStyle(.pink)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .foregroundStyle(.secondary)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
                 } else {
-                    Label("All packed", systemImage: "checkmark.circle")
+                    Text("All packed")
                         .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .foregroundStyle(.green)
+                        .background(Color(.green.opacity(0.15)))
+                        .clipShape(Capsule())
                 }
             }
             .accessibilityElement(children: .combine)
