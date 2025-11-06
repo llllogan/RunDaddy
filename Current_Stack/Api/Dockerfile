@@ -9,8 +9,8 @@ RUN npm ci
 
 COPY . ./
 
-# Copy pre-generated Prisma client from local
-COPY node_modules/.prisma ./node_modules/.prisma
+# Copy pre-generated Prisma client
+COPY prisma-generated/.prisma ./node_modules/.prisma
 
 RUN npm run build
 
