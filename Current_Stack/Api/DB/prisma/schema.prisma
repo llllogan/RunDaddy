@@ -9,6 +9,7 @@ datasource db {
 
 enum RunStatus {
   CREATED
+  PENDING_FRESH
   PICKING
   READY
 }
