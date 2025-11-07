@@ -25,6 +25,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var completedItems: Set<String> = []
     
     private let synthesizer = AVSpeechSynthesizer()
+    private let silentLoop = SilentLoopPlayer()
     private var audioSessionConfigured = false
     private var remoteCommandCenterConfigured = false
     
@@ -77,6 +78,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             if response.hasItems {
                 configureAudioSessionIfNeeded()
                 setupRemoteCommandCenter()
+                silentLoop.start()
+                updateNowPlayingInfo()
                 await speakCurrentCommand()
             } else {
                 errorMessage = "No items to pack in this run"
@@ -98,6 +101,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         if canGoForward {
             currentIndex += 1
+            updateNowPlayingInfo()
             await speakCurrentCommand()
         } else {
             completeSession()
@@ -108,6 +112,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         guard canGoBack else { return }
         
         currentIndex -= 1
+        updateNowPlayingInfo()
         await speakCurrentCommand()
     }
     
@@ -121,6 +126,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         if canGoForward {
             currentIndex += 1
+            updateNowPlayingInfo()
             await speakCurrentCommand()
         } else {
             completeSession()
@@ -128,14 +134,17 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func repeatCurrent() async {
+        updateNowPlayingInfo()
         await speakCurrentCommand()
     }
     
     func stopSession() {
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
+        silentLoop.stop()
         deactivateAudioSession()
         deactivateRemoteCommandCenter()
+        clearNowPlayingInfo()
     }
     
     private func speakCurrentCommand() async {
@@ -170,6 +179,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         isSpeaking = true
+        updateNowPlayingInfo()
+        updatePlaybackState()
         synthesizer.speak(utterance)
     }
     
@@ -215,6 +226,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private func completeSession() {
         isSessionComplete = true
         currentIndex = audioCommands.count
+        
+        updateNowPlayingInfoForCompletion()
         
         // Announce completion with enhanced voice
         let utterance = AVSpeechUtterance(string: "Packing session complete. Great job.")
@@ -326,24 +339,131 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         remoteCommandCenterConfigured = false
     }
+    
+    private func updateNowPlayingInfo() {
+        var info: [String: Any] = [:]
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isSpeaking ? 1 : 0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        info[MPNowPlayingInfoPropertyPlaybackQueueCount] = audioCommands.count
+        info[MPNowPlayingInfoPropertyPlaybackQueueIndex] = min(currentIndex, max(audioCommands.count - 1, 0))
+
+        if let command = currentCommand {
+            info[MPMediaItemPropertyTitle] = command.audioCommand
+            info[MPMediaItemPropertyArtist] = command.type.capitalized
+        } else {
+            info[MPMediaItemPropertyTitle] = "Packing Session"
+            info[MPMediaItemPropertyArtist] = "PickAgent"
+        }
+
+        info[MPMediaItemPropertyAlbumTitle] = "Run \(runId)"
+        info[MPMediaItemPropertyPlaybackDuration] = 86400
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+    
+    private func updateNowPlayingInfoForCompletion() {
+        var info: [String: Any] = [:]
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPNowPlayingInfoPropertyPlaybackRate] = 0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        info[MPMediaItemPropertyTitle] = "Session Complete"
+        info[MPMediaItemPropertyArtist] = "PickAgent"
+        info[MPMediaItemPropertyAlbumTitle] = "Run \(runId)"
+        info[MPMediaItemPropertyPlaybackDuration] = 86400
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+    
+    private func updatePlaybackState() {
+        MPNowPlayingInfoCenter.default().playbackState = isSpeaking ? .playing : .paused
+        guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isSpeaking ? 1 : 0
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = silentLoop.currentTime
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+    
+    private func clearNowPlayingInfo() {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
 }
 
 extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         Task { @MainActor in
             isSpeaking = true
+            updatePlaybackState()
         }
     }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
             isSpeaking = false
+            updatePlaybackState()
         }
     }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
             isSpeaking = false
+            updatePlaybackState()
         }
+    }
+}
+
+private final class SilentLoopPlayer {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private let format: AVAudioFormat
+    private let buffer: AVAudioPCMBuffer
+    private(set) var isRunning = false
+
+    init() {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) else {
+            fatalError("Unable to create audio format for silent loop")
+        }
+        self.format = format
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44100) else {
+            fatalError("Unable to allocate silent audio buffer")
+        }
+        buffer.frameLength = buffer.frameCapacity
+        self.buffer = buffer
+
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        player.volume = 0
+        engine.prepare()
+    }
+
+    deinit {
+        stop()
+    }
+
+    func start() {
+        guard !isRunning else { return }
+        do {
+            try engine.start()
+        } catch {
+            return
+        }
+        player.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
+        player.play()
+        isRunning = true
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        player.stop()
+        player.reset()
+        engine.stop()
+        engine.reset()
+        isRunning = false
+    }
+
+    var currentTime: TimeInterval {
+        guard let nodeTime = player.lastRenderTime,
+              let playerTime = player.playerTime(forNodeTime: nodeTime) else { return 0 }
+        return TimeInterval(playerTime.sampleTime) / format.sampleRate
     }
 }
