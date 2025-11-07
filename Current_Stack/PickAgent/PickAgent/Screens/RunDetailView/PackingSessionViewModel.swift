@@ -8,6 +8,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import MediaPlayer
 
 @MainActor
 class PackingSessionViewModel: NSObject, ObservableObject {
@@ -25,6 +26,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     
     private let synthesizer = AVSpeechSynthesizer()
     private var audioSessionConfigured = false
+    private var remoteCommandCenterConfigured = false
     
     var currentCommand: AudioCommandsResponse.AudioCommand? {
         guard currentIndex >= 0 && currentIndex < audioCommands.count else { return nil }
@@ -58,6 +60,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         self.service = service
         super.init()
         synthesizer.delegate = self
+        setupRemoteCommandCenter()
     }
     
     func loadAudioCommands() async {
@@ -73,6 +76,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             
             if response.hasItems {
                 configureAudioSessionIfNeeded()
+                setupRemoteCommandCenter()
                 await speakCurrentCommand()
             } else {
                 errorMessage = "No items to pack in this run"
@@ -131,6 +135,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
         deactivateAudioSession()
+        deactivateRemoteCommandCenter()
     }
     
     private func speakCurrentCommand() async {
@@ -246,7 +251,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         do {
             let audioSession = AVAudioSession.sharedInstance()
             
-            // Use modern audio session configuration
+            // Use modern audio session configuration with playback control support
             try audioSession.setCategory(
                 .playback,
                 mode: .spokenAudio,
@@ -280,6 +285,46 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             print("Failed to deactivate audio session: \(error)")
         }
         audioSessionConfigured = false
+    }
+    
+    private func setupRemoteCommandCenter() {
+        guard !remoteCommandCenterConfigured else { return }
+        
+        let commandCenter = MPRemoteCommandCenter.shared()
+        
+        // Next track command -> goForward
+        commandCenter.nextTrackCommand.addTarget { [weak self] event in
+            Task { @MainActor in
+                await self?.goForward()
+            }
+            return .success
+        }
+        
+        // Previous track command -> repeatCurrent
+        commandCenter.previousTrackCommand.addTarget { [weak self] event in
+            Task { @MainActor in
+                await self?.repeatCurrent()
+            }
+            return .success
+        }
+        
+        // Enable the commands
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.isEnabled = true
+        
+        remoteCommandCenterConfigured = true
+    }
+    
+    private func deactivateRemoteCommandCenter() {
+        guard remoteCommandCenterConfigured else { return }
+        
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.nextTrackCommand.removeTarget(nil)
+        commandCenter.previousTrackCommand.removeTarget(nil)
+        commandCenter.nextTrackCommand.isEnabled = false
+        commandCenter.previousTrackCommand.isEnabled = false
+        
+        remoteCommandCenterConfigured = false
     }
 }
 
