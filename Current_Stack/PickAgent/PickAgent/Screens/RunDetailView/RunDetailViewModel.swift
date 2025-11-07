@@ -249,8 +249,9 @@ final class RunDetailViewModel: ObservableObject {
         errorMessage = nil
 
         do {
+            print("Assigning user \(session.profile.id) to role: \(role) for run: \(runId)")
             try await service.assignUser(to: runId, userId: session.profile.id, role: role, credentials: session.credentials)
-            // Reload() detail after assignment
+            // Reload detail after assignment
             await load(force: true)
         } catch {
             if let authError = error as? AuthError {

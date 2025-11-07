@@ -88,7 +88,7 @@ struct RunDetailView: View {
             }
             
             ToolbarItem(placement: .bottomBar) {
-                Button("Start Picking", systemImage: "play") {
+                Button("Start Packing", systemImage: "play") {
                     showingPackingSession = true
                 }
                 .labelStyle(.titleOnly)

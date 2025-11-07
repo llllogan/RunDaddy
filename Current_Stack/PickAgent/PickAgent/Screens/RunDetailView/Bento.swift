@@ -290,21 +290,9 @@ struct RunOverviewBento: View {
                           symbolName: "person.crop.circle.badge.questionmark",
                           symbolTint: .blue,
                           allowsMultilineValue: false,
-                          customContent: AnyView(
-                            HStack {
-                                Button(action: {
-                                    Task {
-                                        await viewModel.assignUser(to: "RUNNER")
-                                    }
-                                }) {
-                                    Text("Assign me")
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 4)
-                                }
-                                .buttonStyle(.bordered)
-                                Spacer()
-                            }
-                         )
+                           customContent: AnyView(
+                             RunnerAssignButtons(viewModel: viewModel)
+                          )
                          )
             )
         }
@@ -362,21 +350,9 @@ struct RunOverviewBento: View {
                           symbolName: "person.crop.circle.badge.questionmark",
                           symbolTint: .blue,
                           allowsMultilineValue: false,
-                          customContent: AnyView(
-                            HStack {
-                                Button(action: {
-                                    Task {
-                                        await viewModel.assignUser(to: "PICKER")
-                                    }
-                                }) {
-                                    Text("Assign me")
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 4)
-                                }
-                                .buttonStyle(.bordered)
-                                Spacer()
-                            }
-                          )
+                           customContent: AnyView(
+                             PickerAssignButtons(viewModel: viewModel)
+                           )
                          )
             )
         }
@@ -388,6 +364,89 @@ struct RunOverviewBento: View {
         StaggeredBentoGrid(items: items, columnCount: 2)
             .padding(.vertical, 2)
             .padding(.horizontal, 4)
+    }
+}
+
+struct RunnerAssignButtons: View {
+    let viewModel: RunDetailViewModel
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            Button("Assign me") {
+                print("Runner Assign Me button tapped")
+                Task { @MainActor in
+                    await viewModel.assignUser(to: "RUNNER")
+                }
+            }
+            .lineLimit(1)
+            .font(.subheadline)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 40)
+            .background(Color(.systemGray5))
+            .clipShape(Capsule())
+            .buttonStyle(.plain)
+            
+            Menu {
+                ForEach(viewModel.companyUsers) { user in
+                    Button(user.displayName) {
+                        Task {
+                            await viewModel.assignUser(userId: user.id, to: "RUNNER")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                .tint(.primary)
+                .labelStyle(.iconOnly)
+                .padding()
+                .background(Color(.systemGray5))
+                .clipShape(Circle())
+                .buttonStyle(.plain)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+struct PickerAssignButtons: View {
+    let viewModel: RunDetailViewModel
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            Button("Assign me") {
+                Task { @MainActor in
+                    await viewModel.assignUser(to: "PICKER")
+                }
+            }
+            .lineLimit(1)
+            .font(.subheadline)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 40)
+            .background(Color(.systemGray5))
+            .clipShape(Capsule())
+            .buttonStyle(.plain)
+            
+            Menu {
+                ForEach(viewModel.companyUsers) { user in
+                    Button(user.displayName) {
+                        Task {
+                            await viewModel.assignUser(userId: user.id, to: "PICKER")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                .tint(.primary)
+                .labelStyle(.iconOnly)
+                .padding()
+                .background(Color(.systemGray5))
+                .clipShape(Circle())
+                .buttonStyle(.plain)
+            }
+            
+            Spacer()
+        }
     }
 }
 

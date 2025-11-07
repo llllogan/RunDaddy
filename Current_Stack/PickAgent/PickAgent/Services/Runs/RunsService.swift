@@ -342,6 +342,7 @@ final class RunsService: RunsServicing {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: Any] = userId.isEmpty ? ["role": role] : ["userId": userId, "role": role]
+        print("Assigning user - RunID: \(runId), UserID: \(userId), Role: \(role), Body: \(body)")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await urlSession.data(for: request)
