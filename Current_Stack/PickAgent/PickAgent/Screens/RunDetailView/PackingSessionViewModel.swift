@@ -23,6 +23,13 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var isSpeaking: Bool = false
     @Published var isSessionComplete: Bool = false
     @Published var completedItems: Set<String> = []
+    @Published var showingChocolateBoxesSheet = false
+    @Published var showingCountPointerSheet = false
+    @Published var selectedPickItemForCountPointer: RunDetail.PickItem?
+    @Published var selectedPickItemForCheese: RunDetail.PickItem?
+    @Published var updatingPickIds: Set<String> = []
+    @Published var updatingSkuIds: Set<String> = []
+    @Published private(set) var runDetail: RunDetail?
     
     private let synthesizer = AVSpeechSynthesizer()
     private let silentLoop = SilentLoopPlayer()
@@ -55,6 +62,22 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         currentIndex < audioCommands.count - 1
     }
     
+    var currentMachine: RunDetail.Machine? {
+        guard let machineId = currentCommand?.machineId,
+              let runDetail = runDetail else { return nil }
+        return runDetail.machines.first { $0.id == machineId }
+    }
+    
+    var currentPickItem: RunDetail.PickItem? {
+        guard let currentCommand = currentCommand,
+              currentCommand.type == "item",
+              !currentCommand.pickEntryIds.isEmpty,
+              let runDetail = runDetail else { return nil }
+        
+        let pickEntryId = currentCommand.pickEntryIds.first!
+        return runDetail.pickItems.first { $0.id == pickEntryId }
+    }
+    
     init(runId: String, session: AuthSession, service: RunsServicing) {
         self.runId = runId
         self.session = session
@@ -69,8 +92,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         errorMessage = nil
         
         do {
-            let response = try await service.fetchAudioCommands(for: runId, credentials: session.credentials)
+            async let audioCommandsTask = service.fetchAudioCommands(for: runId, credentials: session.credentials)
+            async let runDetailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
+            
+            let response = try await audioCommandsTask
+            let detail = try await runDetailTask
+            
             audioCommands = response.audioCommands
+            runDetail = detail
             currentIndex = 0
             completedItems.removeAll()
             isSessionComplete = false
@@ -386,6 +415,71 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     
     private func clearNowPlayingInfo() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+    
+    // MARK: - Cheese Status Management
+    func toggleCheeseStatus(_ pickItem: RunDetail.PickItem) async {
+        guard let skuId = pickItem.sku?.id else { return }
+        
+        updatingSkuIds.insert(skuId)
+        
+        let newCheeseStatus = !(pickItem.sku?.isCheeseAndCrackers ?? false)
+        
+        do {
+            try await service.updateSkuCheeseStatus(
+                skuId: skuId,
+                isCheeseAndCrackers: newCheeseStatus,
+                credentials: session.credentials
+            )
+            // Reload audio commands to reflect the change
+            await loadAudioCommands()
+        } catch {
+            print("Failed to update SKU cheese status: \(error)")
+        }
+        
+        updatingSkuIds.remove(skuId)
+    }
+    
+    // MARK: - Count Pointer Management
+    func updateCountPointer(_ pickItem: RunDetail.PickItem, newPointer: String) async {
+        guard let skuId = pickItem.sku?.id else { return }
+        
+        updatingSkuIds.insert(skuId)
+        
+        do {
+            try await service.updateSkuCountPointer(
+                skuId: skuId,
+                countNeededPointer: newPointer,
+                credentials: session.credentials
+            )
+            // Reload audio commands to reflect the change
+            await loadAudioCommands()
+            await MainActor.run {
+                selectedPickItemForCountPointer = nil
+                showingCountPointerSheet = false
+            }
+        } catch {
+            print("Failed to update SKU count pointer: \(error)")
+        }
+        
+        updatingSkuIds.remove(skuId)
+    }
+    
+    // MARK: - Chocolate Boxes Management
+    func createChocolateBox(number: Int, machineId: String) async {
+        do {
+            _ = try await service.createChocolateBox(for: runId, number: number, machineId: machineId, credentials: session.credentials)
+        } catch {
+            print("Failed to create chocolate box: \(error)")
+        }
+    }
+    
+    func deleteChocolateBox(boxId: String) async {
+        do {
+            try await service.deleteChocolateBox(for: runId, boxId: boxId, credentials: session.credentials)
+        } catch {
+            print("Failed to delete chocolate box: \(error)")
+        }
     }
 }
 

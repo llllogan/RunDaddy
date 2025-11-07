@@ -107,58 +107,146 @@ struct PackingSessionSheet: View {
                 
                 // Control Buttons
                 if !viewModel.isLoading && !viewModel.isSessionComplete {
-                    HStack(spacing: 16) {
-                        Button {
-                            Task {
-                                await viewModel.goBack()
-                            }
-                        } label: {
-                            Image(systemName: "backward.fill")
-                                .font(.title2)
-                        }
-                        .buttonStyle(CircularButtonStyle())
-                        .disabled(!viewModel.canGoBack || viewModel.isSpeaking)
-                        
-                        Button {
-                            Task {
-                                await viewModel.repeatCurrent()
-                            }
-                        } label: {
-                            Image(systemName: "repeat")
-                                .font(.title2)
-                        }
-                        .buttonStyle(CircularButtonStyle())
-                        .disabled(viewModel.currentCommand == nil || viewModel.isSpeaking)
-                        
-                        Button {
-                            Task {
-                                await viewModel.skipCurrent()
-                            }
-                        } label: {
-                            Image(systemName: "forward.frame.fill")
-                                .font(.title2)
-                        }
-                        .buttonStyle(CircularButtonStyle())
-                        .disabled(viewModel.isSessionComplete || viewModel.isSpeaking)
-                        
-                        Button {
-                            Task {
-                                if viewModel.isSessionComplete {
-                                    viewModel.stopSession()
-                                    dismiss()
-                                } else {
-                                    await viewModel.goForward()
+                    VStack(spacing: 16) {
+                        // Action Buttons Row
+                        HStack(spacing: 12) {
+                            // Cheese Button
+                            Button {
+                                if let pickItem = viewModel.currentPickItem {
+                                    Task {
+                                        await viewModel.toggleCheeseStatus(pickItem)
+                                    }
                                 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: viewModel.currentPickItem?.sku?.isCheeseAndCrackers == true ? "minus.circle.fill" : "plus.circle.fill")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Cheese")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    LinearGradient(
+                                        colors: viewModel.currentPickItem?.sku?.isCheeseAndCrackers == true ? [Color.orange, Color.orange.opacity(0.8)] : [Color.yellow, Color.yellow.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(Capsule())
                             }
-                        } label: {
-                            Image(systemName: viewModel.isSessionComplete ? "checkmark.circle.fill" : "forward.fill")
-                                .font(.title2)
+                            .disabled(viewModel.currentPickItem == nil || viewModel.isSpeaking)
+                            
+                            // Input Field Button
+                            Button {
+                                if let pickItem = viewModel.currentPickItem {
+                                    viewModel.selectedPickItemForCountPointer = pickItem
+                                    viewModel.showingCountPointerSheet = true
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "square.and.pencil")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Input Field")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.blue, Color.blue.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(Capsule())
+                            }
+                            .disabled(viewModel.currentPickItem == nil || viewModel.isSpeaking)
+                            
+                            // Chocolate Box Button
+                            Button {
+                                viewModel.showingChocolateBoxesSheet = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "shippingbox.fill")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Chocolate Box")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.brown, Color.brown.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(Capsule())
+                            }
+                            .disabled(viewModel.currentMachine == nil || viewModel.isSpeaking)
                         }
-                        .buttonStyle(CircularButtonStyle(primary: true))
-                        .tint(viewModel.isSessionComplete ? .green : .blue)
-                        .disabled(viewModel.isSpeaking)
+                        
+                        // Navigation Controls Row
+                        HStack(spacing: 16) {
+                            Button {
+                                Task {
+                                    await viewModel.goBack()
+                                }
+                            } label: {
+                                Image(systemName: "backward.fill")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(CircularButtonStyle())
+                            .disabled(!viewModel.canGoBack || viewModel.isSpeaking)
+                            
+                            Button {
+                                Task {
+                                    await viewModel.repeatCurrent()
+                                }
+                            } label: {
+                                Image(systemName: "repeat")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(CircularButtonStyle())
+                            .disabled(viewModel.currentCommand == nil || viewModel.isSpeaking)
+                            
+                            Button {
+                                Task {
+                                    await viewModel.skipCurrent()
+                                }
+                            } label: {
+                                Image(systemName: "forward.frame.fill")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(CircularButtonStyle())
+                            .disabled(viewModel.isSessionComplete || viewModel.isSpeaking)
+                            
+                            Button {
+                                Task {
+                                    if viewModel.isSessionComplete {
+                                        viewModel.stopSession()
+                                        dismiss()
+                                    } else {
+                                        await viewModel.goForward()
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: viewModel.isSessionComplete ? "checkmark.circle.fill" : "forward.fill")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(CircularButtonStyle(primary: true))
+                            .tint(viewModel.isSessionComplete ? .green : .blue)
+                            .disabled(viewModel.isSpeaking)
+                        }
                     }
-                    .padding()
+                    .padding(.vertical)
                 }
             }
             .toolbar {
@@ -171,6 +259,32 @@ struct PackingSessionSheet: View {
                 }
             }
             .padding()
+        }
+        .sheet(isPresented: $viewModel.showingCountPointerSheet) {
+            if let pickItem = viewModel.selectedPickItemForCountPointer {
+                CountPointerSelectionSheet(
+                    pickItem: pickItem,
+                    onDismiss: {
+                        viewModel.selectedPickItemForCountPointer = nil
+                        viewModel.showingCountPointerSheet = false
+                    },
+                    onPointerSelected: { newPointer in
+                        Task {
+                            await viewModel.updateCountPointer(pickItem, newPointer: newPointer)
+                        }
+                    },
+                    viewModel: RunDetailViewModel(runId: runId, session: session, service: viewModel.service)
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $viewModel.showingChocolateBoxesSheet) {
+            if let currentMachine = viewModel.currentMachine {
+                ChocolateBoxesSheet(viewModel: RunDetailViewModel(runId: runId, session: session, service: viewModel.service), locationMachines: [currentMachine])
+                    .presentationDetents([.fraction(0.5), .large])
+                    .presentationDragIndicator(.visible)
+            }
         }
         .onAppear {
             Task {
@@ -263,10 +377,6 @@ struct CurrentCommandView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
 }
 

@@ -92,7 +92,7 @@ struct RunDetailView: View {
                     showingPackingSession = true
                 }
                 .labelStyle(.titleOnly)
-                .sheet(isPresented: $showingPackingSession) {
+                .fullScreenCover(isPresented: $showingPackingSession) {
                     PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
                 }
             }
