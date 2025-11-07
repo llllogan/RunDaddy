@@ -30,6 +30,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var updatingPickIds: Set<String> = []
     @Published var updatingSkuIds: Set<String> = []
     @Published private(set) var runDetail: RunDetail?
+    @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
     
     private let synthesizer = AVSpeechSynthesizer()
     private let silentLoop = SilentLoopPlayer()
@@ -68,6 +69,36 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         return runDetail.machines.first { $0.id == machineId }
     }
     
+    var currentLocationMachines: [RunDetail.Machine] {
+        guard let runDetail = runDetail else { 
+            print("🍫 No runDetail available")
+            return [] 
+        }
+        
+        // Find the most recent location command to determine current location
+        let locationCommands = audioCommands.filter { $0.type == "location" }
+        print("🍫 Found \(locationCommands.count) location commands")
+        guard let currentLocationCommand = locationCommands.last,
+              let locationName = currentLocationCommand.locationName else { 
+            print("🍫 No current location command or location name")
+            return [] 
+        }
+        
+        print("🍫 Current location name: '\(locationName)'")
+        print("🍫 Total machines in run: \(runDetail.machines.count)")
+        
+        // Find machines at this location
+        let machines = runDetail.machines.filter { machine in
+            let matches = machine.location?.name == locationName
+            if matches {
+                print("🍫 Found machine at location: \(machine.code) - \(machine.location?.name ?? "no location")")
+            }
+            return matches
+        }
+        print("🍫 Machines at current location: \(machines.count)")
+        return machines
+    }
+    
     var currentPickItem: RunDetail.PickItem? {
         guard let currentCommand = currentCommand,
               currentCommand.type == "item",
@@ -94,12 +125,15 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         do {
             async let audioCommandsTask = service.fetchAudioCommands(for: runId, credentials: session.credentials)
             async let runDetailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
+            async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
             
             let response = try await audioCommandsTask
             let detail = try await runDetailTask
+            let boxes = try await chocolateBoxesTask
             
             audioCommands = response.audioCommands
             runDetail = detail
+            chocolateBoxes = boxes.sorted { $0.number < $1.number }
             currentIndex = 0
             completedItems.removeAll()
             isSessionComplete = false
@@ -469,6 +503,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     func createChocolateBox(number: Int, machineId: String) async {
         do {
             _ = try await service.createChocolateBox(for: runId, number: number, machineId: machineId, credentials: session.credentials)
+            // Refresh chocolate boxes after creation
+            await refreshChocolateBoxes()
         } catch {
             print("Failed to create chocolate box: \(error)")
         }
@@ -477,8 +513,19 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     func deleteChocolateBox(boxId: String) async {
         do {
             try await service.deleteChocolateBox(for: runId, boxId: boxId, credentials: session.credentials)
+            // Refresh chocolate boxes after deletion
+            await refreshChocolateBoxes()
         } catch {
             print("Failed to delete chocolate box: \(error)")
+        }
+    }
+    
+    private func refreshChocolateBoxes() async {
+        do {
+            let boxes = try await service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
+            chocolateBoxes = boxes.sorted { $0.number < $1.number }
+        } catch {
+            print("Failed to refresh chocolate boxes: \(error)")
         }
     }
 }

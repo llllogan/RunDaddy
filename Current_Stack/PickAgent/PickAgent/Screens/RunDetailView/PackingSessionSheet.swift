@@ -175,30 +175,7 @@ struct PackingSessionSheet: View {
                                         }
                                         .disabled(viewModel.currentPickItem == nil || viewModel.isSpeaking)
                                         
-                                        // Chocolate Box Button
-                                        Button {
-                                            viewModel.showingChocolateBoxesSheet = true
-                                        } label: {
-                                            HStack(spacing: 8) {
-                                                Image(systemName: "shippingbox.fill")
-                                                    .font(.system(size: 16, weight: .semibold))
-                                                Text("Chocolate Box")
-                                                    .font(.callout)
-                                                    .fontWeight(.medium)
-                                            }
-                                            .foregroundColor(.white)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
-                                            .background(
-                                                LinearGradient(
-                                                    colors: [Color.brown, Color.brown.opacity(0.8)],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                            )
-                                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                                        }
-                                        .disabled(viewModel.currentMachine == nil || viewModel.isSpeaking)
+
                                     }
                                     
                                     // Navigation Controls - Horizontal layout
@@ -409,30 +386,7 @@ struct PackingSessionSheet: View {
                                     }
                                     .disabled(viewModel.currentPickItem == nil || viewModel.isSpeaking)
                                     
-                                    // Chocolate Box Button
-                                    Button {
-                                        viewModel.showingChocolateBoxesSheet = true
-                                    } label: {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "shippingbox.fill")
-                                                .font(.system(size: 14, weight: .semibold))
-                                            Text("Chocolate Box")
-                                                .font(.caption)
-                                                .fontWeight(.medium)
-                                        }
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(
-                                            LinearGradient(
-                                                colors: [Color.brown, Color.brown.opacity(0.8)],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .clipShape(Capsule())
-                                    }
-                                    .disabled(viewModel.currentMachine == nil || viewModel.isSpeaking)
+
                                 }
                                 
                                 // Navigation Controls Row
@@ -523,13 +477,7 @@ struct PackingSessionSheet: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $viewModel.showingChocolateBoxesSheet) {
-            if let currentMachine = viewModel.currentMachine {
-                ChocolateBoxesSheet(viewModel: RunDetailViewModel(runId: runId, session: session, service: viewModel.service), locationMachines: [currentMachine])
-                    .presentationDetents([.fraction(0.5), .large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
+
         .onAppear {
             Task {
                 await viewModel.loadAudioCommands()
