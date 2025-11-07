@@ -228,7 +228,16 @@ struct CurrentCommandView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        if let coilCode = command.coilCode, !coilCode.isEmpty {
+                        if let coilCodes = command.coilCodes, !coilCodes.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Coils (\(coilCodes.count))")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Text(coilCodes.joined(separator: ", "))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else if let coilCode = command.coilCode, !coilCode.isEmpty {
                             Text("Coil \(coilCode)")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)

@@ -152,6 +152,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: nil,
             count: 0,
             coilCode: nil,
+            coilCodes: nil,
             order: 0
         )
         
@@ -166,20 +167,22 @@ struct PreviewRunsService: RunsServicing {
             skuCode: nil,
             count: 0,
             coilCode: nil,
+            coilCodes: nil,
             order: 1
         )
         
         let itemCommand1 = AudioCommandsResponse.AudioCommand(
             id: "pick-1",
-            audioCommand: "Trail Mix, Snack. Need 6. Coil C1.",
-            pickEntryIds: ["pick-1", "pick-1b"], // Example of grouped entries
+            audioCommand: "Trail Mix, Snack. Need 6. For 3 coils.",
+            pickEntryIds: ["pick-1", "pick-1b", "pick-1c"], // Example of grouped entries
             type: "item",
             locationName: nil,
             machineName: "A-101",
             skuName: "Trail Mix",
             skuCode: "SKU-001",
             count: 6,
-            coilCode: "C1",
+            coilCode: "3 coils",
+            coilCodes: ["E7", "E6", "D2"], // Example of multiple coils
             order: 2
         )
         
@@ -194,6 +197,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: nil,
             count: 0,
             coilCode: nil,
+            coilCodes: nil,
             order: 3
         )
         
@@ -208,6 +212,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: "SKU-003",
             count: 4,
             coilCode: "C2",
+            coilCodes: nil, // Single coil example
             order: 4
         )
         
@@ -222,6 +227,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: nil,
             count: 0,
             coilCode: nil,
+            coilCodes: nil,
             order: 5
         )
         
@@ -236,6 +242,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: nil,
             count: 0,
             coilCode: nil,
+            coilCodes: nil,
             order: 6
         )
         
@@ -250,6 +257,7 @@ struct PreviewRunsService: RunsServicing {
             skuCode: "SKU-002",
             count: 9,
             coilCode: "C3",
+            coilCodes: nil, // Single coil example
             order: 7
         )
         

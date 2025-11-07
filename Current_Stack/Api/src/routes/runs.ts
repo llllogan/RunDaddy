@@ -31,6 +31,7 @@ interface AudioCommand {
   skuCode?: string;
   count: number;
   coilCode?: string;
+  coilCodes?: string[]; // Array of all coil codes for UI display
   order: number;
 }
 
@@ -271,7 +272,10 @@ router.get('/:runId/audio-commands', async (req, res) => {
           
           const skuName = sku.name || 'Unknown item';
           const skuCode = sku.code || '';
-          const coilCode = coil.code || '';
+          
+          // Collect all unique coil codes for this SKU group
+          const uniqueCoilCodes = [...new Set(entries.map(entry => entry.coilItem.coil?.code || '').filter(code => code))];
+          const coilCount = uniqueCoilCodes.length;
           
           // Build audio command similar to RunDaddy app
           let audioCommand = `${skuName}`;
@@ -279,6 +283,11 @@ router.get('/:runId/audio-commands', async (req, res) => {
             audioCommand += `, ${sku.type}`;
           }
           audioCommand += `. Need ${totalCount}`;
+          
+          // Announce coil count instead of individual coils
+          if (coilCount > 1) {
+            audioCommand += `. For ${coilCount} coils`;
+          }
           
           // Collect all pick entry IDs for this group
           const pickEntryIds = entries.map(entry => entry.id);
@@ -292,7 +301,8 @@ router.get('/:runId/audio-commands', async (req, res) => {
             skuName: skuName,
             skuCode: skuCode,
             count: totalCount,
-            coilCode: coilCode,
+            coilCode: coilCount > 1 ? `${coilCount} coils` : (uniqueCoilCodes[0] || ''),
+            coilCodes: uniqueCoilCodes, // Add array of all coil codes for UI display
             order: orderCounter++
           });
         }

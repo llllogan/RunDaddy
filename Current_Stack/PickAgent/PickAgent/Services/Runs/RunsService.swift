@@ -125,6 +125,7 @@ struct AudioCommandsResponse: Equatable, Decodable {
         let skuCode: String?
         let count: Int
         let coilCode: String?
+        let coilCodes: [String]? // Array of all coil codes for UI display
         let order: Int
     }
 
