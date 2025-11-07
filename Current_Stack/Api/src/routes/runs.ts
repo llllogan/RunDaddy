@@ -210,16 +210,13 @@ router.get('/:runId/audio-commands', async (req, res) => {
         });
       }
       
-      // Sort entries by coil code numerically descending (58 -> 57 -> 56, etc.)
+      // Sort entries by coil code lexicographically (E7 -> E6 -> D2 -> D1, etc.)
       const sortedEntries = machineGroup.entries.sort((a, b) => {
         const coilCodeA = a.coilItem.coil?.code || '';
         const coilCodeB = b.coilItem.coil?.code || '';
         
-        // Extract numeric part from coil code and sort descending
-        const numA = parseInt(coilCodeA.replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(coilCodeB.replace(/\D/g, ''), 10) || 0;
-        
-        return numB - numA; // Descending order
+        // Sort lexicographically (E7 -> E6 -> D2 -> D1)
+        return coilCodeB.localeCompare(coilCodeA);
       });
       
       // Group entries by SKU within this machine
@@ -278,7 +275,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
           
           // Build audio command similar to RunDaddy app
           let audioCommand = `${skuName}`;
-          if (sku.type && sku.type.trim()) {
+          if (sku.type && sku.type.trim() && sku.type.toLowerCase() !== 'general') {
             audioCommand += `, ${sku.type}`;
           }
           audioCommand += `. Need ${totalCount}`;

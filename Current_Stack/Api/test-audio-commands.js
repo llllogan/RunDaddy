@@ -32,8 +32,8 @@ async function testAudioCommands() {
     orderBy: [
       { coilItem: { coil: { machine: { location: { name: 'asc' } } } } },
       { coilItem: { coil: { machine: { code: 'asc' } } } },
-      { count: 'desc' }, // Largest count first (largest coil)
-      { coilItem: { coil: { code: 'asc' } } },
+      { coilItem: { par: 'desc' } }, // Largest par first (largest coil)
+      { coilItem: { coil: { code: 'desc' } } }, // Lexicographical descending (E7 -> E6 -> D2 -> D1)
       { coilItem: { sku: { name: 'asc' } } }
     ]
   });
@@ -121,7 +121,7 @@ async function testAudioCommands() {
           
           // Build audio command similar to RunDaddy app
           let audioCommand = `${skuName}`;
-          if (sku.type && sku.type.trim()) {
+          if (sku.type && sku.type.trim() && sku.type.toLowerCase() !== 'general') {
             audioCommand += `, ${sku.type}`;
           }
           audioCommand += `. Need ${count}`;
