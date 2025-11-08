@@ -630,8 +630,23 @@ router.get('/me', authenticate, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Handle users without company
-  if (!req.auth.companyId) {
+  // Get all user memberships
+  const memberships = await prisma.membership.findMany({
+    where: { userId: req.auth.userId },
+    include: {
+      company: true,
+      user: true,
+    },
+  });
+
+  const companies = memberships.map(membership => ({
+    id: membership.company.id,
+    name: membership.company.name,
+    role: membership.role,
+  }));
+
+  // Handle users without company memberships
+  if (memberships.length === 0) {
     const user = await prisma.user.findUnique({
       where: { id: req.auth.userId },
       select: {
@@ -649,7 +664,8 @@ router.get('/me', authenticate, async (req, res) => {
     }
 
     return res.json({
-      company: null,
+      companies: [],
+      currentCompany: null,
       user: {
         id: user.id,
         email: user.email,
@@ -661,33 +677,36 @@ router.get('/me', authenticate, async (req, res) => {
     });
   }
 
-  // Handle users with company
-  const membership = await prisma.membership.findUnique({
-    where: {
-      userId_companyId: {
-        userId: req.auth.userId,
-        companyId: req.auth.companyId,
-      },
-    },
-    include: {
-      user: true,
-      company: true,
-    },
-  });
+  // Handle users with company memberships
+  let currentCompany = null;
+  const auth = req.auth; // Store to avoid repeated optional chaining
+  if (auth && auth.companyId) {
+    const currentMembership = memberships.find(m => m.companyId === auth.companyId);
+    if (currentMembership) {
+      currentCompany = {
+        id: currentMembership.company.id,
+        name: currentMembership.company.name,
+        role: currentMembership.role,
+      };
+    }
+  }
 
-  if (!membership) {
-    return res.status(404).json({ error: 'Membership not found' });
+  // Use the first membership's user data (should be consistent across all memberships)
+  const user = memberships[0]?.user;
+  if (!user) {
+    return res.status(500).json({ error: 'Unable to retrieve user data' });
   }
 
   return res.json({
-    company: { id: membership.company.id, name: membership.company.name },
+    companies,
+    currentCompany,
     user: {
-      id: membership.user.id,
-      email: membership.user.email,
-      firstName: membership.user.firstName,
-      lastName: membership.user.lastName,
-      role: membership.role,
-      phone: membership.user.phone,
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: currentCompany?.role ?? user.role,
+      phone: user.phone,
     },
   });
 });

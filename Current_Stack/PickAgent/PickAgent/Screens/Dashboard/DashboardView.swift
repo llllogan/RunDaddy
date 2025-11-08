@@ -16,8 +16,8 @@ struct DashboardView: View {
     @Namespace private var profileNamespace
     
     private var hasCompany: Bool {
-        // User has company if they have any runs or if they can access company-specific features
-        !viewModel.todayRuns.isEmpty || !viewModel.runsToPack.isEmpty
+        // User has company if they have company memberships
+        viewModel.currentUserProfile?.hasCompany ?? false
     }
 
     init(session: AuthSession, logoutAction: @escaping () -> Void) {
@@ -35,37 +35,39 @@ struct DashboardView: View {
                     }
                 }
 
-                Section("Runs for Today") {
-                    if viewModel.isLoading && viewModel.todayRuns.isEmpty {
-                        LoadingStateRow()
-                    } else if viewModel.todayRuns.isEmpty {
-                        EmptyStateRow(message: hasCompany ? "You're all set. No runs scheduled for today." : "No company membership. Join a company to see runs.")
-                    } else {
-                        ForEach(viewModel.todayRuns) { run in
-                            NavigationLink {
-                                RunDetailView(runId: run.id, session: session)
-                            } label: {
-                                RunRow(run: run)
+                // Only show "Runs for Today" section if there are runs or currently loading
+                if !viewModel.todayRuns.isEmpty || (viewModel.isLoading && viewModel.todayRuns.isEmpty) {
+                    Section("Runs for Today") {
+                        if viewModel.isLoading && viewModel.todayRuns.isEmpty {
+                            LoadingStateRow()
+                        } else {
+                            ForEach(viewModel.todayRuns) { run in
+                                NavigationLink {
+                                    RunDetailView(runId: run.id, session: session)
+                                } label: {
+                                    RunRow(run: run)
+                                }
                             }
+                            Text("View 2 more")
                         }
-                        Text("View 2 more")
                     }
                 }
 
-                Section("Runs to be Packed") {
-                    if viewModel.isLoading && viewModel.runsToPack.isEmpty {
-                        LoadingStateRow()
-                    } else if viewModel.runsToPack.isEmpty {
-                        EmptyStateRow(message: hasCompany ? "Nothing to pack right now. New runs will appear here." : "No company membership. Join a company to see runs.")
-                    } else {
-                        ForEach(viewModel.runsToPack) { run in
-                            NavigationLink {
-                                RunDetailView(runId: run.id, session: session)
-                            } label: {
-                                RunRow(run: run)
+                // Only show "Runs to be Packed" section if there are runs or currently loading
+                if !viewModel.runsToPack.isEmpty || (viewModel.isLoading && viewModel.runsToPack.isEmpty) {
+                    Section("Runs to be Packed") {
+                        if viewModel.isLoading && viewModel.runsToPack.isEmpty {
+                            LoadingStateRow()
+                        } else {
+                            ForEach(viewModel.runsToPack) { run in
+                                NavigationLink {
+                                    RunDetailView(runId: run.id, session: session)
+                                } label: {
+                                    RunRow(run: run)
+                                }
                             }
+                            Text("View 5 more")
                         }
-                        Text("View 5 more")
                     }
                 }
 
@@ -192,18 +194,13 @@ private struct ProfileSheetView: View {
                         
                         Spacer()
                         
-                        if hasCompany {
+                        if hasCompany, let companies = viewModel.currentUserProfile?.companies, !companies.isEmpty {
                             Menu {
-                                Text("Company A")
-                                Text ("Company B")
-        //                       ForEach(locationSections) { section in
-        //                           Button {
-        //                               openDirections(to: section.location)
-        //                           } label: {
-        //                               Label(section.location.name, systemImage: "mappin.and.ellipse")
-        //                           }
-        //                           .disabled(mapsURL(for: section.location) == nil)
-        //                       }
+                                ForEach(companies, id: \.id) { company in
+                                    Button(company.name) {
+                                        // TODO: Implement company switching
+                                    }
+                                }
                             } label: {
                                 Label("Switch", systemImage: "arrow.up.arrow.down.circle")
                                     .labelStyle(.titleOnly)

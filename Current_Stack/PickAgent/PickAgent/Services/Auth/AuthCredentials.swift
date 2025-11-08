@@ -36,6 +36,36 @@ struct UserProfile: Equatable {
     }
 }
 
+struct CurrentUserProfile: Equatable {
+    let id: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let role: String?
+    let companies: [CompanyInfo]
+    let currentCompany: CompanyInfo?
+
+    var displayName: String {
+        let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fullName = [trimmedFirst, trimmedLast]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return fullName.isEmpty ? email : fullName
+    }
+    
+    var hasCompany: Bool {
+        !companies.isEmpty
+    }
+}
+
+struct CompanyInfo: Equatable {
+    let id: String
+    let name: String
+    let role: String
+}
+
 struct AuthSession: Equatable {
     let credentials: AuthCredentials
     let profile: UserProfile

@@ -15,6 +15,7 @@ protocol AuthServicing {
     func login(email: String, password: String) async throws -> AuthCredentials
     func signup(email: String, password: String, firstName: String, lastName: String, phone: String?) async throws -> AuthCredentials
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile
+    func fetchCurrentUserProfile(credentials: AuthCredentials) async throws -> CurrentUserProfile
 }
 
 final class AuthService: AuthServicing {
@@ -93,8 +94,35 @@ final class AuthService: AuthServicing {
         return response.buildCredentials()
     }
 
+    func fetchCurrentUserProfile(credentials: AuthCredentials) async throws -> CurrentUserProfile {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("auth")
+        url.appendPathComponent("me")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+        
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw AuthError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(CurrentUserProfileResponse.self, from: data)
+        return payload.profile
+    }
+    
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
-        // Try the standalone profile endpoint first (for users without companies)
+        // Try standalone profile endpoint first (for users without companies)
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("auth")
         url.appendPathComponent("profile")
@@ -111,6 +139,26 @@ final class AuthService: AuthServicing {
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw AuthError.invalidResponse
             }
+
+            if httpResponse.statusCode == 404 {
+                // If standalone endpoint returns 404, try the regular users endpoint
+                return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
+            }
+            
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                if httpResponse.statusCode == 401 {
+                    throw AuthError.unauthorized
+                }
+                throw AuthError.serverError(code: httpResponse.statusCode)
+            }
+
+            let payload = try decoder.decode(StandaloneUserResponse.self, from: data)
+            return payload.profile
+        } catch {
+            // If standalone endpoint fails, try the regular users endpoint
+            return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
+        }
+    }
 
             if httpResponse.statusCode == 404 {
                 // If standalone endpoint returns 404, try the regular users endpoint
@@ -245,6 +293,40 @@ private struct UserResponse: Decodable {
             role: role
         )
     }
+}
+
+private struct CurrentUserProfileResponse: Decodable {
+    let companies: [CompanyInfo]
+    let currentCompany: CompanyInfo?
+    let user: UserInfo
+
+    var profile: CurrentUserProfile {
+        CurrentUserProfile(
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone,
+            role: user.role,
+            companies: companies,
+            currentCompany: currentCompany
+        )
+    }
+}
+
+private struct CompanyInfo: Decodable {
+    let id: String
+    let name: String
+    let role: String
+}
+
+private struct UserInfo: Decodable {
+    let id: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let role: String
 }
 
 private struct StandaloneUserResponse: Decodable {
