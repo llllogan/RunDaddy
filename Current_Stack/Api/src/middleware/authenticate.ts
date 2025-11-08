@@ -68,7 +68,27 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     });
 
     if (!membership) {
-      return res.status(401).json({ error: 'Membership not found' });
+      const fallbackUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      if (!fallbackUser) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.auth = {
+        userId: fallbackUser.id,
+        email: fallbackUser.email,
+        role: fallbackUser.role,
+        companyId: null,
+        context: payload.context,
+      };
+      return next();
     }
 
     req.auth = {

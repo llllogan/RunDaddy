@@ -131,4 +131,24 @@ final class AuthViewModel: ObservableObject {
         service.clearStoredCredentials()
         phase = .login(message: nil)
     }
+
+    func refreshSessionFromStoredCredentials() async {
+        guard let storedCredentials = service.loadStoredCredentials() else {
+            phase = .login(message: nil)
+            return
+        }
+
+        do {
+            let profile = try await service.fetchProfile(userID: storedCredentials.userID, credentials: storedCredentials)
+            let session = AuthSession(credentials: storedCredentials, profile: profile)
+            phase = .authenticated(session)
+        } catch {
+            if let authError = error as? AuthError, case .unauthorized = authError {
+                service.clearStoredCredentials()
+                phase = .login(message: "Please sign in again to continue.")
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
 }

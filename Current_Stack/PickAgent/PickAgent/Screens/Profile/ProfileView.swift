@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @StateObject private var viewModel = ProfileViewModel(
         authService: AuthService(),
         inviteCodesService: InviteCodesService()
@@ -162,7 +163,10 @@ struct ProfileView: View {
                     if viewModel.currentCompany != nil {
                         Button(action: {
                             Task {
-                                await viewModel.leaveCompany()
+                                let success = await viewModel.leaveCompany()
+                                if success {
+                                    await authViewModel.refreshSessionFromStoredCredentials()
+                                }
                             }
                         }) {
                             HStack {
@@ -227,7 +231,10 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showJoinCompany) {
                 JoinCompanyView {
-                    viewModel.loadUserInfo()
+                    Task {
+                        await authViewModel.refreshSessionFromStoredCredentials()
+                        viewModel.loadUserInfo()
+                    }
                 }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -282,4 +289,5 @@ private struct ProfileInfoRow: View {
 
 #Preview {
     ProfileView()
+        .environmentObject(AuthViewModel(service: PreviewAuthService()))
 }

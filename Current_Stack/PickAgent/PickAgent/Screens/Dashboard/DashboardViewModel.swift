@@ -16,7 +16,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
 
-    private let session: AuthSession
+    private var session: AuthSession
     private let service: RunsServicing
     private let authService: AuthServicing
 
@@ -59,5 +59,9 @@ final class DashboardViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func updateSession(_ session: AuthSession) {
+        self.session = session
     }
 }

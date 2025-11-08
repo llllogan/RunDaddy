@@ -14,6 +14,7 @@ struct JoinCompanyView: View {
     )
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false
+    @State private var hasNotifiedJoinSuccess = false
     
     var onCompanyJoined: (() -> Void)? = nil
     
@@ -117,7 +118,7 @@ struct JoinCompanyView: View {
                         }
                     } else {
                         Button("Continue") {
-                            onCompanyJoined?()
+                            notifyJoinSuccessIfNeeded()
                             dismiss()
                         }
                         .buttonStyle(.borderedProminent)
@@ -144,7 +145,18 @@ struct JoinCompanyView: View {
                     }
                 )
             }
+            .onChange(of: viewModel.joinedMembership) { membership in
+                if membership != nil {
+                    notifyJoinSuccessIfNeeded()
+                }
+            }
         }
+    }
+
+    private func notifyJoinSuccessIfNeeded() {
+        guard !hasNotifiedJoinSuccess else { return }
+        hasNotifiedJoinSuccess = true
+        onCompanyJoined?()
     }
 }
 

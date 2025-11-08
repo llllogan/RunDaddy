@@ -60,19 +60,22 @@ class ProfileViewModel: ObservableObject {
         print("✅ Credentials cleared")
     }
     
-    func leaveCompany() async {
+    func leaveCompany() async -> Bool {
         guard let company = currentCompany else {
             errorMessage = "No company to leave"
-            return
+            return false
         }
         
         guard let credentials = authService.loadStoredCredentials() else {
             errorMessage = "Not authenticated"
-            return
+            return false
         }
         
         isLeavingCompany = true
         errorMessage = nil
+        defer {
+            isLeavingCompany = false
+        }
         
         do {
             print("🔄 Leaving company: \(company.name) (ID: \(company.id))")
@@ -93,7 +96,7 @@ class ProfileViewModel: ObservableObject {
             // Reload user info to reflect the change
             loadUserInfo()
             print("✅ User info reloaded")
-            
+            return true
         } catch {
             print("❌ Error leaving company: \(error)")
             if let inviteError = error as? InviteCodesServiceError {
@@ -107,8 +110,7 @@ class ProfileViewModel: ObservableObject {
             } else {
                 errorMessage = "Failed to leave company: \(error.localizedDescription)"
             }
+            return false
         }
-        
-        isLeavingCompany = false
     }
 }

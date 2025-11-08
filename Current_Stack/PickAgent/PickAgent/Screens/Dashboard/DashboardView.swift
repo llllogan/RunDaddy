@@ -125,6 +125,12 @@ struct DashboardView: View {
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
         }
+        .onChange(of: session) { newSession in
+            viewModel.updateSession(newSession)
+            Task {
+                await viewModel.loadRuns(force: true)
+            }
+        }
 
     }
 }
