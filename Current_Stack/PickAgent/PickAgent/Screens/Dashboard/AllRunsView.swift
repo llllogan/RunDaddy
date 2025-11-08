@@ -59,17 +59,6 @@ struct AllRunsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("All Runs")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await viewModel.loadRuns(force: true)
-                        }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
             .task {
                 await viewModel.loadRuns()
             }
