@@ -122,8 +122,9 @@ final class InviteCodesService: InviteCodesServicing {
 
     func generateInviteCode(companyId: String, role: UserRole, credentials: AuthCredentials) async throws -> InviteCode {
         var url = AppConfig.apiBaseURL
+        url.appendPathComponent("companies")
+        url.appendPathComponent(companyId)
         url.appendPathComponent("invite-codes")
-        url.appendPathComponent("generate")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -193,9 +194,9 @@ final class InviteCodesService: InviteCodesServicing {
 
     func fetchInviteCodes(for companyId: String, credentials: AuthCredentials) async throws -> [InviteCode] {
         var url = AppConfig.apiBaseURL
-        url.appendPathComponent("invite-codes")
-        url.appendPathComponent("company")
+        url.appendPathComponent("companies")
         url.appendPathComponent(companyId)
+        url.appendPathComponent("invite-codes")
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -223,46 +224,41 @@ final class InviteCodesService: InviteCodesServicing {
     }
 
     func leaveCompany(companyId: String, credentials: AuthCredentials) async throws {
+        // Use the new /companies/{companyId}/leave endpoint
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("companies")
         url.appendPathComponent(companyId)
         url.appendPathComponent("leave")
-
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        print("🔄 Making leave company request to: \(url.absoluteString)")
-
+        
+        print("🔄 Leaving company using endpoint: POST \(url.absoluteString)")
+        
         let (data, response) = try await urlSession.data(for: request)
-
+        
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid response")
             throw InviteCodesServiceError.invalidResponse
         }
-
+        
         print("📊 Response status code: \(httpResponse.statusCode)")
-
+        
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
-                print("❌ Unauthorized")
                 throw AuthError.unauthorized
-            }
-            if httpResponse.statusCode == 403 {
-                print("❌ Insufficient permissions")
+            } else if httpResponse.statusCode == 403 {
                 throw InviteCodesServiceError.insufficientPermissions
-            }
-            if httpResponse.statusCode == 404 {
-                print("❌ Company not found")
+            } else if httpResponse.statusCode == 404 {
                 throw InviteCodesServiceError.companyNotFound
+            } else {
+                print("❌ Server error \(httpResponse.statusCode)")
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("📄 Response body: \(responseString)")
+                }
+                throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
             }
-            print("❌ Server error: \(httpResponse.statusCode)")
-            if let responseString = String(data: data, encoding: .utf8) {
-                print("📄 Response body: \(responseString)")
-            }
-            throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
         }
         
         print("✅ Successfully left company")

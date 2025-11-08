@@ -93,7 +93,11 @@ class ProfileViewModel: ObservableObject {
         } catch {
             print("❌ Error leaving company: \(error)")
             if let inviteError = error as? InviteCodesServiceError {
-                errorMessage = inviteError.localizedDescription
+                if case .companyNotFound = inviteError {
+                    errorMessage = "Unable to leave company. The leave company feature may not be available yet. Please contact support."
+                } else {
+                    errorMessage = inviteError.localizedDescription
+                }
             } else if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
             } else {

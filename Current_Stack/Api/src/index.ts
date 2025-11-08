@@ -8,6 +8,7 @@ import { runImportsRouter } from './routes/run-imports.js';
 import { runRouter, getRunDetailPayload } from './routes/runs.js';
 import { skuRouter } from './routes/skus.js';
 import { inviteCodesRouter } from './routes/invite-codes.js';
+import { companyRouter } from './routes/companies.js';
 import { authenticate } from './middleware/authenticate.js';
 
 const app = express();
@@ -78,6 +79,7 @@ app.use('/api/run-imports', runImportsRouter);
 app.use('/api/runs', runRouter);
 app.use('/api/skus', skuRouter);
 app.use('/api/invite-codes', inviteCodesRouter);
+app.use('/api/companies', companyRouter);
 
 if (process.env.NODE_ENV !== 'production') {
   const { debugRouter } = await import('./routes/debug.js');
