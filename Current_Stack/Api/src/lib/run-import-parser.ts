@@ -1,5 +1,5 @@
-import type { WorkSheet } from 'xlsx';
-import { read, utils } from 'xlsx';
+import { Workbook, type Worksheet } from 'exceljs';
+import { Readable } from 'stream';
 import type {
   ParsedCoilItem,
   ParsedCoilItemRow,
@@ -20,21 +20,21 @@ const LOCATION_PREFIX = 'Location:';
 
 type SheetRow = Array<string | number | null | undefined>;
 
-export const parseRunWorkbook = (workbookBuffer: Buffer): ParsedRunWorkbook => {
-  const workbook = read(workbookBuffer, { type: 'buffer' });
+export const parseRunWorkbook = async (workbookBuffer: Buffer): Promise<ParsedRunWorkbook> => {
+  const workbook = new Workbook();
+  const stream = Readable.from(workbookBuffer);
+  await workbook.xlsx.read(stream);
   const locations: ParsedRunLocation[] = [];
   
   // Extract category from first sheet
-  const firstSheetName = workbook.SheetNames[0];
-  const firstSheet = workbook.Sheets[firstSheetName as string];
-  const globalCategory = firstSheet ? extractCategoryFromSheet(firstSheet) : null;
+  const firstWorksheet = workbook.worksheets[0];
+  const globalCategory = firstWorksheet ? await extractCategoryFromSheet(firstWorksheet) : null;
 
-  workbook.SheetNames.slice(1).forEach((sheetName) => {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) {
+  workbook.worksheets.slice(1).forEach((worksheet) => {
+    if (!worksheet) {
       return;
     }
-    const location = parseLocationSheet(sheet, sheetName, globalCategory);
+    const location = parseLocationSheet(worksheet, worksheet.name || '', globalCategory);
     if (location) {
       locations.push(location);
     }
@@ -56,12 +56,20 @@ export const parseRunWorkbook = (workbookBuffer: Buffer): ParsedRunWorkbook => {
   return { run };
 };
 
-const parseLocationSheet = (sheet: WorkSheet, sheetName: string, globalCategory: string | null): ParsedRunLocation | null => {
-  const rows = utils.sheet_to_json<SheetRow>(sheet, {
-    header: 1,
-    raw: false,
-    defval: '',
-    blankrows: false,
+const parseLocationSheet = (worksheet: Worksheet, sheetName: string, globalCategory: string | null): ParsedRunLocation | null => {
+  const rows: SheetRow[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber > 0) { // Skip header row in exceljs
+      const rowData: SheetRow = [];
+      row.eachCell((cell, colNumber) => {
+        rowData[colNumber - 1] = cell.value?.toString() || '';
+      });
+      // Fill empty cells to maintain consistent row length
+      while (rowData.length < worksheet.columnCount) {
+        rowData.push('');
+      }
+      rows.push(rowData);
+    }
   });
 
   if (!rows.length) {
@@ -449,12 +457,20 @@ const isRowMostlyEmpty = (row: SheetRow | undefined): boolean => {
   return significantCells.length === 0;
 };
 
-const extractCategoryFromSheet = (sheet: WorkSheet): string | null => {
-  const rows = utils.sheet_to_json<SheetRow>(sheet, {
-    header: 1,
-    raw: false,
-    defval: '',
-    blankrows: false,
+const extractCategoryFromSheet = async (worksheet: Worksheet): Promise<string | null> => {
+  const rows: SheetRow[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber > 0) { // Skip header row in exceljs
+      const rowData: SheetRow = [];
+      row.eachCell((cell, colNumber) => {
+        rowData[colNumber - 1] = cell.value?.toString() || '';
+      });
+      // Fill empty cells to maintain consistent row length
+      while (rowData.length < worksheet.columnCount) {
+        rowData.push('');
+      }
+      rows.push(rowData);
+    }
   });
 
   if (!rows.length) {

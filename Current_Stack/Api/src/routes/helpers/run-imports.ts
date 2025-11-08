@@ -42,7 +42,7 @@ export const uploadRunWorkbook = async (req: Request, res: Response) => {
   }
 
   try {
-    const workbook = parseRunWorkbook(req.file.buffer);
+    const workbook = await parseRunWorkbook(req.file.buffer);
     const run = workbook.run;
 
     if (!run || !run.pickEntries.length) {

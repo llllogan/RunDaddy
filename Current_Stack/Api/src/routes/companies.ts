@@ -37,7 +37,7 @@ router.post('/:companyId/invite-codes', authenticate, async (req, res) => {
     const inviteCode = await prisma.inviteCode.create({
       data: {
         code,
-        companyId,
+        companyId: companyId!,
         role,
         createdBy: userId,
         expiresAt

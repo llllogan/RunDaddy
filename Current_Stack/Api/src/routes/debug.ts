@@ -108,7 +108,7 @@ router.post('/run-imports', async (req, res) => {
   }
 
   try {
-    const parsed = parseRunWorkbook(workbookBuffer);
+    const parsed = await parseRunWorkbook(workbookBuffer);
     const run = parsed.run;
 
     if (!run || !run.pickEntries.length) {
