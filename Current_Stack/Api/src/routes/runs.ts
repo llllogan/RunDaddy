@@ -119,6 +119,10 @@ router.get('/:runId/audio-commands', async (req, res) => {
     return res.status(400).json({ error: 'Run ID is required' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to access runs' });
+  }
+
   const run = await ensureRun(req.auth.companyId, runId);
   if (!run) {
     return res.status(404).json({ error: 'Run not found' });
@@ -438,6 +442,10 @@ router.get('/tomorrow/ready', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (!req.auth.companyId) {
+    return res.json([]);
+  }
+
   const startOfTomorrow = new Date();
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
   startOfTomorrow.setHours(0, 0, 0, 0);
@@ -474,6 +482,10 @@ router.get('/:runId', async (req, res) => {
     return res.status(400).json({ error: 'Run ID is required' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to access runs' });
+  }
+
   const payload = await getRunDetailPayload(req.auth.companyId, runId);
   if (!payload) {
     return res.status(404).json({ error: 'Run not found' });
@@ -486,6 +498,10 @@ router.get('/:runId', async (req, res) => {
 router.post('/:runId/assignment', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to assign runs' });
   }
 
   const runId = req.params.runId.trim();
@@ -558,6 +574,10 @@ router.patch('/:runId/status', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update runs' });
+  }
+
   const { runId } = req.params;
   const { status } = req.body;
   
@@ -606,6 +626,10 @@ router.patch('/:runId/status', async (req, res) => {
 router.patch('/:runId/picks/:pickId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update picks' });
   }
 
   const { runId, pickId } = req.params;
@@ -671,6 +695,10 @@ router.patch('/:runId/picks/bulk', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update picks' });
+  }
+
   const { runId } = req.params;
   if (!runId) {
     return res.status(400).json({ error: 'Run ID is required' });
@@ -733,6 +761,10 @@ router.delete('/:runId', async (req, res) => {
     return res.status(403).json({ error: 'Insufficient permissions to delete runs' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to delete runs' });
+  }
+
   const run = await ensureRun(req.auth.companyId, req.params.runId);
   if (!run) {
     return res.status(404).json({ error: 'Run not found' });
@@ -748,6 +780,10 @@ router.delete('/:runId', async (req, res) => {
 router.get('/:runId/chocolate-boxes', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to access chocolate boxes' });
   }
 
   const { runId } = req.params;
@@ -794,6 +830,10 @@ router.get('/:runId/chocolate-boxes', async (req, res) => {
 router.post('/:runId/chocolate-boxes', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to create chocolate boxes' });
   }
 
   const { runId } = req.params;
@@ -868,6 +908,10 @@ router.post('/:runId/chocolate-boxes', async (req, res) => {
 router.patch('/:runId/chocolate-boxes/:boxId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update chocolate boxes' });
   }
 
   const { runId, boxId } = req.params;
@@ -954,6 +998,10 @@ router.patch('/:runId/chocolate-boxes/:boxId', async (req, res) => {
 router.delete('/:runId/chocolate-boxes/:boxId', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to delete chocolate boxes' });
   }
 
   const { runId, boxId } = req.params;

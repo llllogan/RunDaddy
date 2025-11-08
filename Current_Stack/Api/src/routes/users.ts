@@ -25,6 +25,10 @@ router.get('/', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (!req.auth.companyId) {
+    return res.json([]);
+  }
+
   const memberships = await prisma.membership.findMany({
     where: {
       companyId: req.auth.companyId,
@@ -63,6 +67,10 @@ router.get('/', async (req, res) => {
 router.post('/lookup', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.json([]);
   }
 
   const parsed = userLookupSchema.safeParse(req.body);
@@ -112,15 +120,19 @@ router.get('/:userId', async (req, res) => {
   }
 
   const { userId } = req.params;
-  const membership = await prisma.membership.findUnique({
-    where: {
-      userId_companyId: {
-        userId,
-        companyId: req.auth.companyId,
+  
+  let membership = null;
+  if (req.auth.companyId) {
+    membership = await prisma.membership.findUnique({
+      where: {
+        userId_companyId: {
+          userId,
+          companyId: req.auth.companyId,
+        },
       },
-    },
-    include: { user: true },
-  });
+      include: { user: true },
+    });
+  }
 
   if (membership) {
     return res.json({
@@ -172,6 +184,10 @@ router.post('/', async (req, res) => {
 
   if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to invite users' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to invite users' });
   }
 
   const parsed = createUserSchema.safeParse(req.body);
@@ -266,6 +282,10 @@ router.patch('/:userId', async (req, res) => {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update users' });
+  }
+
   const membership = await prisma.membership.findUnique({
     where: {
       userId_companyId: {
@@ -357,6 +377,10 @@ router.delete('/:userId', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to remove users' });
+  }
+
   const { userId } = req.params;
   const membership = await prisma.membership.findUnique({
     where: {
@@ -404,6 +428,10 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
 
   if (!isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to view refresh tokens' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to view refresh tokens' });
   }
 
   const { userId } = req.params;

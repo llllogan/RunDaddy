@@ -37,6 +37,10 @@ export const uploadRunWorkbook = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing Excel file payload' });
   }
 
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to import runs' });
+  }
+
   try {
     const workbook = parseRunWorkbook(req.file.buffer);
     const run = workbook.run;
