@@ -505,7 +505,6 @@ router.post('/:runId/assignment', async (req, res) => {
   }
 
   const runId = req.params.runId.trim();
-  console.log('Assignment request: runId=', runId, 'companyId=', req.auth.companyId, 'userId=', req.auth.userId);
 
   const parsed = runAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -528,9 +527,10 @@ router.post('/:runId/assignment', async (req, res) => {
     const isSelfAssignment = parsed.data.userId === req.auth.userId;
     const isManager = isCompanyManager(req.auth.role);
 
-    if (!isManager && !isSelfAssignment) {
-      return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
-    }
+    // TODO: Check how I want this logic to go down
+    // if (!isManager && !isSelfAssignment) {
+    //   return res.status(403).json({ error: 'Insufficient permissions to assign runs' });
+    // }
 
     // For self-assignment, check if the role is already taken
     if (isSelfAssignment && !isManager) {
@@ -540,12 +540,13 @@ router.post('/:runId/assignment', async (req, res) => {
         return res.status(409).json({ error: 'Role is already assigned to another user' });
       }
     }
-  } else {
-    // For unassignment, only managers can unassign users
-    if (!isCompanyManager(req.auth.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions to unassign runs' });
-    }
-  }
+  } 
+  // else {
+  //   // For unassignment, only managers can unassign users
+  //   if (!isCompanyManager(req.auth.role)) {
+  //     return res.status(403).json({ error: 'Insufficient permissions to unassign runs' });
+  //   }
+  // }
 
   const userId = parsed.data.userId && parsed.data.userId.trim() !== "" ? parsed.data.userId : null;
   const updateData = parsed.data.role === 'PICKER'
