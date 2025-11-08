@@ -14,6 +14,11 @@ struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
     @State private var isShowingProfile = false
     @Namespace private var profileNamespace
+    
+    private var hasCompany: Bool {
+        // User has company if they have any runs or if they can access company-specific features
+        !viewModel.todayRuns.isEmpty || !viewModel.runsToPack.isEmpty
+    }
 
     init(session: AuthSession, logoutAction: @escaping () -> Void) {
         self.session = session
@@ -34,7 +39,7 @@ struct DashboardView: View {
                     if viewModel.isLoading && viewModel.todayRuns.isEmpty {
                         LoadingStateRow()
                     } else if viewModel.todayRuns.isEmpty {
-                        EmptyStateRow(message: "You're all set. No runs scheduled for today.")
+                        EmptyStateRow(message: hasCompany ? "You're all set. No runs scheduled for today." : "No company membership. Join a company to see runs.")
                     } else {
                         ForEach(viewModel.todayRuns) { run in
                             NavigationLink {
@@ -51,7 +56,7 @@ struct DashboardView: View {
                     if viewModel.isLoading && viewModel.runsToPack.isEmpty {
                         LoadingStateRow()
                     } else if viewModel.runsToPack.isEmpty {
-                        EmptyStateRow(message: "Nothing to pack right now. New runs will appear here.")
+                        EmptyStateRow(message: hasCompany ? "Nothing to pack right now. New runs will appear here." : "No company membership. Join a company to see runs.")
                     } else {
                         ForEach(viewModel.runsToPack) { run in
                             NavigationLink {
@@ -107,7 +112,8 @@ struct DashboardView: View {
                 session: session,
                 logoutAction: logoutAction,
                 namespace: profileNamespace,
-                isPresented: $isShowingProfile
+                isPresented: $isShowingProfile,
+                hasCompany: hasCompany
             )
             .presentationDetents([.large])
             .presentationCornerRadius(28)
@@ -133,6 +139,7 @@ private struct ProfileSheetView: View {
     let logoutAction: () -> Void
     let namespace: Namespace.ID
     @Binding var isPresented: Bool
+    let hasCompany: Bool
 
     @Environment(\.dismiss) private var dismiss
 
@@ -181,25 +188,47 @@ private struct ProfileSheetView: View {
                     .matchedGeometryEffect(id: ProfilePresentation.matchID, in: namespace, isSource: false)
                     
                     HStack {
-                        Text("Company A")
+                        Text(hasCompany ? "Company" : "No Company")
                         
                         Spacer()
                         
-                        Menu {
-                            Text("Compan A")
-                            Text ("Company B")
-    //                       ForEach(locationSections) { section in
-    //                           Button {
-    //                               openDirections(to: section.location)
-    //                           } label: {
-    //                               Label(section.location.name, systemImage: "mappin.and.ellipse")
-    //                           }
-    //                           .disabled(mapsURL(for: section.location) == nil)
-    //                       }
-                       } label: {
-                           Label("Switch", systemImage: "arrow.up.arrow.down.circle")
-                               .labelStyle(.titleOnly)
-                       }
+                        if hasCompany {
+                            Menu {
+                                Text("Company A")
+                                Text ("Company B")
+        //                       ForEach(locationSections) { section in
+        //                           Button {
+        //                               openDirections(to: section.location)
+        //                           } label: {
+        //                               Label(section.location.name, systemImage: "mappin.and.ellipse")
+        //                           }
+        //                           .disabled(mapsURL(for: section.location) == nil)
+        //                       }
+                            } label: {
+                                Label("Switch", systemImage: "arrow.up.arrow.down.circle")
+                                    .labelStyle(.titleOnly)
+                            }
+                        }
+                    }
+                }
+                
+                if !hasCompany {
+                    Section {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundStyle(.blue)
+                                Text("No Company Membership")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                            }
+                            
+                            Text("You're currently logged in without a company. To access runs and other features, you'll need to join or create a company.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
                 
@@ -415,7 +444,8 @@ private struct ProfileSheetPreviewContainer: View {
             session: .preview,
             logoutAction: {},
             namespace: namespace,
-            isPresented: $isPresented
+            isPresented: $isPresented,
+            hasCompany: true
         )
     }
 }

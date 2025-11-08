@@ -2,7 +2,7 @@ import type { AuthContext, UserRole } from './enums.js';
 
 export interface AuthenticatedUser {
   userId: string;
-  companyId: string;
+  companyId: string | null;
   email: string;
   role: UserRole;
   context: AuthContext;

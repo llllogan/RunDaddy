@@ -18,10 +18,36 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
   try {
     const payload = verifyAccessToken(token);
-    if (!payload.sub || !payload.companyId || !payload.context) {
+    if (!payload.sub || !payload.context) {
       return res.status(401).json({ error: 'Invalid token payload' });
     }
 
+    // Handle users without company memberships
+    if (!payload.companyId) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.auth = {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        companyId: null,
+        context: payload.context,
+      };
+      return next();
+    }
+
+    // Handle users with company memberships
     const membership = await prisma.membership.findUnique({
       where: {
         userId_companyId: {

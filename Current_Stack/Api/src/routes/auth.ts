@@ -630,6 +630,38 @@ router.get('/me', authenticate, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Handle users without company
+  if (!req.auth.companyId) {
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        phone: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      company: null,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        phone: user.phone,
+      },
+    });
+  }
+
+  // Handle users with company
   const membership = await prisma.membership.findUnique({
     where: {
       userId_companyId: {

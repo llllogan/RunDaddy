@@ -45,6 +45,11 @@ router.get('/', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Return empty array for users without company
+  if (!req.auth.companyId) {
+    return res.json([]);
+  }
+
   const { status } = req.query;
   const where: Prisma.RunWhereInput = { companyId: req.auth.companyId };
   if (isRunStatus(status)) {
@@ -69,6 +74,12 @@ router.get('/today', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
+  // Return empty array for users without company
+  if (!req.auth.companyId) {
+    return res.json([]);
+  }
+
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -82,6 +93,12 @@ router.get('/tomorrow', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
+  // Return empty array for users without company
+  if (!req.auth.companyId) {
+    return res.json([]);
+  }
+
   const startOfTomorrow = new Date();
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
   startOfTomorrow.setHours(0, 0, 0, 0);
@@ -322,6 +339,11 @@ router.get('/:runId/audio-commands', async (req, res) => {
 router.get('/all', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Return empty array for users without company
+  if (!req.auth.companyId) {
+    return res.json([]);
   }
 
   const { limit = 50, offset = 0 } = req.query;
