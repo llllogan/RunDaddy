@@ -108,4 +108,17 @@ final class PreviewAuthService: AuthServicing {
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
         storedProfile
     }
+    
+    func fetchCurrentUserProfile(credentials: AuthCredentials) async throws -> CurrentUserProfile {
+        CurrentUserProfile(
+            id: storedProfile.id,
+            email: storedProfile.email,
+            firstName: storedProfile.firstName,
+            lastName: storedProfile.lastName,
+            phone: storedProfile.phone,
+            role: storedProfile.role,
+            companies: [], // Preview user has no companies by default
+            currentCompany: nil
+        )
+    }
 }

@@ -141,27 +141,7 @@ final class AuthService: AuthServicing {
             }
 
             if httpResponse.statusCode == 404 {
-                // If standalone endpoint returns 404, try the regular users endpoint
-                return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
-            }
-            
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                if httpResponse.statusCode == 401 {
-                    throw AuthError.unauthorized
-                }
-                throw AuthError.serverError(code: httpResponse.statusCode)
-            }
-
-            let payload = try decoder.decode(StandaloneUserResponse.self, from: data)
-            return payload.profile
-        } catch {
-            // If standalone endpoint fails, try the regular users endpoint
-            return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
-        }
-    }
-
-            if httpResponse.statusCode == 404 {
-                // If standalone endpoint returns 404, try the regular users endpoint
+                // If standalone endpoint returns 404, try regular users endpoint
                 return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
             }
             
@@ -275,26 +255,6 @@ private struct AuthPayload: Decodable {
     }
 }
 
-private struct UserResponse: Decodable {
-    let id: String
-    let email: String
-    let firstName: String
-    let lastName: String
-    let phone: String?
-    let role: String?
-
-    var profile: UserProfile {
-        UserProfile(
-            id: id,
-            email: email,
-            firstName: firstName,
-            lastName: lastName,
-            phone: phone,
-            role: role
-        )
-    }
-}
-
 private struct CurrentUserProfileResponse: Decodable {
     let companies: [CompanyInfo]
     let currentCompany: CompanyInfo?
@@ -314,12 +274,6 @@ private struct CurrentUserProfileResponse: Decodable {
     }
 }
 
-private struct CompanyInfo: Decodable {
-    let id: String
-    let name: String
-    let role: String
-}
-
 private struct UserInfo: Decodable {
     let id: String
     let email: String
@@ -327,6 +281,26 @@ private struct UserInfo: Decodable {
     let lastName: String
     let phone: String?
     let role: String
+}
+
+private struct UserResponse: Decodable {
+    let id: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let role: String?
+
+    var profile: UserProfile {
+        UserProfile(
+            id: id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            role: role
+        )
+    }
 }
 
 private struct StandaloneUserResponse: Decodable {

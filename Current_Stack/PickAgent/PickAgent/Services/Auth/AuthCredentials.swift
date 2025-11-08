@@ -60,7 +60,7 @@ struct CurrentUserProfile: Equatable {
     }
 }
 
-struct CompanyInfo: Equatable {
+struct CompanyInfo: Codable, Equatable {
     let id: String
     let name: String
     let role: String

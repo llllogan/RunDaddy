@@ -35,14 +35,13 @@ struct RootView: View {
 private struct LoadingStateView: View {
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground)
+            Color(.systemBackground)
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
                 ProgressView()
-                    .tint(Theme.packageBrown)
 
-                Text("Loading your session…")
+                Text("Just a second…")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

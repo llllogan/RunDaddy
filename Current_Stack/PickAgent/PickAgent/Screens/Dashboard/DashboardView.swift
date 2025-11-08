@@ -115,7 +115,8 @@ struct DashboardView: View {
                 logoutAction: logoutAction,
                 namespace: profileNamespace,
                 isPresented: $isShowingProfile,
-                hasCompany: hasCompany
+                hasCompany: hasCompany,
+                viewModel: viewModel
             )
             .presentationDetents([.large])
             .presentationCornerRadius(28)
@@ -142,6 +143,7 @@ private struct ProfileSheetView: View {
     let namespace: Namespace.ID
     @Binding var isPresented: Bool
     let hasCompany: Bool
+    @ObservedObject var viewModel: DashboardViewModel
 
     @Environment(\.dismiss) private var dismiss
 
@@ -442,7 +444,8 @@ private struct ProfileSheetPreviewContainer: View {
             logoutAction: {},
             namespace: namespace,
             isPresented: $isPresented,
-            hasCompany: true
+            hasCompany: true,
+            viewModel: DashboardViewModel(session: .preview)
         )
     }
 }
