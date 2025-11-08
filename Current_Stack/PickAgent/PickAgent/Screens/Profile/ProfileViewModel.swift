@@ -20,15 +20,17 @@ class ProfileViewModel: ObservableObject {
     private let authService: AuthServicing
     private var cancellables = Set<AnyCancellable>()
     
-    init(authService: AuthServicing = AuthService.shared) {
+    init(authService: AuthServicing) {
         self.authService = authService
     }
     
     func loadUserInfo() {
         Task {
             do {
-                let credentials = try await authService.getCredentials()
-                let profile = try await authService.getProfile()
+                guard let credentials = authService.loadStoredCredentials() else {
+                    throw AuthError.unauthorized
+                }
+                let profile = try await authService.fetchCurrentUserProfile(credentials: credentials)
                 
                 await MainActor.run {
                     userDisplayName = profile.displayName
@@ -39,11 +41,7 @@ class ProfileViewModel: ObservableObject {
                         canGenerateInvites = (role == .admin || role == .owner)
                     }
                     
-                    // TODO: Load current company info from runs service or new endpoint
-                    // For now, we'll use a placeholder
-                    if profile.hasCompany {
-                        currentCompany = CompanyInfo(id: "company-1", name: "Current Company")
-                    }
+                    currentCompany = profile.currentCompany
                 }
             } catch {
                 await MainActor.run {
@@ -54,19 +52,7 @@ class ProfileViewModel: ObservableObject {
     }
     
     func logout() {
-        Task {
-            do {
-                try await authService.logout()
-            } catch {
-                await MainActor.run {
-                    errorMessage = "Failed to logout: \(error.localizedDescription)"
-                }
-            }
-        }
+        authService.clearStoredCredentials()
     }
 }
 
-struct CompanyInfo: Equatable {
-    let id: String
-    let name: String
-}

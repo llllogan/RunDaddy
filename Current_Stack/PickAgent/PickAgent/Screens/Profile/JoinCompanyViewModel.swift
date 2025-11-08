@@ -20,8 +20,8 @@ class JoinCompanyViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init(
-        inviteCodesService: InviteCodesServicing = InviteCodesService(),
-        authService: AuthServicing = AuthService.shared
+        inviteCodesService: InviteCodesServicing,
+        authService: AuthServicing
     ) {
         self.inviteCodesService = inviteCodesService
         self.authService = authService
@@ -46,7 +46,9 @@ class JoinCompanyViewModel: ObservableObject {
         
         Task {
             do {
-                let credentials = try await authService.getCredentials()
+                guard let credentials = authService.loadStoredCredentials() else {
+                    throw AuthError.unauthorized
+                }
                 let membership = try await inviteCodesService.useInviteCode(
                     code,
                     credentials: credentials
@@ -56,7 +58,7 @@ class JoinCompanyViewModel: ObservableObject {
                 isJoining = false
                 
                 // Refresh auth state to update user's company context
-                try await authService.refreshCredentials()
+                _ = try await authService.refresh(using: credentials)
                 
             } catch {
                 isJoining = false

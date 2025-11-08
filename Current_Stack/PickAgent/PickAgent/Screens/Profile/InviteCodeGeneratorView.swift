@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct InviteCodeGeneratorView: View {
-    @StateObject private var viewModel = InviteCodeGeneratorViewModel()
+    @StateObject private var viewModel = InviteCodeGeneratorViewModel(
+        inviteCodesService: InviteCodesService(),
+        authService: AuthService()
+    )
     @Environment(\.dismiss) private var dismiss
     
     let companyId: String

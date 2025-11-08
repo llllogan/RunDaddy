@@ -21,8 +21,8 @@ class InviteCodeGeneratorViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init(
-        inviteCodesService: InviteCodesServicing = InviteCodesService(),
-        authService: AuthServicing = AuthService.shared
+        inviteCodesService: InviteCodesServicing,
+        authService: AuthServicing
     ) {
         self.inviteCodesService = inviteCodesService
         self.authService = authService
@@ -31,7 +31,9 @@ class InviteCodeGeneratorViewModel: ObservableObject {
     func checkPermissions(companyId: String) {
         Task {
             do {
-                let credentials = try await authService.getCredentials()
+                guard let credentials = authService.loadStoredCredentials() else {
+                    throw AuthError.unauthorized
+                }
                 let inviteCodes = try await inviteCodesService.fetchInviteCodes(
                     for: companyId,
                     credentials: credentials
@@ -60,7 +62,9 @@ class InviteCodeGeneratorViewModel: ObservableObject {
         
         Task {
             do {
-                let credentials = try await authService.getCredentials()
+                guard let credentials = authService.loadStoredCredentials() else {
+                    throw AuthError.unauthorized
+                }
                 let inviteCode = try await inviteCodesService.generateInviteCode(
                     companyId: companyId,
                     role: role,

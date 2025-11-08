@@ -7,7 +7,6 @@
 
 import SwiftUI
 import CoreImage
-import CoreImage.CIQRCodeGenerator
 
 struct QRCodeView: View {
     let code: String

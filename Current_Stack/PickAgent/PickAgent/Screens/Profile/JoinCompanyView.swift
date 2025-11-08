@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct JoinCompanyView: View {
-    @StateObject private var viewModel = JoinCompanyViewModel()
+    @StateObject private var viewModel = JoinCompanyViewModel(
+        inviteCodesService: InviteCodesService(),
+        authService: AuthService()
+    )
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false
     

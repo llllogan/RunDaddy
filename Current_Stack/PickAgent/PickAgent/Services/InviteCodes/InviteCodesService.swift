@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import CoreImage.CIQRCodeGenerator
+import CoreImage
 
 protocol InviteCodesServicing {
     func generateInviteCode(companyId: String, role: UserRole, credentials: AuthCredentials) async throws -> InviteCode
@@ -24,11 +24,11 @@ struct InviteCode: Identifiable, Equatable, Codable {
     let usedBy: String?
     let usedAt: Date?
     let createdAt: Date
-    let company: CompanyInfo?
+    let company: InviteCompanyInfo?
     let creator: CreatorInfo?
     let usedByUser: UsedByUserInfo?
     
-    struct CompanyInfo: Equatable, Codable {
+    struct InviteCompanyInfo: Equatable, Codable {
         let name: String
     }
     
@@ -44,7 +44,10 @@ struct InviteCode: Identifiable, Equatable, Codable {
     
     var qrCodeImage: CIImage? {
         let data = Data(code.utf8)
-        return CIImage(qrCode: data)
+        let filter = CIFilter(name: "CIQRCodeGenerator")
+        filter?.setValue(data, forKey: "inputMessage")
+        filter?.setValue("H", forKey: "inputCorrectionLevel")
+        return filter?.outputImage
     }
     
     var isExpired: Bool {
@@ -72,9 +75,9 @@ struct Membership: Identifiable, Equatable, Codable {
     let userId: String
     let companyId: String
     let role: UserRole
-    let company: CompanyInfo?
+    let company: MembershipCompanyInfo?
     
-    struct CompanyInfo: Equatable, Codable {
+    struct MembershipCompanyInfo: Equatable, Codable {
         let name: String
     }
     
@@ -224,7 +227,7 @@ private struct InviteCodeResponse: Decodable {
     let usedBy: String?
     let usedAt: Date?
     let createdAt: Date
-    let company: InviteCode.CompanyInfo?
+    let company: InviteCode.InviteCompanyInfo?
     let creator: CreatorInfoResponse?
     let usedByUser: UsedByUserInfoResponse?
     
@@ -249,7 +252,7 @@ private struct InviteCodeResponse: Decodable {
             usedBy: usedBy,
             usedAt: usedAt,
             createdAt: createdAt,
-            company: company,
+            company: company.map { InviteCode.InviteCompanyInfo(name: $0.name) },
             creator: creator.map { InviteCode.CreatorInfo(firstName: $0.firstName, lastName: $0.lastName) },
             usedByUser: usedByUser.map { InviteCode.UsedByUserInfo(firstName: $0.firstName, lastName: $0.lastName) }
         )
@@ -265,7 +268,7 @@ private struct UseInviteCodeResponse: Decodable {
         let userId: String
         let companyId: String
         let role: String
-        let company: Membership.CompanyInfo?
+        let company: Membership.MembershipCompanyInfo?
         
         func toMembership() -> Membership {
             Membership(
@@ -273,7 +276,7 @@ private struct UseInviteCodeResponse: Decodable {
                 userId: userId,
                 companyId: companyId,
                 role: UserRole(rawValue: role) ?? .picker,
-                company: company
+                company: company.map { Membership.MembershipCompanyInfo(name: $0.name) }
             )
         }
     }

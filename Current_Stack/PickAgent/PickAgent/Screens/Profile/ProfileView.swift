@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @StateObject private var viewModel = ProfileViewModel()
+    @StateObject private var viewModel = ProfileViewModel(authService: AuthService())
     @State private var showInviteGenerator = false
     @State private var showJoinCompany = false
     
