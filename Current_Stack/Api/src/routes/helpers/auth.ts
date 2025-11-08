@@ -76,6 +76,7 @@ export const respondWithSession = (
   res: Response,
   data: { company: SessionCompany; user: SessionUser; tokens: SessionTokens },
   status = 200,
+  extras?: Record<string, unknown>,
 ) => {
   const isProduction = process.env.NODE_ENV === 'production';
   const cookieOptions = {
@@ -95,7 +96,7 @@ export const respondWithSession = (
     expires: data.tokens.refreshTokenExpiresAt,
   });
 
-  const responseData: any = {
+  const responseData: Record<string, unknown> = {
     company: data.company,
     user: {
       id: data.user.id,
@@ -115,6 +116,10 @@ export const respondWithSession = (
     responseData.context = data.tokens.context;
   }
 
+  if (extras && typeof extras === 'object') {
+    Object.assign(responseData, extras);
+  }
+
   return res.status(status).json(responseData);
 };
 
@@ -127,4 +132,3 @@ export const buildSessionPayload = (
   user,
   tokens,
 });
-

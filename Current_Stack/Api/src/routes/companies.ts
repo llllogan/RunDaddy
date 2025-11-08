@@ -3,6 +3,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from './helpers/authorization.js';
 import { randomBytes } from 'crypto';
+import { createTokenPair } from '../lib/tokens.js';
+import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
+import { AuthContext } from '../types/enums.js';
 
 const router = Router();
 
@@ -106,6 +109,7 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
   try {
     const { companyId } = req.params;
     const userId = req.auth!.userId;
+    const context = req.auth?.context ?? AuthContext.WEB;
 
     // Find the membership to delete
     const membership = await prisma.membership.findFirst({
@@ -119,6 +123,23 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Membership not found' });
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId! },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        defaultMembershipId: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     // Delete the membership
     await prisma.membership.delete({
       where: {
@@ -126,29 +147,91 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
       }
     });
 
-    // Update user's default membership if it was pointing to this membership
-    const user = await prisma.user.findUnique({
-      where: { id: userId! }
+    const remainingMemberships = await prisma.membership.findMany({
+      where: {
+        userId: userId!,
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
-    if (user?.defaultMembershipId === membership.id) {
-      // Find another membership to set as default, or clear it
-      const anotherMembership = await prisma.membership.findFirst({
-        where: {
-          userId: userId!,
-          id: { not: membership.id }
-        }
-      });
+    const defaultStillValid =
+      !!(user.defaultMembershipId && remainingMemberships.some((m) => m.id === user.defaultMembershipId));
 
-      await prisma.user.update({
-        where: { id: userId! },
-        data: { 
-          defaultMembershipId: anotherMembership?.id || null 
-        }
-      });
+    let nextDefaultMembershipId = user.defaultMembershipId ?? null;
+    if (!defaultStillValid) {
+      nextDefaultMembershipId = remainingMemberships[0]?.id ?? null;
+      if (nextDefaultMembershipId !== user.defaultMembershipId) {
+        await prisma.user.update({
+          where: { id: userId! },
+          data: { defaultMembershipId: nextDefaultMembershipId },
+        });
+      }
     }
 
-    res.json({ message: 'Successfully left company' });
+    const activeMembership =
+      (nextDefaultMembershipId
+        ? remainingMemberships.find((m) => m.id === nextDefaultMembershipId)
+        : remainingMemberships[0]) ?? null;
+
+    const companySummary = activeMembership
+      ? { id: activeMembership.company.id, name: activeMembership.company.name }
+      : null;
+    const sessionRole = activeMembership?.role ?? user.role;
+
+    const tokens = createTokenPair({
+      userId: user.id,
+      companyId: companySummary?.id ?? null,
+      email: user.email,
+      role: sessionRole,
+      context,
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    });
+
+    const membershipPayload = activeMembership
+      ? {
+          id: activeMembership.id,
+          userId: activeMembership.userId,
+          companyId: activeMembership.companyId,
+          role: activeMembership.role,
+          company: { id: activeMembership.company.id, name: activeMembership.company.name },
+        }
+      : null;
+
+    return respondWithSession(
+      res,
+      buildSessionPayload(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: sessionRole,
+          phone: user.phone,
+        },
+        companySummary,
+        tokens,
+      ),
+      200,
+      {
+        message: 'Successfully left company',
+        membership: membershipPayload,
+      },
+    );
   } catch (error) {
     console.error('Error leaving company:', error);
     res.status(500).json({ error: 'Internal server error' });

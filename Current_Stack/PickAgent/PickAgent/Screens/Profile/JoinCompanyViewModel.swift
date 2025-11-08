@@ -50,16 +50,14 @@ class JoinCompanyViewModel: ObservableObject {
                 guard let credentials = authService.loadStoredCredentials() else {
                     throw AuthError.unauthorized
                 }
-                let membership = try await inviteCodesService.useInviteCode(
+                let result = try await inviteCodesService.useInviteCode(
                     code,
                     credentials: credentials
                 )
                 
-                joinedMembership = membership
+                joinedMembership = result.membership
+                authService.store(credentials: result.credentials)
                 isJoining = false
-                
-                // Refresh auth state to update user's company context
-                _ = try await authService.refresh(using: credentials)
                 
                 // Signal that company was joined successfully
                 didJoinCompany = true

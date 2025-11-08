@@ -10,9 +10,9 @@ import CoreImage
 
 protocol InviteCodesServicing {
     func generateInviteCode(companyId: String, role: UserRole, credentials: AuthCredentials) async throws -> InviteCode
-    func useInviteCode(_ code: String, credentials: AuthCredentials) async throws -> Membership
+    func useInviteCode(_ code: String, credentials: AuthCredentials) async throws -> JoinCompanyResult
     func fetchInviteCodes(for companyId: String, credentials: AuthCredentials) async throws -> [InviteCode]
-    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws
+    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws -> LeaveCompanyResult
 }
 
 struct InviteCode: Identifiable, Equatable, Codable {
@@ -92,6 +92,16 @@ struct Membership: Identifiable, Equatable, Codable {
     }
 }
 
+struct JoinCompanyResult {
+    let membership: Membership
+    let credentials: AuthCredentials
+}
+
+struct LeaveCompanyResult {
+    let membership: Membership?
+    let credentials: AuthCredentials
+}
+
 enum UserRole: String, CaseIterable, Equatable, Codable {
     case admin = "ADMIN"
     case owner = "OWNER"
@@ -158,7 +168,7 @@ final class InviteCodesService: InviteCodesServicing {
         return payload.toInviteCode()
     }
 
-    func useInviteCode(_ code: String, credentials: AuthCredentials) async throws -> Membership {
+    func useInviteCode(_ code: String, credentials: AuthCredentials) async throws -> JoinCompanyResult {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("invite-codes")
         url.appendPathComponent("use")
@@ -188,8 +198,16 @@ final class InviteCodesService: InviteCodesServicing {
             throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
         }
 
-        let payload = try decoder.decode(UseInviteCodeResponse.self, from: data)
-        return payload.membership.toMembership()
+        let payload = try decoder.decode(SessionResponse.self, from: data)
+        
+        guard let membershipResponse = payload.membership else {
+            throw InviteCodesServiceError.invalidResponse
+        }
+        
+        return JoinCompanyResult(
+            membership: membershipResponse.toMembership(),
+            credentials: payload.buildCredentials()
+        )
     }
 
     func fetchInviteCodes(for companyId: String, credentials: AuthCredentials) async throws -> [InviteCode] {
@@ -223,7 +241,7 @@ final class InviteCodesService: InviteCodesServicing {
         return payload.map { $0.toInviteCode() }
     }
 
-    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws {
+    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws -> LeaveCompanyResult {
         // Use the new /companies/{companyId}/leave endpoint
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("companies")
@@ -262,6 +280,12 @@ final class InviteCodesService: InviteCodesServicing {
         }
         
         print("✅ Successfully left company")
+        
+        let payload = try decoder.decode(SessionResponse.self, from: data)
+        return LeaveCompanyResult(
+            membership: payload.membership?.toMembership(),
+            credentials: payload.buildCredentials()
+        )
     }
 }
 
@@ -307,16 +331,22 @@ private struct InviteCodeResponse: Decodable {
     }
 }
 
-private struct UseInviteCodeResponse: Decodable {
-    let message: String
-    let membership: MembershipResponse
+private struct SessionResponse: Decodable {
+    struct SessionUser: Decodable {
+        let id: String
+    }
+    
+    struct SessionMembershipCompany: Decodable {
+        let id: String?
+        let name: String
+    }
     
     struct MembershipResponse: Decodable {
         let id: String
         let userId: String
         let companyId: String
         let role: String
-        let company: Membership.MembershipCompanyInfo?
+        let company: SessionMembershipCompany?
         
         func toMembership() -> Membership {
             Membership(
@@ -327,6 +357,24 @@ private struct UseInviteCodeResponse: Decodable {
                 company: company.map { Membership.MembershipCompanyInfo(name: $0.name) }
             )
         }
+    }
+    
+    let user: SessionUser
+    let company: SessionMembershipCompany?
+    let accessToken: String
+    let refreshToken: String
+    let accessTokenExpiresAt: Date?
+    let refreshTokenExpiresAt: Date?
+    let membership: MembershipResponse?
+    
+    func buildCredentials(currentDate: Date = .now) -> AuthCredentials {
+        let expirationDate = accessTokenExpiresAt ?? currentDate.addingTimeInterval(3600)
+        return AuthCredentials(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            userID: user.id,
+            expiresAt: expirationDate
+        )
     }
 }
 
