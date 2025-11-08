@@ -13,7 +13,7 @@ struct DashboardView: View {
 
     @StateObject private var viewModel: DashboardViewModel
     @State private var isShowingProfile = false
-    
+
     private var hasCompany: Bool {
         // User has company if they have company memberships
         viewModel.currentUserProfile?.hasCompany ?? false
@@ -35,7 +35,9 @@ struct DashboardView: View {
                 }
 
                 // Only show "Runs for Today" section if there are runs or currently loading
-                if !viewModel.todayRuns.isEmpty || (viewModel.isLoading && viewModel.todayRuns.isEmpty) {
+                if !viewModel.todayRuns.isEmpty
+                    || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
+                {
                     Section("Runs for Today") {
                         if viewModel.isLoading && viewModel.todayRuns.isEmpty {
                             LoadingStateRow()
@@ -53,7 +55,9 @@ struct DashboardView: View {
                 }
 
                 // Only show "Runs to be Packed" section if there are runs or currently loading
-                if !viewModel.runsToPack.isEmpty || (viewModel.isLoading && viewModel.runsToPack.isEmpty) {
+                if !viewModel.runsToPack.isEmpty
+                    || (viewModel.isLoading && viewModel.runsToPack.isEmpty)
+                {
                     Section("Runs to be Packed") {
                         if viewModel.isLoading && viewModel.runsToPack.isEmpty {
                             LoadingStateRow()
@@ -124,7 +128,3 @@ struct DashboardView: View {
 
     }
 }
-
-
-
-

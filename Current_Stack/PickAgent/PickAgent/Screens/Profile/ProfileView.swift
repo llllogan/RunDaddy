@@ -69,19 +69,6 @@ struct ProfileView: View {
                             Text(company.name)
                                 .foregroundStyle(.secondary)
                         }
-                    } else {
-                        HStack {
-                            Text("No Company")
-                                .foregroundStyle(.secondary)
-                            
-                            Spacer()
-                            
-                            Button("Join Company") {
-                                showJoinCompany = true
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
                     }
                 }
                 
@@ -226,34 +213,6 @@ struct ProfileView: View {
             }
             .onAppear {
                 viewModel.loadUserInfo()
-            }
-            .refreshable {
-                viewModel.loadUserInfo()
-            }
-            .sheet(isPresented: $showInviteGenerator) {
-                if let company = viewModel.currentCompany {
-                    InviteCodeGeneratorView(
-                        companyId: company.id,
-                        companyName: company.name
-                    )
-                }
-            }
-            .sheet(isPresented: $showJoinCompany) {
-                JoinCompanyView {
-                    viewModel.loadUserInfo()
-                }
-            }
-            .alert("Error", isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )) {
-                Button("OK") {
-                    viewModel.errorMessage = nil
-                }
-            } message: {
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                }
             }
             .refreshable {
                 viewModel.loadUserInfo()

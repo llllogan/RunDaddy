@@ -79,12 +79,17 @@ class ProfileViewModel: ObservableObject {
             try await inviteCodesService.leaveCompany(companyId: company.id, credentials: credentials)
             print("✅ Successfully left company")
             
-            // Refresh auth state to update user's company context
-            let refreshedCredentials = try await authService.refresh(using: credentials)
-            print("✅ Auth tokens refreshed")
-            
-            // Store the refreshed credentials
-            authService.store(credentials: refreshedCredentials)
+            // Try to refresh auth state to update user's company context
+            // If refresh fails (expected when user has no company), we'll handle it gracefully
+            do {
+                let refreshedCredentials = try await authService.refresh(using: credentials)
+                print("✅ Auth tokens refreshed")
+                authService.store(credentials: refreshedCredentials)
+            } catch {
+                print("⚠️ Auth refresh failed after leaving company (expected): \(error)")
+                // Even if refresh fails, the leave operation was successful
+                // The user should still be able to use the app without a company
+            }
             
             // Reload user info to reflect the change
             await loadUserInfo()

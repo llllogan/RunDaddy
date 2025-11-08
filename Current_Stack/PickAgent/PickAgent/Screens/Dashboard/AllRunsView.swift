@@ -32,7 +32,7 @@ struct AllRunsView: View {
                 if viewModel.isLoading && viewModel.runsByDate.isEmpty {
                     LoadingStateRow()
                 } else if viewModel.runsByDate.isEmpty {
-                    EmptyStateRow(message: "No runs found.")
+                    EmptyStateRow(message: "No runs found")
                 } else {
                     ForEach(viewModel.runsByDate, id: \.date) { dateSection in
                         Section(dateSection.headerText) {
