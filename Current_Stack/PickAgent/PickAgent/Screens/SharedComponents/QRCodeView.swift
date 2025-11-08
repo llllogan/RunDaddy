@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreImage
+import CoreImage.CIFilterBuiltins
 
 struct QRCodeView: View {
     let code: String
@@ -14,8 +15,16 @@ struct QRCodeView: View {
     
     var body: some View {
         Group {
-            if let qrImage = generateQRCode(from: code) {
-                Image(uiImage: UIImage(ciImage: qrImage))
+            if code.isEmpty {
+                Rectangle()
+                    .fill(Color.red.opacity(0.3))
+                    .frame(width: size, height: size)
+                    .overlay(
+                        Text("Empty Code")
+                            .foregroundColor(.red)
+                    )
+            } else if let qrImage = generateQRCode(from: code) {
+                Image(uiImage: qrImage)
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
@@ -25,26 +34,37 @@ struct QRCodeView: View {
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: size, height: size)
                     .overlay(
-                        Text("QR Code")
-                            .foregroundColor(.gray)
+                        VStack {
+                            Text("QR Code")
+                                .foregroundColor(.gray)
+                            Text("Failed to generate")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
                     )
             }
         }
     }
     
-    private func generateQRCode(from string: String) -> CIImage? {
-        let data = Data(string.utf8)
-        let filter = CIFilter(name: "CIQRCodeGenerator")
-        filter?.setValue(data, forKey: "inputMessage")
-        filter?.setValue("H", forKey: "inputCorrectionLevel")
+    private func generateQRCode(from string: String) -> UIImage? {
+        guard !string.isEmpty else { return nil }
         
-        guard let qrImage = filter?.outputImage else { return nil }
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "H"
         
-        // Scale up the QR code to make it visible
-        let transform = CGAffineTransform(scaleX: 10, y: 10)
+        guard let qrImage = filter.outputImage else { return nil }
+        
+        // Scale up the QR code to make it visible and improve quality
+        let scale = max(10, size / qrImage.extent.width)
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
         let scaledImage = qrImage.transformed(by: transform)
         
-        return scaledImage
+        // Convert CIImage to UIImage
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
+        
+        return UIImage(cgImage: cgImage)
     }
 }
 
