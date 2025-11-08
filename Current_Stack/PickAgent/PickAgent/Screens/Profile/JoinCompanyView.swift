@@ -15,6 +15,8 @@ struct JoinCompanyView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false
     
+    var onCompanyJoined: (() -> Void)? = nil
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
@@ -115,6 +117,7 @@ struct JoinCompanyView: View {
                         }
                     } else {
                         Button("Continue") {
+                            onCompanyJoined?()
                             dismiss()
                         }
                         .buttonStyle(.borderedProminent)

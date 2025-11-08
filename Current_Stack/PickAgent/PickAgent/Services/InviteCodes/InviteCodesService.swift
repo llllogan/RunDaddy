@@ -12,6 +12,7 @@ protocol InviteCodesServicing {
     func generateInviteCode(companyId: String, role: UserRole, credentials: AuthCredentials) async throws -> InviteCode
     func useInviteCode(_ code: String, credentials: AuthCredentials) async throws -> Membership
     func fetchInviteCodes(for companyId: String, credentials: AuthCredentials) async throws -> [InviteCode]
+    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws
 }
 
 struct InviteCode: Identifiable, Equatable, Codable {
@@ -220,6 +221,52 @@ final class InviteCodesService: InviteCodesServicing {
         let payload = try decoder.decode([InviteCodeResponse].self, from: data)
         return payload.map { $0.toInviteCode() }
     }
+
+    func leaveCompany(companyId: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("companies")
+        url.appendPathComponent(companyId)
+        url.appendPathComponent("leave")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        print("🔄 Making leave company request to: \(url.absoluteString)")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ Invalid response")
+            throw InviteCodesServiceError.invalidResponse
+        }
+
+        print("📊 Response status code: \(httpResponse.statusCode)")
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                print("❌ Unauthorized")
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                print("❌ Insufficient permissions")
+                throw InviteCodesServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                print("❌ Company not found")
+                throw InviteCodesServiceError.companyNotFound
+            }
+            print("❌ Server error: \(httpResponse.statusCode)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📄 Response body: \(responseString)")
+            }
+            throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
+        }
+        
+        print("✅ Successfully left company")
+    }
 }
 
 private struct InviteCodeResponse: Decodable {
@@ -292,6 +339,7 @@ enum InviteCodesServiceError: LocalizedError {
     case serverError(code: Int)
     case insufficientPermissions
     case invalidOrExpiredCode
+    case companyNotFound
 
     var errorDescription: String? {
         switch self {
@@ -303,6 +351,8 @@ enum InviteCodesServiceError: LocalizedError {
             return "You don't have permission to manage invite codes for this company."
         case .invalidOrExpiredCode:
             return "This invite code is invalid or has expired."
+        case .companyNotFound:
+            return "Company not found or you're not a member."
         }
     }
 }

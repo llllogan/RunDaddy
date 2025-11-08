@@ -16,12 +16,15 @@ class ProfileViewModel: ObservableObject {
     @Published var currentCompany: CompanyInfo?
     @Published var canGenerateInvites = false
     @Published var errorMessage: String?
+    @Published var isLeavingCompany = false
     
-    private let authService: AuthServicing
+    let authService: AuthServicing
+    private let inviteCodesService: InviteCodesServicing
     private var cancellables = Set<AnyCancellable>()
     
-    init(authService: AuthServicing) {
+    init(authService: AuthServicing, inviteCodesService: InviteCodesServicing = InviteCodesService()) {
         self.authService = authService
+        self.inviteCodesService = inviteCodesService
     }
     
     func loadUserInfo() {
@@ -52,7 +55,53 @@ class ProfileViewModel: ObservableObject {
     }
     
     func logout() {
+        print("🔄 Logging out...")
         authService.clearStoredCredentials()
+        print("✅ Credentials cleared")
+    }
+    
+    func leaveCompany() async {
+        guard let company = currentCompany else {
+            errorMessage = "No company to leave"
+            return
+        }
+        
+        guard let credentials = authService.loadStoredCredentials() else {
+            errorMessage = "Not authenticated"
+            return
+        }
+        
+        isLeavingCompany = true
+        errorMessage = nil
+        
+        do {
+            print("🔄 Leaving company: \(company.name) (ID: \(company.id))")
+            try await inviteCodesService.leaveCompany(companyId: company.id, credentials: credentials)
+            print("✅ Successfully left company")
+            
+            // Refresh auth state to update user's company context
+            let refreshedCredentials = try await authService.refresh(using: credentials)
+            print("✅ Auth tokens refreshed")
+            
+            // Store the refreshed credentials
+            authService.store(credentials: refreshedCredentials)
+            
+            // Reload user info to reflect the change
+            await loadUserInfo()
+            print("✅ User info reloaded")
+            
+        } catch {
+            print("❌ Error leaving company: \(error)")
+            if let inviteError = error as? InviteCodesServiceError {
+                errorMessage = inviteError.localizedDescription
+            } else if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else {
+                errorMessage = "Failed to leave company: \(error.localizedDescription)"
+            }
+        }
+        
+        isLeavingCompany = false
     }
 }
 

@@ -14,6 +14,7 @@ class JoinCompanyViewModel: ObservableObject {
     @Published var isJoining = false
     @Published var joinedMembership: Membership?
     @Published var errorMessage: String?
+    @Published var didJoinCompany = false
     
     private let inviteCodesService: InviteCodesServicing
     private let authService: AuthServicing
@@ -60,6 +61,9 @@ class JoinCompanyViewModel: ObservableObject {
                 // Refresh auth state to update user's company context
                 _ = try await authService.refresh(using: credentials)
                 
+                // Signal that company was joined successfully
+                didJoinCompany = true
+                
             } catch {
                 isJoining = false
                 if let inviteError = error as? InviteCodesServiceError {
@@ -78,5 +82,6 @@ class JoinCompanyViewModel: ObservableObject {
         joinedMembership = nil
         errorMessage = nil
         isJoining = false
+        didJoinCompany = false
     }
 }
