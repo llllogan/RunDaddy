@@ -48,6 +48,8 @@ model User {
   runsAsRunner Run[]       @relation("RunRunner")
   tokens       RefreshToken[]
   defaultMembership Membership? @relation("UserDefaultMembership", fields: [defaultMembershipId], references: [id])
+  createdInvites InviteCode[] @relation("InviteCreator")
+  usedInvites    InviteCode[] @relation("InviteUsedBy")
 }
 
 model Membership {
@@ -75,6 +77,7 @@ model Company {
   runs           Run[]
   locations      Location[]
   machines       Machine[]
+  inviteCodes    InviteCode[]
 }
 
 model MachineType {
@@ -230,4 +233,25 @@ model RefreshToken {
 
   @@index([userId])
   @@index([context])
+}
+
+model InviteCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  companyId String
+  role      UserRole
+  createdBy String
+  expiresAt DateTime
+  usedBy    String?
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User    @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  usedByUser User? @relation("InviteUsedBy", fields: [usedBy], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@index([createdBy])
 }

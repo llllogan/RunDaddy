@@ -146,12 +146,19 @@ private struct ProfileSheetView: View {
     @ObservedObject var viewModel: DashboardViewModel
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showInviteGenerator = false
+    @State private var showJoinCompany = false
 
     private var profile: UserProfile { session.profile }
     private var credentials: AuthCredentials { session.credentials }
 
     private var tokenExpirationText: String {
         credentials.expiresAt.formatted(.dateTime.month().day().year().hour().minute())
+    }
+    
+    private var canGenerateInvites: Bool {
+        guard let role = profile.role else { return false }
+        return role == "ADMIN" || role == "OWNER"
     }
     
     private var initials: String {
@@ -226,6 +233,11 @@ private struct ProfileSheetView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
+                            
+                            Button("Join Company") {
+                                showJoinCompany = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
                         .padding(.vertical, 4)
                     }
@@ -241,6 +253,43 @@ private struct ProfileSheetView: View {
                         if let role = profile.role, !role.isEmpty {
                             ProfileInfoRow(label: "Role", value: role)
                         }
+                    }
+                }
+                
+                // Company Actions Section
+                if hasCompany {
+                    Section("Company Actions") {
+                        if canGenerateInvites {
+                            Button(action: {
+                                showInviteGenerator = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "qrcode")
+                                        .foregroundColor(.blue)
+                                    Text("Generate Invite Code")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        
+                        Button(action: {
+                            showJoinCompany = true
+                        }) {
+                            HStack {
+                                Image(systemName: "plus.circle")
+                                    .foregroundColor(.green)
+                                Text("Join Another Company")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 
@@ -282,6 +331,17 @@ private struct ProfileSheetView: View {
                 }
             }
             .navigationTransition(.zoom(sourceID: "profile", in: profileNamespace))
+        }
+        .sheet(isPresented: $showInviteGenerator) {
+            if let companies = viewModel.currentUserProfile?.companies, let firstCompany = companies.first {
+                InviteCodeGeneratorView(
+                    companyId: firstCompany.id,
+                    companyName: firstCompany.name
+                )
+            }
+        }
+        .sheet(isPresented: $showJoinCompany) {
+            JoinCompanyView()
         }
     }
 

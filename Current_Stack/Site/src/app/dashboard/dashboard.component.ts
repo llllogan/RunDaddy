@@ -16,6 +16,7 @@ export class DashboardComponent {
     { id: 'home', label: 'Home', route: 'home' },
     { id: 'users', label: 'Users', route: 'users' },
     { id: 'runs', label: 'Runs', route: 'runs' },
+    { id: 'invite-codes', label: 'Invite Codes', route: 'invite-codes' },
   ] as const;
 
   protected readonly memberships = signal<MembershipChoice[]>([]);
