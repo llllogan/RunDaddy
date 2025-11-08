@@ -625,11 +625,14 @@ router.patch('/:runId/picks/:pickId', async (req, res) => {
     data: updateData
   });
 
-  // If this is the first pick entry being packed, update pickingStartedAt
+  // If this is the first pick entry being packed, update pickingStartedAt and run status
   if (status === 'PICKED' && !run.pickingStartedAt) {
     await prisma.run.update({
       where: { id: run.id },
-      data: { pickingStartedAt: new Date() }
+      data: { 
+        pickingStartedAt: new Date(),
+        ...(run.status === 'CREATED' && { status: 'PICKING' })
+      }
     });
   }
 
@@ -681,11 +684,14 @@ router.patch('/:runId/picks/bulk', async (req, res) => {
     data: updateData
   });
 
-  // If this is the first pick entry being packed, update pickingStartedAt
+  // If this is the first pick entry being packed, update pickingStartedAt and run status
   if (status === 'PICKED' && !run.pickingStartedAt) {
     await prisma.run.update({
       where: { id: run.id },
-      data: { pickingStartedAt: new Date() }
+      data: { 
+        pickingStartedAt: new Date(),
+        ...(run.status === 'CREATED' && { status: 'PICKING' })
+      }
     });
   }
 

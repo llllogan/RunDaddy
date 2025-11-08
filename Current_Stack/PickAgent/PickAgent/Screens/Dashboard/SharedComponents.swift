@@ -89,14 +89,14 @@ struct RunRow: View {
                 .font(.headline)
                 .fontWeight(.semibold)
             
-            HStack(spacing: 0) {
-                Text("Runner: ")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("\(run.runner?.displayName ?? "No runner yet")")
-                    .font(.subheadline)
-            }
-            .padding(.bottom, 4)
+//            HStack(spacing: 0) {
+//                Text("Runner: ")
+//                    .font(.subheadline)
+//                    .foregroundStyle(.secondary)
+//                Text("\(run.runner?.displayName ?? "No runner yet")")
+//                    .font(.subheadline)
+//            }
+//            .padding(.bottom, 4)
             
             FlowLayout(spacing: 6) {
                 PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
@@ -113,10 +113,10 @@ struct RunRow: View {
                 }
                 
                 if let started = run.pickingStartedAt {
-                    PillChip(title: "Started", date: started, text: nil, colour: nil, foregroundColour: nil, icon: nil)
+                    PillChip(title: "Started", date: started, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
                 }
                 if let ended = run.pickingEndedAt {
-                    PillChip(title: "Ended", date: ended, text: nil, colour: nil, foregroundColour: nil, icon: nil)
+                    PillChip(title: "Ended", date: ended, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
                 }
             }
         }
@@ -169,6 +169,7 @@ struct PillChip: View {
             if let title = title {
                 Text(title.uppercased())
                     .font(.caption2.bold())
+                    .foregroundStyle(foregroundColour!)
             }
             
             if let text = text {
@@ -179,6 +180,7 @@ struct PillChip: View {
             } else if let date = date {
                 Text(date.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
+                    .foregroundStyle(foregroundColour!)
             }
         }
         .padding(.horizontal, 10)
