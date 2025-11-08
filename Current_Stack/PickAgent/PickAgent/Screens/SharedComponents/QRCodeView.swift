@@ -38,7 +38,13 @@ struct QRCodeView: View {
         filter?.setValue(data, forKey: "inputMessage")
         filter?.setValue("H", forKey: "inputCorrectionLevel")
         
-        return filter?.outputImage
+        guard let qrImage = filter?.outputImage else { return nil }
+        
+        // Scale up the QR code to make it visible
+        let transform = CGAffineTransform(scaleX: 10, y: 10)
+        let scaledImage = qrImage.transformed(by: transform)
+        
+        return scaledImage
     }
 }
 
