@@ -21,7 +21,7 @@ router.post('/:companyId/invite-codes', authenticate, async (req, res) => {
     const membership = await prisma.membership.findFirst({
       where: {
         userId,
-        companyId,
+        companyId: companyId!,
         role: { in: ['ADMIN', 'OWNER'] }
       }
     });
@@ -111,7 +111,7 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
     const membership = await prisma.membership.findFirst({
       where: {
         userId,
-        companyId
+        companyId: companyId!
       }
     });
 
@@ -128,20 +128,20 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
 
     // Update user's default membership if it was pointing to this membership
     const user = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId! }
     });
 
     if (user?.defaultMembershipId === membership.id) {
       // Find another membership to set as default, or clear it
       const anotherMembership = await prisma.membership.findFirst({
         where: {
-          userId,
+          userId: userId!,
           id: { not: membership.id }
         }
       });
 
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: userId! },
         data: { 
           defaultMembershipId: anotherMembership?.id || null 
         }
@@ -165,7 +165,7 @@ router.delete('/:companyId/members/:userId', authenticate, async (req, res) => {
     const adminMembership = await prisma.membership.findFirst({
       where: {
         userId: currentUserId,
-        companyId,
+        companyId: companyId!,
         role: { in: ['ADMIN', 'OWNER'] }
       }
     });
@@ -177,8 +177,8 @@ router.delete('/:companyId/members/:userId', authenticate, async (req, res) => {
     // Find the membership to delete
     const membership = await prisma.membership.findFirst({
       where: {
-        userId: targetUserId,
-        companyId
+        userId: targetUserId!,
+        companyId: companyId!
       }
     });
 
@@ -190,7 +190,7 @@ router.delete('/:companyId/members/:userId', authenticate, async (req, res) => {
     if (membership.role === 'OWNER') {
       const ownerCount = await prisma.membership.count({
         where: {
-          companyId,
+          companyId: companyId!,
           role: 'OWNER'
         }
       });
@@ -209,20 +209,20 @@ router.delete('/:companyId/members/:userId', authenticate, async (req, res) => {
 
     // Update user's default membership if it was pointing to this membership
     const user = await prisma.user.findUnique({
-      where: { id: targetUserId }
+      where: { id: targetUserId! }
     });
 
     if (user?.defaultMembershipId === membership.id) {
       // Find another membership to set as default, or clear it
       const anotherMembership = await prisma.membership.findFirst({
         where: {
-          userId: targetUserId,
+          userId: targetUserId!,
           id: { not: membership.id }
         }
       });
 
       await prisma.user.update({
-        where: { id: targetUserId },
+        where: { id: targetUserId! },
         data: { 
           defaultMembershipId: anotherMembership?.id || null 
         }
