@@ -11,6 +11,14 @@ export const registerSchema = z.object({
   userPhone: z.string().min(7).optional(),
 });
 
+export const signupSchema = z.object({
+  userFirstName: z.string().min(1),
+  userLastName: z.string().min(1),
+  userEmail: z.string().email(),
+  userPassword: z.string().min(8),
+  userPhone: z.string().min(7).optional(),
+});
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -25,7 +33,7 @@ export const switchCompanySchema = z.object({
   persist: z.boolean().optional(),
 });
 
-export type SessionCompany = { id: string; name: string };
+export type SessionCompany = { id: string; name: string } | null;
 export type SessionUser = {
   id: string;
   email: string;

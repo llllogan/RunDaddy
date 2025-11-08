@@ -7,6 +7,7 @@ import { createTokenPair, verifyRefreshToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
 import {
   registerSchema,
+  signupSchema,
   loginSchema,
   switchCompanySchema,
   getAllowedRolesForContext,
@@ -17,6 +18,69 @@ import {
 } from './helpers/auth.js';
 
 const router = Router();
+
+// Creates a new user account without a company, returning initial session tokens.
+router.post('/signup', async (req, res) => {
+  const parsed = signupSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const { userFirstName, userLastName, userEmail, userPassword, userPhone } = parsed.data;
+
+  const existingUser = await prisma.user.findUnique({ where: { email: userEmail } });
+  if (existingUser) {
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+
+  const passwordHash = await hashPassword(userPassword);
+
+  const user = await prisma.user.create({
+    data: {
+      email: userEmail,
+      password: passwordHash,
+      firstName: userFirstName,
+      lastName: userLastName,
+      phone: userPhone ?? null,
+      role: UserRole.PICKER,
+    },
+  });
+
+  const tokens = createTokenPair({
+    userId: user.id,
+    companyId: null, // No company for standalone accounts
+    email: user.email,
+    role: user.role,
+    context: AuthContext.APP,
+  });
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenId: tokens.refreshTokenId,
+      expiresAt: tokens.refreshTokenExpiresAt,
+      context: tokens.context,
+    },
+  });
+
+  return respondWithSession(
+    res,
+    buildSessionPayload(
+      {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        phone: user.phone,
+      },
+      null, // No company for standalone accounts
+      tokens,
+    ),
+    201,
+  );
+});
 
 // Registers a new company and owner account, returning initial session tokens.
 router.post('/register', async (req, res) => {
@@ -139,8 +203,45 @@ router.post('/login', async (req, res) => {
     company: { id: membership.company.id, name: membership.company.name },
   }));
 
-  if (!memberships.length) {
+  // For APP context, allow users without company memberships
+  if (!memberships.length && context !== AuthContext.APP) {
     return res.status(403).json({ error: 'No active company memberships for this account' });
+  }
+
+  // Handle users without company memberships for APP context
+  if (!memberships.length && context === AuthContext.APP) {
+    const tokens = createTokenPair({
+      userId: user.id,
+      companyId: null,
+      email: user.email,
+      role: user.role,
+      context,
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    });
+
+    return respondWithSession(
+      res,
+      buildSessionPayload(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          phone: user.phone,
+        },
+        null,
+        tokens,
+      ),
+    );
   }
 
   const allowedRoles = getAllowedRolesForContext(context);
@@ -270,6 +371,68 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Refresh token invalid for this account' });
     }
 
+    if (!payload.companyId) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Account not available' });
+      }
+
+      const allowedRoles = getAllowedRolesForContext(payload.context);
+      if (!allowedRoles.has(user.role)) {
+        return res.status(403).json({ error: 'User role not permitted for this client' });
+      }
+
+      const tokens = createTokenPair({
+        userId: user.id,
+        companyId: null,
+        email: user.email,
+        role: user.role,
+        context: payload.context,
+      });
+
+      await prisma.$transaction([
+        prisma.refreshToken.update({
+          where: { tokenId: stored.tokenId },
+          data: { revoked: true },
+        }),
+        prisma.refreshToken.create({
+          data: {
+            userId: user.id,
+            tokenId: tokens.refreshTokenId,
+            expiresAt: tokens.refreshTokenExpiresAt,
+            context: tokens.context,
+          },
+        }),
+      ]);
+
+      return respondWithSession(
+        res,
+        buildSessionPayload(
+          {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            phone: user.phone,
+          },
+          null,
+          tokens,
+        ),
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -278,6 +441,7 @@ router.post('/refresh', async (req, res) => {
         firstName: true,
         lastName: true,
         phone: true,
+        role: true,
         memberships: {
           where: { companyId: payload.companyId },
           include: { company: true },
@@ -285,7 +449,7 @@ router.post('/refresh', async (req, res) => {
       },
     });
 
-    if (!user || !user.memberships.length) {
+    if (!user || !user.memberships?.length) {
       return res.status(401).json({ error: 'Account not available' });
     }
 

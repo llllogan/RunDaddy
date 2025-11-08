@@ -95,6 +95,38 @@ final class AuthViewModel: ObservableObject {
         isProcessing = false
     }
 
+    func createAccount(email: String, password: String, firstName: String, lastName: String, phone: String?) async {
+        guard !isProcessing else { return }
+        errorMessage = nil
+        isProcessing = true
+
+        do {
+            let normalizedEmail = email
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            let credentials = try await service.signup(
+                email: normalizedEmail,
+                password: password,
+                firstName: firstName.trimmingCharacters(in: .whitespacesAndNewlines),
+                lastName: lastName.trimmingCharacters(in: .whitespacesAndNewlines),
+                phone: phone?.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            let profile = try await service.fetchProfile(userID: credentials.userID, credentials: credentials)
+            let session = AuthSession(credentials: credentials, profile: profile)
+            service.store(credentials: credentials)
+            phase = .authenticated(session)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else {
+                errorMessage = "Something went wrong while creating your account. Please try again."
+            }
+        }
+
+        isProcessing = false
+    }
+
     func logout() {
         service.clearStoredCredentials()
         phase = .login(message: nil)

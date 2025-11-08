@@ -6,7 +6,7 @@ const { sign, verify } = jwt;
 
 type BaseClaims = {
   sub: string;
-  companyId: string;
+  companyId: string | null;
   email: string;
   role: UserRole;
   context: AuthContext;
@@ -27,7 +27,7 @@ export interface TokenPair {
 
 export interface TokenPayloadInput {
   userId: string;
-  companyId: string;
+  companyId: string | null;
   email: string;
   role: UserRole;
   context: AuthContext;
@@ -135,7 +135,7 @@ export const verifyAccessToken = (token: string): AccessTokenClaims => {
   const payload = verify(token, accessSecret);
   if (
     typeof payload === 'string' ||
-    typeof (payload as Record<string, unknown>).companyId !== 'string' ||
+    (typeof (payload as Record<string, unknown>).companyId !== 'string' && (payload as Record<string, unknown>).companyId !== null) ||
     typeof (payload as Record<string, unknown>).context !== 'string'
   ) {
     throw new Error('Invalid access token payload');

@@ -80,6 +80,31 @@ final class PreviewAuthService: AuthServicing {
         return credentials
     }
 
+    func signup(email: String, password: String, firstName: String, lastName: String, phone: String?) async throws -> AuthCredentials {
+        let normalizedEmail = email
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        storedProfile = UserProfile(
+            id: UUID().uuidString,
+            email: normalizedEmail,
+            firstName: firstName.trimmingCharacters(in: .whitespacesAndNewlines),
+            lastName: lastName.trimmingCharacters(in: .whitespacesAndNewlines),
+            phone: phone?.trimmingCharacters(in: .whitespacesAndNewlines),
+            role: "PICKER"
+        )
+
+        let credentials = AuthCredentials(
+            accessToken: "preview.access.token",
+            refreshToken: "preview.refresh.token",
+            userID: storedProfile.id,
+            expiresAt: Date().addingTimeInterval(3600)
+        )
+
+        storedCredentials = credentials
+        return credentials
+    }
+
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
         storedProfile
     }

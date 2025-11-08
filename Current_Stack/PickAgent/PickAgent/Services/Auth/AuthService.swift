@@ -13,12 +13,14 @@ protocol AuthServicing {
     func clearStoredCredentials()
     func refresh(using credentials: AuthCredentials) async throws -> AuthCredentials
     func login(email: String, password: String) async throws -> AuthCredentials
+    func signup(email: String, password: String, firstName: String, lastName: String, phone: String?) async throws -> AuthCredentials
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile
 }
 
 final class AuthService: AuthServicing {
     private enum Endpoint {
         static let login = "auth/login"
+        static let signup = "auth/signup"
         static let refresh = "auth/refresh"
     }
     
@@ -71,6 +73,21 @@ final class AuthService: AuthServicing {
         let response: AuthPayload = try await performRequest(
             path: Endpoint.login,
             body: LoginRequest(email: email, password: password, context: AuthContext.app.rawValue)
+        )
+
+        return response.buildCredentials()
+    }
+
+    func signup(email: String, password: String, firstName: String, lastName: String, phone: String?) async throws -> AuthCredentials {
+        let response: AuthPayload = try await performRequest(
+            path: Endpoint.signup,
+            body: SignupRequest(
+                userEmail: email,
+                userPassword: password,
+                userFirstName: firstName,
+                userLastName: lastName,
+                userPhone: phone
+            )
         )
 
         return response.buildCredentials()
@@ -134,6 +151,14 @@ private struct LoginRequest: Encodable {
     let email: String
     let password: String
     let context: String
+}
+
+private struct SignupRequest: Encodable {
+    let userEmail: String
+    let userPassword: String
+    let userFirstName: String
+    let userLastName: String
+    let userPhone: String?
 }
 
 private struct RefreshRequest: Encodable {
