@@ -94,6 +94,45 @@ final class AuthService: AuthServicing {
     }
 
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
+        // Try the standalone profile endpoint first (for users without companies)
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("auth")
+        url.appendPathComponent("profile")
+        url.appendPathComponent(userID)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await urlSession.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AuthError.invalidResponse
+            }
+
+            if httpResponse.statusCode == 404 {
+                // If standalone endpoint returns 404, try the regular users endpoint
+                return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
+            }
+            
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                if httpResponse.statusCode == 401 {
+                    throw AuthError.unauthorized
+                }
+                throw AuthError.serverError(code: httpResponse.statusCode)
+            }
+
+            let payload = try decoder.decode(StandaloneUserResponse.self, from: data)
+            return payload.profile
+        } catch {
+            // If standalone endpoint fails, try the regular users endpoint
+            return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
+        }
+    }
+    
+    private func fetchProfileFromUsersEndpoint(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("users")
         url.appendPathComponent(userID)
@@ -189,6 +228,26 @@ private struct AuthPayload: Decodable {
 }
 
 private struct UserResponse: Decodable {
+    let id: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    let phone: String?
+    let role: String?
+
+    var profile: UserProfile {
+        UserProfile(
+            id: id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            role: role
+        )
+    }
+}
+
+private struct StandaloneUserResponse: Decodable {
     let id: String
     let email: String
     let firstName: String

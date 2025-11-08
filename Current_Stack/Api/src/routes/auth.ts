@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { AuthContext, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
-import { createTokenPair, verifyRefreshToken } from '../lib/tokens.js';
+import { createTokenPair, verifyRefreshToken, verifyAccessToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
 import {
   registerSchema,
@@ -658,6 +658,60 @@ router.get('/me', authenticate, async (req, res) => {
       phone: membership.user.phone,
     },
   });
+});
+
+// Returns user profile for standalone accounts (without company requirement)
+router.get('/profile/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
+  let token: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
+
+  try {
+    const payload = verifyAccessToken(token);
+    if (!payload.sub || !payload.context) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    // Allow access if token is for the requested user or if user has no company
+    if (payload.sub !== userId && payload.companyId !== null) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      phone: user.phone,
+    });
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token', detail: (error as Error).message });
+  }
 });
 
 export const authRouter = router;
