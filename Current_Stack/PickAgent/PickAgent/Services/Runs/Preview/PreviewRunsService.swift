@@ -56,6 +56,11 @@ struct PreviewRunsService: RunsServicing {
         let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)
         let chocolateBox3 = RunDetail.ChocolateBox(id: "box-3", number: 5, machine: nil)
 
+        let locationOrders = [
+            RunDetail.LocationOrder(id: "order-1", locationId: downtown.id, position: 0),
+            RunDetail.LocationOrder(id: "order-2", locationId: uptown.id, position: 1)
+        ]
+
         return RunDetail(
             id: runId,
             status: "PICKING",
@@ -69,7 +74,8 @@ struct PreviewRunsService: RunsServicing {
             locations: [downtown, uptown],
             machines: [machineA, machineB, machineC],
             pickItems: [pickA, pickB, pickC],
-            chocolateBoxes: [chocolateBox1, chocolateBox2, chocolateBox3]
+            chocolateBoxes: [chocolateBox1, chocolateBox2, chocolateBox3],
+            locationOrders: locationOrders
         )
     }
     
@@ -278,6 +284,12 @@ struct PreviewRunsService: RunsServicing {
             totalItems: itemCommands.count,
             hasItems: !itemCommands.isEmpty
         )
+    }
+
+    func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder] {
+        orderedLocationIds.enumerated().map { index, identifier in
+            RunDetail.LocationOrder(id: "order-\(index + 1)", locationId: identifier, position: index)
+        }
     }
 }
 

@@ -92,10 +92,11 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var detail: RunDetail?
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
-    @Published private(set) var locationSections: [RunLocationSection] = []
-    @Published private(set) var companyUsers: [CompanyUser] = []
-    @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
-    @Published var showingChocolateBoxesSheet = false
+  @Published private(set) var locationSections: [RunLocationSection] = []
+  @Published private(set) var companyUsers: [CompanyUser] = []
+  @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
+  @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
+  @Published var showingChocolateBoxesSheet = false
 
     let runId: String
     let session: AuthSession
@@ -130,6 +131,7 @@ final class RunDetailViewModel: ObservableObject {
             self.detail = detail
             self.companyUsers = users
             self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
+            self.locationOrders = detail.locationOrders.sorted { $0.position < $1.position }
             rebuildLocationData(from: detail)
         } catch {
             if let authError = error as? AuthError {
@@ -143,6 +145,7 @@ final class RunDetailViewModel: ObservableObject {
             companyUsers = []
             locationSections = []
             locationContextsByID = [:]
+            locationOrders = []
         }
 
         isLoading = false
@@ -310,7 +313,7 @@ final class RunDetailViewModel: ObservableObject {
         isLoading = false
     }
     
-    func updateRunStatus(to status: String) async {
+  func updateRunStatus(to status: String) async {
         guard let runId = detail?.id else { return }
         isLoading = true
         errorMessage = nil
@@ -330,6 +333,34 @@ final class RunDetailViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func saveLocationOrder(with sections: [RunLocationSection]) async throws {
+        guard let runId = detail?.id else {
+            throw RunsServiceError.runNotFound
+        }
+
+        do {
+            let orderedLocationIds = sections.map { section in section.location?.id }
+            let updatedOrders = try await service.updateLocationOrder(for: runId, orderedLocationIds: orderedLocationIds, credentials: session.credentials)
+            locationOrders = updatedOrders.sorted { $0.position < $1.position }
+            if var currentDetail = detail {
+                currentDetail.locationOrders = updatedOrders
+                detail = currentDetail
+            }
+            if let refreshedDetail = detail {
+                rebuildLocationData(from: refreshedDetail)
+            }
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "We couldn't update the location order. Please try again."
+            }
+            throw error
+        }
     }
 
     private struct LocationContext {
@@ -402,9 +433,29 @@ final class RunDetailViewModel: ObservableObject {
             return (key, context)
         }
 
+        let orderingLookup = locationOrders.reduce(into: [String: Int]()) { partialResult, order in
+            let key = order.locationId ?? RunLocationSection.unassignedIdentifier
+            partialResult[key] = order.position
+        }
+
         let sortedSections = contexts.map { $0.1.section }
             .sorted { lhs, rhs in
-                lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                let lhsOrder = orderingLookup[lhs.id]
+                let rhsOrder = orderingLookup[rhs.id]
+
+                switch (lhsOrder, rhsOrder) {
+                case let (.some(left), .some(right)):
+                    if left == right {
+                        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                    }
+                    return left < right
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
             }
 
         locationSections = sortedSections

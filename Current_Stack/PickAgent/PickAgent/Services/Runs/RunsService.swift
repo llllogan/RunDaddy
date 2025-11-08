@@ -23,6 +23,7 @@ protocol RunsServicing {
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
     func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
+    func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder]
 }
 
 enum RunsSchedule {
@@ -215,6 +216,12 @@ struct RunDetail: Equatable {
         let machine: Machine?
     }
 
+    struct LocationOrder: Identifiable, Equatable {
+        let id: String
+        let locationId: String?
+        let position: Int
+    }
+
     let id: String
     let status: String
     let companyId: String
@@ -228,6 +235,7 @@ struct RunDetail: Equatable {
     let machines: [Machine]
     let pickItems: [PickItem]
     let chocolateBoxes: [ChocolateBox]
+    var locationOrders: [LocationOrder]
 
     var runDate: Date {
         scheduledFor ?? createdAt
@@ -748,6 +756,53 @@ final class RunsService: RunsServicing {
         let payload = try decoder.decode(AudioCommandsResponse.self, from: data)
         return payload
     }
+
+    func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder] {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("location-order")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let locationsPayload: [[String: Any]] = orderedLocationIds.map { identifier in
+            if let identifier {
+                return ["locationId": identifier]
+            }
+            return ["locationId": NSNull()]
+        }
+
+        let body: [String: Any] = [
+            "locations": locationsPayload
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw AuthError.unauthorized
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        struct UpdateLocationOrderResponse: Decodable {
+            let locationOrders: [RunDetailResponse.LocationOrder]
+        }
+
+        let payload = try decoder.decode(UpdateLocationOrderResponse.self, from: data)
+        return payload.locationOrders.map { $0.toLocationOrder() }.sorted { $0.position < $1.position }
+    }
 }
 
 private struct RunResponse: Decodable {
@@ -996,6 +1051,16 @@ private struct RunDetailResponse: Decodable {
         }
     }
 
+    struct LocationOrder: Decodable {
+        let id: String
+        let locationId: String?
+        let position: Int
+
+        func toLocationOrder() -> RunDetail.LocationOrder {
+            RunDetail.LocationOrder(id: id, locationId: locationId, position: position)
+        }
+    }
+
     let id: String
     let status: String
     let companyId: String
@@ -1009,6 +1074,7 @@ private struct RunDetailResponse: Decodable {
     let machines: [Machine]
     let pickItems: [PickItem]
     let chocolateBoxes: [ChocolateBox]
+    let locationOrders: [LocationOrder]
 
     func toDetail() -> RunDetail {
         RunDetail(
@@ -1024,7 +1090,8 @@ private struct RunDetailResponse: Decodable {
             locations: locations.map { $0.toLocation() },
             machines: machines.map { $0.toMachine() },
             pickItems: pickItems.filter { $0.count > 0 }.map { $0.toPickItem() },
-            chocolateBoxes: chocolateBoxes.map { $0.toChocolateBox() }
+            chocolateBoxes: chocolateBoxes.map { $0.toChocolateBox() },
+            locationOrders: locationOrders.map { $0.toLocationOrder() }.sorted { $0.position < $1.position }
         )
     }
 }

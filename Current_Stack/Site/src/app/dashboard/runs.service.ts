@@ -72,6 +72,13 @@ export interface RunChocolateBox {
   machine: RunMachine | null;
 }
 
+export interface RunLocationOrder {
+  id: string;
+  locationId: string | null;
+  position: number;
+  location: RunLocation | null;
+}
+
 export interface RunDetails {
   id: string;
   status: string;
@@ -84,6 +91,7 @@ export interface RunDetails {
   runner: RunParticipant | null;
   pickEntries: RunPickEntry[];
   chocolateBoxes: RunChocolateBox[];
+  locationOrders: RunLocationOrder[];
 }
 
 interface RunOverviewResponse {
@@ -173,6 +181,13 @@ interface RunChocolateBoxResponse {
   machine: RunMachineResponse | null;
 }
 
+interface RunLocationOrderResponse {
+  id: string;
+  locationId: string | null;
+  position: number;
+  location: RunLocationResponse | null;
+}
+
 interface RunDetailsResponse {
   id: string;
   status: string;
@@ -185,6 +200,7 @@ interface RunDetailsResponse {
   runner: RunParticipantResponse | null;
   pickEntries: RunPickEntryResponse[];
   chocolateBoxes: RunChocolateBoxResponse[];
+  locationOrders: RunLocationOrderResponse[];
 }
 
 @Injectable({
@@ -277,6 +293,7 @@ export class RunsService {
       runner: this.toParticipant(run.runner),
       pickEntries: run.pickEntries.map((entry) => this.toPickEntry(entry)),
       chocolateBoxes: run.chocolateBoxes.map((box) => this.toChocolateBox(box)),
+      locationOrders: run.locationOrders.map((order) => this.toLocationOrder(order)),
     };
   }
 
@@ -306,6 +323,15 @@ export class RunsService {
       id: box.id,
       number: box.number,
       machine: this.toMachine(box.machine),
+    };
+  }
+
+  private toLocationOrder(order: RunLocationOrderResponse): RunLocationOrder {
+    return {
+      id: order.id,
+      locationId: order.locationId,
+      position: order.position,
+      location: this.toLocation(order.location),
     };
   }
 

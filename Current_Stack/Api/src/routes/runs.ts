@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus, RunItemStatus as PrismaRunItemStatus } from '@prisma/client';
 import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus } from '../types/enums.js';
@@ -36,6 +37,19 @@ interface AudioCommand {
 }
 
 const router = Router();
+
+const UNASSIGNED_LOCATION_KEY = '__unassigned__';
+
+const updateLocationOrderSchema = z.object({
+  locations: z
+    .array(
+      z.object({
+        locationId: z.string().cuid().nullable().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
+});
 
 router.use(authenticate);
 
@@ -128,6 +142,12 @@ router.get('/:runId/audio-commands', async (req, res) => {
     return res.status(404).json({ error: 'Run not found' });
   }
 
+  const locationOrderMap = new Map<string, number>();
+  run.locationOrders.forEach((order) => {
+    const key = order.locationId ?? UNASSIGNED_LOCATION_KEY;
+    locationOrderMap.set(key, order.position);
+  });
+
   // Get pick entries that need to be packed, ordered by location, then machine, then coil (largest to smallest)
   const pickEntries = await prisma.pickEntry.findMany({
     where: {
@@ -173,7 +193,7 @@ router.get('/:runId/audio-commands', async (req, res) => {
     const location = entry.coilItem.coil.machine.location;
     const machine = entry.coilItem.coil.machine;
     
-    const locationKey = location?.id || 'no-location';
+    const locationKey = location?.id || UNASSIGNED_LOCATION_KEY;
     const machineKey = machine?.id || 'no-machine';
     
     if (!acc[locationKey]) {
@@ -196,10 +216,28 @@ router.get('/:runId/audio-commands', async (req, res) => {
 
   // Generate audio commands in the correct order
   let orderCounter = 0;
-  Object.values(groupedEntries).forEach(locationGroup => {
+  const sortedLocationGroups = Object.values(groupedEntries).sort((a, b) => {
+    const aKey = a.location?.id ?? UNASSIGNED_LOCATION_KEY;
+    const bKey = b.location?.id ?? UNASSIGNED_LOCATION_KEY;
+    const aOrder = locationOrderMap.has(aKey) ? locationOrderMap.get(aKey)! : Number.MAX_SAFE_INTEGER;
+    const bOrder = locationOrderMap.has(bKey) ? locationOrderMap.get(bKey)! : Number.MAX_SAFE_INTEGER;
+
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+
+    const aName = (a.location?.name ?? '').toLowerCase();
+    const bName = (b.location?.name ?? '').toLowerCase();
+    if (aName === bName) {
+      return 0;
+    }
+    return aName < bName ? -1 : 1;
+  });
+
+  sortedLocationGroups.forEach(locationGroup => {
     // Add location announcement
     const location = locationGroup.location;
-    const locationKey = location?.id || 'no-location';
+    const locationKey = location?.id || UNASSIGNED_LOCATION_KEY;
     if (location && !uniqueLocations.has(locationKey)) {
       uniqueLocations.add(locationKey);
       audioCommands.push({
@@ -492,6 +530,96 @@ router.get('/:runId', async (req, res) => {
   }
 
   return res.json(payload);
+});
+
+router.put('/:runId/location-order', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update location ordering' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const parsed = updateLocationOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const locations = parsed.data.locations;
+  const seen = new Set<string>();
+  for (const entry of locations) {
+    const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;
+    if (seen.has(key)) {
+      return res.status(400).json({ error: 'Duplicate locations are not allowed in the ordering.' });
+    }
+    seen.add(key);
+  }
+
+  const concreteLocationIds = locations
+    .map((entry) => entry.locationId)
+    .filter((value): value is string => Boolean(value));
+
+  if (concreteLocationIds.length > 0) {
+    const count = await prisma.location.count({
+      where: {
+        id: { in: concreteLocationIds },
+        companyId: req.auth.companyId,
+      },
+    });
+
+    if (count !== concreteLocationIds.length) {
+      return res.status(404).json({ error: 'One or more locations could not be found for this company.' });
+    }
+  }
+
+  const updatedOrders = await prisma.$transaction(async (tx) => {
+    await tx.runLocationOrder.deleteMany({ where: { runId } });
+    if (locations.length > 0) {
+      await tx.runLocationOrder.createMany({
+        data: locations.map((entry, index) => ({
+          runId,
+          locationId: entry.locationId ?? null,
+          position: index,
+        })),
+      });
+    }
+
+    return tx.runLocationOrder.findMany({
+      where: { runId },
+      include: {
+        location: true,
+      },
+      orderBy: {
+        position: 'asc',
+      },
+    });
+  });
+
+  const serializedOrders = updatedOrders.map((order) => ({
+    id: order.id,
+    locationId: order.locationId,
+    position: order.position,
+    location: order.location
+      ? {
+          id: order.location.id,
+          name: order.location.name,
+          address: order.location.address,
+        }
+      : null,
+  }));
+
+  return res.json({ locationOrders: serializedOrders });
 });
 
 // Assigns or unassigns a picker or runner to a run.
@@ -1038,6 +1166,13 @@ type LocationPayload = {
   address: string | null;
 };
 
+type LocationOrderPayload = {
+  id: string;
+  locationId: string | null;
+  position: number;
+  location: LocationPayload | null;
+};
+
 type MachineTypePayload = {
   id: string;
   name: string;
@@ -1119,6 +1254,7 @@ type RunDetailPayload = {
     number: number;
     machine: MachinePayload | null;
   }>;
+  locationOrders: LocationOrderPayload[];
 };
 
 function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
@@ -1244,6 +1380,15 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     machine: serializeMachine(box.machine),
   }));
 
+  const locationOrders = run.locationOrders
+    .map((order) => ({
+      id: order.id,
+      locationId: order.locationId,
+      position: order.position,
+      location: serializeLocation(order.location),
+    }))
+    .sort((a, b) => a.position - b.position);
+
   return {
     id: run.id,
     status: run.status,
@@ -1324,6 +1469,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       };
     }),
     chocolateBoxes,
+    locationOrders,
   };
 }
 

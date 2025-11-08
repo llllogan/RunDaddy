@@ -90,6 +90,14 @@ export const ensureRun = async (companyId: string, runId: string) => {
           },
         },
       },
+      locationOrders: {
+        include: {
+          location: true,
+        },
+        orderBy: {
+          position: 'asc',
+        },
+      },
     },
   });
   if (!run || run.companyId !== companyId) {
@@ -123,4 +131,3 @@ export const ensureMachine = async (companyId: string, machineId: string) => {
   }
   return machine;
 };
-

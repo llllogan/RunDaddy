@@ -10,6 +10,7 @@ import SwiftUI
 struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingPackingSession = false
+    @State private var showingLocationOrderSheet = false
 
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
@@ -84,7 +85,12 @@ struct RunDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Label("Directions", systemImage: "map")
+                Button {
+                    showingLocationOrderSheet = true
+                } label: {
+                    Label("Reorder", systemImage: "list.number")
+                }
+                .disabled(viewModel.locationSections.count < 2)
             }
             
             ToolbarItem(placement: .bottomBar) {
@@ -96,6 +102,14 @@ struct RunDetailView: View {
                     PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
                 }
             }
+        }
+        .sheet(isPresented: $showingLocationOrderSheet) {
+            ReorderLocationsSheet(
+                sections: viewModel.locationSections,
+                onSave: { sections in
+                    try await viewModel.saveLocationOrder(with: sections)
+                }
+            )
         }
     }
 }
@@ -172,6 +186,124 @@ private struct ErrorRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct ReorderLocationsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftSections: [RunLocationSection]
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    let onSave: ([RunLocationSection]) async throws -> Void
+
+    init(sections: [RunLocationSection], onSave: @escaping ([RunLocationSection]) async throws -> Void) {
+        _draftSections = State(initialValue: sections)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if draftSections.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "mappin")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No locations to reorder yet.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        Section(footer: footer) {
+                            ForEach(draftSections) { section in
+                                HStack(spacing: 12) {
+                                    Image(systemName: "line.3.horizontal")
+                                        .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(section.title)
+                                            .font(.body)
+                                            .fontWeight(.semibold)
+                                        if let subtitle = section.subtitle {
+                                            Text(subtitle)
+                                                .font(.footnote)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .onMove { indices, newOffset in
+                                draftSections.move(fromOffsets: indices, toOffset: newOffset)
+                            }
+                        }
+                    }
+                    .environment(\.editMode, .constant(.active))
+                    .disabled(isSaving)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                }
+            }
+            .navigationTitle("Reorder Locations")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await persistChanges()
+                        }
+                    }
+                    .disabled(isSaving || draftSections.count < 2)
+                }
+            }
+            .overlay {
+                if isSaving {
+                    ProgressView("Saving")
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        Text("Drag the handle to control which locations appear first in the run detail and voice prompts.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 4)
+    }
+
+    private func persistChanges() async {
+        guard draftSections.count >= 1 else {
+            dismiss()
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+
+        do {
+            try await onSave(draftSections)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isSaving = false
     }
 }
 

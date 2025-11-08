@@ -96,6 +96,7 @@ model Location {
 
   company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   machines Machine[]
+  locationOrders RunLocationOrder[]
 
   @@index([companyId])
 }
@@ -176,11 +177,27 @@ model Run {
   company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   pickEntries    PickEntry[]
   chocolateBoxes ChocolateBox[]
+  locationOrders RunLocationOrder[]
 
   @@index([pickerId])
   @@index([runnerId])
   @@index([companyId])
   @@index([companyId, scheduledFor])
+}
+
+model RunLocationOrder {
+  id         String   @id @default(cuid())
+  runId      String
+  locationId String?
+  position   Int
+
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([locationId])
+  @@index([runId, position])
+  @@unique([runId, locationId])
 }
 
 model PickEntry {
