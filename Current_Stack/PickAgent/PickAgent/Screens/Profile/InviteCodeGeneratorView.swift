@@ -33,20 +33,6 @@ struct InviteCodeGeneratorView: View {
                                 .cornerRadius(12)
                                 .shadow(radius: 4)
                             
-                            VStack(spacing: 8) {
-                                Text("Invite Code")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                
-                                Text(inviteCode.code)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(.primary)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 8)
-                                    .background(Color.gray.opacity(0.1))
-                                    .cornerRadius(8)
-                            }
-                            
                             VStack(spacing: 4) {
                                 Text("Role: \(inviteCode.roleDisplay)")
                                     .font(.subheadline)
@@ -57,22 +43,10 @@ struct InviteCodeGeneratorView: View {
                                     .foregroundColor(inviteCode.isExpired ? .red : .gray)
                             }
                         }
+                        .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.gray.opacity(0.05))
                         .cornerRadius(16)
-                        
-                        // Action Buttons
-                        VStack(spacing: 12) {
-                            Button("Generate New Code") {
-                                viewModel.generateInviteCode(companyId: companyId)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            
-                            Button("Done") {
-                                dismiss()
-                            }
-                            .buttonStyle(.bordered)
-                        }
                     } else {
                         // Generate Code Form
                         VStack(spacing: 20) {
@@ -141,7 +115,15 @@ struct InviteCodeGeneratorView: View {
             .navigationTitle("Invite User")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                if viewModel.generatedInviteCode != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Regenerate", systemImage: "repeat") {
+                            viewModel.generateInviteCode(companyId: companyId)
+                        }
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }

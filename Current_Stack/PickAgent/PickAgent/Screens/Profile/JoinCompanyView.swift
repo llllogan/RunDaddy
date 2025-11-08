@@ -52,11 +52,6 @@ struct JoinCompanyView: View {
                         .padding()
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
-                        
-                        Button("Continue") {
-                            dismiss()
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
                     .padding()
                 } else {
@@ -76,24 +71,6 @@ struct JoinCompanyView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                                 .multilineTextAlignment(.center)
-                        }
-                        
-                        // Manual Code Input
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Or enter invite code manually:")
-                                .font(.headline)
-                                .fontWeight(.medium)
-                            
-                            TextField("Enter invite code", text: $viewModel.manualCode)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .textCase(.uppercase)
-                                .autocapitalization(.allCharacters)
-                            
-                            Button("Join with Code") {
-                                viewModel.joinWithManualCode()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(viewModel.manualCode.isEmpty || viewModel.isJoining)
                         }
                         
                         // QR Scanner Button
@@ -132,8 +109,15 @@ struct JoinCompanyView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
-                        dismiss()
+                    if viewModel.joinedMembership == nil {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    } else {
+                        Button("Continue") {
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
             }
