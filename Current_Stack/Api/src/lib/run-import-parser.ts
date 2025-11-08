@@ -1,5 +1,8 @@
-import { Workbook, type Worksheet } from 'exceljs';
+import pkg from 'exceljs';
 import { Readable } from 'stream';
+
+const { Workbook } = pkg;
+type Worksheet = pkg.Worksheet;
 import type {
   ParsedCoilItem,
   ParsedCoilItemRow,
