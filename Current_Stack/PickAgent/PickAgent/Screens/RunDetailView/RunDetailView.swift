@@ -12,6 +12,7 @@ struct RunDetailView: View {
     @State private var showingPackingSession = false
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
+    @Environment(\.openURL) private var openURL
 
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
@@ -109,6 +110,33 @@ struct RunDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    if locationMenuOptions.isEmpty {
+                        Text("No locations available")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(locationMenuOptions) { option in
+                            Button {
+                                openLocationInMaps(option)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.title)
+                                    if let subtitle = option.address {
+                                        Text(subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Locations", systemImage: "map")
+                }
+                .disabled(locationMenuOptions.isEmpty)
+            }
+
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     showingLocationOrderSheet = true
                 } label: {
@@ -133,6 +161,43 @@ struct RunDetailView: View {
                 sections: viewModel.locationSections
             )
         }
+    }
+}
+
+private extension RunDetailView {
+    var locationMenuOptions: [LocationMenuOption] {
+        viewModel.locationSections.compactMap { section in
+            guard let location = section.location else { return nil }
+            let trimmedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let address = trimmedAddress.isEmpty ? nil : trimmedAddress
+            let querySource = address ?? section.title
+            return LocationMenuOption(
+                id: section.id,
+                title: section.title,
+                address: address,
+                query: querySource
+            )
+        }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    func openLocationInMaps(_ option: LocationMenuOption) {
+        guard let url = option.appleMapsURL else { return }
+        openURL(url)
+    }
+}
+
+private struct LocationMenuOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let address: String?
+    let query: String
+
+    var appleMapsURL: URL? {
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "https://maps.apple.com/?q=\(encodedQuery)")
     }
 }
 
