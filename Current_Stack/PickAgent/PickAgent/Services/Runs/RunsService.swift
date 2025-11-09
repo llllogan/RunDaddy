@@ -769,11 +769,10 @@ final class RunsService: RunsServicing {
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let locationsPayload: [[String: Any]] = orderedLocationIds.map { identifier in
-            if let identifier {
-                return ["locationId": identifier]
-            }
-            return ["locationId": NSNull()]
+        let locationsPayload: [[String: Any]] = orderedLocationIds.enumerated().map { index, identifier in
+            var entry: [String: Any] = ["order": index]
+            entry["locationId"] = identifier ?? NSNull()
+            return entry
         }
 
         let body: [String: Any] = [

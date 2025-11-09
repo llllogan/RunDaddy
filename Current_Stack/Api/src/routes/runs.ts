@@ -46,6 +46,7 @@ const updateLocationOrderSchema = z.object({
     .array(
       z.object({
         locationId: z.string().trim().min(1).optional().nullable(),
+        order: z.number().int().nonnegative().optional(),
       }),
     )
     .min(1, 'At least one location is required to save an order.'),
@@ -556,14 +557,26 @@ router.put('/:runId/location-order', setLogConfig({ level: 'full' }), async (req
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const normalizedLocations = parsed.data.locations.reduce<Array<string | null>>((acc, entry) => {
-    const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;
-    if (acc.find((candidate) => (candidate ?? UNASSIGNED_LOCATION_KEY) === key)) {
+  const normalizedLocations = parsed.data.locations
+    .map((entry, index) => ({
+      locationId: entry.locationId ?? null,
+      order: typeof entry.order === 'number' ? entry.order : index,
+      originalIndex: index,
+    }))
+    .sort((a, b) => {
+      if (a.order === b.order) {
+        return a.originalIndex - b.originalIndex;
+      }
+      return a.order - b.order;
+    })
+    .reduce<Array<string | null>>((acc, entry) => {
+      const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;
+      if (acc.find((candidate) => (candidate ?? UNASSIGNED_LOCATION_KEY) === key)) {
+        return acc;
+      }
+      acc.push(entry.locationId);
       return acc;
-    }
-    acc.push(entry.locationId ?? null);
-    return acc;
-  }, []);
+    }, []);
 
   const updatedOrders = await prisma.$transaction(async (tx) => {
     await tx.runLocationOrder.deleteMany({ where: { runId } });

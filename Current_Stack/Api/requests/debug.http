@@ -47,9 +47,9 @@ Content-Type: application/json
 
 {
   "locations": [
-    {"locationId": "cmhiqip7p05gpp601n70r1xn2"},
-    {"locationId": "cmhiqip7p05gpp601n70r1xn3"},
-    {"locationId": null}
+    {"locationId": "cmhiqip7p05gpp601n70r1xn2", "order": 0},
+    {"locationId": "cmhiqip7p05gpp601n70r1xn3", "order": 1},
+    {"locationId": null, "order": 2}
   ]
 }
 
