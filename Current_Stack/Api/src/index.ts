@@ -57,7 +57,7 @@ app.use((req, res, next) => {
       }
     }
 
-    const truncatedResponse = responseStr.length > 20 ? `${responseStr.substring(0, 20)}...` : responseStr;
+    const truncatedResponse = responseStr.length > 50 ? `${responseStr.substring(0, 50)}...` : responseStr;
     console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${truncatedResponse}`);
   });
 
