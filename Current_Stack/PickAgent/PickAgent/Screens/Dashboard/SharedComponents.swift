@@ -89,15 +89,6 @@ struct RunRow: View {
                 .font(.headline)
                 .fontWeight(.semibold)
             
-//            HStack(spacing: 0) {
-//                Text("Runner: ")
-//                    .font(.subheadline)
-//                    .foregroundStyle(.secondary)
-//                Text("\(run.runner?.displayName ?? "No runner yet")")
-//                    .font(.subheadline)
-//            }
-//            .padding(.bottom, 4)
-            
             FlowLayout(spacing: 6) {
                 PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
                 
@@ -187,6 +178,17 @@ struct PillChip: View {
         .padding(.vertical, 4)
         .background(colour != nil ? Color(colour!) : Color(.systemGray6))
         .clipShape(Capsule())
+    }
+}
+
+struct ViewMoreRow: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .fontWeight(.medium)
+        .padding(.vertical, 2)
     }
 }
 

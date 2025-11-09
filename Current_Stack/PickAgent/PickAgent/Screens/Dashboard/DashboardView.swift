@@ -42,14 +42,25 @@ struct DashboardView: View {
                         if viewModel.isLoading && viewModel.todayRuns.isEmpty {
                             LoadingStateRow()
                         } else {
-                            ForEach(viewModel.todayRuns) { run in
+                            ForEach(viewModel.todayRuns.prefix(3)) { run in
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
                                     RunRow(run: run)
                                 }
                             }
-                            Text("View 2 more")
+                            if viewModel.todayRuns.count > 3 {
+                                NavigationLink {
+                                    RunsListView(
+                                        session: session,
+                                        title: "Runs for Today",
+                                        runs: viewModel.todayRuns
+                                    )
+                                } label: {
+                                    ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -61,14 +72,25 @@ struct DashboardView: View {
                         if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
                             LoadingStateRow()
                         } else {
-                            ForEach(viewModel.tomorrowRuns) { run in
+                            ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
                                     RunRow(run: run)
                                 }
                             }
-                            Text("View 5 more")
+                            if viewModel.tomorrowRuns.count > 3 {
+                                NavigationLink {
+                                    RunsListView(
+                                        session: session,
+                                        title: "Runs for Tomorrow",
+                                        runs: viewModel.tomorrowRuns
+                                    )
+                                } label: {
+                                    ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -124,7 +146,7 @@ struct DashboardView: View {
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
         }
-        .onChange(of: session) { newSession in
+        .onChange(of: session, initial: false) { _, newSession in
             viewModel.updateSession(newSession)
             Task {
                 await viewModel.loadRuns(force: true)

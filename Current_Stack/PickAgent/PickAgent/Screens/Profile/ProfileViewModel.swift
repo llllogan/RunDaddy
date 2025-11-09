@@ -22,7 +22,7 @@ class ProfileViewModel: ObservableObject {
     private let inviteCodesService: InviteCodesServicing
     private var cancellables = Set<AnyCancellable>()
     
-    init(authService: AuthServicing, inviteCodesService: InviteCodesServicing = InviteCodesService()) {
+    init(authService: AuthServicing, inviteCodesService: InviteCodesServicing) {
         self.authService = authService
         self.inviteCodesService = inviteCodesService
     }
