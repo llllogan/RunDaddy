@@ -353,13 +353,9 @@ final class RunDetailViewModel: ObservableObject {
                 }
                 return section.id
             }
-            let updatedOrders = try await service.updateLocationOrder(for: runId, orderedLocationIds: orderedLocationIds, credentials: session.credentials)
-            locationOrders = updatedOrders.sorted { $0.position < $1.position }
-            if var currentDetail = detail {
-                currentDetail.locationOrders = updatedOrders
-                detail = currentDetail
-                rebuildLocationData(from: currentDetail)
-            }
+            _ = try await service.updateLocationOrder(for: runId, orderedLocationIds: orderedLocationIds, credentials: session.credentials)
+            // After successfully saving to DB, reload entire run detail from server to ensure consistency
+            await load(force: true)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
