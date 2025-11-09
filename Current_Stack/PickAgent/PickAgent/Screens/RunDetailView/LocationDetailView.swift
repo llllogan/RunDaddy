@@ -519,44 +519,16 @@ struct PickEntryRow: View {
                     }
                 }
                 
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                FlowLayout(spacing: 6) {
                     if showsLocation, let locationLabel {
-                        if let machineCode = pickItem.machine?.description {
-                            Text("\(locationLabel) - \(machineCode)")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .foregroundStyle(.secondary)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
-                        } else {
-                            Text("Location: \(locationLabel)")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .foregroundStyle(.secondary)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
-                        }
-                    } else {
-                        if let machineCode = pickItem.machine?.description {
-                            Text("Machine: \(machineCode)")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .foregroundStyle(.secondary)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
-                        }
+                        detailChip("\(locationLabel)")
                     }
                     
-                    Text("Coil: \(pickItem.coilItem.coil.code)")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .foregroundStyle(.secondary)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
+                    if let machineCode = pickItem.machine?.description {
+                        detailChip("Machine: \(machineCode)")
+                    }
+                    
+                    detailChip("Coil: \(pickItem.coilItem.coil.code)")
                 }
             }
             .padding(.vertical, 6)
@@ -567,6 +539,19 @@ struct PickEntryRow: View {
                 .font(.title)
                 .fontDesign(.rounded)
         }
+    }
+}
+
+private extension PickEntryRow {
+    @ViewBuilder
+    func detailChip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .foregroundStyle(.secondary)
+            .background(Color(.systemGray5))
+            .clipShape(Capsule())
     }
 }
 
