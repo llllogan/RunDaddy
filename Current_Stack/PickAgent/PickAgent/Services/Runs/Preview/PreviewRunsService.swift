@@ -91,7 +91,7 @@ struct PreviewRunsService: RunsServicing {
         ]
     }
     
-    func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+    func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
     

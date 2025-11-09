@@ -317,6 +317,36 @@ final class RunDetailViewModel: ObservableObject {
         isLoading = false
     }
     
+    func resetPickStatuses(for pickItems: [RunDetail.PickItem]) async -> Bool {
+        let pickedItems = pickItems.filter { $0.isPicked }
+        guard !pickedItems.isEmpty else {
+            return true
+        }
+
+        let targetRunId = detail?.id ?? runId
+        errorMessage = nil
+
+        do {
+            try await service.updatePickItemStatuses(
+                runId: targetRunId,
+                pickIds: pickedItems.map { $0.id },
+                status: "PENDING",
+                credentials: session.credentials
+            )
+            await load(force: true)
+            return true
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "We couldn't reset the pick statuses. Please try again."
+            }
+            return false
+        }
+    }
+    
   func updateRunStatus(to status: String) async {
         guard let runId = detail?.id else { return }
         isLoading = true

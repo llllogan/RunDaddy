@@ -12,6 +12,7 @@ struct RunDetailView: View {
     @State private var showingPackingSession = false
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
+    @State private var isResettingRunPickStatuses = false
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
@@ -110,7 +111,23 @@ struct RunDetailView: View {
             await viewModel.load(force: true)
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if isResettingRunPickStatuses {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                } else {
+                    Button {
+                        Task {
+                            await resetRunPickStatuses()
+                        }
+                    } label: {
+                        Label("Reset Packed Status", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!canResetRunPickStatuses)
+                    .accessibilityLabel("Reset packed status for all picks")
+                }
+
                 Menu {
                     if locationMenuOptions.isEmpty {
                         Text("No locations available")
@@ -135,9 +152,7 @@ struct RunDetailView: View {
                     Label("Locations", systemImage: "map")
                 }
                 .disabled(locationMenuOptions.isEmpty)
-            }
 
-            ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     showingLocationOrderSheet = true
                 } label: {
@@ -170,6 +185,13 @@ private extension RunDetailView {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
 
+    var canResetRunPickStatuses: Bool {
+        guard let pickItems = viewModel.detail?.pickItems else {
+            return false
+        }
+        return pickItems.contains(where: { $0.isPicked })
+    }
+
     var locationMenuOptions: [LocationMenuOption] {
         viewModel.locationSections.compactMap { section in
             guard let location = section.location else { return nil }
@@ -196,6 +218,16 @@ private extension RunDetailView {
             }
             openURL(fallbackURL)
         }
+    }
+
+    @MainActor
+    func resetRunPickStatuses() async {
+        guard !isResettingRunPickStatuses else { return }
+        isResettingRunPickStatuses = true
+        defer { isResettingRunPickStatuses = false }
+
+        let pickItems = viewModel.detail?.pickItems ?? []
+        _ = await viewModel.resetPickStatuses(for: pickItems)
     }
 }
 
@@ -539,8 +571,6 @@ struct PendingPickEntriesView: View {
                         .disabled(updatingPickIds.contains(pickItem.id))
                     }
                 }
-            } header: {
-                Text("Waiting to Pack")
             }
         }
         .listStyle(.insetGrouped)
@@ -548,13 +578,13 @@ struct PendingPickEntriesView: View {
         .refreshable {
             await viewModel.load(force: true)
         }
-        .onChange(of: visibleMachines) { _ in
+        .onChange(of: visibleMachines) { _, _ in
             guard let selection = selectedMachineFilter else { return }
             if visibleMachines.first(where: { $0.id == selection }) == nil {
                 selectedMachineFilter = nil
             }
         }
-        .onChange(of: locations) { _ in
+        .onChange(of: locations) { _, _ in
             guard let selection = selectedLocationFilter else { return }
             if locations.first(where: { $0.id == selection }) == nil {
                 selectedLocationFilter = nil
@@ -635,9 +665,9 @@ struct PendingPickEntriesView: View {
         let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
 
         do {
-            try await service.updatePickItemStatus(
+            try await service.updatePickItemStatuses(
                 runId: runId,
-                pickId: pickItem.id,
+                pickIds: [pickItem.id],
                 status: newStatus,
                 credentials: session.credentials
             )

@@ -13,7 +13,7 @@ protocol RunsServicing {
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
-    func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws
+    func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
     func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox]
@@ -419,12 +419,15 @@ final class RunsService: RunsServicing {
         return payload.map { $0.toCompanyUser() }
     }
     
-    func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws {
+    func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws {
+        let normalizedPickIds = Array(Set(pickIds.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
+        guard !normalizedPickIds.isEmpty else { return }
+
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("runs")
         url.appendPathComponent(runId)
         url.appendPathComponent("picks")
-        url.appendPathComponent(pickId)
+        url.appendPathComponent("status")
 
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
@@ -432,7 +435,10 @@ final class RunsService: RunsServicing {
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = ["status": status]
+        let body: [String: Any] = [
+            "pickIds": normalizedPickIds,
+            "status": status
+        ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await urlSession.data(for: request)
@@ -446,7 +452,7 @@ final class RunsService: RunsServicing {
                 throw AuthError.unauthorized
             }
             if httpResponse.statusCode == 404 {
-                throw RunsServiceError.runNotFound
+                throw RunsServiceError.pickItemNotFound
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }

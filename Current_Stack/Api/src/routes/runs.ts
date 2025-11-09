@@ -743,75 +743,8 @@ router.patch('/:runId/status', async (req, res) => {
   });
 });
 
-// Updates a pick item status (PICKED/PENDING)
-router.patch('/:runId/picks/:pickId', async (req, res) => {
-  if (!req.auth) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (!req.auth.companyId) {
-    return res.status(403).json({ error: 'Company membership required to update picks' });
-  }
-
-  const { runId, pickId } = req.params;
-  if (!runId || !pickId) {
-    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
-  }
-
-  const { status } = req.body;
-  if (!status || !['PICKED', 'PENDING', 'SKIPPED'].includes(status)) {
-    return res.status(400).json({ error: 'Status must be PICKED, PENDING, or SKIPPED' });
-  }
-
-  const run = await ensureRun(req.auth.companyId, runId);
-  if (!run) {
-    return res.status(404).json({ error: 'Run not found' });
-  }
-
-  // Find the pick entry
-  const pickEntry = await prisma.pickEntry.findFirst({
-    where: {
-      id: pickId,
-      runId: runId
-    }
-  });
-
-  if (!pickEntry) {
-    return res.status(404).json({ error: 'Pick entry not found' });
-  }
-
-  const updateData: Prisma.PickEntryUpdateInput = { status };
-  if (status === 'PICKED' && !pickEntry.pickedAt) {
-    updateData.pickedAt = new Date();
-  } else if (status === 'PENDING' || status === 'SKIPPED') {
-    updateData.pickedAt = null;
-  }
-
-  const updatedPickEntry = await prisma.pickEntry.update({
-    where: { id: pickEntry.id },
-    data: updateData
-  });
-
-  // If this is the first pick entry being packed, update pickingStartedAt and run status
-  if (status === 'PICKED' && !run.pickingStartedAt) {
-    await prisma.run.update({
-      where: { id: run.id },
-      data: { 
-        pickingStartedAt: new Date(),
-        ...(run.status === 'CREATED' && { status: 'PICKING' })
-      }
-    });
-  }
-
-  return res.json({
-    id: updatedPickEntry.id,
-    status: updatedPickEntry.status,
-    pickedAt: updatedPickEntry.pickedAt
-  });
-});
-
-// Bulk update pick entries status for packing session
-router.patch('/:runId/picks/bulk', async (req, res) => {
+// Bulk update pick entries status (PICKED/PENDING/SKIPPED)
+router.patch('/:runId/picks/status', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -826,7 +759,15 @@ router.patch('/:runId/picks/bulk', async (req, res) => {
   }
 
   const { pickIds, status } = req.body;
-  if (!Array.isArray(pickIds) || pickIds.length === 0) {
+
+  if (!Array.isArray(pickIds)) {
+    return res.status(400).json({ error: 'Pick IDs array is required' });
+  }
+
+  const normalizedPickIds = Array.from(new Set(pickIds))
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+  if (normalizedPickIds.length === 0) {
     return res.status(400).json({ error: 'Pick IDs array is required' });
   }
 
@@ -839,23 +780,23 @@ router.patch('/:runId/picks/bulk', async (req, res) => {
     return res.status(404).json({ error: 'Run not found' });
   }
 
-  // Update all specified pick entries
-  const updateData: Prisma.PickEntryUpdateInput = { status };
-  if (status === 'PICKED') {
-    updateData.pickedAt = new Date();
-  } else {
-    updateData.pickedAt = null;
-  }
+  const updateData: Prisma.PickEntryUpdateManyMutationInput = {
+    status,
+    pickedAt: status === 'PICKED' ? new Date() : null
+  };
 
   const updatedPickEntries = await prisma.pickEntry.updateMany({
     where: {
-      id: { in: pickIds },
+      id: { in: normalizedPickIds },
       runId: runId
     },
     data: updateData
   });
 
-  // If this is the first pick entry being packed, update pickingStartedAt and run status
+  if (updatedPickEntries.count === 0) {
+    return res.status(404).json({ error: 'No pick entries were updated' });
+  }
+
   if (status === 'PICKED' && !run.pickingStartedAt) {
     await prisma.run.update({
       where: { id: run.id },

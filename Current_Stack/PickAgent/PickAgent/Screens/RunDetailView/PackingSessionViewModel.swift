@@ -248,41 +248,35 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     private func markAsPacked(pickEntryIds: [String]) async {
-        guard !pickEntryIds.isEmpty else { return }
+        let ids = pickEntryIds.filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return }
         
-        for pickEntryId in pickEntryIds {
-            guard !pickEntryId.isEmpty else { continue }
-            
-            do {
-                try await service.updatePickItemStatus(
-                    runId: runId,
-                    pickId: pickEntryId,
-                    status: "PICKED",
-                    credentials: session.credentials
-                )
-                completedItems.insert(pickEntryId)
-            } catch {
-                print("Failed to mark item as packed: \(error)")
-            }
+        do {
+            try await service.updatePickItemStatuses(
+                runId: runId,
+                pickIds: ids,
+                status: "PICKED",
+                credentials: session.credentials
+            )
+            ids.forEach { completedItems.insert($0) }
+        } catch {
+            print("Failed to mark items as packed: \(error)")
         }
     }
     
     private func markAsSkipped(pickEntryIds: [String]) async {
-        guard !pickEntryIds.isEmpty else { return }
+        let ids = pickEntryIds.filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return }
         
-        for pickEntryId in pickEntryIds {
-            guard !pickEntryId.isEmpty else { continue }
-            
-            do {
-                try await service.updatePickItemStatus(
-                    runId: runId,
-                    pickId: pickEntryId,
-                    status: "SKIPPED",
-                    credentials: session.credentials
-                )
-            } catch {
-                print("Failed to mark item as skipped: \(error)")
-            }
+        do {
+            try await service.updatePickItemStatuses(
+                runId: runId,
+                pickIds: ids,
+                status: "SKIPPED",
+                credentials: session.credentials
+            )
+        } catch {
+            print("Failed to mark items as skipped: \(error)")
         }
     }
     

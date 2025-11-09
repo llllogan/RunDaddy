@@ -34,7 +34,10 @@ struct LocationDetailView: View {
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
     @State private var showingChocolateBoxesSheet = false
-
+    @State private var isResettingLocationPickStatuses = false
+    @Environment(\.openURL) private var openURL
+    @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
+    
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
 
@@ -260,6 +263,33 @@ struct LocationDetailView: View {
                 }
             )
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if isResettingLocationPickStatuses {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                } else {
+                    Button {
+                        Task {
+                            await resetLocationPickStatuses()
+                        }
+                    } label: {
+                        Label("Reset Packed Status", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!canResetLocationPickStatuses)
+                    .accessibilityLabel("Reset packed status for this location")
+                }
+
+                Button {
+                    openDirections()
+                } label: {
+                    Image(systemName: "map")
+                }
+                .disabled(locationDirectionsQuery == nil)
+                .accessibilityLabel("Get directions")
+            }
+        }
     }
     
     private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
@@ -268,9 +298,9 @@ struct LocationDetailView: View {
         let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
         
         do {
-            try await service.updatePickItemStatus(
+            try await service.updatePickItemStatuses(
                 runId: runId,
-                pickId: pickItem.id,
+                pickIds: [pickItem.id],
                 status: newStatus,
                 credentials: session.credentials
             )
@@ -355,6 +385,57 @@ struct LocationDetailView: View {
         _ = await MainActor.run {
             updatingSkuIds.remove(skuId)
         }
+    }
+    
+    private var preferredDirectionsApp: DirectionsApp {
+        DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
+    }
+    
+    private var locationDirectionsQuery: String? {
+        let trimmedAddress = detail.section.location?.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedAddress.isEmpty {
+            return trimmedAddress
+        }
+        
+        let trimmedTitle = detail.section.location?.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? detail.section.title
+        let title = trimmedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty || detail.section.location == nil ? nil : title
+    }
+    
+    private func openDirections() {
+        guard let query = locationDirectionsQuery,
+              let targetURL = preferredDirectionsApp.url(for: query) else {
+            return
+        }
+        
+        openURL(targetURL) { accepted in
+            guard !accepted,
+                  preferredDirectionsApp == .waze,
+                  let fallbackURL = DirectionsApp.appleMaps.url(for: query) else {
+                return
+            }
+            openURL(fallbackURL)
+        }
+    }
+    
+    private var locationPickItemsSnapshot: [RunDetail.PickItem] {
+        if let latestDetail = viewModel.locationDetail(for: detail.section.id) {
+            return latestDetail.pickItems
+        }
+        return detail.pickItems
+    }
+    
+    private var canResetLocationPickStatuses: Bool {
+        locationPickItemsSnapshot.contains { $0.isPicked }
+    }
+    
+    @MainActor
+    private func resetLocationPickStatuses() async {
+        guard !isResettingLocationPickStatuses else { return }
+        isResettingLocationPickStatuses = true
+        defer { isResettingLocationPickStatuses = false }
+        
+        _ = await viewModel.resetPickStatuses(for: locationPickItemsSnapshot)
     }
 }
 
