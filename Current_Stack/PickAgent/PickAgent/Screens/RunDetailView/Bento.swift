@@ -84,7 +84,7 @@ struct BentoItem: Identifiable {
     let symbolTint: Color
     let isProminent: Bool
     let allowsMultilineValue: Bool
-    let destination: (() -> AnyView)?
+    let onTap: (() -> Void)?
     let showsChevron: Bool
     let customContent: AnyView?
 
@@ -95,7 +95,7 @@ struct BentoItem: Identifiable {
          symbolTint: Color,
          isProminent: Bool = false,
          allowsMultilineValue: Bool = false,
-         destination: (() -> AnyView)? = nil,
+         onTap: (() -> Void)? = nil,
          showsChevron: Bool = false,
          customContent: AnyView? = nil) {
         self.title = title
@@ -105,7 +105,7 @@ struct BentoItem: Identifiable {
         self.symbolTint = symbolTint
         self.isProminent = isProminent
         self.allowsMultilineValue = allowsMultilineValue
-        self.destination = destination
+        self.onTap = onTap
         self.showsChevron = showsChevron
         self.customContent = customContent
     }
@@ -134,9 +134,9 @@ struct StaggeredBentoGrid: View {
             ForEach(columns.indices, id: \.self) { index in
                 VStack(spacing: 12) {
                     ForEach(columns[index]) { item in
-                        if let destination = item.destination {
-                            NavigationLink {
-                                destination()
+                        if let onTap = item.onTap {
+                            Button {
+                                onTap()
                             } label: {
                                 BentoCard(item: item)
                             }
@@ -169,6 +169,7 @@ struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
     let assignAction: (String) -> Void
+    let pendingItemsTap: () -> Void
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -313,16 +314,7 @@ struct RunOverviewBento: View {
                       symbolName: "cart",
                       symbolTint: .pink,
                       isProminent: true,
-                      destination: {
-                          AnyView(
-                              PendingPickEntriesView(
-                                  viewModel: viewModel,
-                                  runId: viewModel.detail?.id ?? viewModel.runId,
-                                  session: viewModel.session,
-                                  service: viewModel.service
-                              )
-                          )
-                      },
+                      onTap: pendingItemsTap,
                       showsChevron: true)
         )
 

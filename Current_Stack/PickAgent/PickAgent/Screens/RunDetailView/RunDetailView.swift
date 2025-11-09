@@ -11,6 +11,7 @@ struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingPackingSession = false
     @State private var showingLocationOrderSheet = false
+    @State private var showingPendingEntries = false
 
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
@@ -25,11 +26,18 @@ struct RunDetailView: View {
             } else {
                 if let overview = viewModel.overview {
                     Section {
-                        RunOverviewBento(summary: overview, viewModel: viewModel, assignAction: { role in
-                            Task {
-                                await viewModel.assignUser(to: role)
+                        RunOverviewBento(
+                            summary: overview,
+                            viewModel: viewModel,
+                            assignAction: { role in
+                                Task {
+                                    await viewModel.assignUser(to: role)
+                                }
+                            },
+                            pendingItemsTap: {
+                                showingPendingEntries = true
                             }
-                        })
+                        )
                             .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -76,6 +84,22 @@ struct RunDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .background(
+            NavigationLink(
+                destination: PendingPickEntriesView(
+                    viewModel: viewModel,
+                    runId: viewModel.detail?.id ?? viewModel.runId,
+                    session: viewModel.session,
+                    service: viewModel.service
+                ),
+                isActive: $showingPendingEntries,
+                label: {
+                    EmptyView()
+                }
+            )
+            .frame(width: 0, height: 0)
+            .hidden()
+        )
         .navigationTitle("Run Details")
         .task {
             await viewModel.load()
