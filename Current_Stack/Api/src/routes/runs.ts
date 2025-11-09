@@ -44,11 +44,10 @@ const updateLocationOrderSchema = z.object({
   locations: z
     .array(
       z.object({
-        locationId: z.union([z.string().cuid(), z.null()]),
+        locationId: z.string().trim().min(1).optional().nullable(),
       }),
     )
-    .optional()
-    .default([]),
+    .min(1, 'At least one location is required to save an order.'),
 });
 
 router.use(authenticate);
@@ -556,55 +555,32 @@ router.put('/:runId/location-order', async (req, res) => {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
   }
 
-  const locations = parsed.data.locations;
-  if (!locations.length) {
-    return res.status(400).json({ error: 'At least one location must be provided when saving the order.' });
-  }
-
-  const seen = new Set<string>();
-  for (const entry of locations) {
+  const normalizedLocations = parsed.data.locations.reduce<Array<string | null>>((acc, entry) => {
     const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;
-    if (seen.has(key)) {
-      return res.status(400).json({ error: 'Duplicate locations are not allowed in the ordering.' });
+    if (acc.find((candidate) => (candidate ?? UNASSIGNED_LOCATION_KEY) === key)) {
+      return acc;
     }
-    seen.add(key);
-  }
-
-  const concreteLocationIds = locations
-    .map((entry) => entry.locationId)
-    .filter((value): value is string => Boolean(value));
-
-  if (concreteLocationIds.length > 0) {
-    const count = await prisma.location.count({
-      where: {
-        id: { in: concreteLocationIds },
-        companyId: req.auth.companyId,
-      },
-    });
-
-    if (count !== concreteLocationIds.length) {
-      return res.status(404).json({ error: 'One or more locations could not be found for this company.' });
-    }
-  }
+    acc.push(entry.locationId ?? null);
+    return acc;
+  }, []);
 
   const updatedOrders = await prisma.$transaction(async (tx) => {
     await tx.runLocationOrder.deleteMany({ where: { runId } });
-    await tx.runLocationOrder.createMany({
-      data: locations.map((entry, index) => ({
-        runId,
-        locationId: entry.locationId ?? null,
-        position: index,
-      })),
-    });
+
+    if (normalizedLocations.length) {
+      await tx.runLocationOrder.createMany({
+        data: normalizedLocations.map((locationId, index) => ({
+          runId,
+          locationId,
+          position: index,
+        })),
+      });
+    }
 
     return tx.runLocationOrder.findMany({
       where: { runId },
-      include: {
-        location: true,
-      },
-      orderBy: {
-        position: 'asc',
-      },
+      include: { location: true },
+      orderBy: { position: 'asc' },
     });
   });
 
