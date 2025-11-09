@@ -82,6 +82,12 @@ struct FlowLayout: Layout {
 
 struct RunRow: View {
     let run: RunSummary
+    let currentUserId: String?
+
+    init(run: RunSummary, currentUserId: String? = nil) {
+        self.run = run
+        self.currentUserId = currentUserId
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -91,6 +97,17 @@ struct RunRow: View {
             
             FlowLayout(spacing: 6) {
                 PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
+
+                if isAssignedToCurrentUser {
+                    PillChip(
+                        title: nil,
+                        date: nil,
+                        text: "Assigned to you",
+                        colour: Color.blue.opacity(0.15),
+                        foregroundColour: .blue,
+                        icon: nil
+                    )
+                }
                 
                 if !run.chocolateBoxes.isEmpty {
                     PillChip(
@@ -112,6 +129,14 @@ struct RunRow: View {
             }
         }
         .padding(.vertical, 0)
+    }
+
+    private var isAssignedToCurrentUser: Bool {
+        guard let currentUserId else {
+            return false
+        }
+
+        return run.runner?.id == currentUserId || run.picker?.id == currentUserId
     }
 
     private var statusBackgroundColor: Color {

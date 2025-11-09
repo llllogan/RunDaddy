@@ -33,7 +33,7 @@ struct RunsListView: View {
                         NavigationLink {
                             RunDetailView(runId: run.id, session: session)
                         } label: {
-                            RunRow(run: run)
+                            RunRow(run: run, currentUserId: session.credentials.userID)
                         }
                     }
                 }

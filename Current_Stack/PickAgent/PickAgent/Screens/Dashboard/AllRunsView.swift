@@ -40,7 +40,7 @@ struct AllRunsView: View {
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
-                                    RunRow(run: run)
+                                    RunRow(run: run, currentUserId: session.credentials.userID)
                                 }
                                 .disabled(deletingRunIds.contains(run.id))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {

@@ -46,7 +46,7 @@ struct DashboardView: View {
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
-                                    RunRow(run: run)
+                                    RunRow(run: run, currentUserId: session.credentials.userID)
                                 }
                             }
                             if viewModel.todayRuns.count > 3 {
@@ -76,7 +76,7 @@ struct DashboardView: View {
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
-                                    RunRow(run: run)
+                                    RunRow(run: run, currentUserId: session.credentials.userID)
                                 }
                             }
                             if viewModel.tomorrowRuns.count > 3 {
