@@ -335,24 +335,17 @@ final class RunDetailViewModel: ObservableObject {
         isLoading = false
     }
 
-    func saveLocationOrder(with sections: [RunLocationSection]) async throws {
+    func saveLocationOrder(with orderedLocationIds: [String?]) async throws {
         guard let runId = detail?.id else {
             throw RunsServiceError.runNotFound
         }
 
-        let payloadSections = sections.isEmpty ? locationSections : sections
-        guard !payloadSections.isEmpty else {
+        guard !orderedLocationIds.isEmpty else {
             errorMessage = "There aren't any locations to reorder yet."
             throw RunsServiceError.invalidLocationOrder
         }
 
         do {
-            let orderedLocationIds = payloadSections.map { section -> String? in
-                if section.id == RunLocationSection.unassignedIdentifier {
-                    return nil
-                }
-                return section.id
-            }
             _ = try await service.updateLocationOrder(for: runId, orderedLocationIds: orderedLocationIds, credentials: session.credentials)
             // After successfully saving to DB, reload entire run detail from server to ensure consistency
             await load(force: true)

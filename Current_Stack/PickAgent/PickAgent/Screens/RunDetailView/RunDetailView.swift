@@ -105,10 +105,8 @@ struct RunDetailView: View {
         }
         .sheet(isPresented: $showingLocationOrderSheet) {
             ReorderLocationsSheet(
-                sections: viewModel.locationSections,
-                onSave: { sections in
-                    try await viewModel.saveLocationOrder(with: sections)
-                }
+                viewModel: viewModel,
+                sections: viewModel.locationSections
             )
         }
     }
@@ -190,15 +188,15 @@ private struct ErrorRow: View {
 }
 
 private struct ReorderLocationsSheet: View {
+    @ObservedObject var viewModel: RunDetailViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var draftSections: [RunLocationSection]
     @State private var isSaving = false
     @State private var errorMessage: String?
-    let onSave: ([RunLocationSection]) async throws -> Void
 
-    init(sections: [RunLocationSection], onSave: @escaping ([RunLocationSection]) async throws -> Void) {
+    init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
+        self.viewModel = viewModel
         _draftSections = State(initialValue: sections)
-        self.onSave = onSave
     }
 
     var body: some View {
@@ -296,14 +294,28 @@ private struct ReorderLocationsSheet: View {
         isSaving = true
         errorMessage = nil
 
+        let sectionsSnapshot = draftSections
+        let orderedLocationIds: [String?] = sectionsSnapshot.map { section in
+            locationIdentifier(for: section)
+        }
         do {
-            try await onSave(draftSections)
+            try await viewModel.saveLocationOrder(with: orderedLocationIds)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
 
         isSaving = false
+    }
+
+    private func locationIdentifier(for section: RunLocationSection) -> String? {
+        if let locationId = section.location?.id, !locationId.isEmpty {
+            return locationId
+        }
+        if section.id == RunLocationSection.unassignedIdentifier || section.id.isEmpty {
+            return nil
+        }
+        return section.id
     }
 }
 
