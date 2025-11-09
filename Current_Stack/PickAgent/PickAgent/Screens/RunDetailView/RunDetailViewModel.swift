@@ -250,6 +250,29 @@ final class RunDetailViewModel: ObservableObject {
         return RunLocationDetail(section: context.section, machines: machines, pickItemsByMachine: byMachine)
     }
 
+    func pickItemCount(for sectionID: String) -> Int {
+        locationContextsByID[sectionID]?.pickItems.count ?? 0
+    }
+
+    func deletePickEntries(for sectionID: String) async -> Bool {
+        guard let runId = detail?.id else { return false }
+
+        do {
+            try await service.deletePickEntries(for: runId, locationID: sectionID, credentials: session.credentials)
+            await load(force: true)
+            return true
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                errorMessage = runError.localizedDescription
+            } else {
+                errorMessage = "Failed to delete pick entries for this location. Please try again."
+            }
+            return false
+        }
+    }
+
     func assignUser(to role: String) async {
         guard let runId = detail?.id else { return }
         isLoading = true

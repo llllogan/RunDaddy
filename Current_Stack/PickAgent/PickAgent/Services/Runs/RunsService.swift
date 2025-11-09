@@ -15,6 +15,7 @@ protocol RunsServicing {
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
+    func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
     func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox]
     func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
@@ -482,6 +483,39 @@ final class RunsService: RunsServicing {
             }
             if httpResponse.statusCode == 404 {
                 throw RunsServiceError.pickItemNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("locations")
+        url.appendPathComponent(locationID)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw AuthError.unauthorized
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }

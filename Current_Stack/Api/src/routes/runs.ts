@@ -40,6 +40,7 @@ interface AudioCommand {
 const router = Router();
 
 const UNASSIGNED_LOCATION_KEY = '__unassigned__';
+const CLIENT_UNASSIGNED_LOCATION_KEY = '_unassigned';
 
 const updateLocationOrderSchema = z.object({
   locations: z
@@ -849,6 +850,86 @@ router.delete('/:runId/picks/:pickId', async (req, res) => {
   });
 
   return res.status(204).send();
+});
+
+router.delete('/:runId/locations/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to delete picks by location' });
+  }
+
+  const { runId, locationId } = req.params;
+  const normalizedRunId = runId?.trim();
+  const normalizedLocationId = locationId?.trim();
+
+  if (!normalizedRunId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  if (!normalizedLocationId) {
+    return res.status(400).json({ error: 'Location ID is required' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, normalizedRunId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const isUnassigned =
+    normalizedLocationId === CLIENT_UNASSIGNED_LOCATION_KEY || normalizedLocationId === UNASSIGNED_LOCATION_KEY;
+
+  if (!isUnassigned) {
+    const location = await prisma.location.findUnique({
+      where: { id: normalizedLocationId },
+      select: { id: true, companyId: true },
+    });
+
+    if (!location || location.companyId !== req.auth.companyId) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+  }
+
+  const deleteWhere: Prisma.PickEntryWhereInput = isUnassigned
+    ? {
+        runId: normalizedRunId,
+        coilItem: {
+          coil: {
+            machine: {
+              locationId: null,
+            },
+          },
+        },
+      }
+    : {
+        runId: normalizedRunId,
+        coilItem: {
+          coil: {
+            machine: {
+              locationId: normalizedLocationId,
+            },
+          },
+        },
+      };
+
+  const { deletedCount } = await prisma.$transaction(async (tx) => {
+    const deleted = await tx.pickEntry.deleteMany({
+      where: deleteWhere,
+    });
+
+    await tx.runLocationOrder.deleteMany({
+      where: {
+        runId: normalizedRunId,
+        locationId: isUnassigned ? null : normalizedLocationId,
+      },
+    });
+
+    return { deletedCount: deleted.count };
+  });
+
+  return res.json({ deletedCount });
 });
 
 // Deletes a run and all related records.

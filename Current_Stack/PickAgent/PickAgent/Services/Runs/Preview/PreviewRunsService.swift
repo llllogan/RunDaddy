@@ -98,6 +98,10 @@ struct PreviewRunsService: RunsServicing {
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
+
+    func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
     
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws {
         // Preview does nothing

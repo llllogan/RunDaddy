@@ -14,6 +14,8 @@ struct RunDetailView: View {
     @State private var showingPendingEntries = false
     @State private var isResettingRunPickStatuses = false
     @State private var confirmingRunReset = false
+    @State private var locationPendingDeletion: RunLocationSection?
+    @State private var deletingLocationIDs: Set<String> = []
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
@@ -58,24 +60,7 @@ struct RunDetailView: View {
                             .padding(.vertical, 4)
                     } else {
                         ForEach(viewModel.locationSections) { section in
-                            if let locationDetail = viewModel.locationDetail(for: section.id) {
-                                NavigationLink {
-                                    LocationDetailView(
-                                        detail: locationDetail,
-                                        runId: viewModel.detail?.id ?? "",
-                                        session: viewModel.session,
-                                        service: viewModel.service,
-                                        viewModel: viewModel,
-                                        onPickStatusChanged: {
-                                            await viewModel.load(force: true)
-                                        }
-                                    )
-                                } label: {
-                                    LocationSummaryRow(section: section)
-                                }
-                            } else {
-                                LocationSummaryRow(section: section)
-                            }
+                            locationRow(for: section)
                         }
                     }
                 }
@@ -182,6 +167,21 @@ struct RunDetailView: View {
                 sections: viewModel.locationSections
             )
         }
+        .alert(item: $locationPendingDeletion) { section in
+            Alert(
+                title: Text("Delete picks at \(section.title)?"),
+                message: Text(locationDeletionMessage(for: section)),
+                primaryButton: .destructive(Text("Delete")) {
+                    locationPendingDeletion = nil
+                    Task {
+                        await deleteLocationPickEntries(for: section)
+                    }
+                },
+                secondaryButton: .cancel {
+                    locationPendingDeletion = nil
+                }
+            )
+        }
         .alert("Reset Packed Status?", isPresented: $confirmingRunReset) {
             Button("Reset", role: .destructive) {
                 Task {
@@ -244,6 +244,63 @@ private extension RunDetailView {
         let pickItems = viewModel.detail?.pickItems ?? []
         _ = await viewModel.resetPickStatuses(for: pickItems)
     }
+
+    private func locationDeletionMessage(for section: RunLocationSection) -> String {
+        let pickCount = viewModel.pickItemCount(for: section.id)
+        if pickCount == 0 {
+            return "There are no pick entries to delete for this location."
+        }
+
+        let entryLabel = pickCount == 1 ? "pick entry" : "pick entries"
+        return "This will permanently delete \(pickCount) \(entryLabel) for this location in this run. Machines, coils, and the location itself will remain."
+    }
+
+    @MainActor
+    private func deleteLocationPickEntries(for section: RunLocationSection) async {
+        guard !deletingLocationIDs.contains(section.id) else { return }
+        deletingLocationIDs.insert(section.id)
+        defer { deletingLocationIDs.remove(section.id) }
+
+        _ = await viewModel.deletePickEntries(for: section.id)
+    }
+
+    @ViewBuilder
+    private func locationRow(for section: RunLocationSection) -> some View {
+        let isDeleting = deletingLocationIDs.contains(section.id)
+        let pickCount = viewModel.pickItemCount(for: section.id)
+
+        Group {
+            if let locationDetail = viewModel.locationDetail(for: section.id) {
+                NavigationLink {
+                    LocationDetailView(
+                        detail: locationDetail,
+                        runId: viewModel.detail?.id ?? "",
+                        session: viewModel.session,
+                        service: viewModel.service,
+                        viewModel: viewModel,
+                        onPickStatusChanged: {
+                            await viewModel.load(force: true)
+                        }
+                    )
+                } label: {
+                    LocationSummaryRow(section: section, isProcessing: isDeleting)
+                }
+                .disabled(isDeleting)
+            } else {
+                LocationSummaryRow(section: section, isProcessing: isDeleting)
+            }
+        }
+        .opacity(isDeleting ? 0.45 : 1)
+        .contentShape(Rectangle())
+        .swipeActions(edge: .trailing, allowsFullSwipe: pickCount > 0) {
+            Button(role: .destructive) {
+                locationPendingDeletion = section
+            } label: {
+                Label("Delete Picks", systemImage: "trash")
+            }
+            .disabled(isDeleting || pickCount == 0)
+        }
+    }
 }
 
 private struct LocationMenuOption: Identifiable, Equatable {
@@ -255,6 +312,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
+    var isProcessing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -296,6 +354,14 @@ private struct LocationSummaryRow: View {
                 }
             }
             .accessibilityElement(children: .combine)
+
+            if isProcessing {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                }
+            }
         }
         .padding(.vertical, 6)
     }
@@ -334,6 +400,7 @@ private struct ReorderLocationsSheet: View {
     @State private var draftSections: [RunLocationSection]
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var sectionPendingDeletion: RunLocationSection?
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
@@ -357,18 +424,14 @@ private struct ReorderLocationsSheet: View {
                     List {
                         Section(footer: footer) {
                             ForEach(draftSections) { section in
-                                HStack(spacing: 12) {
-                                    Image(systemName: "line.3.horizontal")
-                                        .foregroundStyle(.secondary)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(section.title)
-                                            .font(.body)
-                                            .fontWeight(.semibold)
-                                        if let subtitle = section.subtitle {
-                                            Text(subtitle)
-                                                .font(.footnote)
-                                                .foregroundStyle(.secondary)
-                                        }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(section.title)
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    if let subtitle = section.subtitle {
+                                        Text(subtitle)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                                 .padding(.vertical, 4)
