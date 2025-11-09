@@ -40,5 +40,18 @@ Content-Type: application/json
   "role": "RUNNER"
 }
 
+### Update location order for a run
+PUT {{baseUrl}}/api/runs/{{RUN_ID}}/location-order
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
+
+{
+  "locations": [
+    {"locationId": "cmhiqip7p05gpp601n70r1xn2"},
+    {"locationId": "cmhiqip7p05gpp601n70r1xn3"},
+    {"locationId": null}
+  ]
+}
+
 ### Delete a run (debug only; not available in production)
 DELETE {{baseUrl}}/api/debug/runs/{{RUN_ID}}?companyId={{COMPANY_ID}}

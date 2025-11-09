@@ -44,7 +44,7 @@ const updateLocationOrderSchema = z.object({
   locations: z
     .array(
       z.object({
-        locationId: z.string().cuid().nullable().optional(),
+        locationId: z.union([z.string().cuid(), z.null()]),
       }),
     )
     .optional()

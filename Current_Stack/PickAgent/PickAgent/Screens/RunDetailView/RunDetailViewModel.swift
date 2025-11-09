@@ -340,18 +340,16 @@ final class RunDetailViewModel: ObservableObject {
             throw RunsServiceError.runNotFound
         }
 
-        guard !sections.isEmpty else {
+        let payloadSections = sections.isEmpty ? locationSections : sections
+        guard !payloadSections.isEmpty else {
             errorMessage = "There aren't any locations to reorder yet."
             throw RunsServiceError.invalidLocationOrder
         }
 
         do {
-            let orderedLocationIds = sections.map { section -> String? in
+            let orderedLocationIds = payloadSections.map { section -> String? in
                 if section.id == RunLocationSection.unassignedIdentifier {
                     return nil
-                }
-                if let identifier = section.location?.id {
-                    return identifier
                 }
                 return section.id
             }
@@ -360,9 +358,7 @@ final class RunDetailViewModel: ObservableObject {
             if var currentDetail = detail {
                 currentDetail.locationOrders = updatedOrders
                 detail = currentDetail
-            }
-            if let refreshedDetail = detail {
-                rebuildLocationData(from: refreshedDetail)
+                rebuildLocationData(from: currentDetail)
             }
         } catch {
             if let authError = error as? AuthError {
