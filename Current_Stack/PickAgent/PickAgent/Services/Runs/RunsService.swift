@@ -793,6 +793,9 @@ final class RunsService: RunsServicing {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 400 {
+                throw RunsServiceError.invalidLocationOrder
+            }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
 
@@ -1133,6 +1136,7 @@ enum RunsServiceError: LocalizedError {
     case insufficientPermissions
     case roleAlreadyAssigned
     case chocolateBoxNumberExists
+    case invalidLocationOrder
 
     var errorDescription: String? {
         switch self {
@@ -1148,6 +1152,8 @@ enum RunsServiceError: LocalizedError {
             return "This role is already assigned to another user."
         case .chocolateBoxNumberExists:
             return "This chocolate box number already exists for this run."
+        case .invalidLocationOrder:
+            return "We couldn't determine which locations to reorder. Please try again."
         }
     }
 }

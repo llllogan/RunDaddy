@@ -557,6 +557,9 @@ router.put('/:runId/location-order', async (req, res) => {
   }
 
   const locations = parsed.data.locations;
+  if (!locations.length) {
+    return res.status(400).json({ error: 'At least one location must be provided when saving the order.' });
+  }
   const seen = new Set<string>();
   for (const entry of locations) {
     const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;

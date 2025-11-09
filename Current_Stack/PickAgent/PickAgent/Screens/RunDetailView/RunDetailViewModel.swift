@@ -340,8 +340,21 @@ final class RunDetailViewModel: ObservableObject {
             throw RunsServiceError.runNotFound
         }
 
+        guard !sections.isEmpty else {
+            errorMessage = "There aren't any locations to reorder yet."
+            throw RunsServiceError.invalidLocationOrder
+        }
+
         do {
-            let orderedLocationIds = sections.map { section in section.location?.id }
+            let orderedLocationIds = sections.map { section -> String? in
+                if section.id == RunLocationSection.unassignedIdentifier {
+                    return nil
+                }
+                if let identifier = section.location?.id {
+                    return identifier
+                }
+                return section.id
+            }
             let updatedOrders = try await service.updateLocationOrder(for: runId, orderedLocationIds: orderedLocationIds, credentials: session.credentials)
             locationOrders = updatedOrders.sorted { $0.position < $1.position }
             if var currentDetail = detail {
