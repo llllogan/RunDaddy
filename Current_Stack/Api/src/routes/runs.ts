@@ -560,6 +560,7 @@ router.put('/:runId/location-order', async (req, res) => {
   if (!locations.length) {
     return res.status(400).json({ error: 'At least one location must be provided when saving the order.' });
   }
+
   const seen = new Set<string>();
   for (const entry of locations) {
     const key = entry.locationId ?? UNASSIGNED_LOCATION_KEY;
@@ -588,15 +589,13 @@ router.put('/:runId/location-order', async (req, res) => {
 
   const updatedOrders = await prisma.$transaction(async (tx) => {
     await tx.runLocationOrder.deleteMany({ where: { runId } });
-    if (locations.length > 0) {
-      await tx.runLocationOrder.createMany({
-        data: locations.map((entry, index) => ({
-          runId,
-          locationId: entry.locationId ?? null,
-          position: index,
-        })),
-      });
-    }
+    await tx.runLocationOrder.createMany({
+      data: locations.map((entry, index) => ({
+        runId,
+        locationId: entry.locationId ?? null,
+        position: index,
+      })),
+    });
 
     return tx.runLocationOrder.findMany({
       where: { runId },
