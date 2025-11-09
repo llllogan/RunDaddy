@@ -872,6 +872,44 @@ router.patch('/:runId/picks/bulk', async (req, res) => {
   });
 });
 
+// Delete a pick entry from a run
+router.delete('/:runId/picks/:pickId', async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to delete pick entries' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const pickEntry = await prisma.pickEntry.findFirst({
+    where: {
+      id: pickId,
+      runId: runId
+    }
+  });
+
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  await prisma.pickEntry.delete({
+    where: { id: pickEntry.id }
+  });
+
+  return res.status(204).send();
+});
+
 // Deletes a run and all related records.
 router.delete('/:runId', async (req, res) => {
   if (!req.auth) {

@@ -14,6 +14,7 @@ protocol RunsServicing {
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatus(runId: String, pickId: String, status: String, credentials: AuthCredentials) async throws
+    func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
     func fetchChocolateBoxes(for runId: String, credentials: AuthCredentials) async throws -> [RunDetail.ChocolateBox]
     func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
@@ -442,6 +443,35 @@ final class RunsService: RunsServicing {
             }
             if httpResponse.statusCode == 404 {
                 throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+    
+    func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+        url.appendPathComponent(pickId)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.pickItemNotFound
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
@@ -1132,6 +1162,7 @@ enum RunsServiceError: LocalizedError {
     case invalidResponse
     case serverError(code: Int)
     case runNotFound
+    case pickItemNotFound
     case insufficientPermissions
     case roleAlreadyAssigned
     case chocolateBoxNumberExists
@@ -1145,6 +1176,8 @@ enum RunsServiceError: LocalizedError {
             return "Fetching runs failed with an unexpected error (code \(code))."
         case .runNotFound:
             return "We couldn't find details for that run. It may have been removed."
+        case .pickItemNotFound:
+            return "We couldn't find that pick entry. It may have already been removed."
         case .insufficientPermissions:
             return "You don't have permission to assign this role."
         case .roleAlreadyAssigned:

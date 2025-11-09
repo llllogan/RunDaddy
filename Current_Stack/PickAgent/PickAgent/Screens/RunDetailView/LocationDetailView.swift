@@ -36,6 +36,7 @@ struct LocationDetailView: View {
     @State private var showingChocolateBoxesSheet = false
 
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
+    @State private var pickItemPendingDeletion: RunDetail.PickItem?
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -207,7 +208,7 @@ struct LocationDetailView: View {
                             .tint(.blue)
                             
                             Button {
-                                // TODO: Implement delete functionality
+                                pickItemPendingDeletion = pickItem
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -244,6 +245,18 @@ struct LocationDetailView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Are you sure?", item: $pickItemPendingDeletion) { pickItem in
+            Button("Delete", role: .destructive) {
+                Task {
+                    await deletePickItem(pickItem)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pickItemPendingDeletion = nil
+            }
+        } message: { pickItem in
+            Text("This will permanently delete \(pickItem.sku?.name ?? \"this pick entry\").")
         }
     }
     
@@ -291,6 +304,28 @@ struct LocationDetailView: View {
         
         _ = await MainActor.run {
             updatingSkuIds.remove(skuId)
+        }
+    }
+    
+    private func deletePickItem(_ pickItem: RunDetail.PickItem) async {
+        updatingPickIds.insert(pickItem.id)
+        
+        do {
+            try await service.deletePickItem(
+                runId: runId,
+                pickId: pickItem.id,
+                credentials: session.credentials
+            )
+            await onPickStatusChanged()
+        } catch {
+            print("Failed to delete pick entry: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+            if pickItemPendingDeletion?.id == pickItem.id {
+                pickItemPendingDeletion = nil
+            }
         }
     }
     
