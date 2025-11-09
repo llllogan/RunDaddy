@@ -454,9 +454,32 @@ private struct CountPointerRow: View {
     }
 }
 
-private struct PickEntryRow: View {
+struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
+    var showsLocation: Bool = false
+
+    init(pickItem: RunDetail.PickItem, onToggle: @escaping () -> Void, showsLocation: Bool = false) {
+        self.pickItem = pickItem
+        self.onToggle = onToggle
+        self.showsLocation = showsLocation
+    }
+
+    private var locationLabel: String? {
+        if let explicitName = pickItem.location?.name?.trimmingCharacters(in: .whitespacesAndNewlines), !explicitName.isEmpty {
+            return explicitName
+        }
+
+        if let machineLocationName = pickItem.machine?.location?.name?.trimmingCharacters(in: .whitespacesAndNewlines), !machineLocationName.isEmpty {
+            return machineLocationName
+        }
+
+        if let address = pickItem.location?.address?.trimmingCharacters(in: .whitespacesAndNewlines), !address.isEmpty {
+            return address
+        }
+
+        return nil
+    }
     
     var body: some View {
         HStack {
@@ -465,7 +488,6 @@ private struct PickEntryRow: View {
                     Circle()
                         .stroke(pickItem.isPicked ? Color.green : Color.gray, lineWidth: 2)
                         .frame(width: 20, height: 20)
-//                        .background(Circle().fill(Color.white))
                     
                     if pickItem.isPicked {
                         Image(systemName: "checkmark")
@@ -498,14 +520,34 @@ private struct PickEntryRow: View {
                 }
                 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if let machineCode = pickItem.machine?.code {
-                        Text("Machine: \(machineCode)")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .foregroundStyle(.secondary)
-                            .background(Color(.systemGray5))
-                            .clipShape(Capsule())
+                    if showsLocation, let locationLabel {
+                        if let machineCode = pickItem.machine?.description {
+                            Text("\(locationLabel) - \(machineCode)")
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .foregroundStyle(.secondary)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                        } else {
+                            Text("Location: \(locationLabel)")
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .foregroundStyle(.secondary)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                        }
+                    } else {
+                        if let machineCode = pickItem.machine?.description {
+                            Text("Machine: \(machineCode)")
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .foregroundStyle(.secondary)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                        }
                     }
                     
                     Text("Coil: \(pickItem.coilItem.coil.code)")

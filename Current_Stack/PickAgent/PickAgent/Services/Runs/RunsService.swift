@@ -241,6 +241,10 @@ struct RunDetail: Equatable {
     var runDate: Date {
         scheduledFor ?? createdAt
     }
+
+    var pendingPickItems: [PickItem] {
+        pickItems.filter { !$0.isPicked }
+    }
 }
 
 final class RunsService: RunsServicing {

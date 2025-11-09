@@ -319,6 +319,245 @@ private struct ReorderLocationsSheet: View {
     }
 }
 
+struct PendingPickEntriesView: View {
+    @ObservedObject var viewModel: RunDetailViewModel
+    let runId: String
+    let session: AuthSession
+    let service: RunsServicing
+
+    @State private var selectedLocationFilter: String?
+    @State private var selectedMachineFilter: String?
+    @State private var updatingPickIds: Set<String> = []
+
+    private var locations: [RunDetail.Location] {
+        var lookup: [String: RunDetail.Location] = [:]
+        for item in viewModel.pendingPickItems {
+            if let location = item.location ?? item.machine?.location {
+                lookup[location.id] = location
+            }
+        }
+        return lookup.values.sorted { lhs, rhs in
+            let lhsLabel = locationDisplayName(lhs)
+            let rhsLabel = locationDisplayName(rhs)
+            return lhsLabel.localizedCaseInsensitiveCompare(rhsLabel) == .orderedAscending
+        }
+    }
+
+    private var allMachines: [RunDetail.Machine] {
+        var lookup: [String: RunDetail.Machine] = [:]
+        for item in viewModel.pendingPickItems {
+            if let machine = item.machine {
+                lookup[machine.id] = machine
+            }
+        }
+        return lookup.values.sorted { lhs, rhs in
+            lhs.code.localizedCaseInsensitiveCompare(rhs.code) == .orderedAscending
+        }
+    }
+
+    private var visibleMachines: [RunDetail.Machine] {
+        guard let locationId = selectedLocationFilter else {
+            return allMachines
+        }
+        return allMachines.filter { machine in
+            machine.location?.id == locationId
+        }
+    }
+
+    private var filteredPickItems: [RunDetail.PickItem] {
+        let baseItems = viewModel.pendingPickItems
+        let filteredByLocation: [RunDetail.PickItem]
+        if let locationId = selectedLocationFilter {
+            filteredByLocation = baseItems.filter { item in
+                let resolvedId = item.location?.id ?? item.machine?.location?.id
+                return resolvedId == locationId
+            }
+        } else {
+            filteredByLocation = baseItems
+        }
+
+        let filteredByMachine: [RunDetail.PickItem]
+        if let machineId = selectedMachineFilter {
+            filteredByMachine = filteredByLocation.filter { $0.machine?.id == machineId }
+        } else {
+            filteredByMachine = filteredByLocation
+        }
+
+        let grouped = Dictionary(grouping: filteredByMachine) { item in
+            item.machine?.id ?? "unknown"
+        }
+
+        let machineLookup = Dictionary(uniqueKeysWithValues: allMachines.map { ($0.id, $0) })
+
+        let sortedMachineIds = grouped.keys.sorted { lhs, rhs in
+            let lhsLabel = machineLookup[lhs]?.code ?? lhs
+            let rhsLabel = machineLookup[rhs]?.code ?? rhs
+            return lhsLabel.localizedCaseInsensitiveCompare(rhsLabel) == .orderedAscending
+        }
+
+        return sortedMachineIds.flatMap { machineId in
+            let entries = grouped[machineId] ?? []
+            return entries.sorted { first, second in
+                first.coilItem.coil.code.localizedCaseInsensitiveCompare(second.coilItem.coil.code) == .orderedDescending
+            }
+        }
+    }
+
+    private var machineFilterLabel: String {
+        guard let filter = selectedMachineFilter,
+              let machine = allMachines.first(where: { $0.id == filter }) else {
+            return "All Machines"
+        }
+        return machine.description ?? machine.code
+    }
+
+    private var locationFilterLabel: String {
+        guard let filter = selectedLocationFilter,
+              let location = locations.first(where: { $0.id == filter }) else {
+            return "All Locations"
+        }
+        return locationDisplayName(location)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                filterControls
+
+                if viewModel.isLoading && viewModel.pendingPickItems.isEmpty {
+                    LoadingRow()
+                } else if filteredPickItems.isEmpty {
+                    Text("No pick entries are waiting to be packed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                } else {
+                    ForEach(filteredPickItems, id: \.id) { pickItem in
+                        PickEntryRow(
+                            pickItem: pickItem,
+                            onToggle: {
+                                Task {
+                                    await togglePickStatus(pickItem)
+                                }
+                            },
+                            showsLocation: true
+                        )
+                        .disabled(updatingPickIds.contains(pickItem.id))
+                    }
+                }
+            } header: {
+                Text("Waiting to Pack")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Waiting to Pack")
+        .refreshable {
+            await viewModel.load(force: true)
+        }
+        .onChange(of: visibleMachines) { _ in
+            guard let selection = selectedMachineFilter else { return }
+            if visibleMachines.first(where: { $0.id == selection }) == nil {
+                selectedMachineFilter = nil
+            }
+        }
+        .onChange(of: locations) { _ in
+            guard let selection = selectedLocationFilter else { return }
+            if locations.first(where: { $0.id == selection }) == nil {
+                selectedLocationFilter = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var filterControls: some View {
+        HStack {
+            Menu {
+                Button("All Locations") {
+                    selectedLocationFilter = nil
+                }
+                if !locations.isEmpty {
+                    Divider()
+                    ForEach(locations, id: \.id) { location in
+                        Button(locationDisplayName(location)) {
+                            selectedLocationFilter = location.id
+                        }
+                    }
+                }
+            } label: {
+                filterChip(label: locationFilterLabel, systemImage: "mappin.and.ellipse")
+            }
+
+            Menu {
+                Button("All Machines") {
+                    selectedMachineFilter = nil
+                }
+                let machines = visibleMachines
+                if !machines.isEmpty {
+                    Divider()
+                    ForEach(machines, id: \.id) { machine in
+                        Button(machine.description ?? machine.code) {
+                            selectedMachineFilter = machine.id
+                        }
+                    }
+                }
+            } label: {
+                filterChip(label: machineFilterLabel, systemImage: "building.2")
+            }
+
+            Spacer()
+        }
+    }
+
+    private func filterChip(label: String, systemImage: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Image(systemName: systemImage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(.systemGray5))
+        .clipShape(Capsule())
+    }
+
+    private func locationDisplayName(_ location: RunDetail.Location) -> String {
+        let trimmedName = location.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name = trimmedName, !name.isEmpty {
+            return name
+        }
+        let trimmedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let address = trimmedAddress, !address.isEmpty {
+            return address
+        }
+        return "Location"
+    }
+
+    private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
+        updatingPickIds.insert(pickItem.id)
+        let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
+
+        do {
+            try await service.updatePickItemStatus(
+                runId: runId,
+                pickId: pickItem.id,
+                status: newStatus,
+                credentials: session.credentials
+            )
+            await viewModel.load(force: true)
+        } catch {
+            print("Failed to update pick status: \(error)")
+        }
+
+        await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+        }
+    }
+}
+
 #Preview {
     
 

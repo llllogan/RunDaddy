@@ -228,6 +228,10 @@ final class RunDetailViewModel: ObservableObject {
         )
     }
 
+    var pendingPickItems: [RunDetail.PickItem] {
+        detail?.pendingPickItems ?? []
+    }
+
     func locationDetail(for sectionID: String) -> RunLocationDetail? {
         guard let context = locationContextsByID[sectionID] else {
             return nil

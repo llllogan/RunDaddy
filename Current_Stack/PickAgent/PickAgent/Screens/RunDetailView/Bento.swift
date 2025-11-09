@@ -134,7 +134,16 @@ struct StaggeredBentoGrid: View {
             ForEach(columns.indices, id: \.self) { index in
                 VStack(spacing: 12) {
                     ForEach(columns[index]) { item in
-                        BentoCard(item: item)
+                        if let destination = item.destination {
+                            NavigationLink {
+                                destination()
+                            } label: {
+                                BentoCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            BentoCard(item: item)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -300,10 +309,21 @@ struct RunOverviewBento: View {
         cards.append(
             BentoItem(title: "Remaining",
                       value: "\(summary.remainingCoils)",
-                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
                       symbolName: "cart",
                       symbolTint: .pink,
-                      isProminent: true)
+                      isProminent: true,
+                      destination: {
+                          AnyView(
+                              PendingPickEntriesView(
+                                  viewModel: viewModel,
+                                  runId: viewModel.detail?.id ?? viewModel.runId,
+                                  session: viewModel.session,
+                                  service: viewModel.service
+                              )
+                          )
+                      },
+                      showsChevron: true)
         )
 
         if let picker = summary.pickerName, !picker.isEmpty {
@@ -581,7 +601,7 @@ struct LocationOverviewBento: View {
         cards.append(
             BentoItem(title: "Remaining",
                       value: "\(summary.remainingCoils)",
-                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Waiting to pack",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
                       symbolName: "cart",
                       symbolTint: .pink,
                       isProminent: summary.remainingCoils > 0)
