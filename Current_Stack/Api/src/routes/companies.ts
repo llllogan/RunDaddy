@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { authorize } from './helpers/authorization.js';
 import { randomBytes } from 'crypto';
 import { createTokenPair } from '../lib/tokens.js';
@@ -10,7 +11,7 @@ import { AuthContext } from '../types/enums.js';
 const router = Router();
 
 // Generate invite code for a company
-router.post('/:companyId/invite-codes', authenticate, async (req, res) => {
+router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
     const { companyId } = req.params;
     const { role } = req.body;
@@ -63,7 +64,7 @@ router.post('/:companyId/invite-codes', authenticate, async (req, res) => {
 });
 
 // Get active invite codes for a company
-router.get('/:companyId/invite-codes', authenticate, async (req, res) => {
+router.get('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
     const { companyId } = req.params;
     const userId = req.auth!.userId;
@@ -105,7 +106,7 @@ router.get('/:companyId/invite-codes', authenticate, async (req, res) => {
 });
 
 // Leave a company
-router.post('/:companyId/leave', authenticate, async (req, res) => {
+router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
     const { companyId } = req.params;
     const userId = req.auth!.userId;
@@ -239,7 +240,7 @@ router.post('/:companyId/leave', authenticate, async (req, res) => {
 });
 
 // Remove a member from a company (for admins/owners)
-router.delete('/:companyId/members/:userId', authenticate, async (req, res) => {
+router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
     const { companyId, userId: targetUserId } = req.params;
     const currentUserId = req.auth!.userId;

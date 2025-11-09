@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { isCompanyManager } from './helpers/authorization.js';
 
 const router = Router();
@@ -9,7 +10,7 @@ const router = Router();
 router.use(authenticate);
 
 // Update SKU isCheeseAndCrackers field
-router.patch('/:skuId/cheese-and-crackers', async (req, res) => {
+router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -79,7 +80,7 @@ router.patch('/:skuId/cheese-and-crackers', async (req, res) => {
 });
 
 // Update SKU countNeededPointer field
-router.patch('/:skuId/count-pointer', async (req, res) => {
+router.patch('/:skuId/count-pointer', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseRunWorkbook } from '../lib/run-import-parser.js';
 import { prisma } from '../lib/prisma.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { RunImportError, persistRunFromWorkbook } from './helpers/run-imports.js';
 
 const router = Router();
 
-router.get('/companies', async (_req, res) => {
+router.get('/companies', setLogConfig({ level: 'minimal' }), async (_req, res) => {
   try {
     const companies = await prisma.company.findMany({
       orderBy: { createdAt: 'desc' },
@@ -37,7 +38,7 @@ router.get('/companies', async (_req, res) => {
   }
 });
 
-router.get('/users', async (req, res) => {
+router.get('/users', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const companyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
 
   try {
@@ -82,7 +83,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-router.post('/run-imports', async (req, res) => {
+router.post('/run-imports', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const { companyId, workbookPath, excelPath } = req.body ?? {};
 
   if (!companyId || typeof companyId !== 'string') {
@@ -152,7 +153,7 @@ router.post('/run-imports', async (req, res) => {
   }
 });
 
-router.delete('/runs/:runId', async (req, res) => {
+router.delete('/runs/:runId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const { runId } = req.params;
   const { companyId } = req.query;
 

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { hashPassword } from '../lib/password.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import { createUserSchema, updateUserSchema, userLookupSchema } from './helpers/users.js';
@@ -20,7 +21,7 @@ router.use(authenticate);
 
 
 // Lists company members and their roles.
-router.get('/', async (req, res) => {
+router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -64,7 +65,7 @@ router.get('/', async (req, res) => {
 });
 
 // Looks up membership details for a set of user ids.
-router.post('/lookup', async (req, res) => {
+router.post('/lookup', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -114,12 +115,16 @@ router.post('/lookup', async (req, res) => {
 
 
 // Get user details by their ID`
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
   
   let membership = null;
   if (req.auth.companyId) {
@@ -136,14 +141,14 @@ router.get('/:userId', async (req, res) => {
 
   if (membership) {
     return res.json({
-      id: membership.user.id,
-      email: membership.user.email,
-      firstName: membership.user.firstName,
-      lastName: membership.user.lastName,
-      phone: membership.user.phone,
+      id: membership.userId,
+      email: membership.user?.email,
+      firstName: membership.user?.firstName,
+      lastName: membership.user?.lastName,
+      phone: membership.user?.phone,
       role: membership.role,
-      createdAt: membership.user.createdAt,
-      updatedAt: membership.user.updatedAt,
+      createdAt: membership.user?.createdAt,
+      updatedAt: membership.user?.updatedAt,
     });
   }
 
@@ -177,7 +182,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Invites a user to the company or attaches an existing account.
-router.post('/', async (req, res) => {
+router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -271,12 +276,17 @@ router.post('/', async (req, res) => {
 });
 
 // Updates user profile fields or their role within the company.
-router.patch('/:userId', async (req, res) => {
+router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+  
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
@@ -340,7 +350,7 @@ router.patch('/:userId', async (req, res) => {
           where: {
             userId_companyId: {
               userId,
-              companyId: req.auth.companyId,
+              companyId: req.auth.companyId!,
             },
           },
           data: membershipUpdates,
@@ -349,7 +359,7 @@ router.patch('/:userId', async (req, res) => {
           where: {
             userId_companyId: {
               userId,
-              companyId: req.auth.companyId,
+              companyId: req.auth.companyId!,
             },
           },
         }),
@@ -372,7 +382,7 @@ router.patch('/:userId', async (req, res) => {
 });
 
 // Removes a user from the company or deletes their account when appropriate.
-router.delete('/:userId', async (req, res) => {
+router.delete('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -382,6 +392,11 @@ router.delete('/:userId', async (req, res) => {
   }
 
   const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+  
   const membership = await prisma.membership.findUnique({
     where: {
       userId_companyId: {
@@ -421,7 +436,7 @@ router.delete('/:userId', async (req, res) => {
   return res.status(204).send();
 });
 
-router.get('/:userId/refresh-tokens', async (req, res) => {
+router.get('/:userId/refresh-tokens', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -435,6 +450,10 @@ router.get('/:userId/refresh-tokens', async (req, res) => {
   }
 
   const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
 
   const membership = await prisma.membership.findUnique({
     where: {

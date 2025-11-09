@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
 import { AuthContext } from '../types/enums.js';
@@ -8,7 +9,7 @@ import { AuthContext } from '../types/enums.js';
 const router = Router();
 
 // Validate and use invite code
-router.post('/use', authenticate, async (req, res) => {
+router.post('/use', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
   const { code } = req.body;
   const userId = req.auth!.userId;

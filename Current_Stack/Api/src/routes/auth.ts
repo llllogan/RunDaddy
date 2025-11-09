@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken, verifyAccessToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import {
   registerSchema,
   signupSchema,
@@ -20,7 +21,7 @@ import {
 const router = Router();
 
 // Creates a new user account without a company, returning initial session tokens.
-router.post('/signup', async (req, res) => {
+router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -83,7 +84,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // Registers a new company and owner account, returning initial session tokens.
-router.post('/register', async (req, res) => {
+router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -158,7 +159,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Authenticates a user and establishes a session for the selected company.
-router.post('/login', async (req, res) => {
+router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }), async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -350,7 +351,7 @@ router.post('/login', async (req, res) => {
 });
 
 // Issues a new access token pair when provided with a valid refresh token cookie.
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken || typeof refreshToken !== 'string') {
     return res.status(401).json({ error: 'Refresh token required' });
@@ -510,7 +511,7 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Switches the active company for the authenticated session and rotates tokens.
-router.post('/switch-company', authenticate, async (req, res) => {
+router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -618,14 +619,14 @@ router.post('/switch-company', authenticate, async (req, res) => {
 });
 
 // Clears authentication cookies to log the user out.
-router.post('/logout', (req, res) => {
+router.post('/logout', setLogConfig({ level: 'minimal' }), (req, res) => {
   res.clearCookie('accessToken');
   res.clearCookie('refreshToken');
   res.status(200).json({ message: 'Logged out' });
 });
 
 // Returns the authenticated user's profile and company context.
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength: 200 }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -712,8 +713,12 @@ router.get('/me', authenticate, async (req, res) => {
 });
 
 // Returns user profile for standalone accounts (without company requirement)
-router.get('/profile/:userId', async (req, res) => {
+router.get('/profile/:userId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
   
   let token: string | undefined;
   const authHeader = req.headers.authorization;

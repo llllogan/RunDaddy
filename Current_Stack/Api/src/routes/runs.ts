@@ -6,6 +6,7 @@ import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus } from '../types/
 import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { setLogConfig } from '../middleware/logging.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import {
   createRunSchema,
@@ -53,7 +54,7 @@ const updateLocationOrderSchema = z.object({
 router.use(authenticate);
 
 // Lists runs for the current company, optionally filtered by status.
-router.get('/', async (req, res) => {
+router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -83,7 +84,7 @@ router.get('/', async (req, res) => {
 
 // Get all runs scheduled for today
 // Include the number of locations
-router.get('/today', async (req, res) => {
+router.get('/today', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -102,7 +103,7 @@ router.get('/today', async (req, res) => {
 });
 
 // Get all runs scheduled for tomorrow
-router.get('/tomorrow', async (req, res) => {
+router.get('/tomorrow', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -122,7 +123,7 @@ router.get('/tomorrow', async (req, res) => {
 });
 
 // Get audio commands for a run's packing session
-router.get('/:runId/audio-commands', async (req, res) => {
+router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -509,7 +510,7 @@ router.get('/tomorrow/ready', async (req, res) => {
   return res.json(runs);
 });
 
-router.get('/:runId', async (req, res) => {
+router.get('/:runId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -531,7 +532,7 @@ router.get('/:runId', async (req, res) => {
   return res.json(payload);
 });
 
-router.put('/:runId/location-order', async (req, res) => {
+router.put('/:runId/location-order', setLogConfig({ level: 'full' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -601,7 +602,7 @@ router.put('/:runId/location-order', async (req, res) => {
 });
 
 // Assigns or unassigns a picker or runner to a run.
-router.post('/:runId/assignment', async (req, res) => {
+router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

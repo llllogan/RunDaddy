@@ -10,6 +10,7 @@ import { skuRouter } from './routes/skus.js';
 import { inviteCodesRouter } from './routes/invite-codes.js';
 import { companyRouter } from './routes/companies.js';
 import { authenticate } from './middleware/authenticate.js';
+import { loggingMiddleware } from './middleware/logging.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -27,42 +28,7 @@ app.use(cookieParser());
 app.use(express.json());
 
 // Logging middleware
-app.use((req, res, next) => {
-  let responseBody: any;
-
-  const originalJson = res.json;
-  res.json = function (body) {
-    responseBody = body;
-    return originalJson.call(this, body);
-  };
-
-  const originalSend = res.send;
-  res.send = function (body) {
-    responseBody = body;
-    return originalSend.call(this, body);
-  };
-
-  res.on('finish', () => {
-    let responseStr = '';
-
-    if (typeof responseBody === 'string') {
-      responseStr = responseBody;
-    } else if (Buffer.isBuffer(responseBody)) {
-      responseStr = responseBody.toString('utf8');
-    } else if (responseBody !== undefined) {
-      try {
-        responseStr = JSON.stringify(responseBody);
-      } catch {
-        responseStr = '[unserializable response]';
-      }
-    }
-
-    const truncatedResponse = responseStr.length > 50 ? `${responseStr.substring(0, 50)}...` : responseStr;
-    console.log(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${truncatedResponse}`);
-  });
-
-  next();
-});
+app.use(loggingMiddleware());
 
 app.get('/api/health', async (_req, res) => {
   try {
