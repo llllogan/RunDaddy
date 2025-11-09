@@ -611,7 +611,7 @@ router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req
     return res.status(403).json({ error: 'Company membership required to assign runs' });
   }
 
-  const runId = req.params.runId.trim();
+  const runId = req.params.runId?.trim() || '';
 
   const parsed = runAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {

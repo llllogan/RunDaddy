@@ -33,7 +33,7 @@ export const parseRunWorkbook = async (workbookBuffer: Buffer): Promise<ParsedRu
   const firstWorksheet = workbook.worksheets[0];
   const globalCategory = firstWorksheet ? await extractCategoryFromSheet(firstWorksheet) : null;
 
-  workbook.worksheets.slice(1).forEach((worksheet) => {
+  workbook.worksheets.slice(1).forEach((worksheet: Worksheet) => {
     if (!worksheet) {
       return;
     }
@@ -61,10 +61,10 @@ export const parseRunWorkbook = async (workbookBuffer: Buffer): Promise<ParsedRu
 
 const parseLocationSheet = (worksheet: Worksheet, sheetName: string, globalCategory: string | null): ParsedRunLocation | null => {
   const rows: SheetRow[] = [];
-  worksheet.eachRow((row, rowNumber) => {
+  worksheet.eachRow((row: any, rowNumber: number) => {
     if (rowNumber > 0) { // Skip header row in exceljs
       const rowData: SheetRow = [];
-      row.eachCell((cell, colNumber) => {
+      row.eachCell((cell: any, colNumber: number) => {
         rowData[colNumber - 1] = cell.value?.toString() || '';
       });
       // Fill empty cells to maintain consistent row length
@@ -462,10 +462,10 @@ const isRowMostlyEmpty = (row: SheetRow | undefined): boolean => {
 
 const extractCategoryFromSheet = async (worksheet: Worksheet): Promise<string | null> => {
   const rows: SheetRow[] = [];
-  worksheet.eachRow((row, rowNumber) => {
+  worksheet.eachRow((row: any, rowNumber: number) => {
     if (rowNumber > 0) { // Skip header row in exceljs
       const rowData: SheetRow = [];
-      row.eachCell((cell, colNumber) => {
+      row.eachCell((cell: any, colNumber: number) => {
         rowData[colNumber - 1] = cell.value?.toString() || '';
       });
       // Fill empty cells to maintain consistent row length
