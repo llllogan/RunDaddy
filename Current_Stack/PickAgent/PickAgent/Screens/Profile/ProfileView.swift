@@ -15,6 +15,7 @@ struct ProfileView: View {
     )
     @State private var showInviteGenerator = false
     @State private var showJoinCompany = false
+    @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
     
     // Optional: For sheet presentation
     var isPresentedAsSheet: Bool = false
@@ -31,6 +32,10 @@ struct ProfileView: View {
             return String(first).uppercased()
         }
         return String(viewModel.userEmail.prefix(1)).uppercased()
+    }
+    
+    private var preferredDirectionsApp: DirectionsApp {
+        DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
     
     var body: some View {
@@ -108,6 +113,33 @@ struct ProfileView: View {
                             ProfileInfoRow(label: "Role", value: viewModel.userRole.displayName)
                         }
                     }
+                }
+
+                // Navigation preference section
+                Section {
+                    Menu {
+                        ForEach(DirectionsApp.allCases) { app in
+                            Button {
+                                preferredDirectionsAppRawValue = app.rawValue
+                            } label: {
+                                HStack {
+                                    Text(app.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Directions App")
+                            Spacer()
+                            Text(preferredDirectionsApp.displayName)
+                        }
+                    }
+                } header: {
+                    Text("Navigation")
+                } footer: {
+                    Text("Choose which app launches when opening addresses from a run.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 
                 // Authentication Details (only if we have credentials)

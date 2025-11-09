@@ -13,6 +13,7 @@ struct RunDetailView: View {
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
     @Environment(\.openURL) private var openURL
+    @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
@@ -165,6 +166,10 @@ struct RunDetailView: View {
 }
 
 private extension RunDetailView {
+    var preferredDirectionsApp: DirectionsApp {
+        DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
+    }
+
     var locationMenuOptions: [LocationMenuOption] {
         viewModel.locationSections.compactMap { section in
             guard let location = section.location else { return nil }
@@ -182,8 +187,15 @@ private extension RunDetailView {
     }
 
     func openLocationInMaps(_ option: LocationMenuOption) {
-        guard let url = option.appleMapsURL else { return }
-        openURL(url)
+        let directionsApp = preferredDirectionsApp
+        guard let targetURL = directionsApp.url(for: option.query) else { return }
+
+        openURL(targetURL) { accepted in
+            guard !accepted, directionsApp == .waze, let fallbackURL = DirectionsApp.appleMaps.url(for: option.query) else {
+                return
+            }
+            openURL(fallbackURL)
+        }
     }
 }
 
@@ -192,13 +204,6 @@ private struct LocationMenuOption: Identifiable, Equatable {
     let title: String
     let address: String?
     let query: String
-
-    var appleMapsURL: URL? {
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return nil
-        }
-        return URL(string: "https://maps.apple.com/?q=\(encodedQuery)")
-    }
 }
 
 private struct LocationSummaryRow: View {
