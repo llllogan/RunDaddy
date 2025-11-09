@@ -35,6 +35,7 @@ struct LocationDetailView: View {
     @State private var updatingSkuIds: Set<String> = []
     @State private var showingChocolateBoxesSheet = false
     @State private var isResettingLocationPickStatuses = false
+    @State private var confirmingLocationReset = false
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
     
@@ -270,9 +271,7 @@ struct LocationDetailView: View {
                         .progressViewStyle(.circular)
                 } else {
                     Button {
-                        Task {
-                            await resetLocationPickStatuses()
-                        }
+                        confirmingLocationReset = true
                     } label: {
                         Label("Reset Packed Status", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
                             .labelStyle(.iconOnly)
@@ -289,6 +288,16 @@ struct LocationDetailView: View {
                 .disabled(locationDirectionsQuery == nil)
                 .accessibilityLabel("Get directions")
             }
+        }
+        .alert("Reset Packed Status?", isPresented: $confirmingLocationReset) {
+            Button("Reset", role: .destructive) {
+                Task {
+                    await resetLocationPickStatuses()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This resets only the packed picks for \(detail.section.title).")
         }
     }
     

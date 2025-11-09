@@ -13,6 +13,7 @@ struct RunDetailView: View {
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
     @State private var isResettingRunPickStatuses = false
+    @State private var confirmingRunReset = false
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
@@ -117,9 +118,7 @@ struct RunDetailView: View {
                         .progressViewStyle(.circular)
                 } else {
                     Button {
-                        Task {
-                            await resetRunPickStatuses()
-                        }
+                        confirmingRunReset = true
                     } label: {
                         Label("Reset Packed Status", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
                             .labelStyle(.iconOnly)
@@ -166,7 +165,13 @@ struct RunDetailView: View {
                     showingPackingSession = true
                 }
                 .labelStyle(.titleOnly)
-                .fullScreenCover(isPresented: $showingPackingSession) {
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .fullScreenCover(isPresented: $showingPackingSession, onDismiss: {
+                    Task {
+                        await viewModel.load(force: true)
+                    }
+                }) {
                     PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
                 }
             }
@@ -176,6 +181,16 @@ struct RunDetailView: View {
                 viewModel: viewModel,
                 sections: viewModel.locationSections
             )
+        }
+        .alert("Reset Packed Status?", isPresented: $confirmingRunReset) {
+            Button("Reset", role: .destructive) {
+                Task {
+                    await resetRunPickStatuses()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will mark every packed pick entry in this run as pending.")
         }
     }
 }
