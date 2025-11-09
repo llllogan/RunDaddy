@@ -252,7 +252,7 @@ private extension RunDetailView {
         }
 
         let entryLabel = pickCount == 1 ? "pick entry" : "pick entries"
-        return "This will permanently delete \(pickCount) \(entryLabel) for this location in this run. Machines, coils, and the location itself will remain."
+        return "This will permanently delete \(pickCount) items for this location in this run."
     }
 
     @MainActor
