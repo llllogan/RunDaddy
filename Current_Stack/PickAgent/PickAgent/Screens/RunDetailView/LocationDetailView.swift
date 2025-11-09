@@ -246,17 +246,19 @@ struct LocationDetailView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
-        .alert("Are you sure?", item: $pickItemPendingDeletion) { pickItem in
-            Button("Delete", role: .destructive) {
-                Task {
-                    await deletePickItem(pickItem)
+        .alert(item: $pickItemPendingDeletion) { pickItem in
+            Alert(
+                title: Text("Are you sure?"),
+                message: Text("This will permanently delete \(pickItem.sku?.name ?? "this pick entry")."),
+                primaryButton: .destructive(Text("Delete")) {
+                    Task {
+                        await deletePickItem(pickItem)
+                    }
+                },
+                secondaryButton: .cancel {
+                    pickItemPendingDeletion = nil
                 }
-            }
-            Button("Cancel", role: .cancel) {
-                pickItemPendingDeletion = nil
-            }
-        } message: { pickItem in
-            Text("This will permanently delete \(pickItem.sku?.name ?? \"this pick entry\").")
+            )
         }
     }
     
