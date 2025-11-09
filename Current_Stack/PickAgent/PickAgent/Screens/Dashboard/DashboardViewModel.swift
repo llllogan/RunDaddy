@@ -11,7 +11,7 @@ import Combine
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published private(set) var todayRuns: [RunSummary] = []
-    @Published private(set) var runsToPack: [RunSummary] = []
+    @Published private(set) var tomorrowRuns: [RunSummary] = []
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
@@ -42,9 +42,9 @@ final class DashboardViewModel: ObservableObject {
             async let today = service.fetchRuns(for: .today, credentials: session.credentials)
             async let tomorrow = service.fetchRuns(for: .tomorrow, credentials: session.credentials)
             async let profile = authService.fetchCurrentUserProfile(credentials: session.credentials)
-            let (todayRuns, runsToPack, currentUserProfile) = try await (today, tomorrow, profile)
+            let (todayRuns, tomorrowRuns, currentUserProfile) = try await (today, tomorrow, profile)
             self.todayRuns = todayRuns
-            self.runsToPack = runsToPack
+            self.tomorrowRuns = tomorrowRuns
             self.currentUserProfile = currentUserProfile
         } catch {
             if let authError = error as? AuthError {
@@ -55,7 +55,7 @@ final class DashboardViewModel: ObservableObject {
                 errorMessage = "We couldn't load your runs right now. Please try again."
             }
             todayRuns = []
-            runsToPack = []
+            tomorrowRuns = []
         }
 
         isLoading = false

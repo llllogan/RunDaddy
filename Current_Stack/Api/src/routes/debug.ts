@@ -4,7 +4,7 @@ import path from 'node:path';
 import { parseRunWorkbook } from '../lib/run-import-parser.js';
 import { prisma } from '../lib/prisma.js';
 import { setLogConfig } from '../middleware/logging.js';
-import { RunImportError, persistRunFromWorkbook } from './helpers/run-imports.js';
+import { RunImportError, isValidTimezone, persistRunFromWorkbook } from './helpers/run-imports.js';
 
 const router = Router();
 
@@ -85,6 +85,8 @@ router.get('/users', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
 router.post('/run-imports', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const { companyId, workbookPath, excelPath } = req.body ?? {};
+  const timezoneRaw =
+    req.body && typeof req.body.timezone === 'string' ? req.body.timezone.trim() : undefined;
 
   if (!companyId || typeof companyId !== 'string') {
     return res.status(400).json({ error: 'companyId is required' });
@@ -94,6 +96,12 @@ router.post('/run-imports', setLogConfig({ level: 'minimal' }), async (req, res)
 
   if (!providedPath) {
     return res.status(400).json({ error: 'workbookPath (or excelPath) is required' });
+  }
+
+  if (timezoneRaw && !isValidTimezone(timezoneRaw)) {
+    return res.status(400).json({
+      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
+    });
   }
 
   const resolvedPath = path.isAbsolute(providedPath) ? providedPath : path.resolve(process.cwd(), providedPath);
@@ -121,6 +129,7 @@ router.post('/run-imports', setLogConfig({ level: 'minimal' }), async (req, res)
     const createdRun = await persistRunFromWorkbook({
       run,
       companyId,
+      timezone: timezoneRaw,
     });
 
     const pickEntryCount = run.pickEntries.length;

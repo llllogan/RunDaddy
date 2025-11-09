@@ -55,14 +55,13 @@ struct DashboardView: View {
                 }
 
                 // Only show "Runs to be Packed" section if there are runs or currently loading
-                if !viewModel.runsToPack.isEmpty
-                    || (viewModel.isLoading && viewModel.runsToPack.isEmpty)
+                if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
                 {
-                    Section("Runs to be Packed") {
-                        if viewModel.isLoading && viewModel.runsToPack.isEmpty {
+                    Section("Runs for Tomorrow") {
+                        if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
                             LoadingStateRow()
                         } else {
-                            ForEach(viewModel.runsToPack) { run in
+                            ForEach(viewModel.tomorrowRuns) { run in
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
