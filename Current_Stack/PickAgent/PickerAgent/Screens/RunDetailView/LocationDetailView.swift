@@ -589,23 +589,22 @@ struct PickEntryRow: View {
             .buttonStyle(PlainButtonStyle())
             
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(pickItem.sku?.name ?? "Unknown SKU")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    if let skuType = pickItem.sku?.type {
-                        if skuType != "General" {
-                            Text("| \(skuType)")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                                .fontWeight(.semibold)
-                        } else if let skuCode = pickItem.sku?.code {
-                            Text(skuCode)
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    if let sku = pickItem.sku {
+                        Text("\(sku.name)\(sku.type != "General" ? ", \(sku.type)" : " ")")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        if sku.type == "General" {
+                            Text(sku.code)
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
                                 .fontWeight(.regular)
                         }
+                    } else {
+                        Text("Unknown")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .fontWeight(.regular)
                     }
                 }
                 

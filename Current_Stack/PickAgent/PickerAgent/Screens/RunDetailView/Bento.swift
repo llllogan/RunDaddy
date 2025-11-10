@@ -233,12 +233,12 @@ struct RunOverviewBento: View {
                                     }
                                 }
                             } label: {
-                                HStack(spacing: 2) {
+                                HStack(spacing: 4) {
                                     Text(currentStatus.statusDisplay)
                                         .font(.title3.weight(.semibold))
                                         .lineLimit(1)
-                                    Image(systemName: "chevron.down")
-                                        .font(.headline.weight(.medium))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.subheadline.weight(.medium))
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
@@ -279,12 +279,12 @@ struct RunOverviewBento: View {
                                     }
                                 }
                             } label: {
-                                HStack(spacing: 2) {
+                                HStack(spacing: 4) {
                                     Text(runner)
                                         .font(.title3.weight(.semibold))
                                         .lineLimit(1)
-                                    Image(systemName: "chevron.down")
-                                        .font(.headline.weight(.medium))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.subheadline.weight(.medium))
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
@@ -341,12 +341,12 @@ struct RunOverviewBento: View {
                                     }
                                 }
                             } label: {
-                                HStack(spacing: 2) {
+                                HStack(spacing: 4) {
                                     Text(picker)
                                         .font(.title3.weight(.semibold))
                                         .lineLimit(1)
-                                    Image(systemName: "chevron.down")
-                                        .font(.headline.weight(.medium))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.subheadline.weight(.medium))
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .multilineTextAlignment(.leading)
