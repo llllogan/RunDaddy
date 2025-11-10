@@ -112,7 +112,7 @@ struct DashboardView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Hello \(session.profile.displayName)")
+            .navigationTitle("Hi \(session.profile.firstName)")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
