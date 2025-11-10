@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct DashboardView: View {
     let session: AuthSession
@@ -119,7 +120,19 @@ struct DashboardView: View {
                 }
 
                 Section("Insights") {
-                    EmptyStateRow(message: "Insights will show up once you start running orders.")
+                    if !viewModel.dailyInsights.isEmpty {
+                        DailyInsightsChartView(
+                            points: viewModel.dailyInsights,
+                            lookbackDays: viewModel.dailyInsightsLookbackDays
+                        )
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    } else if viewModel.isLoadingInsights {
+                        LoadingStateRow()
+                    } else if let insightsError = viewModel.insightsError {
+                        ErrorStateRow(message: insightsError)
+                    } else {
+                        EmptyStateRow(message: "Insights will show up once you start running orders.")
+                    }
                 }
             }
             .listStyle(.insetGrouped)
@@ -165,5 +178,124 @@ struct DashboardView: View {
             }
         }
 
+    }
+}
+
+struct DailyInsightsChartView: View {
+    let points: [DailyInsights.Point]
+    let lookbackDays: Int
+
+    private var totalItems: Int {
+        points.reduce(0) { $0 + $1.totalItems }
+    }
+
+    private var averagePerDay: Double {
+        guard !points.isEmpty else { return 0 }
+        return Double(totalItems) / Double(points.count)
+    }
+
+    private var formattedAverage: String {
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = averagePerDay >= 10 ? 0 : 1
+        formatter.minimumFractionDigits = averagePerDay >= 10 ? 0 : 1
+        return formatter.string(from: NSNumber(value: averagePerDay)) ?? "0"
+    }
+
+    private var lookbackText: String {
+        let value = lookbackDays > 0 ? lookbackDays : points.count
+        return value == 1 ? "1 day" : "\(value) days"
+    }
+
+    private var maxYValue: Double {
+        let maxPoint = points.map { Double($0.totalItems) }.max() ?? 1
+        return max(maxPoint * 1.15, 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Packed items trend")
+                        .font(.headline)
+                    Text("Tracking the last \(lookbackText)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Daily avg")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(formattedAverage)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Theme.packageBrown)
+                }
+            }
+
+            Chart {
+                ForEach(points) { point in
+                    AreaMark(
+                        x: .value("Day", point.start, unit: .day),
+                        y: .value("Items", point.totalItems)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Theme.packageBrown.opacity(0.35), .clear]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+
+                    LineMark(
+                        x: .value("Day", point.start, unit: .day),
+                        y: .value("Items", point.totalItems)
+                    )
+                    .foregroundStyle(Theme.packageBrown)
+                    .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
+
+                    PointMark(
+                        x: .value("Day", point.start, unit: .day),
+                        y: .value("Items", point.totalItems)
+                    )
+                    .symbolSize(20)
+                    .foregroundStyle(.white)
+                    .annotation(position: .top, alignment: .center) {
+                        if points.count <= 10 {
+                            Text(point.totalItems, format: .number)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: min(points.count, 6))) { value in
+                    if let dateValue = value.as(Date.self) {
+                        AxisValueLabel {
+                            Text(dateValue, format: Date.FormatStyle()
+                                .weekday(.abbreviated)
+                                .month(.abbreviated)
+                                .day())
+                        }
+                    }
+                    AxisGridLine()
+                }
+            }
+            .chartYScale(domain: 0...maxYValue)
+            .frame(minHeight: 220)
+            .padding(.top, 8)
+
+            if let lastPoint = points.last {
+                Text("Most recent activity: \(lastPoint.label) • \(lastPoint.totalItems) items picked")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 12)
     }
 }
