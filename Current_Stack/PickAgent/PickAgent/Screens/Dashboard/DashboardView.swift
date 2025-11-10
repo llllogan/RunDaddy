@@ -19,6 +19,17 @@ struct DashboardView: View {
         viewModel.currentUserProfile?.hasCompany ?? false
     }
 
+    private var navigationSubtitleText: String {
+        let companyName = viewModel.currentUserProfile?.currentCompany?.name ?? "No Company"
+        let dateString = Date().formatted(
+            .dateTime
+                .weekday(.wide)
+                .month(.abbreviated)
+                .day()
+        )
+        return "\(companyName), \(dateString)"
+    }
+
     init(session: AuthSession, logoutAction: @escaping () -> Void) {
         self.session = session
         self.logoutAction = logoutAction
@@ -113,7 +124,7 @@ struct DashboardView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Hi \(session.profile.firstName)")
-            .navigationSubtitle("Company Name")
+            .navigationSubtitle(navigationSubtitleText)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
