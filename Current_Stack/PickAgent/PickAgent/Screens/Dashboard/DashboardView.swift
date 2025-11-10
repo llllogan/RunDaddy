@@ -126,7 +126,7 @@ struct DashboardView: View {
             .navigationTitle("Hi \(session.profile.firstName)")
             .navigationSubtitle(navigationSubtitleText)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
                             isShowingProfile = true
