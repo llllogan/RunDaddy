@@ -53,7 +53,7 @@ router.get('/daily-totals', setLogConfig({ level: 'full' }), async (req, res) =>
     return;
   }
 
-  const dailyRows = await fetchDailyRows(context.companyId, context.rangeStart, context.rangeEnd, context.dayRanges);
+  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays);
   const points = buildDailySeries(context.dayRanges, dailyRows);
 
   res.json({
@@ -132,7 +132,7 @@ router.get('/average-daily', setLogConfig({ level: 'minimal' }), async (req, res
     return;
   }
 
-  const dailyRows = await fetchDailyRows(context.companyId, context.rangeStart, context.rangeEnd, context.dayRanges);
+  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays);
   const points = buildDailySeries(context.dayRanges, dailyRows);
   const nonZeroDays = points.filter((day) => day.totalItems > 0);
   const totalOnActiveDays = nonZeroDays.reduce((sum, day) => sum + day.totalItems, 0);
@@ -290,36 +290,22 @@ function buildDayRanges(timeZone: string, lookbackDays: number, reference: Date)
   return ranges;
 }
 
-async function fetchDailyRows(
-  companyId: string,
-  rangeStart: Date,
-  rangeEnd: Date,
-  dayRanges: TimezoneDayRange[],
-) {
-  if (!dayRanges.length) {
-    return [];
-  }
-
-  const bucketCases = dayRanges.map((range) =>
-    Prisma.sql`WHEN pe.pickedAt >= ${range.start} AND pe.pickedAt < ${range.end} THEN ${range.label}`,
-  );
-
-  const bucketExpression = Prisma.sql`CASE ${Prisma.join(bucketCases, ' ')} ELSE NULL END`;
+async function fetchDailyRows(companyId: string, lookbackDays: number) {
+  const trailingDays = Math.max(lookbackDays - 1, 0);
 
   return prisma.$queryRaw<DailyRow[]>(
     Prisma.sql`
       SELECT
-        ${bucketExpression} AS day_label,
+        DATE(pe.pickedAt) AS day_label,
         SUM(pe.count) AS total_items
       FROM PickEntry pe
       JOIN Run r ON r.id = pe.runId
       WHERE r.companyId = ${companyId}
         AND pe.status = 'PICKED'
         AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY day_label
-      HAVING day_label IS NOT NULL
+        AND pe.pickedAt >= DATE_SUB(CURRENT_DATE(), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
+        AND pe.pickedAt < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+      GROUP BY DATE(pe.pickedAt)
       ORDER BY day_label ASC
     `,
   );
