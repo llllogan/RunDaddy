@@ -22,6 +22,7 @@ import {
   ensureCoilItem,
   ensureMachine,
 } from './helpers/runs.js';
+import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
 interface AudioCommand {
   id: string;
@@ -1708,31 +1709,6 @@ function buildParticipant(
     firstName,
     lastName,
   };
-}
-
-async function resolveCompanyTimezone(companyId: string, override?: string): Promise<string> {
-  if (override) {
-    return override;
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { timeZone: true },
-  });
-
-  if (company?.timeZone && isValidTimezone(company.timeZone)) {
-    return company.timeZone;
-  }
-
-  return 'UTC';
-}
-
-function parseTimezoneQueryParam(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed || undefined;
 }
 
 export const runRouter = router;
