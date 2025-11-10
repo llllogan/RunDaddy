@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus } from '@prisma/client';
 import { parseRunWorkbook } from '../../lib/run-import-parser.js';
 import { prisma } from '../../lib/prisma.js';
+import { determineScheduledFor, isValidTimezone } from '../../lib/timezone.js';
 import { RunStatus as AppRunStatus } from '../../types/enums.js';
 import type {
   ParsedCoilItem,
@@ -20,65 +21,6 @@ export class RunImportError extends Error {
     this.name = 'RunImportError';
   }
 }
-
-const TIMEZONE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
-  hour12: false,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-};
-
-export const isValidTimezone = (value: string): boolean => {
-  try {
-    new Intl.DateTimeFormat('en-US', { ...TIMEZONE_FORMAT_OPTIONS, timeZone: value }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const convertRunDateToTimezoneMidnight = (runDate: Date, timeZone: string): Date => {
-  const baseDate = new Date(
-    Date.UTC(runDate.getUTCFullYear(), runDate.getUTCMonth(), runDate.getUTCDate(), 0, 0, 0, 0),
-  );
-
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    ...TIMEZONE_FORMAT_OPTIONS,
-    timeZone,
-  });
-
-  const parts = formatter.formatToParts(baseDate);
-  const getPartValue = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? null;
-
-  const year = Number.parseInt(getPartValue('year') ?? '', 10);
-  const month = Number.parseInt(getPartValue('month') ?? '', 10) - 1;
-  const day = Number.parseInt(getPartValue('day') ?? '', 10);
-  const hour = Number.parseInt(getPartValue('hour') ?? '0', 10);
-  const minute = Number.parseInt(getPartValue('minute') ?? '0', 10);
-  const second = Number.parseInt(getPartValue('second') ?? '0', 10);
-
-  if ([year, month, day, hour, minute, second].some((value) => !Number.isFinite(value))) {
-    return runDate;
-  }
-
-  const asUtc = Date.UTC(year, month, day, hour, minute, second);
-  const offset = asUtc - baseDate.getTime();
-  return new Date(baseDate.getTime() - offset);
-};
-
-const determineScheduledFor = (runDate: Date | null, timeZone?: string): Date => {
-  if (!runDate) {
-    return new Date();
-  }
-  if (!timeZone) {
-    return runDate;
-  }
-  return convertRunDateToTimezoneMidnight(runDate, timeZone);
-};
 
 export const runImportUpload = multer({
   storage: multer.memoryStorage(),
@@ -171,6 +113,12 @@ export const persistRunFromWorkbook = async ({
   return prisma.$transaction(
     async (tx) => {
       const helpers = createImportHelpers(tx, companyId);
+      if (timezone) {
+        await tx.company.update({
+          where: { id: companyId },
+          data: { timeZone: timezone },
+        });
+      }
       const runRecord = await tx.run.create({
         data: {
           companyId,

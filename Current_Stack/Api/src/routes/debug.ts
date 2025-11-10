@@ -4,7 +4,8 @@ import path from 'node:path';
 import { parseRunWorkbook } from '../lib/run-import-parser.js';
 import { prisma } from '../lib/prisma.js';
 import { setLogConfig } from '../middleware/logging.js';
-import { RunImportError, isValidTimezone, persistRunFromWorkbook } from './helpers/run-imports.js';
+import { RunImportError, persistRunFromWorkbook } from './helpers/run-imports.js';
+import { isValidTimezone } from '../lib/timezone.js';
 
 const router = Router();
 

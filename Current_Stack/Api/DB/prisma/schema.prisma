@@ -72,6 +72,7 @@ model Company {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  timeZone  String?
 
   memberships    Membership[]
   runs           Run[]

@@ -5,6 +5,7 @@ import type { RunStatus as PrismaRunStatus, RunItemStatus as PrismaRunItemStatus
 import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus } from '../types/enums.js';
 import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
+import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { isCompanyManager } from './helpers/authorization.js';
@@ -96,10 +97,17 @@ router.get('/today', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.json([]);
   }
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
+  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
+    return res.status(400).json({
+      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
+    });
+  }
 
-  const runs = await fetchScheduledRuns(req.auth.companyId, startOfToday);
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 0 });
+
+  const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
 
   return res.json(runs);
 });
@@ -115,11 +123,17 @@ router.get('/tomorrow', setLogConfig({ level: 'minimal' }), async (req, res) => 
     return res.json([]);
   }
 
-  const startOfTomorrow = new Date();
-  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-  startOfTomorrow.setHours(0, 0, 0, 0);
+  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
+  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
+    return res.status(400).json({
+      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
+    });
+  }
 
-  const runs = await fetchScheduledRuns(req.auth.companyId, startOfTomorrow);
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 1 });
+
+  const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
 
   return res.json(runs);
 });
@@ -486,19 +500,22 @@ router.get('/tomorrow/ready', async (req, res) => {
     return res.json([]);
   }
 
-  const startOfTomorrow = new Date();
-  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-  startOfTomorrow.setHours(0, 0, 0, 0);
-  const endOfTomorrow = new Date();
-  endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
-  endOfTomorrow.setHours(23, 59, 59, 999);
+  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
+  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
+    return res.status(400).json({
+      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
+    });
+  }
+
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const { start, end } = getTimezoneDayRange({ timeZone, dayOffset: 1 });
 
   const runs = await prisma.run.findMany({
     where: {
       companyId: req.auth.companyId,
       scheduledFor: {
-        gte: startOfTomorrow,
-        lte: endOfTomorrow,
+        gte: start,
+        lt: end,
       },
       status: AppRunStatus.READY,
     },
@@ -1595,9 +1612,12 @@ type RunDailyResponse = {
   };
 };
 
-async function fetchScheduledRuns(companyId: string, scheduledDate: Date): Promise<RunDailyResponse[]> {
-  const formattedDate = formatDateYmd(scheduledDate);
+type TimeRange = {
+  start: Date;
+  end: Date;
+};
 
+async function fetchScheduledRuns(companyId: string, range: TimeRange): Promise<RunDailyResponse[]> {
   const rows = await prisma.$queryRaw<RunDailyLocationRow[]>(
     Prisma.sql`
       SELECT
@@ -1619,7 +1639,8 @@ async function fetchScheduledRuns(companyId: string, scheduledDate: Date): Promi
         location_count
       FROM v_run_daily_locations
       WHERE company_id = ${companyId}
-        AND scheduled_date = ${formattedDate}
+        AND scheduled_for >= ${range.start}
+        AND scheduled_for < ${range.end}
       ORDER BY scheduled_for ASC, run_created_at ASC
     `,
   );
@@ -1689,11 +1710,29 @@ function buildParticipant(
   };
 }
 
-function formatDateYmd(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+async function resolveCompanyTimezone(companyId: string, override?: string): Promise<string> {
+  if (override) {
+    return override;
+  }
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { timeZone: true },
+  });
+
+  if (company?.timeZone && isValidTimezone(company.timeZone)) {
+    return company.timeZone;
+  }
+
+  return 'UTC';
+}
+
+function parseTimezoneQueryParam(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 export const runRouter = router;

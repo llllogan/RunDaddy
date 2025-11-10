@@ -264,7 +264,14 @@ final class RunsService: RunsServicing {
         url.appendPathComponent("runs")
         url.appendPathComponent(schedule.pathComponent)
 
-        var request = URLRequest(url: url)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let timezoneIdentifier = TimeZone.current.identifier
+        var queryItems = components?.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "timezone", value: timezoneIdentifier))
+        components?.queryItems = queryItems
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
