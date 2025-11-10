@@ -285,8 +285,17 @@ function clamp(value: number, min: number, max: number): number {
 
 function buildDayRanges(timeZone: string, lookbackDays: number, reference: Date): TimezoneDayRange[] {
   const ranges: TimezoneDayRange[] = [];
-  for (let offset = lookbackDays - 1; offset >= 0; offset -= 1) {
+
+  // Build the trailing window so it always ends with the active (current) day,
+  // then trim to the requested lookback size. This guarantees callers receive
+  // today's bucket even while the day is still in progress.
+  for (let offset = lookbackDays; offset >= 1; offset -= 1) {
     ranges.push(getTimezoneDayRange({ timeZone, dayOffset: -offset, reference }));
+  }
+  ranges.push(getTimezoneDayRange({ timeZone, dayOffset: 0, reference }));
+
+  if (ranges.length > lookbackDays) {
+    return ranges.slice(ranges.length - lookbackDays);
   }
   return ranges;
 }
