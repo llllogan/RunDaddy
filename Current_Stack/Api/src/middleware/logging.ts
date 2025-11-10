@@ -93,9 +93,8 @@ function getLogMessage(
         }
       }
 
-      const maxLength = config.maxResponseLength || 10000;
-      const truncatedResponse = responseStr.length > maxLength 
-        ? `${responseStr.substring(0, maxLength)}...` 
+      const truncatedResponse = responseStr.length > 10000 
+        ? `${responseStr.substring(0, 10000)}...` 
         : responseStr;
       
       return `${method} ${originalUrl} - ${statusCode} - Response: ${truncatedResponse} - Headers: ${headers} - Query: ${query} - Body: ${body}`;
