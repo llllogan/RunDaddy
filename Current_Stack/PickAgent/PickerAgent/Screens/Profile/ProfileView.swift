@@ -15,6 +15,7 @@ struct ProfileView: View {
     )
     @State private var showInviteGenerator = false
     @State private var showJoinCompany = false
+    @State private var showLeaveCompanyConfirmation = false
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
     
     // Optional: For sheet presentation
@@ -223,12 +224,7 @@ struct ProfileView: View {
                 Section {
                     if viewModel.currentCompany != nil {
                         Button(action: {
-                            Task {
-                                let success = await viewModel.leaveCompany()
-                                if success {
-                                    await authViewModel.refreshSessionFromStoredCredentials()
-                                }
-                            }
+                            showLeaveCompanyConfirmation = true
                         }) {
                             HStack {
                                 Image(systemName: "person.badge.minus")
@@ -297,6 +293,19 @@ struct ProfileView: View {
                         viewModel.loadUserInfo()
                     }
                 }
+            }
+            .alert("Are you sure?", isPresented: $showLeaveCompanyConfirmation) {
+                Button("Leave Company", role: .destructive) {
+                    Task {
+                        let success = await viewModel.leaveCompany()
+                        if success {
+                            await authViewModel.refreshSessionFromStoredCredentials()
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You cannot undo this action.")
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
