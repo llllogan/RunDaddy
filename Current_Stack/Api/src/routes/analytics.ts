@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
-import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
+import { getTimezoneDayRange, isValidTimezone, formatDateInTimezone } from '../lib/timezone.js';
 import type { TimezoneDayRange } from '../lib/timezone.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
@@ -24,7 +24,7 @@ const WEEKDAY_INDEX: Record<string, number> = {
 };
 
 type DailyRow = {
-  day_label: string | null;
+  day_label: string | Date | null;
   total_items: bigint | number | string | null;
 };
 
@@ -47,7 +47,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/daily-totals', setLogConfig({ level: 'full' }), async (req, res) => {
+router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildLookbackContext(req, res);
   if (!context) {
     return;
@@ -295,17 +295,20 @@ async function fetchDailyRows(companyId: string, lookbackDays: number) {
 
   return prisma.$queryRaw<DailyRow[]>(
     Prisma.sql`
-      SELECT
-        DATE(pe.pickedAt) AS day_label,
-        SUM(pe.count) AS total_items
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= DATE_SUB(CURRENT_DATE(), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
-        AND pe.pickedAt < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-      GROUP BY DATE(pe.pickedAt)
+      SELECT day_label, total_items
+      FROM (
+        SELECT
+          DATE_FORMAT(pe.pickedAt, '%Y-%m-%d') AS day_label,
+          SUM(pe.count) AS total_items
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        WHERE r.companyId = ${companyId}
+          AND pe.status = 'PICKED'
+          AND pe.pickedAt IS NOT NULL
+          AND pe.pickedAt >= DATE_SUB(CURRENT_DATE(), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
+          AND pe.pickedAt < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        GROUP BY DATE_FORMAT(pe.pickedAt, '%Y-%m-%d')
+      ) AS daily_totals
       ORDER BY day_label ASC
     `,
   );
@@ -362,12 +365,15 @@ async function fetchSkuRows(companyId: string, rangeStart: Date, rangeEnd: Date)
 }
 
 function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
+  const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
   const totalsByLabel = new Map<string, number>();
+
   for (const row of rows) {
-    if (!row.day_label) {
+    const normalizedLabel = normalizeDayLabel(row.day_label, targetTimeZone);
+    if (!normalizedLabel) {
       continue;
     }
-    totalsByLabel.set(row.day_label, toNumber(row.total_items));
+    totalsByLabel.set(normalizedLabel, toNumber(row.total_items));
   }
 
   return dayRanges.map((range) => ({
@@ -376,6 +382,21 @@ function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
     end: range.end.toISOString(),
     totalItems: totalsByLabel.get(range.label) ?? 0,
   }));
+}
+
+function normalizeDayLabel(label: string | Date | null, timeZone: string): string | null {
+  if (!label) {
+    return null;
+  }
+  if (label instanceof Date) {
+    return formatDateInTimezone(label, timeZone);
+  }
+  if (typeof label === 'string') {
+    return label.length === 10 && label.includes('-')
+      ? label
+      : formatDateInTimezone(new Date(label), timeZone);
+  }
+  return null;
 }
 
 function buildTopLocations(rows: LocationMachineRow[]) {
@@ -489,6 +510,18 @@ function toNumber(value: unknown): number {
   }
   if (typeof value === 'bigint') {
     return Number(value);
+  }
+  if (typeof value === 'object' && value !== null) {
+    if ('toNumber' in (value as Prisma.Decimal) && typeof (value as Prisma.Decimal).toNumber === 'function') {
+      return (value as Prisma.Decimal).toNumber();
+    }
+    if ('valueOf' in (value as { valueOf: unknown })) {
+      const raw = (value as { valueOf: () => unknown }).valueOf();
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
   }
   if (typeof value === 'string') {
     const parsed = Number(value);

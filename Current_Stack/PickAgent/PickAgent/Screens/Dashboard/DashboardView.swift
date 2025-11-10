@@ -126,6 +126,8 @@ struct DashboardView: View {
                             lookbackDays: viewModel.dailyInsightsLookbackDays
                         )
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        
+                        Text("View more data")
                     } else if viewModel.isLoadingInsights {
                         LoadingStateRow()
                     } else if let insightsError = viewModel.insightsError {
@@ -185,25 +187,18 @@ struct DailyInsightsChartView: View {
     let points: [DailyInsights.Point]
     let lookbackDays: Int
 
-    private var totalItems: Int {
-        points.reduce(0) { $0 + $1.totalItems }
-    }
-
-    private var averagePerDay: Double {
-        guard !points.isEmpty else { return 0 }
-        return Double(totalItems) / Double(points.count)
-    }
-
-    private var formattedAverage: String {
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = averagePerDay >= 10 ? 0 : 1
-        formatter.minimumFractionDigits = averagePerDay >= 10 ? 0 : 1
-        return formatter.string(from: NSNumber(value: averagePerDay)) ?? "0"
-    }
-
     private var lookbackText: String {
         let value = lookbackDays > 0 ? lookbackDays : points.count
         return value == 1 ? "1 day" : "\(value) days"
+    }
+
+    private var weekStartDates: [Date] {
+        let calendar = Calendar.current
+        let starts = points.compactMap { point in
+            calendar.dateInterval(of: .weekOfYear, for: point.start)?.start
+        }
+        let uniqueStarts = Set(starts)
+        return uniqueStarts.sorted()
     }
 
     private var maxYValue: Double {
@@ -213,25 +208,8 @@ struct DailyInsightsChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Packed items trend")
-                        .font(.headline)
-                    Text("Tracking the last \(lookbackText)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Daily avg")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(formattedAverage)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.packageBrown)
-                }
-            }
+            Text("Items picked over the last \(lookbackText)")
+                .font(.subheadline)
 
             Chart {
                 ForEach(points) { point in
@@ -254,48 +232,28 @@ struct DailyInsightsChartView: View {
                     )
                     .foregroundStyle(Theme.packageBrown)
                     .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
-
-                    PointMark(
-                        x: .value("Day", point.start, unit: .day),
-                        y: .value("Items", point.totalItems)
-                    )
-                    .symbolSize(20)
-                    .foregroundStyle(.white)
-                    .annotation(position: .top, alignment: .center) {
-                        if points.count <= 10 {
-                            Text(point.totalItems, format: .number)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    .interpolationMethod(.catmullRom)
                 }
             }
             .chartYAxis {
-                AxisMarks(position: .leading)
+                AxisMarks(position: .trailing) { _ in
+                    AxisGridLine()
+                    AxisValueLabel()
+                }
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: min(points.count, 6))) { value in
+                AxisMarks(values: weekStartDates) { value in
                     if let dateValue = value.as(Date.self) {
                         AxisValueLabel {
                             Text(dateValue, format: Date.FormatStyle()
-                                .weekday(.abbreviated)
-                                .month(.abbreviated)
                                 .day())
                         }
                     }
-                    AxisGridLine()
                 }
             }
             .chartYScale(domain: 0...maxYValue)
-            .frame(minHeight: 220)
-            .padding(.top, 8)
-
-            if let lastPoint = points.last {
-                Text("Most recent activity: \(lastPoint.label) • \(lastPoint.totalItems) items picked")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            .frame(maxHeight: 180)
         }
-        .padding(.vertical, 12)
+        .padding()
     }
 }

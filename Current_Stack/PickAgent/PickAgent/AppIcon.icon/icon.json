@@ -1,18 +1,18 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.99262,0.99600,0.99606,1.00000"
+    "solid" : "display-p3:0.99262,0.99600,0.99606,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "box.png",
-          "name" : "box",
+          "image-name" : "bento 2.png",
+          "name" : "bento 2",
           "position" : {
-            "scale" : 0.95,
+            "scale" : 0.82,
             "translation-in-points" : [
-              -21.639104793609476,
-              0.7763613388222552
+              0,
+              0
             ]
           }
         }
