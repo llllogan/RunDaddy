@@ -62,6 +62,10 @@ struct ProfileView: View {
                             Text(viewModel.userEmail)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                            
+                            Text(viewModel.userRole.displayName)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -103,17 +107,6 @@ struct ProfileView: View {
                         .padding(.vertical, 4)
                     }
                 }
-                
-                // Detailed User Information Section
-                Section {
-                    ProfileInfoSection(title: "User Information") {
-                        ProfileInfoRow(label: "Name", value: viewModel.userDisplayName)
-                        ProfileInfoRow(label: "Email", value: viewModel.userEmail)
-                        if let role = viewModel.currentCompany?.role, !role.isEmpty {
-                            ProfileInfoRow(label: "Role", value: viewModel.userRole.displayName)
-                        }
-                    }
-                }
 
                 // Navigation preference section
                 Section {
@@ -140,17 +133,6 @@ struct ProfileView: View {
                     Text("Choose which app launches when opening addresses from a run.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
-                
-                // Authentication Details (only if we have credentials)
-                if let credentials = viewModel.authService.loadStoredCredentials() {
-                    Section {
-                        ProfileInfoSection(title: "Authentication") {
-                            ProfileInfoRow(label: "User ID", value: credentials.userID)
-                            ProfileInfoRow(label: "Access Token", value: credentials.accessToken, monospaced: true)
-                            ProfileInfoRow(label: "Expires", value: credentials.expiresAt.formatted(.dateTime.month().day().year().hour().minute()))
-                        }
-                    }
                 }
                 
                 // Company Actions Section
@@ -191,7 +173,7 @@ struct ProfileView: View {
                 }
                 
                 // Settings Section
-                Section("Settings") {
+                Section {
                     if viewModel.currentCompany != nil {
                         Button(action: {
                             Task {
@@ -283,23 +265,6 @@ struct ProfileView: View {
 }
 
 // MARK: - Profile Info Components
-
-private struct ProfileInfoSection<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-
-            VStack(spacing: 10) {
-                content
-            }
-        }
-    }
-}
 
 private struct ProfileInfoRow: View {
     let label: String
