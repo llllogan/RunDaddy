@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		BEDC97A62EB8BA7D00B747F0 /* PickAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BEDC97A62EB8BA7D00B747F0 /* PickerAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickerAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BEDC97A82EB8BA7D00B747F0 /* PickAgent */ = {
+		BEDC97A82EB8BA7D00B747F0 /* PickerAgent */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PickAgent;
+			path = PickerAgent;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		BEDC979D2EB8BA7D00B747F0 = {
 			isa = PBXGroup;
 			children = (
-				BEDC97A82EB8BA7D00B747F0 /* PickAgent */,
+				BEDC97A82EB8BA7D00B747F0 /* PickerAgent */,
 				BEDC97A72EB8BA7D00B747F0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		BEDC97A72EB8BA7D00B747F0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BEDC97A62EB8BA7D00B747F0 /* PickAgent.app */,
+				BEDC97A62EB8BA7D00B747F0 /* PickerAgent.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BEDC97A52EB8BA7D00B747F0 /* PickAgent */ = {
+		BEDC97A52EB8BA7D00B747F0 /* PickerAgent */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BEDC97B12EB8BA7F00B747F0 /* Build configuration list for PBXNativeTarget "PickAgent" */;
+			buildConfigurationList = BEDC97B12EB8BA7F00B747F0 /* Build configuration list for PBXNativeTarget "PickerAgent" */;
 			buildPhases = (
 				BEDC97A22EB8BA7D00B747F0 /* Sources */,
 				BEDC97A32EB8BA7D00B747F0 /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				BEDC97A82EB8BA7D00B747F0 /* PickAgent */,
+				BEDC97A82EB8BA7D00B747F0 /* PickerAgent */,
 			);
-			name = PickAgent;
+			name = PickerAgent;
 			packageProductDependencies = (
 			);
 			productName = PickAgent;
-			productReference = BEDC97A62EB8BA7D00B747F0 /* PickAgent.app */;
+			productReference = BEDC97A62EB8BA7D00B747F0 /* PickerAgent.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BEDC97A12EB8BA7D00B747F0 /* Build configuration list for PBXProject "PickAgent" */;
+			buildConfigurationList = BEDC97A12EB8BA7D00B747F0 /* Build configuration list for PBXProject "PickerAgent" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BEDC97A52EB8BA7D00B747F0 /* PickAgent */,
+				BEDC97A52EB8BA7D00B747F0 /* PickerAgent */,
 			);
 		};
 /* End PBXProject section */
@@ -319,7 +319,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BEDC97A12EB8BA7D00B747F0 /* Build configuration list for PBXProject "PickAgent" */ = {
+		BEDC97A12EB8BA7D00B747F0 /* Build configuration list for PBXProject "PickerAgent" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BEDC97AF2EB8BA7F00B747F0 /* Debug */,
@@ -328,7 +328,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BEDC97B12EB8BA7F00B747F0 /* Build configuration list for PBXNativeTarget "PickAgent" */ = {
+		BEDC97B12EB8BA7F00B747F0 /* Build configuration list for PBXNativeTarget "PickerAgent" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BEDC97B22EB8BA7F00B747F0 /* Debug */,
