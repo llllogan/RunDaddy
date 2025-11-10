@@ -98,7 +98,7 @@ function getLogMessage(
         ? `${responseStr.substring(0, maxLength)}...` 
         : responseStr;
       
-      return `${method} ${originalUrl} - ${statusCode} - Headers: ${headers} - Query: ${query} - Body: ${body} - Response: ${truncatedResponse}`;
+      return `${method} ${originalUrl} - ${statusCode} - Response: ${truncatedResponse} - Headers: ${headers} - Query: ${query} - Body: ${body}`;
     }
     
     default:
