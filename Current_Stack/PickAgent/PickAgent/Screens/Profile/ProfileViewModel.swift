@@ -14,9 +14,11 @@ class ProfileViewModel: ObservableObject {
     @Published var userEmail = ""
     @Published var userRole: UserRole = .picker
     @Published var currentCompany: CompanyInfo?
+    @Published var companies: [CompanyInfo] = []
     @Published var canGenerateInvites = false
     @Published var errorMessage: String?
     @Published var isLeavingCompany = false
+    @Published var isSwitchingCompany = false
     
     let authService: AuthServicing
     private let inviteCodesService: InviteCodesServicing
@@ -43,8 +45,9 @@ class ProfileViewModel: ObservableObject {
                         userRole = role
                         canGenerateInvites = (role == .admin || role == .owner)
                     }
-                    
+
                     currentCompany = profile.currentCompany
+                    companies = profile.companies
                 }
             } catch {
                 await MainActor.run {
@@ -112,5 +115,38 @@ class ProfileViewModel: ObservableObject {
             }
             return false
         }
+    }
+
+    func switchCompany(to company: CompanyInfo) async -> Bool {
+        if company.id == currentCompany?.id {
+            return false
+        }
+
+        guard let credentials = authService.loadStoredCredentials() else {
+            errorMessage = "Not authenticated"
+            return false
+        }
+
+        isSwitchingCompany = true
+        errorMessage = nil
+
+        defer {
+            isSwitchingCompany = false
+        }
+
+        do {
+            let updatedCredentials = try await authService.switchCompany(companyId: company.id, credentials: credentials)
+            authService.store(credentials: updatedCredentials)
+            loadUserInfo()
+            return true
+        } catch let switchError as SwitchCompanyError {
+            errorMessage = switchError.localizedDescription
+        } catch let authError as AuthError {
+            errorMessage = authError.localizedDescription
+        } catch {
+            errorMessage = "Failed to switch companies: \(error.localizedDescription)"
+        }
+
+        return false
     }
 }

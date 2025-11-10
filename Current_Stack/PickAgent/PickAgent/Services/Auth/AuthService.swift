@@ -16,6 +16,7 @@ protocol AuthServicing {
     func signup(email: String, password: String, firstName: String, lastName: String, phone: String?) async throws -> AuthCredentials
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile
     func fetchCurrentUserProfile(credentials: AuthCredentials) async throws -> CurrentUserProfile
+    func switchCompany(companyId: String, credentials: AuthCredentials) async throws -> AuthCredentials
 }
 
 final class AuthService: AuthServicing {
@@ -119,6 +120,47 @@ final class AuthService: AuthServicing {
 
         let payload = try decoder.decode(CurrentUserProfileResponse.self, from: data)
         return payload.profile
+    }
+
+    func switchCompany(companyId: String, credentials: AuthCredentials) async throws -> AuthCredentials {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("auth")
+        url.appendPathComponent("switch-company")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "companyId": companyId,
+            "context": AuthContext.app.rawValue,
+            "persist": false
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            switch httpResponse.statusCode {
+            case 401:
+                throw SwitchCompanyError.unauthorized
+            case 403:
+                throw SwitchCompanyError.notAllowed
+            case 404:
+                throw SwitchCompanyError.membershipNotFound
+            default:
+                throw SwitchCompanyError.serverError(code: httpResponse.statusCode)
+            }
+        }
+
+        let payload = try decoder.decode(SwitchCompanyResponse.self, from: data)
+        return payload.buildCredentials()
     }
     
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
@@ -255,6 +297,29 @@ private struct AuthPayload: Decodable {
     }
 }
 
+private struct SwitchCompanyResponse: Decodable {
+    struct SessionUser: Decodable {
+        let id: String
+    }
+
+    let user: SessionUser
+    let accessToken: String
+    let refreshToken: String
+    let accessTokenExpiresAt: Date?
+    let refreshTokenExpiresAt: Date?
+
+    func buildCredentials(currentDate: Date = .now) -> AuthCredentials {
+        let expirationDate = accessTokenExpiresAt ?? currentDate.addingTimeInterval(3600)
+
+        return AuthCredentials(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            userID: user.id,
+            expiresAt: expirationDate
+        )
+    }
+}
+
 private struct CurrentUserProfileResponse: Decodable {
     let companies: [CompanyInfo]
     let currentCompany: CompanyInfo?
@@ -339,6 +404,26 @@ enum AuthError: LocalizedError {
             return "Server responded with an unexpected error (code \(code))."
         case .unauthorized:
             return "Your email address or password is incorrect."
+        }
+    }
+}
+
+enum SwitchCompanyError: LocalizedError {
+    case unauthorized
+    case membershipNotFound
+    case notAllowed
+    case serverError(code: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .unauthorized:
+            return "Your session expired. Please sign in again."
+        case .membershipNotFound:
+            return "We couldn't find that company in your memberships."
+        case .notAllowed:
+            return "Your role doesn't allow switching to that company."
+        case let .serverError(code):
+            return "Switching companies failed with an unexpected error (code \(code))."
         }
     }
 }

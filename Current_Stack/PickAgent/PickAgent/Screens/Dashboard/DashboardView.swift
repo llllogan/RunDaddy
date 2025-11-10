@@ -113,6 +113,7 @@ struct DashboardView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Hi \(session.profile.firstName)")
+            .navigationSubtitle("Company Name")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

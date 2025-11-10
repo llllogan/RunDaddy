@@ -37,6 +37,13 @@ struct ProfileView: View {
     private var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
+
+    private func roleDisplay(for company: CompanyInfo) -> String {
+        if let role = UserRole(rawValue: company.role.uppercased()) {
+            return role.displayName
+        }
+        return company.role.capitalized
+    }
     
     var body: some View {
         NavigationStack {
@@ -70,15 +77,55 @@ struct ProfileView: View {
                     }
                     .padding(.vertical, 4)
                     
-                    if let company = viewModel.currentCompany {
-                        HStack {
-                            Text("Company")
-                            
-                            Spacer()
-                            
-                            Text(company.name)
-                                .foregroundStyle(.secondary)
+                    if !viewModel.companies.isEmpty {
+                        Menu {
+                            ForEach(viewModel.companies, id: \.id) { company in
+                                Button {
+                                    Task {
+                                        let didSwitch = await viewModel.switchCompany(to: company)
+                                        if didSwitch {
+                                            await authViewModel.refreshSessionFromStoredCredentials()
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(company.name)
+                                                .foregroundStyle(.primary)
+                                            Text(roleDisplay(for: company))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if company.id == viewModel.currentCompany?.id {
+                                            Image(systemName: "checkmark")
+                                                .foregroundStyle(Theme.packageBrown)
+                                        }
+                                    }
+                                }
+                                .disabled(viewModel.isSwitchingCompany || company.id == viewModel.currentCompany?.id)
+                            }
+                        } label: {
+                            HStack {
+                                Text("Company")
+                                Spacer()
+                                if viewModel.isSwitchingCompany {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    HStack(spacing: 6) {
+                                        Text(viewModel.currentCompany?.name ?? "Select Company")
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isSwitchingCompany)
                     }
                 }
                 

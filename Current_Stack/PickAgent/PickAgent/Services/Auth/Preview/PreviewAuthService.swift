@@ -105,6 +105,18 @@ final class PreviewAuthService: AuthServicing {
         return credentials
     }
 
+    func switchCompany(companyId: String, credentials: AuthCredentials) async throws -> AuthCredentials {
+        let refreshedCredentials = AuthCredentials(
+            accessToken: credentials.accessToken,
+            refreshToken: credentials.refreshToken,
+            userID: credentials.userID,
+            expiresAt: Date().addingTimeInterval(3600)
+        )
+
+        storedCredentials = refreshedCredentials
+        return refreshedCredentials
+    }
+
     func fetchProfile(userID: String, credentials: AuthCredentials) async throws -> UserProfile {
         storedProfile
     }
