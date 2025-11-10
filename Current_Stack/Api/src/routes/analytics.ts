@@ -53,12 +53,7 @@ router.get('/daily-totals', setLogConfig({ level: 'full' }), async (req, res) =>
     return;
   }
 
-  const dailyRows = await fetchDailyRows(
-    context.companyId,
-    context.rangeStart,
-    context.rangeEnd,
-    context.timeZone,
-  );
+  const dailyRows = await fetchDailyRows(context.companyId, context.rangeStart, context.rangeEnd, context.dayRanges);
   const points = buildDailySeries(context.dayRanges, dailyRows);
 
   res.json({
@@ -137,12 +132,7 @@ router.get('/average-daily', setLogConfig({ level: 'minimal' }), async (req, res
     return;
   }
 
-  const dailyRows = await fetchDailyRows(
-    context.companyId,
-    context.rangeStart,
-    context.rangeEnd,
-    context.timeZone,
-  );
+  const dailyRows = await fetchDailyRows(context.companyId, context.rangeStart, context.rangeEnd, context.dayRanges);
   const points = buildDailySeries(context.dayRanges, dailyRows);
   const nonZeroDays = points.filter((day) => day.totalItems > 0);
   const totalOnActiveDays = nonZeroDays.reduce((sum, day) => sum + day.totalItems, 0);
@@ -304,12 +294,22 @@ async function fetchDailyRows(
   companyId: string,
   rangeStart: Date,
   rangeEnd: Date,
-  timeZone: string,
+  dayRanges: TimezoneDayRange[],
 ) {
+  if (!dayRanges.length) {
+    return [];
+  }
+
+  const bucketCases = dayRanges.map((range) =>
+    Prisma.sql`WHEN pe.pickedAt >= ${range.start} AND pe.pickedAt < ${range.end} THEN ${range.label}`,
+  );
+
+  const bucketExpression = Prisma.sql`CASE ${Prisma.join(bucketCases, ' ')} ELSE NULL END`;
+
   return prisma.$queryRaw<DailyRow[]>(
     Prisma.sql`
       SELECT
-        DATE(CONVERT_TZ(pe.pickedAt, '+00:00', ${timeZone})) AS day_label,
+        ${bucketExpression} AS day_label,
         SUM(pe.count) AS total_items
       FROM PickEntry pe
       JOIN Run r ON r.id = pe.runId
@@ -319,6 +319,7 @@ async function fetchDailyRows(
         AND pe.pickedAt >= ${rangeStart}
         AND pe.pickedAt < ${rangeEnd}
       GROUP BY day_label
+      HAVING day_label IS NOT NULL
       ORDER BY day_label ASC
     `,
   );

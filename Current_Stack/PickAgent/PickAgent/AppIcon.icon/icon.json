@@ -1,20 +1,18 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.93527,0.84335,0.29884,1.00000"
+    "automatic-gradient" : "display-p3:0.99262,0.99600,0.99606,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "PickerAgent.png",
-          "name" : "PickerAgent",
+          "image-name" : "box.png",
+          "name" : "box",
           "position" : {
-            "scale" : 0.9,
+            "scale" : 0.95,
             "translation-in-points" : [
-              0,
-              0
+              -21.639104793609476,
+              0.7763613388222552
             ]
           }
         }
