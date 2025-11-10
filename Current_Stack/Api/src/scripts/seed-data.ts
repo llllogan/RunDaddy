@@ -13,7 +13,11 @@ const MACHINE_TYPE_SEED_DATA = [
   { name: 'Cold Beverage Cooler', description: 'Refrigerated drink merchandiser' },
 ];
 
-const DEFAULT_MACHINE_TYPE_NAME = MACHINE_TYPE_SEED_DATA[0].name;
+const DEFAULT_MACHINE_TYPE_NAME =
+  MACHINE_TYPE_SEED_DATA[0]?.name ??
+  (() => {
+    throw new Error('At least one machine type seed entry is required.');
+  })();
 
 const SKU_SEED_DATA = [
   { code: 'SKU-PBAR-ALM', name: 'Almond Protein Bar', type: 'snack', category: 'Protein Bars' },
@@ -193,13 +197,15 @@ type CoilItemSeedInfo = {
   par: number;
 };
 
+const toNullable = <T>(value: T | null | undefined): T | null => (value ?? null);
+
 async function ensureMachineTypeByName(name: string, description?: string) {
   const cached = machineTypeCache.get(name);
   if (cached) {
     if (description && cached.description !== description) {
       const updated = await prisma.machineType.update({
         where: { id: cached.id },
-        data: { description },
+        data: { description: toNullable(description) },
       });
       machineTypeCache.set(name, updated);
       return updated;
@@ -213,7 +219,7 @@ async function ensureMachineTypeByName(name: string, description?: string) {
     if (description && existing.description !== description) {
       record = await prisma.machineType.update({
         where: { id: existing.id },
-        data: { description },
+        data: { description: toNullable(description) },
       });
     }
     machineTypeCache.set(name, record);
@@ -221,7 +227,7 @@ async function ensureMachineTypeByName(name: string, description?: string) {
   }
 
   const created = await prisma.machineType.create({
-    data: { name, description },
+    data: { name, description: toNullable(description) },
   });
   machineTypeCache.set(name, created);
   return created;
@@ -291,20 +297,20 @@ async function hashUserPassword(password: string) {
   return hashPassword(password);
 }
 
-async function ensureCompany(name: string, timeZone?: string) {
+async function ensureCompany(name: string, timeZone?: string | null) {
   const existing = await prisma.company.findFirst({ where: { name } });
   if (existing) {
     if (timeZone && existing.timeZone !== timeZone) {
       return prisma.company.update({
         where: { id: existing.id },
-        data: { timeZone },
+        data: { timeZone: toNullable(timeZone) },
       });
     }
     return existing;
   }
 
   return prisma.company.create({
-    data: { name, timeZone },
+    data: { name, timeZone: toNullable(timeZone) },
   });
 }
 
@@ -319,7 +325,7 @@ async function upsertUser({
   email: string;
   firstName: string;
   lastName: string;
-  phone?: string;
+  phone?: string | null;
   role?: UserRole;
   password?: string;
 }) {
@@ -329,7 +335,7 @@ async function upsertUser({
     update: {
       firstName,
       lastName,
-      phone,
+      phone: toNullable(phone),
       role,
       password: hashedPassword,
     },
@@ -337,7 +343,7 @@ async function upsertUser({
       email,
       firstName,
       lastName,
-      phone,
+      phone: toNullable(phone),
       role,
       password: hashedPassword,
     },
@@ -380,7 +386,7 @@ async function ensureDefaultMembership(userId: string, membershipId: string) {
   }
 }
 
-async function ensureLocation(companyId: string, name: string, address?: string) {
+async function ensureLocation(companyId: string, name: string, address?: string | null) {
   const existing = await prisma.location.findFirst({
     where: { companyId, name },
   });
@@ -389,7 +395,7 @@ async function ensureLocation(companyId: string, name: string, address?: string)
     if (address && existing.address !== address) {
       return prisma.location.update({
         where: { id: existing.id },
-        data: { address },
+        data: { address: toNullable(address) },
       });
     }
     return existing;
@@ -399,7 +405,7 @@ async function ensureLocation(companyId: string, name: string, address?: string)
     data: {
       companyId,
       name,
-      address,
+      address: toNullable(address),
     },
   });
 }
@@ -413,26 +419,26 @@ async function ensureMachine({
 }: {
   companyId: string;
   code: string;
-  description?: string;
+  description?: string | null;
   machineTypeId: string;
-  locationId?: string;
+  locationId?: string | null;
 }) {
   const existing = await prisma.machine.findFirst({
     where: { companyId, code },
   });
 
   if (existing) {
-    if (
-      existing.description !== description ||
-      existing.locationId !== locationId ||
-      existing.machineTypeId !== machineTypeId
-    ) {
+    const descriptionChanged = description !== undefined && existing.description !== description;
+    const locationChanged = locationId !== undefined && existing.locationId !== locationId;
+    const machineTypeChanged = existing.machineTypeId !== machineTypeId;
+
+    if (descriptionChanged || locationChanged || machineTypeChanged) {
       return prisma.machine.update({
         where: { id: existing.id },
         data: {
-          description,
-          locationId,
-          machineTypeId,
+          ...(descriptionChanged ? { description: toNullable(description) } : {}),
+          ...(locationChanged ? { locationId: toNullable(locationId) } : {}),
+          ...(machineTypeChanged ? { machineTypeId } : {}),
         },
       });
     }
@@ -443,9 +449,9 @@ async function ensureMachine({
     data: {
       companyId,
       code,
-      description,
+      description: toNullable(description),
       machineTypeId,
-      locationId,
+      locationId: toNullable(locationId),
     },
   });
 }
@@ -492,7 +498,7 @@ async function ensureLocationWithEquipment(
     const machine = await ensureMachine({
       companyId,
       code: machineConfig.code,
-      description: machineConfig.description,
+      description: machineConfig.description ?? null,
       machineTypeId: machineType.id,
       locationId: location.id,
     });
@@ -530,7 +536,7 @@ async function ensureRunWithLocations({
   locationIds,
 }: {
   companyId: string;
-  pickerId?: string;
+  pickerId?: string | null;
   scheduledFor: Date;
   locationIds: string[];
 }) {
@@ -546,10 +552,10 @@ async function ensureRunWithLocations({
 
   if (existing) {
     let run = existing;
-    if (pickerId && existing.pickerId !== pickerId) {
+    if (pickerId !== undefined && existing.pickerId !== pickerId) {
       run = await prisma.run.update({
         where: { id: existing.id },
-        data: { pickerId },
+        data: { pickerId: toNullable(pickerId) },
       });
     }
     await syncRunLocations(run.id, locationIds);
@@ -569,10 +575,10 @@ async function ensureRunWithLocations({
   return prisma.run.create({
     data: {
       companyId,
-      pickerId,
+      pickerId: toNullable(pickerId),
       status: RunStatus.CREATED,
       scheduledFor,
-      locationOrders,
+      ...(locationOrders ? { locationOrders } : {}),
     },
   });
 }
@@ -624,7 +630,8 @@ async function seedAppleTesting() {
     locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
   }
 
-  if (!locationDetails.length) {
+  const primaryLocation = locationDetails[0];
+  if (!primaryLocation) {
     throw new Error('Apple testing seed requires at least one configured location.');
   }
 
@@ -632,9 +639,9 @@ async function seedAppleTesting() {
     companyId: company.id,
     pickerId: user.id,
     scheduledFor: scheduleForDay(0),
-    locationIds: [locationDetails[0].location.id],
+    locationIds: [primaryLocation.location.id],
   });
-  await ensurePickEntries(run.id, locationDetails[0].coilItems);
+  await ensurePickEntries(run.id, primaryLocation.coilItems);
 
   console.log('Apple testing company id:', company.id);
   console.log('Testing admin email:', APP_STORE_TEST_EMAIL);
@@ -652,7 +659,7 @@ async function seedCompanyData() {
       email: config.owner.email,
       firstName: config.owner.firstName,
       lastName: config.owner.lastName,
-      phone: config.owner.phone,
+      phone: config.owner.phone ?? null,
       role: UserRole.OWNER,
     });
     const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
@@ -663,12 +670,13 @@ async function seedCompanyData() {
       locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
     }
 
-    if (!locationDetails.length) {
+    const primaryLocation = locationDetails[0];
+    if (!primaryLocation) {
       throw new Error(`Company ${config.name} must have at least one location for seeding.`);
     }
 
-    const todayLocation = locationDetails[0];
-    const tomorrowLocation = locationDetails[1] ?? locationDetails[0];
+    const todayLocation = primaryLocation;
+    const tomorrowLocation = locationDetails[1] ?? primaryLocation;
 
     const todayRun = await ensureRunWithLocations({
       companyId: company.id,
@@ -694,10 +702,12 @@ async function seedCompanyData() {
     // Add picker membership for the first owner in the second company
     const source = seeded[0];
     const target = seeded[1];
-    await ensureMembership(source.owner.id, target.company.id, UserRole.PICKER);
-    console.log(
-      `${source.owner.firstName} ${source.owner.lastName} can now pick for ${target.company.name}`,
-    );
+    if (source && target) {
+      await ensureMembership(source.owner.id, target.company.id, UserRole.PICKER);
+      console.log(
+        `${source.owner.firstName} ${source.owner.lastName} can now pick for ${target.company.name}`,
+      );
+    }
   }
 
   return seeded;
