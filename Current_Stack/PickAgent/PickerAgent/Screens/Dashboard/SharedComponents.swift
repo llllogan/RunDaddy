@@ -114,8 +114,8 @@ struct RunRow: View {
                         title: nil,
                         date: nil,
                         text: run.chocolateBoxesDisplay,
-                        colour: Theme.packageBrown.opacity(0.15),
-                        foregroundColour: Theme.packageBrown,
+                        colour: Color.brown.opacity(0.15),
+                        foregroundColour: Color.brown,
                         icon: "shippingbox"
                     )
                 }
@@ -249,7 +249,6 @@ struct LoadingStateRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ProgressView()
-                .tint(Theme.packageBrown)
             Text("Loading…")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

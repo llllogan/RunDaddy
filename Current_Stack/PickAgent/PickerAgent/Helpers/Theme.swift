@@ -8,6 +8,10 @@
 import SwiftUI
 
 enum Theme {
-    /// Primary brand color inspired by Amazon package brown.
-    static let packageBrown = Color(red: 176 / 255, green: 121 / 255, blue: 50 / 255)
+    /// Theme color that switches between black (light mode) and white (dark mode).
+    static var blackOnWhite: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? .white : .black
+        })
+    }
 }

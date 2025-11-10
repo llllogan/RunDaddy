@@ -219,7 +219,7 @@ struct DailyInsightsChartView: View {
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            gradient: Gradient(colors: [Theme.packageBrown.opacity(0.35), .clear]),
+                            gradient: Gradient(colors: [Theme.blackOnWhite.opacity(0.35), .clear]),
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -230,7 +230,7 @@ struct DailyInsightsChartView: View {
                         x: .value("Day", point.start, unit: .day),
                         y: .value("Items", point.totalItems)
                     )
-                    .foregroundStyle(Theme.packageBrown)
+                    .foregroundStyle(Theme.blackOnWhite)
                     .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.catmullRom)
                 }

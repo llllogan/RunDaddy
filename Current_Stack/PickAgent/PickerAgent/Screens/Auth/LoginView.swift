@@ -207,7 +207,7 @@ struct LoginView: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Theme.packageBrown)
+                            .fill(Theme.blackOnWhite)
                     )
                 }
                 .disabled(authViewModel.isProcessing || email.isEmpty || password.isEmpty || firstName.isEmpty || lastName.isEmpty)
@@ -220,7 +220,7 @@ struct LoginView: View {
                     }
                 }
                 .font(.subheadline)
-                .foregroundStyle(Theme.packageBrown)
+                .foregroundStyle(Theme.blackOnWhite)
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Button("Create Account") {
@@ -257,7 +257,7 @@ struct LoginView: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Theme.packageBrown)
+                            .fill(Theme.blackOnWhite)
                     )
                 }
                 .disabled(authViewModel.isProcessing || email.isEmpty || password.isEmpty)

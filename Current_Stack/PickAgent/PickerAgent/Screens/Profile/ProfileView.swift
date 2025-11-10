@@ -53,11 +53,11 @@ struct ProfileView: View {
                     HStack {
                         ZStack {
                             Circle()
-                                .fill(Theme.packageBrown.opacity(0.15))
+                                .fill(Theme.blackOnWhite.opacity(0.15))
                                 .frame(maxWidth: 60)
 
                             Text(initials)
-                                .foregroundStyle(Theme.packageBrown)
+                                .foregroundStyle(Theme.blackOnWhite)
                                 .font(.title3.weight(.bold))
                         }
 
@@ -99,7 +99,7 @@ struct ProfileView: View {
                                         Spacer()
                                         if company.id == viewModel.currentCompany?.id {
                                             Image(systemName: "checkmark")
-                                                .foregroundStyle(Theme.packageBrown)
+                                                .foregroundStyle(Theme.blackOnWhite)
                                         }
                                     }
                                 }
