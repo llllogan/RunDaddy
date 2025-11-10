@@ -93,7 +93,7 @@ function getLogMessage(
         }
       }
 
-      const maxLength = config.maxResponseLength || 1000;
+      const maxLength = config.maxResponseLength || 10000;
       const truncatedResponse = responseStr.length > maxLength 
         ? `${responseStr.substring(0, maxLength)}...` 
         : responseStr;
