@@ -14,4 +14,14 @@ enum Theme {
             traitCollection.userInterfaceStyle == .dark ? .white : .black
         })
     }
+    
+    /// Green color for positive trends
+    static var trendUp: Color {
+        .green.opacity(0.90)
+    }
+    
+    /// Red color for negative trends
+    static var trendDown: Color {
+        .red.opacity(0.90)
+    }
 }

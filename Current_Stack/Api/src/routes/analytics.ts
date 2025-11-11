@@ -303,8 +303,6 @@ async function fetchDailyRows(companyId: string, lookbackDays: number) {
         FROM PickEntry pe
         JOIN Run r ON r.id = pe.runId
         WHERE r.companyId = ${companyId}
-          AND pe.status = 'PICKED'
-          AND pe.pickedAt IS NOT NULL
           AND pe.pickedAt >= DATE_SUB(CURRENT_DATE(), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
           AND pe.pickedAt < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
         GROUP BY DATE_FORMAT(pe.pickedAt, '%Y-%m-%d')

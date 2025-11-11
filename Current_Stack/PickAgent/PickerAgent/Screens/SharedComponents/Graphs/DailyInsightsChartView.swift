@@ -30,6 +30,19 @@ struct DailyInsightsChartView: View {
         let maxPoint = points.map { Double($0.totalItems) }.max() ?? 1
         return max(maxPoint * 1.15, 1)
     }
+    
+    private var isTrendingUp: Bool {
+        guard points.count >= 2 else { return false }
+        
+        let sortedPoints = points.sorted { $0.start < $1.start }
+        guard let today = sortedPoints.last, let yesterday = sortedPoints.dropLast().last else { return false }
+        
+        return today.totalItems > yesterday.totalItems
+    }
+    
+    private var trendColor: Color {
+        isTrendingUp ? Theme.trendUp : Theme.trendDown
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -44,7 +57,7 @@ struct DailyInsightsChartView: View {
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            gradient: Gradient(colors: [Theme.blackOnWhite.opacity(0.35), .clear]),
+                            gradient: Gradient(colors: [trendColor.opacity(0.35), .clear]),
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -55,7 +68,7 @@ struct DailyInsightsChartView: View {
                         x: .value("Day", point.start, unit: .day),
                         y: .value("Items", point.totalItems)
                     )
-                    .foregroundStyle(Theme.blackOnWhite)
+                    .foregroundStyle(trendColor)
                     .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.catmullRom)
                 }
