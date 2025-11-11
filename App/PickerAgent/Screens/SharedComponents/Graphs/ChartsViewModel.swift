@@ -19,6 +19,9 @@ class ChartsViewModel: ObservableObject {
     @Published var isLoadingTopLocations = false
     @Published var topLocationsError: String?
     @Published var topLocationsLookbackDays = 30
+    @Published var packPeriodComparisons: [PackPeriodComparisons.PeriodComparison] = []
+    @Published var isLoadingPeriodComparisons = false
+    @Published var packPeriodComparisonsError: String?
 
     private let session: AuthSession
     private let analyticsService: AnalyticsServicing
@@ -97,5 +100,32 @@ class ChartsViewModel: ObservableObject {
 
     func refreshTopLocations() async {
         await loadTopLocations()
+    }
+
+    func loadPeriodComparisons() async {
+        isLoadingPeriodComparisons = true
+        packPeriodComparisonsError = nil
+
+        do {
+            let response = try await analyticsService.fetchPackPeriodComparisons(
+                credentials: session.credentials
+            )
+            packPeriodComparisons = response.periods
+        } catch let authError as AuthError {
+            packPeriodComparisonsError = authError.localizedDescription
+            packPeriodComparisons = []
+        } catch let analyticsError as AnalyticsServiceError {
+            packPeriodComparisonsError = analyticsError.localizedDescription
+            packPeriodComparisons = []
+        } catch {
+            packPeriodComparisonsError = "We couldn't load this comparison right now. Please try again."
+            packPeriodComparisons = []
+        }
+
+        isLoadingPeriodComparisons = false
+    }
+
+    func refreshPeriodComparisons() async {
+        await loadPeriodComparisons()
     }
 }

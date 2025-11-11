@@ -4,7 +4,12 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
-import { getTimezoneDayRange, isValidTimezone, formatDateInTimezone } from '../lib/timezone.js';
+import {
+  getTimezoneDayRange,
+  isValidTimezone,
+  formatDateInTimezone,
+  convertDateToTimezoneMidnight,
+} from '../lib/timezone.js';
 import type { TimezoneDayRange } from '../lib/timezone.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
@@ -12,6 +17,10 @@ const LOOKBACK_DEFAULT = 30;
 const LOOKBACK_MIN = 7;
 const LOOKBACK_MAX = 90;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const WEEK_IN_MS = 7 * DAY_IN_MS;
+const MONTHS_IN_YEAR = 12;
+const QUARTERS_IN_YEAR = 4;
+const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -194,6 +203,23 @@ router.get('/week-over-week', setLogConfig({ level: 'minimal' }), async (req, re
   });
 });
 
+router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const periodComparisons = await Promise.all(
+    PERIOD_TYPES.map((period) => buildPeriodComparison(period, context)),
+  );
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    periods: periodComparisons,
+  });
+});
+
 type LookbackContext = {
   companyId: string;
   timeZone: string;
@@ -208,6 +234,37 @@ type TimezoneContext = {
   companyId: string;
   timeZone: string;
   now: Date;
+};
+
+type PeriodType = (typeof PERIOD_TYPES)[number];
+
+type PeriodWindow = {
+  start: Date;
+  end: Date;
+};
+
+type PeriodComparison = {
+  period: PeriodType;
+  progressPercentage: number;
+  comparisonDurationMs: number;
+  currentPeriod: {
+    start: string;
+    end: string;
+    comparisonEnd: string;
+    totalItems: number;
+  };
+  previousPeriods: Array<{
+    index: number;
+    start: string;
+    end: string;
+    comparisonEnd: string;
+    totalItems: number;
+  }>;
+  averages: {
+    previousAverage: number | null;
+    deltaFromPreviousAverage: number | null;
+    deltaPercentage: number | null;
+  };
 };
 
 async function buildLookbackContext(req: Request, res: Response): Promise<LookbackContext | null> {
@@ -562,6 +619,140 @@ async function sumPackedItems(companyId: string, rangeStart: Date, rangeEnd: Dat
   );
 
   return toNumber(row?.total_items ?? 0);
+}
+
+async function buildPeriodComparison(period: PeriodType, context: TimezoneContext): Promise<PeriodComparison> {
+  const currentWindow = getPeriodWindow(period, context.timeZone, context.now, 0);
+  const durationMs = Math.max(currentWindow.end.getTime() - currentWindow.start.getTime(), 0);
+  const elapsedMs = Math.min(
+    Math.max(context.now.getTime() - currentWindow.start.getTime(), 0),
+    durationMs,
+  );
+  const progressFraction = durationMs > 0 ? elapsedMs / durationMs : 0;
+  const comparisonDurationMs = elapsedMs;
+  const currentComparisonEnd = new Date(currentWindow.start.getTime() + comparisonDurationMs);
+
+  const currentTotalPromise = sumPackedItems(
+    context.companyId,
+    currentWindow.start,
+    currentComparisonEnd,
+  );
+
+  // Align each historical period to the same elapsed share of time so we're comparing like-for-like progress.
+  const previousPeriods = await Promise.all(
+    [1, 2, 3].map(async (index) => {
+      const window = getPeriodWindow(period, context.timeZone, context.now, index);
+      const comparisonEnd = new Date(window.start.getTime() + comparisonDurationMs);
+      const boundedComparisonEnd =
+        comparisonEnd.getTime() > window.end.getTime() ? window.end : comparisonEnd;
+      const totalItems = await sumPackedItems(context.companyId, window.start, boundedComparisonEnd);
+      return {
+        index,
+        start: window.start.toISOString(),
+        end: window.end.toISOString(),
+        comparisonEnd: boundedComparisonEnd.toISOString(),
+        totalItems,
+      };
+    }),
+  );
+
+  const currentTotal = await currentTotalPromise;
+  const previousTotals = previousPeriods.map((entry) => entry.totalItems);
+  const previousAverageRaw =
+    previousTotals.length > 0
+      ? previousTotals.reduce((sum, value) => sum + value, 0) / previousTotals.length
+      : null;
+  const previousAverage =
+    previousAverageRaw !== null ? Number(previousAverageRaw.toFixed(2)) : null;
+  const deltaFromPreviousAverage =
+    previousAverageRaw !== null ? Number((currentTotal - previousAverageRaw).toFixed(2)) : null;
+  const deltaPercentage =
+    previousAverageRaw && previousAverageRaw !== 0
+      ? Number((((currentTotal - previousAverageRaw) / previousAverageRaw) * 100).toFixed(2))
+      : null;
+
+  return {
+    period,
+    progressPercentage: Number((progressFraction * 100).toFixed(2)),
+    comparisonDurationMs,
+    currentPeriod: {
+      start: currentWindow.start.toISOString(),
+      end: currentWindow.end.toISOString(),
+      comparisonEnd: currentComparisonEnd.toISOString(),
+      totalItems: currentTotal,
+    },
+    previousPeriods,
+    averages: {
+      previousAverage,
+      deltaFromPreviousAverage,
+      deltaPercentage,
+    },
+  };
+}
+
+function getPeriodWindow(
+  period: PeriodType,
+  timeZone: string,
+  reference: Date,
+  offset: number,
+): PeriodWindow {
+  if (period === 'week') {
+    const currentWeekStart = getIsoWeekStart(timeZone, reference);
+    const start = new Date(currentWeekStart.getTime() - offset * WEEK_IN_MS);
+    return {
+      start,
+      end: new Date(start.getTime() + WEEK_IN_MS),
+    };
+  }
+  if (period === 'month') {
+    return getMonthWindow(timeZone, reference, offset);
+  }
+  return getQuarterWindow(timeZone, reference, offset);
+}
+
+function getMonthWindow(timeZone: string, reference: Date, offset: number): PeriodWindow {
+  const { year, month } = getLocalDatePartsInTimezone(reference, timeZone);
+  const absoluteMonth = year * MONTHS_IN_YEAR + (month - 1) - offset;
+  const startYear = Math.floor(absoluteMonth / MONTHS_IN_YEAR);
+  const startMonthIndex = mod(absoluteMonth, MONTHS_IN_YEAR);
+
+  const startBase = new Date(Date.UTC(startYear, startMonthIndex, 1, 0, 0, 0, 0));
+  const endBase = new Date(Date.UTC(startYear, startMonthIndex + 1, 1, 0, 0, 0, 0));
+  return {
+    start: convertDateToTimezoneMidnight(startBase, timeZone),
+    end: convertDateToTimezoneMidnight(endBase, timeZone),
+  };
+}
+
+function getQuarterWindow(timeZone: string, reference: Date, offset: number): PeriodWindow {
+  const { year, month } = getLocalDatePartsInTimezone(reference, timeZone);
+  const currentQuarterIndex = Math.floor((month - 1) / 3);
+  const absoluteQuarter = year * QUARTERS_IN_YEAR + currentQuarterIndex - offset;
+  const startYear = Math.floor(absoluteQuarter / QUARTERS_IN_YEAR);
+  const startQuarterIndex = mod(absoluteQuarter, QUARTERS_IN_YEAR);
+  const startMonthIndex = startQuarterIndex * 3;
+
+  const startBase = new Date(Date.UTC(startYear, startMonthIndex, 1, 0, 0, 0, 0));
+  const endBase = new Date(Date.UTC(startYear, startMonthIndex + 3, 1, 0, 0, 0, 0));
+  return {
+    start: convertDateToTimezoneMidnight(startBase, timeZone),
+    end: convertDateToTimezoneMidnight(endBase, timeZone),
+  };
+}
+
+function getLocalDatePartsInTimezone(reference: Date, timeZone: string) {
+  const label = formatDateInTimezone(reference, timeZone);
+  const [yearRaw, monthRaw, dayRaw] = label.split('-');
+  return {
+    year: Number.parseInt(yearRaw ?? '0', 10),
+    month: Number.parseInt(monthRaw ?? '1', 10),
+    day: Number.parseInt(dayRaw ?? '1', 10),
+  };
+}
+
+function mod(value: number, divisor: number): number {
+  const remainder = value % divisor;
+  return remainder < 0 ? remainder + divisor : remainder;
 }
 
 function getIsoWeekStart(timeZone: string, reference: Date): Date {
