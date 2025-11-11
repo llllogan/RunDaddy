@@ -149,7 +149,7 @@ struct DailyInsightsChartView: View {
                         series: .value("total", "B")
                     )
                     .foregroundStyle(Color.gray)
-                    .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.stepCenter)
                     
                     LineMark(
@@ -158,7 +158,7 @@ struct DailyInsightsChartView: View {
                         series: .value("packed", "A")
                     )
                     .foregroundStyle(trendColor)
-                    .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.stepCenter)
                 }
             }
