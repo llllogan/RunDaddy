@@ -144,8 +144,9 @@ struct TopSkusChartView: View {
                     }
                 }
             } label: {
-                filterChip(label: locationFilterLabel, systemImage: "mappin.and.ellipse")
+                filterChip(label: locationFilterLabel)
             }
+            .foregroundStyle(.secondary)
 
             Menu {
                 Button("All Machines") {
@@ -165,9 +166,10 @@ struct TopSkusChartView: View {
                     }
                 }
             } label: {
-                filterChip(label: machineFilterLabel, systemImage: "building.2")
+                filterChip(label: machineFilterLabel)
             }
             .disabled(visibleMachines.isEmpty && machineOptions.isEmpty)
+            .foregroundStyle(.secondary)
 
             Spacer()
         }
@@ -242,22 +244,6 @@ struct TopSkusChartView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func filterChip(label: String, systemImage: String) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Image(systemName: systemImage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(.systemGray5))
-        .clipShape(Capsule())
     }
 
     private func loadInitialData() async {

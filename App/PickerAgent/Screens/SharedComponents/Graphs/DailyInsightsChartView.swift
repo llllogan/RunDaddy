@@ -89,17 +89,9 @@ struct DailyInsightsChartView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 2) {
-                            Text(selectedRange.label)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
+                        filterChip(label: selectedRange.label)
                     }
-                    .padding(4)
-                    .padding(.horizontal, 6)
-                    .background(Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .foregroundStyle(.secondary)
                 }
                 .font(.subheadline)
                 .foregroundStyle(.primary)

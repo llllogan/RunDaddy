@@ -96,10 +96,10 @@ struct RunRow: View {
                 .fontWeight(.semibold)
             
             FlowLayout(spacing: 6) {
-                PillChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
+                InfoChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
 
                 if isAssignedToCurrentUser {
-                    PillChip(
+                    InfoChip(
                         title: nil,
                         date: nil,
                         text: "Assigned to you",
@@ -110,7 +110,7 @@ struct RunRow: View {
                 }
                 
                 if !run.chocolateBoxes.isEmpty {
-                    PillChip(
+                    InfoChip(
                         title: nil,
                         date: nil,
                         text: run.chocolateBoxesDisplay,
@@ -121,10 +121,10 @@ struct RunRow: View {
                 }
                 
                 if let started = run.pickingStartedAt {
-                    PillChip(title: "Started", date: started, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
+                    InfoChip(title: "Started", date: started, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
                 }
                 if let ended = run.pickingEndedAt {
-                    PillChip(title: "Ended", date: ended, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
+                    InfoChip(title: "Ended", date: ended, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
                 }
             }
         }
@@ -163,46 +163,6 @@ struct RunRow: View {
         default:
             return .secondary
         }
-    }
-}
-
-struct PillChip: View {
-    let title: String?
-    let date: Date?
-    let text: String?
-    let colour: Color?
-    let foregroundColour: Color?
-    let icon: String?
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if let icon = icon {
-                Image(systemName: icon)
-                    .font(.caption2)
-                    .foregroundStyle(foregroundColour ?? .secondary)
-            }
-            
-            if let title = title {
-                Text(title.uppercased())
-                    .font(.caption2.bold())
-                    .foregroundStyle(foregroundColour!)
-            }
-            
-            if let text = text {
-                Text(text)
-                    .foregroundStyle(foregroundColour!)
-                    .font(.caption2.bold())
-                
-            } else if let date = date {
-                Text(date.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(foregroundColour!)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(colour != nil ? Color(colour!) : Color(.systemGray6))
-        .clipShape(Capsule())
     }
 }
 

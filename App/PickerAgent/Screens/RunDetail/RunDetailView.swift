@@ -319,30 +319,12 @@ private struct LocationSummaryRow: View {
             }
             
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .foregroundStyle(.secondary)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
+                InfoChip(title: nil, date: nil, text: "\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")", colour: nil, foregroundColour: nil, icon: nil)
                 
                 if section.remainingCoils > 0 {
-                    Text("\(section.remainingCoils) remaining")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .foregroundStyle(.secondary)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
+                    InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
                 } else {
-                    Text("All packed")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .foregroundStyle(.green)
-                        .background(Color(.green.opacity(0.15)))
-                        .clipShape(Capsule())
+                    InfoChip(title: nil, date: nil, text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green, icon: nil)
                 }
             }
             .accessibilityElement(children: .combine)
@@ -678,8 +660,9 @@ struct PendingPickEntriesView: View {
                     }
                 }
             } label: {
-                filterChip(label: locationFilterLabel, systemImage: "mappin.and.ellipse")
+                filterChip(label: locationFilterLabel)
             }
+            .foregroundStyle(.secondary)
 
             Menu {
                 Button("All Machines") {
@@ -695,27 +678,12 @@ struct PendingPickEntriesView: View {
                     }
                 }
             } label: {
-                filterChip(label: machineFilterLabel, systemImage: "building.2")
+                filterChip(label: machineFilterLabel)
             }
+            .foregroundStyle(.secondary)
 
             Spacer()
         }
-    }
-
-    private func filterChip(label: String, systemImage: String) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Image(systemName: systemImage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(.systemGray5))
-        .clipShape(Capsule())
     }
 
     private func locationDisplayName(_ location: RunDetail.Location) -> String {

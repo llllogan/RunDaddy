@@ -13,10 +13,10 @@ enum CoilSortOrder: CaseIterable {
     
     var displayName: String {
         switch self {
-        case .ascending:
-            return "Coil: Decending"
         case .descending:
             return "Coil: Ascending"
+        case .ascending:
+            return "Coil: Decending"
         }
     }
 }
@@ -140,19 +140,9 @@ struct LocationDetailView: View {
                             }
                         }
                     } label: {
-                        HStack {
-                            Text(selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
+                        filterChip(label: selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
                     }
+                    .foregroundStyle(.secondary)
                     
                     Menu {
                         ForEach(CoilSortOrder.allCases, id: \.self) { order in
@@ -161,19 +151,9 @@ struct LocationDetailView: View {
                             }
                         }
                     } label: {
-                        HStack {
-                            Text(coilSortOrder.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "line.3.horizontal.decrease.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
+                        filterChip(label: coilSortOrder.displayName)
                     }
+                    .foregroundStyle(.secondary)
                     
                     Spacer()
                 }
@@ -610,14 +590,14 @@ struct PickEntryRow: View {
                 
                 FlowLayout(spacing: 6) {
                     if showsLocation, let locationLabel {
-                        detailChip("\(locationLabel)")
+                        InfoChip(title: nil, date: nil, text: locationLabel, colour: nil, foregroundColour: nil, icon: nil)
                     }
                     
                     if let machineCode = pickItem.machine?.description {
-                        detailChip("Machine: \(machineCode)")
+                        InfoChip(title: "Machine", date: nil, text: machineCode, colour: nil, foregroundColour: nil, icon: nil)
                     }
                     
-                    detailChip("Coil: \(pickItem.coilItem.coil.code)")
+                    InfoChip(title: "Coil", date: nil, text: pickItem.coilItem.coil.code, colour: nil, foregroundColour: nil, icon: nil)
                 }
             }
             .padding(.vertical, 6)
