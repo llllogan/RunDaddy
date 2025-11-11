@@ -15,31 +15,23 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
-    @Published private(set) var dailyInsights: [DailyInsights.Point] = []
-    @Published var dailyInsightsLookbackDays: Int = 14
-    @Published private(set) var isLoadingInsights = false
-    @Published private(set) var insightsError: String?
 
     private var session: AuthSession
     private let service: RunsServicing
     private let authService: AuthServicing
-    private let analyticsService: AnalyticsServicing
-    private let defaultInsightsLookbackDays = 14
 
     convenience init(session: AuthSession) {
         self.init(
             session: session,
             service: RunsService(),
-            authService: AuthService(),
-            analyticsService: AnalyticsService()
+            authService: AuthService()
         )
     }
 
-    init(session: AuthSession, service: RunsServicing, authService: AuthServicing, analyticsService: AnalyticsServicing) {
+    init(session: AuthSession, service: RunsServicing, authService: AuthServicing) {
         self.session = session
         self.service = service
         self.authService = authService
-        self.analyticsService = analyticsService
     }
 
     func loadRuns(force: Bool = false) async {
@@ -71,50 +63,11 @@ final class DashboardViewModel: ObservableObject {
         }
 
         isLoading = false
-
-        await loadDailyInsights(force: force)
     }
 
     func updateSession(_ session: AuthSession) {
         self.session = session
     }
 
-    func loadDailyInsights(force: Bool = false) async {
-        if isLoadingInsights && !force {
-            return
-        }
-        isLoadingInsights = true
-        if force {
-            insightsError = nil
-        }
 
-        defer { isLoadingInsights = false }
-
-        do {
-            let response = try await analyticsService.fetchDailyInsights(
-                lookbackDays: dailyInsightsLookbackDays > 0 ? dailyInsightsLookbackDays : defaultInsightsLookbackDays,
-                credentials: session.credentials
-            )
-            dailyInsights = response.points
-            dailyInsightsLookbackDays = response.lookbackDays
-            insightsError = nil
-        } catch let authError as AuthError {
-            insightsError = authError.localizedDescription
-            dailyInsights = []
-            dailyInsightsLookbackDays = 0
-        } catch let analyticsError as AnalyticsServiceError {
-            insightsError = analyticsError.localizedDescription
-            dailyInsights = []
-            dailyInsightsLookbackDays = 0
-        } catch {
-            insightsError = "We couldn't load insights right now. Please try again."
-            dailyInsights = []
-            dailyInsightsLookbackDays = 0
-        }
-    }
-    
-    func updateInsightsLookbackDays(_ days: Int) async {
-        dailyInsightsLookbackDays = days
-        await loadDailyInsights(force: true)
-    }
 }

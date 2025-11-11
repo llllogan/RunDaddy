@@ -62,8 +62,8 @@ final class AnalyticsService: AnalyticsServicing {
     private let urlSession: URLSession
     private let decoder: JSONDecoder
 
-    init(urlSession: URLSession = .shared) {
-        self.urlSession = urlSession
+    init(urlSession: URLSession? = nil) {
+        self.urlSession = urlSession ?? URLSession.shared
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder

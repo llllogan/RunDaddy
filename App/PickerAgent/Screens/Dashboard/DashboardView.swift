@@ -14,6 +14,7 @@ struct DashboardView: View {
 
     @StateObject private var viewModel: DashboardViewModel
     @State private var isShowingProfile = false
+    @State private var chartRefreshTrigger = false
 
     private var hasCompany: Bool {
         // User has company if they have company memberships
@@ -120,26 +121,22 @@ struct DashboardView: View {
                 }
 
                 Section("Insights") {
-                    if !viewModel.dailyInsights.isEmpty {
-                        DailyInsightsChartView(
-                            points: viewModel.dailyInsights,
-                            lookbackDays: viewModel.dailyInsightsLookbackDays,
-                            onRangeChange: { days in
-                                Task {
-                                    await viewModel.updateInsightsLookbackDays(days)
-                                }
-                            }
-                        )
+                    DailyInsightsChartView(session: session, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                        
-                        Text("View more data")
-                    } else if viewModel.isLoadingInsights {
-                        LoadingStateRow()
-                    } else if let insightsError = viewModel.insightsError {
-                        ErrorStateRow(message: insightsError)
-                    } else {
-                        EmptyStateRow(message: "Insights will show up once you start running orders.")
+                    
+                    NavigationLink {
+                        AnalyticsView(session: session)
+                    } label: {
+                        HStack {
+                            Text("View more data")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .listStyle(.insetGrouped)
@@ -162,6 +159,7 @@ struct DashboardView: View {
         }
         .refreshable {
             await viewModel.loadRuns(force: true)
+            chartRefreshTrigger.toggle()
         }
         .sheet(isPresented: $isShowingProfile) {
             ProfileView(

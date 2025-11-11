@@ -10,15 +10,20 @@ import SwiftUI
 struct AnalyticsView: View {
     let session: AuthSession
     
+    @State private var chartRefreshTrigger = false
+    
     var body: some View {
         List {
             Section("Analytics") {
-                DailyInsightsChartView(session: session)
+                DailyInsightsChartView(session: session, refreshTrigger: chartRefreshTrigger)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Analytics")
         .navigationBarTitleDisplayMode(.large)
+        .refreshable {
+            chartRefreshTrigger.toggle()
+        }
     }
 }

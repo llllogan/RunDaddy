@@ -9,10 +9,10 @@ import SwiftUI
 import Charts
 
 struct DailyInsightsChartView: View {
-    let points: [DailyInsights.Point]
-    let lookbackDays: Int
-    let onRangeChange: ((Int) -> Void)?
+    let session: AuthSession
+    let refreshTrigger: Bool
     
+    @StateObject private var viewModel: ChartsViewModel
     @State private var selectedRange: RangeOption
     
     enum RangeOption: Int, CaseIterable, Identifiable {
@@ -31,24 +31,21 @@ struct DailyInsightsChartView: View {
         }
     }
     
-    init(points: [DailyInsights.Point], lookbackDays: Int, onRangeChange: ((Int) -> Void)? = nil) {
-        self.points = points
-        self.lookbackDays = lookbackDays
-        self.onRangeChange = onRangeChange
-        
-        // Find the closest range option to the current lookbackDays
-        let closestRange = RangeOption.allCases.min(by: { abs($0.rawValue - lookbackDays) < abs($1.rawValue - lookbackDays) })
-        self._selectedRange = State(initialValue: closestRange ?? .month)
+    init(session: AuthSession, refreshTrigger: Bool = false) {
+        self.session = session
+        self.refreshTrigger = refreshTrigger
+        _viewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+        self._selectedRange = State(initialValue: .month)
     }
 
     private var lookbackText: String {
-        let value = lookbackDays > 0 ? lookbackDays : points.count
+        let value = viewModel.dailyInsightsLookbackDays > 0 ? viewModel.dailyInsightsLookbackDays : viewModel.dailyInsights.count
         return value == 1 ? "1 day" : "\(value) days"
     }
 
     private var weekStartDates: [Date] {
         let calendar = Calendar.current
-        let starts = points.compactMap { point in
+        let starts = viewModel.dailyInsights.compactMap { point in
             calendar.dateInterval(of: .weekOfYear, for: point.start)?.start
         }
         let uniqueStarts = Set(starts)
@@ -56,16 +53,16 @@ struct DailyInsightsChartView: View {
     }
 
     private var maxYValue: Double {
-        let maxTotal = points.map { Double($0.totalItems) }.max() ?? 1
-        let maxPacked = points.map { Double($0.itemsPacked) }.max() ?? 1
+        let maxTotal = viewModel.dailyInsights.map { Double($0.totalItems) }.max() ?? 1
+        let maxPacked = viewModel.dailyInsights.map { Double($0.itemsPacked) }.max() ?? 1
         let maxPoint = max(maxTotal, maxPacked)
         return max(maxPoint * 1.15, 1)
     }
     
     private var isTrendingUp: Bool {
-        guard points.count >= 2 else { return false }
+        guard viewModel.dailyInsights.count >= 2 else { return false }
         
-        let sortedPoints = points.sorted { $0.start < $1.start }
+        let sortedPoints = viewModel.dailyInsights.sorted { $0.start < $1.start }
         guard let today = sortedPoints.last, let yesterday = sortedPoints.dropLast().last else { return false }
         
         return today.itemsPacked >= yesterday.itemsPacked
@@ -84,7 +81,7 @@ struct DailyInsightsChartView: View {
                         ForEach(RangeOption.allCases) { range in
                             Button(action: {
                                 selectedRange = range
-                                onRangeChange?(range.rawValue)
+                                viewModel.updateLookbackDays(range.rawValue)
                             }) {
                                 HStack {
                                     Text(range.label)
@@ -133,7 +130,7 @@ struct DailyInsightsChartView: View {
 
             Chart {
                 // Items packed line with area mark
-                ForEach(points) { point in
+                ForEach(viewModel.dailyInsights) { point in
                     
                     AreaMark(
                         x: .value("Day", point.start, unit: .day),
@@ -184,5 +181,28 @@ struct DailyInsightsChartView: View {
             .frame(maxHeight: 180)
         }
         .padding()
+        .task {
+            await viewModel.loadDailyInsights()
+        }
+        .refreshable {
+            await viewModel.refreshInsights()
+        }
+        .onAppear {
+            let closestRange = RangeOption.allCases.min(by: { abs($0.rawValue - viewModel.dailyInsightsLookbackDays) < abs($1.rawValue - viewModel.dailyInsightsLookbackDays) })
+            if let range = closestRange {
+                selectedRange = range
+            }
+        }
+        .onChange(of: viewModel.dailyInsightsLookbackDays) { _, newDays in
+            let closestRange = RangeOption.allCases.min(by: { abs($0.rawValue - newDays) < abs($1.rawValue - newDays) })
+            if let range = closestRange {
+                selectedRange = range
+            }
+        }
+        .onChange(of: refreshTrigger) { _, _ in
+            Task {
+                await viewModel.refreshInsights()
+            }
+        }
     }
 }
