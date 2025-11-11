@@ -247,7 +247,7 @@ struct LocationDetailView: View {
                 },
                 viewModel: viewModel
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .alert(item: $pickItemPendingDeletion) { pickItem in
@@ -626,6 +626,7 @@ struct PickEntryRow: View {
             
             Text("\(pickItem.count)")
                 .font(.title)
+                .fontWeight(.semibold)
                 .fontDesign(.rounded)
         }
     }
