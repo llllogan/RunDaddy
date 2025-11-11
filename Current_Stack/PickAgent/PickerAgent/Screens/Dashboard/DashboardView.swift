@@ -123,7 +123,12 @@ struct DashboardView: View {
                     if !viewModel.dailyInsights.isEmpty {
                         DailyInsightsChartView(
                             points: viewModel.dailyInsights,
-                            lookbackDays: viewModel.dailyInsightsLookbackDays
+                            lookbackDays: viewModel.dailyInsightsLookbackDays,
+                            onRangeChange: { days in
+                                Task {
+                                    await viewModel.updateInsightsLookbackDays(days)
+                                }
+                            }
                         )
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         

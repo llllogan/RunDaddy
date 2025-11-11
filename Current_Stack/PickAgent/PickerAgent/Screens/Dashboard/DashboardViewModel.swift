@@ -16,7 +16,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
     @Published private(set) var dailyInsights: [DailyInsights.Point] = []
-    @Published private(set) var dailyInsightsLookbackDays: Int = 0
+    @Published var dailyInsightsLookbackDays: Int = 14
     @Published private(set) var isLoadingInsights = false
     @Published private(set) var insightsError: String?
 
@@ -92,7 +92,7 @@ final class DashboardViewModel: ObservableObject {
 
         do {
             let response = try await analyticsService.fetchDailyInsights(
-                lookbackDays: defaultInsightsLookbackDays,
+                lookbackDays: dailyInsightsLookbackDays > 0 ? dailyInsightsLookbackDays : defaultInsightsLookbackDays,
                 credentials: session.credentials
             )
             dailyInsights = response.points
@@ -111,5 +111,10 @@ final class DashboardViewModel: ObservableObject {
             dailyInsights = []
             dailyInsightsLookbackDays = 0
         }
+    }
+    
+    func updateInsightsLookbackDays(_ days: Int) async {
+        dailyInsightsLookbackDays = days
+        await loadDailyInsights(force: true)
     }
 }

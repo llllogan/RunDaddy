@@ -14,7 +14,7 @@ class ChartsViewModel: ObservableObject {
     @Published var dailyInsights: [DailyInsights.Point] = []
     @Published var isLoadingInsights = false
     @Published var insightsError: String?
-    @Published var dailyInsightsLookbackDays = 30
+    @Published var dailyInsightsLookbackDays = 7
 
     private let session: AuthSession
     private let analyticsService: AnalyticsServicing

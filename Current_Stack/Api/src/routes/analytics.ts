@@ -26,6 +26,7 @@ const WEEKDAY_INDEX: Record<string, number> = {
 type DailyRow = {
   day_label: string | Date | null;
   total_items: bigint | number | string | null;
+  items_packed: bigint | number | string | null;
 };
 
 type LocationMachineRow = {
@@ -53,7 +54,7 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
     return;
   }
 
-  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays);
+  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays, context.timeZone);
   const points = buildDailySeries(context.dayRanges, dailyRows);
 
   res.json({
@@ -132,7 +133,7 @@ router.get('/average-daily', setLogConfig({ level: 'minimal' }), async (req, res
     return;
   }
 
-  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays);
+  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays, context.timeZone);
   const points = buildDailySeries(context.dayRanges, dailyRows);
   const nonZeroDays = points.filter((day) => day.totalItems > 0);
   const totalOnActiveDays = nonZeroDays.reduce((sum, day) => sum + day.totalItems, 0);
@@ -290,22 +291,29 @@ function buildDayRanges(timeZone: string, lookbackDays: number, reference: Date)
   return ranges;
 }
 
-async function fetchDailyRows(companyId: string, lookbackDays: number) {
+async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone: string) {
   const trailingDays = Math.max(lookbackDays - 1, 0);
 
   return prisma.$queryRaw<DailyRow[]>(
     Prisma.sql`
-      SELECT day_label, total_items
+      SELECT day_label, total_items, items_packed
       FROM (
-        SELECT
-          DATE_FORMAT(pe.pickedAt, '%Y-%m-%d') AS day_label,
-          SUM(pe.count) AS total_items
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        WHERE r.companyId = ${companyId}
-          AND pe.pickedAt >= DATE_SUB(CURRENT_DATE(), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
-          AND pe.pickedAt < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-        GROUP BY DATE_FORMAT(pe.pickedAt, '%Y-%m-%d')
+        SELECT 
+          converted_date AS day_label,
+          SUM(total_items) AS total_items,
+          SUM(items_packed) AS items_packed
+        FROM (
+          SELECT
+            DATE_FORMAT(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS converted_date,
+            pe.count AS total_items,
+            CASE WHEN pe.status = 'PICKED' THEN pe.count ELSE 0 END AS items_packed
+          FROM PickEntry pe
+          JOIN Run r ON r.id = pe.runId
+          WHERE r.companyId = ${companyId}
+            AND CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}) >= DATE_SUB(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
+            AND CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}) < DATE_ADD(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL 2 DAY)
+        ) AS converted_data
+        GROUP BY converted_date
       ) AS daily_totals
       ORDER BY day_label ASC
     `,
@@ -365,6 +373,7 @@ async function fetchSkuRows(companyId: string, rangeStart: Date, rangeEnd: Date)
 function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
   const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
   const totalsByLabel = new Map<string, number>();
+  const packedByLabel = new Map<string, number>();
 
   for (const row of rows) {
     const normalizedLabel = normalizeDayLabel(row.day_label, targetTimeZone);
@@ -372,14 +381,25 @@ function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
       continue;
     }
     totalsByLabel.set(normalizedLabel, toNumber(row.total_items));
+    packedByLabel.set(normalizedLabel, toNumber(row.items_packed));
   }
 
-  return dayRanges.map((range) => ({
-    date: range.label,
-    start: range.start.toISOString(),
-    end: range.end.toISOString(),
-    totalItems: totalsByLabel.get(range.label) ?? 0,
-  }));
+  return dayRanges.map((range) => {
+    // Create a date that will display as the local date when interpreted in the client's timezone
+    const parts = range.label.split('-').map(Number);
+    const year = parts[0] ?? 0;
+    const month = (parts[1] ?? 1) - 1; // Convert to 0-based month
+    const day = parts[2] ?? 1;
+    const baseDate = new Date(year, month, day, 0, 0, 0, 0);
+    
+    return {
+      date: range.label,
+      start: baseDate.toISOString(),
+      end: baseDate.toISOString(),
+      totalItems: totalsByLabel.get(range.label) ?? 0,
+      itemsPacked: packedByLabel.get(range.label) ?? 0,
+    };
+  });
 }
 
 function normalizeDayLabel(label: string | Date | null, timeZone: string): string | null {

@@ -18,6 +18,7 @@ struct DailyInsights: Equatable {
         let start: Date
         let end: Date
         let totalItems: Int
+        let itemsPacked: Int
     }
 
     let generatedAt: Date
@@ -117,12 +118,14 @@ private struct DailyInsightsResponse: Decodable {
         let start: Date
         let end: Date
         let totalItems: Int
+        let itemsPacked: Int
 
         private enum CodingKeys: String, CodingKey {
             case date
             case start
             case end
             case totalItems
+            case itemsPacked
         }
 
         init(from decoder: Decoder) throws {
@@ -137,6 +140,14 @@ private struct DailyInsightsResponse: Decodable {
                 totalItems = Int(doubleValue.rounded())
             } else {
                 totalItems = 0
+            }
+
+            if let intValue = try? container.decode(Int.self, forKey: .itemsPacked) {
+                itemsPacked = intValue
+            } else if let doubleValue = try? container.decode(Double.self, forKey: .itemsPacked) {
+                itemsPacked = Int(doubleValue.rounded())
+            } else {
+                itemsPacked = 0
             }
         }
     }
@@ -160,7 +171,8 @@ private struct DailyInsightsResponse: Decodable {
                     label: point.date,
                     start: point.start,
                     end: point.end,
-                    totalItems: max(point.totalItems, 0)
+                    totalItems: max(point.totalItems, 0),
+                    itemsPacked: max(point.itemsPacked, 0)
                 )
             }
         )
