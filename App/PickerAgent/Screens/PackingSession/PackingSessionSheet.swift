@@ -41,7 +41,7 @@ struct PackingSessionSheet: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else if let command = viewModel.currentCommand {
                     CurrentCommandView(command: command, isSpeaking: viewModel.isSpeaking)
@@ -55,7 +55,7 @@ struct PackingSessionSheet: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else if let errorMessage = viewModel.errorMessage {
                     VStack(spacing: 16) {
@@ -78,7 +78,7 @@ struct PackingSessionSheet: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
                 
@@ -298,7 +298,7 @@ struct CurrentCommandView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color(.systemBackground))
+        .background(Theme.packingSessionBackground)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
     }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 enum Theme {
     /// Theme color that switches between black (light mode) and white (dark mode).
@@ -23,5 +24,11 @@ enum Theme {
     /// Red color for negative trends
     static var trendDown: Color {
         .red.opacity(0.90)
+    }
+    
+    static var packingSessionBackground: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? .systemGray4 : .systemGray5
+        })
     }
 }
