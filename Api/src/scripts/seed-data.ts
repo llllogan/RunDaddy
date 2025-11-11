@@ -7,6 +7,7 @@ const APP_STORE_COMPANY_NAME = 'Apple';
 const APP_STORE_TEST_EMAIL = process.env.APP_STORE_TEST_EMAIL ?? 'appstore-testing@apple.com';
 const APP_STORE_TEST_PASSWORD = process.env.APP_STORE_TEST_PASSWORD ?? 'AppleTestingOnly!123';
 const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!123';
+const MIN_RUN_LOCATIONS = 4;
 
 const MACHINE_TYPE_SEED_DATA = [
   { name: 'Snack Tower', description: 'Standard snack vending tower' },
@@ -79,6 +80,94 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
           { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 14 },
         ],
       },
+      {
+        code: 'APPLE-BEV-1',
+        description: 'Chilled beverage validation unit',
+        machineType: 'Cold Beverage Cooler',
+        coils: [
+          { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
+          { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
+          { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 10 },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Apple Developer Center West',
+    address: '10500 N Tantau Ave, Cupertino, CA',
+    machines: [
+      {
+        code: 'APPLE-DEV-SNACK',
+        description: 'Developer snack staging',
+        machineType: 'Snack Tower',
+        coils: [
+          { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 18 },
+          { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 15 },
+          { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 16 },
+        ],
+      },
+      {
+        code: 'APPLE-DEV-BEV',
+        description: 'Developer beverage staging',
+        machineType: 'Cold Beverage Cooler',
+        coils: [
+          { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
+          { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
+          { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Apple Infinite Loop Labs',
+    address: '1 Infinite Loop, Cupertino, CA',
+    machines: [
+      {
+        code: 'APPLE-INF-SNACK',
+        description: 'Legacy campus snack tower',
+        machineType: 'Snack Tower',
+        coils: [
+          { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 17 },
+          { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 17 },
+          { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 15 },
+        ],
+      },
+      {
+        code: 'APPLE-INF-BEV',
+        description: 'Legacy campus beverage cooler',
+        machineType: 'Cold Beverage Cooler',
+        coils: [
+          { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
+          { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 11 },
+          { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 13 },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Apple Sunnyvale Logistics Hub',
+    address: '1050 Enterprise Way, Sunnyvale, CA',
+    machines: [
+      {
+        code: 'APPLE-SUN-SNACK',
+        description: 'Logistics snack machine',
+        machineType: 'Snack Tower',
+        coils: [
+          { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 20 },
+          { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 18 },
+          { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 19 },
+        ],
+      },
+      {
+        code: 'APPLE-SUN-BEV',
+        description: 'Logistics beverage machine',
+        machineType: 'Cold Beverage Cooler',
+        coils: [
+          { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 13 },
+          { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 15 },
+          { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 14 },
+        ],
+      },
     ],
   },
 ];
@@ -108,6 +197,16 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 20 },
             ],
           },
+          {
+            code: 'METRO-WH-02',
+            description: 'Warehouse Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 14 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 13 },
+            ],
+          },
         ],
       },
       {
@@ -122,6 +221,68 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 10 },
               { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 14 },
+            ],
+          },
+          {
+            code: 'METRO-DT-02',
+            description: 'Downtown Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 17 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Mission Corporate Campus',
+        address: '75 Mission Rock St, San Francisco, CA',
+        machines: [
+          {
+            code: 'METRO-MIS-01',
+            description: 'Mission Campus Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 17 },
+              { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 16 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
+            ],
+          },
+          {
+            code: 'METRO-MIS-02',
+            description: 'Mission Campus Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 13 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Bayview Distribution Hub',
+        address: '890 Cargo Way, San Francisco, CA',
+        machines: [
+          {
+            code: 'METRO-BAY-01',
+            description: 'Bayview Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 19 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 18 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 19 },
+            ],
+          },
+          {
+            code: 'METRO-BAY-02',
+            description: 'Bayview Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 15 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 15 },
             ],
           },
         ],
@@ -152,6 +313,16 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
             ],
           },
+          {
+            code: 'RIVER-HQ-02',
+            description: 'HQ Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
+            ],
+          },
         ],
       },
       {
@@ -166,6 +337,68 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
               { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 11 },
+            ],
+          },
+          {
+            code: 'RIVER-AU-02',
+            description: 'Aurora Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 15 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 13 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 16 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Stapleton Tech Park',
+        address: '3800 Central Park Blvd, Denver, CO',
+        machines: [
+          {
+            code: 'RIVER-ST-01',
+            description: 'Stapleton Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 17 },
+              { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 15 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 17 },
+            ],
+          },
+          {
+            code: 'RIVER-ST-02',
+            description: 'Stapleton Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 13 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 13 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Boulder Medical Campus',
+        address: '4800 Baseline Rd, Boulder, CO',
+        machines: [
+          {
+            code: 'RIVER-BO-01',
+            description: 'Boulder Snack Tower',
+            machineType: 'Snack Tower',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 18 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 17 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
+            ],
+          },
+          {
+            code: 'RIVER-BO-02',
+            description: 'Boulder Beverage Cooler',
+            machineType: 'Cold Beverage Cooler',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 13 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 15 },
             ],
           },
         ],
@@ -514,6 +747,23 @@ async function ensureLocationWithEquipment(
   return { location, coilItems };
 }
 
+function selectRunLocations(
+  locationDetails: LocationSeedResult[],
+  startIndex = 0,
+  minimum = MIN_RUN_LOCATIONS,
+): LocationSeedResult[] {
+  if (!locationDetails.length) {
+    return [];
+  }
+
+  const rotated = locationDetails.slice(startIndex).concat(locationDetails.slice(0, startIndex));
+  if (rotated.length < minimum) {
+    return rotated;
+  }
+
+  return rotated.slice(0, minimum);
+}
+
 async function syncRunLocations(runId: string, locationIds: string[]) {
   await prisma.runLocationOrder.deleteMany({ where: { runId } });
   if (!locationIds.length) {
@@ -630,18 +880,21 @@ async function seedAppleTesting() {
     locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
   }
 
-  const primaryLocation = locationDetails[0];
-  if (!primaryLocation) {
-    throw new Error('Apple testing seed requires at least one configured location.');
+  if (locationDetails.length < MIN_RUN_LOCATIONS) {
+    throw new Error('Apple testing seed requires at least four configured locations.');
   }
+
+  const runLocations = selectRunLocations(locationDetails);
+  const runLocationIds = runLocations.map((detail) => detail.location.id);
+  const runCoilItems = runLocations.flatMap((detail) => detail.coilItems);
 
   const run = await ensureRunWithLocations({
     companyId: company.id,
     pickerId: user.id,
     scheduledFor: scheduleForDay(0),
-    locationIds: [primaryLocation.location.id],
+    locationIds: runLocationIds,
   });
-  await ensurePickEntries(run.id, primaryLocation.coilItems);
+  await ensurePickEntries(run.id, runCoilItems);
 
   console.log('Apple testing company id:', company.id);
   console.log('Testing admin email:', APP_STORE_TEST_EMAIL);
@@ -670,29 +923,33 @@ async function seedCompanyData() {
       locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
     }
 
-    const primaryLocation = locationDetails[0];
-    if (!primaryLocation) {
-      throw new Error(`Company ${config.name} must have at least one location for seeding.`);
+    if (locationDetails.length < MIN_RUN_LOCATIONS) {
+      throw new Error(
+        `Company ${config.name} must have at least ${MIN_RUN_LOCATIONS} locations for seeding.`,
+      );
     }
 
-    const todayLocation = primaryLocation;
-    const tomorrowLocation = locationDetails[1] ?? primaryLocation;
+    const todayLocations = selectRunLocations(locationDetails, 0);
+    const tomorrowLocations = selectRunLocations(locationDetails, 2);
 
     const todayRun = await ensureRunWithLocations({
       companyId: company.id,
       pickerId: owner.id,
       scheduledFor: scheduleForDay(0, 8),
-      locationIds: [todayLocation.location.id],
+      locationIds: todayLocations.map((detail) => detail.location.id),
     });
-    await ensurePickEntries(todayRun.id, todayLocation.coilItems);
+    await ensurePickEntries(todayRun.id, todayLocations.flatMap((detail) => detail.coilItems));
 
     const tomorrowRun = await ensureRunWithLocations({
       companyId: company.id,
       pickerId: owner.id,
       scheduledFor: scheduleForDay(1, 10),
-      locationIds: [tomorrowLocation.location.id],
+      locationIds: tomorrowLocations.map((detail) => detail.location.id),
     });
-    await ensurePickEntries(tomorrowRun.id, tomorrowLocation.coilItems);
+    await ensurePickEntries(
+      tomorrowRun.id,
+      tomorrowLocations.flatMap((detail) => detail.coilItems),
+    );
 
     seeded.push({ company, owner, locations: locationDetails.map((detail) => detail.location) });
     console.log(`Seeded company "${company.name}" with owner ${owner.firstName} ${owner.lastName}`);
