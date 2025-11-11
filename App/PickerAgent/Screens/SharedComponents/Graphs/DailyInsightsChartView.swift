@@ -128,11 +128,20 @@ struct DailyInsightsChartView: View {
             Chart {
                 // Items packed line with area mark
                 ForEach(viewModel.dailyInsights) { point in
+                    AreaMark(
+                        x: .value("Day", point.start, unit: .day),
+                        y: .value("Total Items", point.totalItems),
+                        series: .value("total", "B"),
+                        stacking: .unstacked
+                    )
+                    .foregroundStyle(Color.gray.opacity(0.18))
+                    .interpolationMethod(.stepCenter)
                     
                     AreaMark(
                         x: .value("Day", point.start, unit: .day),
                         y: .value("Items Packed", point.itemsPacked),
-                        series: .value("packed", "A")
+                        series: .value("packed", "A"),
+                        stacking: .unstacked
                     )
                     .foregroundStyle(trendColor.opacity(0.2))
                     .interpolationMethod(.stepCenter)
