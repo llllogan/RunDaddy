@@ -34,7 +34,9 @@ type LocationMachineRow = {
   location_name: string | null;
   machine_id: string | null;
   machine_code: string | null;
+  machine_description: string | null;
   total_items: bigint | number | string | null;
+  location_total: bigint | number | string | null;
 };
 
 type SkuRow = {
@@ -48,21 +50,24 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/daily-totals', setLogConfig({ level: 'full' }), async (req, res) => {
   const context = await buildLookbackContext(req, res);
   if (!context) {
     return;
   }
 
   const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays, context.timeZone);
-  const points = buildDailySeries(context.dayRanges, dailyRows);
+  const dayRangesWithTomorrow = appendTomorrowRange(context.dayRanges, context.timeZone, context.now);
+  const points = buildDailySeries(dayRangesWithTomorrow, dailyRows);
+  const responseRangeEnd =
+    dayRangesWithTomorrow[dayRangesWithTomorrow.length - 1]?.end ?? context.rangeEnd;
 
   res.json({
     generatedAt: new Date().toISOString(),
     timeZone: context.timeZone,
     lookbackDays: context.lookbackDays,
     rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: context.rangeEnd.toISOString(),
+    rangeEnd: responseRangeEnd.toISOString(),
     points,
   });
 });
@@ -291,6 +296,18 @@ function buildDayRanges(timeZone: string, lookbackDays: number, reference: Date)
   return ranges;
 }
 
+function appendTomorrowRange(
+  dayRanges: TimezoneDayRange[],
+  timeZone: string,
+  reference: Date,
+): TimezoneDayRange[] {
+  const tomorrowRange = getTimezoneDayRange({ timeZone, dayOffset: 1, reference });
+  if (dayRanges.some((range) => range.label === tomorrowRange.label)) {
+    return dayRanges;
+  }
+  return [...dayRanges, tomorrowRange];
+}
+
 async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone: string) {
   const trailingDays = Math.max(lookbackDays - 1, 0);
 
@@ -323,25 +340,52 @@ async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone:
 async function fetchLocationMachineRows(companyId: string, rangeStart: Date, rangeEnd: Date) {
   return prisma.$queryRaw<LocationMachineRow[]>(
     Prisma.sql`
+      WITH machine_totals AS (
+        SELECT
+          loc.id AS location_id,
+          loc.name AS location_name,
+          mach.id AS machine_id,
+          mach.code AS machine_code,
+          mach.description AS machine_description,
+          SUM(pe.count) AS total_items
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN Coil coil ON coil.id = ci.coilId
+        JOIN Machine mach ON mach.id = coil.machineId
+        JOIN Location loc ON loc.id = mach.locationId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor >= ${rangeStart}
+          AND r.scheduledFor < ${rangeEnd}
+        GROUP BY loc.id, loc.name, mach.id, mach.code
+        HAVING SUM(pe.count) > 0
+      ),
+      location_totals AS (
+        SELECT
+          location_id,
+          SUM(total_items) AS location_total
+        FROM machine_totals
+        GROUP BY location_id
+      ),
+      top_locations AS (
+        SELECT
+          location_id
+        FROM location_totals
+        ORDER BY location_total DESC
+        LIMIT 3
+      )
       SELECT
-        loc.id AS location_id,
-        loc.name AS location_name,
-        mach.id AS machine_id,
-        mach.code AS machine_code,
-        SUM(pe.count) AS total_items
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Location loc ON loc.id = mach.locationId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY loc.id, loc.name, mach.id, mach.code
-      HAVING SUM(pe.count) > 0
+        mt.location_id,
+        mt.location_name,
+        mt.machine_id,
+        mt.machine_code,
+        mt.machine_description,
+        mt.total_items,
+        lt.location_total
+      FROM machine_totals mt
+      JOIN top_locations tl ON tl.location_id = mt.location_id
+      JOIN location_totals lt ON lt.location_id = mt.location_id
+      ORDER BY lt.location_total DESC, mt.total_items DESC
     `,
   );
 }
@@ -429,6 +473,7 @@ function buildTopLocations(rows: LocationMachineRow[]) {
         {
           machineId: string;
           machineCode: string;
+          machineDescription: string;
           totalItems: number;
         }
       >;
@@ -440,6 +485,7 @@ function buildTopLocations(rows: LocationMachineRow[]) {
       continue;
     }
     const total = toNumber(row.total_items);
+    const locationTotal = toNumber(row.location_total);
     if (total <= 0) {
       continue;
     }
@@ -448,18 +494,23 @@ function buildTopLocations(rows: LocationMachineRow[]) {
       locations.set(row.location_id, {
         locationId: row.location_id,
         locationName: row.location_name ?? 'Unknown location',
-        totalItems: 0,
+        totalItems: locationTotal > 0 ? locationTotal : 0,
         machines: new Map(),
       });
     }
 
     const locationEntry = locations.get(row.location_id)!;
-    locationEntry.totalItems += total;
+    if (locationTotal > 0) {
+      locationEntry.totalItems = locationTotal;
+    } else {
+      locationEntry.totalItems += total;
+    }
 
     if (!locationEntry.machines.has(row.machine_id)) {
       locationEntry.machines.set(row.machine_id, {
         machineId: row.machine_id,
         machineCode: row.machine_code ?? 'Unknown',
+        machineDescription: row.machine_description ?? row.machine_code ?? 'Unknown',
         totalItems: 0,
       });
     }

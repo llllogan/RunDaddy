@@ -15,6 +15,10 @@ class ChartsViewModel: ObservableObject {
     @Published var isLoadingInsights = false
     @Published var insightsError: String?
     @Published var dailyInsightsLookbackDays = 7
+    @Published var topLocations: [TopLocations.Location] = []
+    @Published var isLoadingTopLocations = false
+    @Published var topLocationsError: String?
+    @Published var topLocationsLookbackDays = 30
 
     private let session: AuthSession
     private let analyticsService: AnalyticsServicing
@@ -57,5 +61,41 @@ class ChartsViewModel: ObservableObject {
 
     func refreshInsights() async {
         await loadDailyInsights()
+    }
+
+    func loadTopLocations() async {
+        isLoadingTopLocations = true
+        topLocationsError = nil
+
+        do {
+            let response = try await analyticsService.fetchTopLocations(
+                lookbackDays: topLocationsLookbackDays,
+                credentials: session.credentials
+            )
+            topLocations = response.locations
+            topLocationsLookbackDays = response.lookbackDays
+        } catch let authError as AuthError {
+            topLocationsError = authError.localizedDescription
+            topLocations = []
+        } catch let analyticsError as AnalyticsServiceError {
+            topLocationsError = analyticsError.localizedDescription
+            topLocations = []
+        } catch {
+            topLocationsError = "We couldn't load locations right now. Please try again."
+            topLocations = []
+        }
+
+        isLoadingTopLocations = false
+    }
+
+    func updateTopLocationsLookbackDays(_ days: Int) {
+        topLocationsLookbackDays = days
+        Task {
+            await loadTopLocations()
+        }
+    }
+
+    func refreshTopLocations() async {
+        await loadTopLocations()
     }
 }

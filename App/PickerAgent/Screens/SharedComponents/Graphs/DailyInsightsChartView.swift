@@ -9,10 +9,8 @@ import SwiftUI
 import Charts
 
 struct DailyInsightsChartView: View {
-    let session: AuthSession
     let refreshTrigger: Bool
-    
-    @StateObject private var viewModel: ChartsViewModel
+    @ObservedObject private var viewModel: ChartsViewModel
     @State private var selectedRange: RangeOption
     
     enum RangeOption: Int, CaseIterable, Identifiable {
@@ -31,10 +29,9 @@ struct DailyInsightsChartView: View {
         }
     }
     
-    init(session: AuthSession, refreshTrigger: Bool = false) {
-        self.session = session
+    init(viewModel: ChartsViewModel, refreshTrigger: Bool = false) {
         self.refreshTrigger = refreshTrigger
-        _viewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+        _viewModel = ObservedObject(wrappedValue: viewModel)
         self._selectedRange = State(initialValue: .month)
     }
 

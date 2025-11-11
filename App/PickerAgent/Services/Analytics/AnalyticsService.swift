@@ -9,6 +9,7 @@ import Foundation
 
 protocol AnalyticsServicing {
     func fetchDailyInsights(lookbackDays: Int?, credentials: AuthCredentials) async throws -> DailyInsights
+    func fetchTopLocations(lookbackDays: Int?, credentials: AuthCredentials) async throws -> TopLocations
 }
 
 struct DailyInsights: Equatable {
@@ -35,6 +36,40 @@ struct DailyInsights: Equatable {
     var averagePerDay: Double {
         guard !points.isEmpty else { return 0 }
         return Double(totalItems) / Double(points.count)
+    }
+}
+
+struct TopLocations: Equatable {
+    struct Location: Identifiable, Equatable {
+        var id: String { locationId }
+        let locationId: String
+        let locationName: String
+        let totalItems: Int
+        let machines: [Machine]
+    }
+
+    struct Machine: Identifiable, Equatable {
+        var id: String { machineId }
+        let machineId: String
+        let machineCode: String
+        let machineDescription: String
+        let totalItems: Int
+        
+        var displayName: String {
+            let trimmed = machineDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? machineCode : trimmed
+        }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let lookbackDays: Int
+    let rangeStart: Date
+    let rangeEnd: Date
+    let locations: [Location]
+
+    var totalItems: Int {
+        locations.reduce(0) { $0 + $1.totalItems }
     }
 }
 
@@ -110,6 +145,49 @@ final class AnalyticsService: AnalyticsServicing {
             throw AnalyticsServiceError.unableToDecode
         }
     }
+
+    func fetchTopLocations(lookbackDays: Int?, credentials: AuthCredentials) async throws -> TopLocations {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("analytics")
+        url.appendPathComponent("locations")
+        url.appendPathComponent("top")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        if let lookbackDays, lookbackDays > 0 {
+            queryItems.append(URLQueryItem(name: "lookbackDays", value: String(lookbackDays)))
+        }
+        components?.queryItems = queryItems
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AnalyticsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw AnalyticsServiceError.noCompanyAccess
+            }
+            throw AnalyticsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        do {
+            let payload = try decoder.decode(TopLocationsResponse.self, from: data)
+            return payload.toDomain()
+        } catch {
+            throw AnalyticsServiceError.unableToDecode
+        }
+    }
 }
 
 private struct DailyInsightsResponse: Decodable {
@@ -173,6 +251,54 @@ private struct DailyInsightsResponse: Decodable {
                     end: point.end,
                     totalItems: max(point.totalItems, 0),
                     itemsPacked: max(point.itemsPacked, 0)
+                )
+            }
+        )
+    }
+}
+
+private struct TopLocationsResponse: Decodable {
+    struct Location: Decodable {
+        let locationId: String
+        let locationName: String
+        let totalItems: Int
+        let machines: [Machine]
+    }
+
+    struct Machine: Decodable {
+        let machineId: String
+        let machineCode: String
+        let machineDescription: String?
+        let totalItems: Int
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let lookbackDays: Int
+    let rangeStart: Date
+    let rangeEnd: Date
+    let locations: [Location]
+
+    func toDomain() -> TopLocations {
+        TopLocations(
+            generatedAt: generatedAt,
+            timeZone: timeZone,
+            lookbackDays: lookbackDays,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            locations: locations.map { location in
+                TopLocations.Location(
+                    locationId: location.locationId,
+                    locationName: location.locationName,
+                    totalItems: max(location.totalItems, 0),
+                    machines: location.machines.map { machine in
+                        TopLocations.Machine(
+                            machineId: machine.machineId,
+                            machineCode: machine.machineCode,
+                            machineDescription: machine.machineDescription ?? "",
+                            totalItems: max(machine.totalItems, 0)
+                        )
+                    }
                 )
             }
         )

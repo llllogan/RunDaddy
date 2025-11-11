@@ -13,6 +13,7 @@ struct DashboardView: View {
     let logoutAction: () -> Void
 
     @StateObject private var viewModel: DashboardViewModel
+    @StateObject private var chartsViewModel: ChartsViewModel
     @State private var isShowingProfile = false
     @State private var chartRefreshTrigger = false
 
@@ -36,6 +37,7 @@ struct DashboardView: View {
         self.session = session
         self.logoutAction = logoutAction
         _viewModel = StateObject(wrappedValue: DashboardViewModel(session: session))
+        _chartsViewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
     }
 
     var body: some View {
@@ -121,20 +123,14 @@ struct DashboardView: View {
                 }
 
                 Section("Insights") {
-                    DailyInsightsChartView(session: session, refreshTrigger: chartRefreshTrigger)
+                    DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                     
                     NavigationLink {
                         AnalyticsView(session: session)
                     } label: {
-                        HStack {
-                            Text("View more data")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
+                        Text("View more data")
+                            .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -185,5 +181,4 @@ struct DashboardView: View {
 
     }
 }
-
 
