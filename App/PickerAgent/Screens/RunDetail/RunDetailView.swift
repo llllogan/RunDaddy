@@ -73,23 +73,15 @@ struct RunDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .background(
-            NavigationLink(
-                destination: PendingPickEntriesView(
-                    viewModel: viewModel,
-                    runId: viewModel.detail?.id ?? viewModel.runId,
-                    session: viewModel.session,
-                    service: viewModel.service
-                ),
-                isActive: $showingPendingEntries,
-                label: {
-                    EmptyView()
-                }
-            )
-            .frame(width: 0, height: 0)
-            .hidden()
-        )
         .navigationTitle("Run Details")
+        .navigationDestination(isPresented: $showingPendingEntries) {
+            PendingPickEntriesView(
+                viewModel: viewModel,
+                runId: viewModel.detail?.id ?? viewModel.runId,
+                session: viewModel.session,
+                service: viewModel.service
+            )
+        }
         .task {
             await viewModel.load()
         }
@@ -252,7 +244,7 @@ private extension RunDetailView {
         }
 
         let entryLabel = pickCount == 1 ? "pick entry" : "pick entries"
-        return "This will permanently delete \(pickCount) items for this location in this run."
+        return "This will permanently delete \(pickCount) \(entryLabel) for this location in this run."
     }
 
     @MainActor
@@ -754,7 +746,7 @@ struct PendingPickEntriesView: View {
             print("Failed to update pick status: \(error)")
         }
 
-        await MainActor.run {
+        _ = await MainActor.run {
             updatingPickIds.remove(pickItem.id)
         }
     }

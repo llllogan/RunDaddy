@@ -34,7 +34,7 @@ class InviteCodeGeneratorViewModel: ObservableObject {
                 guard let credentials = authService.loadStoredCredentials() else {
                     throw AuthError.unauthorized
                 }
-                let inviteCodes = try await inviteCodesService.fetchInviteCodes(
+                _ = try await inviteCodesService.fetchInviteCodes(
                     for: companyId,
                     credentials: credentials
                 )

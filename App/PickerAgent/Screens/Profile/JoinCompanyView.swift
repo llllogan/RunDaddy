@@ -145,7 +145,7 @@ struct JoinCompanyView: View {
                     }
                 )
             }
-            .onChange(of: viewModel.joinedMembership) { membership in
+            .onChange(of: viewModel.joinedMembership) { _, membership in
                 if membership != nil {
                     notifyJoinSuccessIfNeeded()
                 }

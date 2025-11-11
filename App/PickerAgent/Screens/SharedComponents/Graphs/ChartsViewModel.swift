@@ -26,9 +26,9 @@ class ChartsViewModel: ObservableObject {
     private var session: AuthSession
     private let analyticsService: AnalyticsServicing
 
-    init(session: AuthSession, analyticsService: AnalyticsServicing = AnalyticsService()) {
+    init(session: AuthSession, analyticsService: AnalyticsServicing? = nil) {
         self.session = session
-        self.analyticsService = analyticsService
+        self.analyticsService = analyticsService ?? AnalyticsService()
     }
 
     func updateSession(_ session: AuthSession) {
@@ -40,10 +40,10 @@ class ChartsViewModel: ObservableObject {
     }
 
     func refreshAllCharts() async {
-        async let insights = loadDailyInsights()
-        async let topLocations = loadTopLocations()
-        async let comparisons = loadPeriodComparisons()
-        _ = await (insights, topLocations, comparisons)
+        async let insightsTask: Void = loadDailyInsights()
+        async let topLocationsTask: Void = loadTopLocations()
+        async let comparisonsTask: Void = loadPeriodComparisons()
+        _ = await (insightsTask, topLocationsTask, comparisonsTask)
     }
 
     func loadDailyInsights() async {

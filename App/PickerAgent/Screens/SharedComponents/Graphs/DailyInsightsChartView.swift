@@ -56,17 +56,17 @@ struct DailyInsightsChartView: View {
         return max(maxPoint * 1.15, 1)
     }
     
-    private var isTrendingUp: Bool {
-        guard viewModel.dailyInsights.count >= 2 else { return false }
-        
-        let sortedPoints = viewModel.dailyInsights.sorted { $0.start < $1.start }
-        guard let today = sortedPoints.last, let yesterday = sortedPoints.dropLast().last else { return false }
-        
-        return today.itemsPacked >= yesterday.itemsPacked
+    private var latestDataPoint: DailyInsights.Point? {
+        viewModel.dailyInsights.max(by: { $0.start < $1.start })
     }
     
-    private var trendColor: Color {
-        isTrendingUp ? Theme.trendUp : Theme.trendDown
+    private var isPackedMeetingTotal: Bool {
+        guard let point = latestDataPoint else { return false }
+        return point.itemsPacked == point.totalItems
+    }
+    
+    private var packedLineColor: Color {
+        isPackedMeetingTotal ? Theme.trendUp : Theme.trendDown
     }
 
     var body: some View {
@@ -116,7 +116,7 @@ struct DailyInsightsChartView: View {
                     
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(trendColor)
+                            .fill(packedLineColor)
                             .frame(width: 8, height: 8)
                         Text("Items Packed")
                             .font(.caption)
@@ -143,7 +143,7 @@ struct DailyInsightsChartView: View {
                         series: .value("packed", "A"),
                         stacking: .unstacked
                     )
-                    .foregroundStyle(trendColor.opacity(0.2))
+                    .foregroundStyle(packedLineColor.opacity(0.2))
                     .interpolationMethod(.stepCenter)
                     
                     LineMark(
@@ -160,7 +160,7 @@ struct DailyInsightsChartView: View {
                         y: .value("Items Packed", point.itemsPacked),
                         series: .value("packed", "A")
                     )
-                    .foregroundStyle(trendColor)
+                    .foregroundStyle(packedLineColor)
                     .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.stepCenter)
                 }
