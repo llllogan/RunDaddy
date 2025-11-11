@@ -16,6 +16,12 @@ import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timez
 const LOOKBACK_DEFAULT = 30;
 const LOOKBACK_MIN = 7;
 const LOOKBACK_MAX = 90;
+const TOP_SKU_LOOKBACK_DEFAULT = 365;
+const TOP_SKU_LOOKBACK_MIN = 30;
+const TOP_SKU_LOOKBACK_MAX = 365;
+const TOP_SKU_LIMIT_DEFAULT = 6;
+const TOP_SKU_LIMIT_MIN = 3;
+const TOP_SKU_LIMIT_MAX = 12;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const WEEK_IN_MS = 7 * DAY_IN_MS;
 const MONTHS_IN_YEAR = 12;
@@ -46,6 +52,28 @@ type LocationMachineRow = {
   machine_description: string | null;
   total_items: bigint | number | string | null;
   location_total: bigint | number | string | null;
+};
+
+type TopSkuRow = {
+  sku_id: string | null;
+  sku_code: string | null;
+  sku_name: string | null;
+  total_picked: bigint | number | string | null;
+};
+
+type SkuLocationRow = {
+  location_id: string | null;
+  location_name: string | null;
+  total_items: bigint | number | string | null;
+};
+
+type SkuMachineRow = {
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_description: string | null;
+  location_id: string | null;
+  location_name: string | null;
+  total_items: bigint | number | string | null;
 };
 
 const router = Router();
@@ -90,6 +118,70 @@ router.get('/locations/top', setLogConfig({ level: 'minimal' }), async (req, res
     rangeStart: context.rangeStart.toISOString(),
     rangeEnd: context.rangeEnd.toISOString(),
     locations,
+  });
+});
+
+router.get('/skus/top-picked', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const lookbackDays = parseTopSkuLookbackDays(req.query.lookbackDays);
+  const limit = parseTopSkuLimit(req.query.limit);
+  const locationFilter = normalizeFilterValue(req.query.locationId);
+  const machineFilter = normalizeFilterValue(req.query.machineId);
+  const { rangeStart, rangeEnd } = buildTopSkuRange(context.timeZone, context.now, lookbackDays);
+
+  const [skuRows, locationRows, machineRows] = await Promise.all([
+    fetchTopSkuRows(
+      context.companyId,
+      rangeStart,
+      rangeEnd,
+      limit,
+      locationFilter,
+      machineFilter,
+    ),
+    fetchSkuLocationRows(context.companyId, rangeStart, rangeEnd),
+    fetchSkuMachineRows(context.companyId, rangeStart, rangeEnd),
+  ]);
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    lookbackDays,
+    rangeStart: rangeStart.toISOString(),
+    rangeEnd: rangeEnd.toISOString(),
+    limit,
+    appliedFilters: {
+      locationId: locationFilter,
+      machineId: machineFilter,
+    },
+    skus: skuRows
+      .filter((row) => row.sku_id)
+      .map((row) => ({
+        skuId: row.sku_id!,
+        skuCode: row.sku_code ?? 'SKU',
+        skuName: row.sku_name ?? row.sku_code ?? 'SKU',
+        totalPicked: Math.max(toNumber(row.total_picked), 0),
+      })),
+    locations: locationRows
+      .filter((row) => row.location_id)
+      .map((row) => ({
+        locationId: row.location_id!,
+        locationName: row.location_name ?? 'Location',
+        totalItems: Math.max(toNumber(row.total_items), 0),
+      })),
+    machines: machineRows
+      .filter((row) => row.machine_id)
+      .map((row) => ({
+        machineId: row.machine_id!,
+        machineCode: row.machine_code ?? 'Machine',
+        machineDescription: row.machine_description ?? row.machine_code ?? 'Machine',
+        locationId: row.location_id,
+        locationName: row.location_name ?? undefined,
+        totalItems: Math.max(toNumber(row.total_items), 0),
+      })),
   });
 });
 
@@ -223,6 +315,32 @@ function parseLookbackDays(value: unknown): number {
   return LOOKBACK_DEFAULT;
 }
 
+function parseTopSkuLookbackDays(value: unknown): number {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, TOP_SKU_LOOKBACK_MIN, TOP_SKU_LOOKBACK_MAX);
+    }
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clamp(Math.trunc(value), TOP_SKU_LOOKBACK_MIN, TOP_SKU_LOOKBACK_MAX);
+  }
+  return TOP_SKU_LOOKBACK_DEFAULT;
+}
+
+function parseTopSkuLimit(value: unknown): number {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, TOP_SKU_LIMIT_MIN, TOP_SKU_LIMIT_MAX);
+    }
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clamp(Math.trunc(value), TOP_SKU_LIMIT_MIN, TOP_SKU_LIMIT_MAX);
+  }
+  return TOP_SKU_LIMIT_DEFAULT;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -334,6 +452,111 @@ async function fetchLocationMachineRows(companyId: string, rangeStart: Date, ran
       JOIN top_locations tl ON tl.location_id = mt.location_id
       JOIN location_totals lt ON lt.location_id = mt.location_id
       ORDER BY lt.location_total DESC, mt.total_items DESC
+    `,
+  );
+}
+
+async function fetchTopSkuRows(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  limit: number,
+  locationId: string | null,
+  machineId: string | null,
+) {
+  const locationFilter = locationId ? Prisma.sql`AND loc.id = ${locationId}` : Prisma.sql``;
+  const machineFilter = machineId ? Prisma.sql`AND mach.id = ${machineId}` : Prisma.sql``;
+
+  return prisma.$queryRaw<TopSkuRow[]>(
+    Prisma.sql`
+      SELECT
+        sku.id AS sku_id,
+        sku.code AS sku_code,
+        sku.name AS sku_name,
+        SUM(pe.count) AS total_picked
+      FROM PickEntry pe
+      JOIN Run r ON r.id = pe.runId
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN SKU sku ON sku.id = ci.skuId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      LEFT JOIN Location loc ON loc.id = mach.locationId
+      WHERE r.companyId = ${companyId}
+        AND r.scheduledFor IS NOT NULL
+        AND r.scheduledFor >= ${rangeStart}
+        AND r.scheduledFor < ${rangeEnd}
+        ${locationFilter}
+        ${machineFilter}
+      GROUP BY sku.id, sku.code, sku.name
+      HAVING SUM(pe.count) > 0
+      ORDER BY total_picked DESC
+      LIMIT ${Prisma.raw(String(limit))}
+    `,
+  );
+}
+
+async function fetchSkuLocationRows(companyId: string, rangeStart: Date, rangeEnd: Date) {
+  return prisma.$queryRaw<SkuLocationRow[]>(
+    Prisma.sql`
+      WITH location_totals AS (
+        SELECT
+          loc.id AS location_id,
+          SUM(pe.count) AS total_items
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN Coil coil ON coil.id = ci.coilId
+        JOIN Machine mach ON mach.id = coil.machineId
+        LEFT JOIN Location loc ON loc.id = mach.locationId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${rangeStart}
+          AND r.scheduledFor < ${rangeEnd}
+          AND loc.id IS NOT NULL
+        GROUP BY loc.id
+      )
+      SELECT
+        loc.id AS location_id,
+        loc.name AS location_name,
+        COALESCE(lt.total_items, 0) AS total_items
+      FROM Location loc
+      LEFT JOIN location_totals lt ON lt.location_id = loc.id
+      WHERE loc.companyId = ${companyId}
+      ORDER BY loc.name ASC
+    `,
+  );
+}
+
+async function fetchSkuMachineRows(companyId: string, rangeStart: Date, rangeEnd: Date) {
+  return prisma.$queryRaw<SkuMachineRow[]>(
+    Prisma.sql`
+      WITH machine_totals AS (
+        SELECT
+          mach.id AS machine_id,
+          SUM(pe.count) AS total_items
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN Coil coil ON coil.id = ci.coilId
+        JOIN Machine mach ON mach.id = coil.machineId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${rangeStart}
+          AND r.scheduledFor < ${rangeEnd}
+        GROUP BY mach.id
+      )
+      SELECT
+        mach.id AS machine_id,
+        mach.code AS machine_code,
+        mach.description AS machine_description,
+        loc.id AS location_id,
+        loc.name AS location_name,
+        COALESCE(mt.total_items, 0) AS total_items
+      FROM Machine mach
+      LEFT JOIN machine_totals mt ON mt.machine_id = mach.id
+      LEFT JOIN Location loc ON loc.id = mach.locationId
+      WHERE mach.companyId = ${companyId}
+      ORDER BY mach.code ASC
     `,
   );
 }
@@ -637,6 +860,22 @@ function toNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function normalizeFilterValue(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildTopSkuRange(timeZone: string, reference: Date, lookbackDays: number) {
+  const inclusiveEndReference = new Date(reference.getTime() + DAY_IN_MS);
+  const rangeEnd = convertDateToTimezoneMidnight(inclusiveEndReference, timeZone);
+  const startSeed = new Date(rangeEnd.getTime() - lookbackDays * DAY_IN_MS);
+  const rangeStart = convertDateToTimezoneMidnight(startSeed, timeZone);
+  return { rangeStart, rangeEnd };
 }
 
 export const analyticsRouter = router;

@@ -33,6 +33,10 @@ struct AnalyticsView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 
             }
+            Section("Top SKUs") {
+                TopSkusChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Analytics")
