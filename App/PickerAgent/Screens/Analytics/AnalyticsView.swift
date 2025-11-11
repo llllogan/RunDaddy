@@ -40,5 +40,8 @@ struct AnalyticsView: View {
         .refreshable {
             chartRefreshTrigger.toggle()
         }
+        .onChange(of: session, initial: false) { _, newSession in
+            chartsViewModel.updateSession(newSession)
+        }
     }
 }

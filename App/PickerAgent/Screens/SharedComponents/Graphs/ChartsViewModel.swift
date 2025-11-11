@@ -23,12 +23,27 @@ class ChartsViewModel: ObservableObject {
     @Published var isLoadingPeriodComparisons = false
     @Published var packPeriodComparisonsError: String?
 
-    private let session: AuthSession
+    private var session: AuthSession
     private let analyticsService: AnalyticsServicing
 
     init(session: AuthSession, analyticsService: AnalyticsServicing = AnalyticsService()) {
         self.session = session
         self.analyticsService = analyticsService
+    }
+
+    func updateSession(_ session: AuthSession) {
+        guard self.session != session else { return }
+        self.session = session
+        Task { [weak self] in
+            await self?.refreshAllCharts()
+        }
+    }
+
+    func refreshAllCharts() async {
+        async let insights = loadDailyInsights()
+        async let topLocations = loadTopLocations()
+        async let comparisons = loadPeriodComparisons()
+        _ = await (insights, topLocations, comparisons)
     }
 
     func loadDailyInsights() async {

@@ -174,6 +174,7 @@ struct DashboardView: View {
         }
         .onChange(of: session, initial: false) { _, newSession in
             viewModel.updateSession(newSession)
+            chartsViewModel.updateSession(newSession)
             Task {
                 await viewModel.loadRuns(force: true)
             }
@@ -181,4 +182,3 @@ struct DashboardView: View {
 
     }
 }
-
