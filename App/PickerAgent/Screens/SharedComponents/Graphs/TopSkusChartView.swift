@@ -179,7 +179,7 @@ struct TopSkusChartView: View {
             ForEach(stats.skus) { sku in
                 BarMark(
                     x: .value("Picks", sku.totalPicked),
-                    y: .value("SKU", sku.skuCode)
+                    y: .value("SKU", sku.displayLabel)
                 )
                 .annotation(position: .trailing) {
                     Text("\(sku.totalPicked)")

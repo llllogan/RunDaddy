@@ -85,9 +85,20 @@ struct TopSkuStats: Equatable {
         let skuId: String
         let skuCode: String
         let skuName: String
+        let skuType: String
         let totalPicked: Int
 
         var id: String { skuId }
+
+        var displayLabel: String {
+            let trimmedName = skuName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let baseName = trimmedName.isEmpty ? skuCode : trimmedName
+            let trimmedType = skuType.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedType.caseInsensitiveCompare("General") == .orderedSame || trimmedType.isEmpty {
+                return baseName
+            }
+            return "\(baseName) (\(trimmedType))"
+        }
     }
 
     struct LocationOption: Identifiable, Equatable {
@@ -659,12 +670,14 @@ private struct TopSkuStatsResponse: Decodable {
         let skuId: String
         let skuCode: String
         let skuName: String
+        let skuType: String
         let totalPicked: Int
 
         private enum CodingKeys: String, CodingKey {
             case skuId
             case skuCode
             case skuName
+            case skuType
             case totalPicked
         }
 
@@ -673,6 +686,7 @@ private struct TopSkuStatsResponse: Decodable {
             skuId = try container.decode(String.self, forKey: .skuId)
             skuCode = try container.decode(String.self, forKey: .skuCode)
             skuName = try container.decode(String.self, forKey: .skuName)
+            skuType = try container.decode(String.self, forKey: .skuType)
 
             if let intValue = try? container.decode(Int.self, forKey: .totalPicked) {
                 totalPicked = max(intValue, 0)
@@ -770,6 +784,7 @@ private struct TopSkuStatsResponse: Decodable {
                     skuId: sku.skuId,
                     skuCode: sku.skuCode,
                     skuName: sku.skuName,
+                    skuType: sku.skuType,
                     totalPicked: sku.totalPicked
                 )
             },

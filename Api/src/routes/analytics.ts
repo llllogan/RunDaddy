@@ -58,6 +58,7 @@ type TopSkuRow = {
   sku_id: string | null;
   sku_code: string | null;
   sku_name: string | null;
+  sku_type: string | null;
   total_picked: bigint | number | string | null;
 };
 
@@ -163,6 +164,7 @@ router.get('/skus/top-picked', setLogConfig({ level: 'minimal' }), async (req, r
         skuId: row.sku_id!,
         skuCode: row.sku_code ?? 'SKU',
         skuName: row.sku_name ?? row.sku_code ?? 'SKU',
+        skuType: row.sku_type ?? 'General',
         totalPicked: Math.max(toNumber(row.total_picked), 0),
       })),
     locations: locationRows
@@ -473,6 +475,7 @@ async function fetchTopSkuRows(
         sku.id AS sku_id,
         sku.code AS sku_code,
         sku.name AS sku_name,
+        sku.type AS sku_type,
         SUM(pe.count) AS total_picked
       FROM PickEntry pe
       JOIN Run r ON r.id = pe.runId
@@ -487,7 +490,7 @@ async function fetchTopSkuRows(
         AND r.scheduledFor < ${rangeEnd}
         ${locationFilter}
         ${machineFilter}
-      GROUP BY sku.id, sku.code, sku.name
+      GROUP BY sku.id, sku.code, sku.name, sku.type
       HAVING SUM(pe.count) > 0
       ORDER BY total_picked DESC
       LIMIT ${Prisma.raw(String(limit))}
