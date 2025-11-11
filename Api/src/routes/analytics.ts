@@ -48,13 +48,6 @@ type LocationMachineRow = {
   location_total: bigint | number | string | null;
 };
 
-type SkuRow = {
-  sku_id: string;
-  sku_name: string;
-  sku_code: string;
-  total_items: bigint | number | string | null;
-};
-
 const router = Router();
 
 router.use(authenticate);
@@ -100,108 +93,6 @@ router.get('/locations/top', setLogConfig({ level: 'minimal' }), async (req, res
   });
 });
 
-router.get('/skus/top', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  const context = await buildLookbackContext(req, res);
-  if (!context) {
-    return;
-  }
-
-  const rows = await fetchSkuRows(context.companyId, context.rangeStart, context.rangeEnd);
-  const skuBreakdown = buildSkuBreakdown(rows);
-  const topSkus = skuBreakdown.slice(0, 5);
-
-  res.json({
-    generatedAt: new Date().toISOString(),
-    timeZone: context.timeZone,
-    lookbackDays: context.lookbackDays,
-    rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: context.rangeEnd.toISOString(),
-    skus: topSkus,
-  });
-});
-
-router.get('/skus/breakdown', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  const context = await buildLookbackContext(req, res);
-  if (!context) {
-    return;
-  }
-
-  const rows = await fetchSkuRows(context.companyId, context.rangeStart, context.rangeEnd);
-  const breakdown = buildSkuBreakdown(rows);
-  const totalItems = breakdown.reduce((sum, sku) => sum + sku.totalItems, 0);
-
-  res.json({
-    generatedAt: new Date().toISOString(),
-    timeZone: context.timeZone,
-    lookbackDays: context.lookbackDays,
-    rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: context.rangeEnd.toISOString(),
-    totalItems,
-    breakdown,
-  });
-});
-
-router.get('/average-daily', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  const context = await buildLookbackContext(req, res);
-  if (!context) {
-    return;
-  }
-
-  const dailyRows = await fetchDailyRows(context.companyId, context.lookbackDays, context.timeZone);
-  const points = buildDailySeries(context.dayRanges, dailyRows);
-  const nonZeroDays = points.filter((day) => day.totalItems > 0);
-  const totalOnActiveDays = nonZeroDays.reduce((sum, day) => sum + day.totalItems, 0);
-
-  res.json({
-    generatedAt: new Date().toISOString(),
-    timeZone: context.timeZone,
-    lookbackDays: context.lookbackDays,
-    rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: context.rangeEnd.toISOString(),
-    value:
-      nonZeroDays.length > 0
-        ? Number((totalOnActiveDays / nonZeroDays.length).toFixed(2))
-        : 0,
-    activeDays: nonZeroDays.length,
-  });
-});
-
-router.get('/week-over-week', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  const context = await buildTimezoneContext(req, res);
-  if (!context) {
-    return;
-  }
-
-  const currentWeekStart = getIsoWeekStart(context.timeZone, context.now);
-  const currentPeriodEnd = context.now;
-  const currentWeekDuration = Math.max(0, currentPeriodEnd.getTime() - currentWeekStart.getTime());
-  const previousWeekStart = new Date(currentWeekStart.getTime() - 7 * DAY_IN_MS);
-  const previousPeriodEnd = new Date(previousWeekStart.getTime() + currentWeekDuration);
-
-  const [currentWeekTotal, previousWeekTotal] = await Promise.all([
-    sumPackedItems(context.companyId, currentWeekStart, currentPeriodEnd),
-    sumPackedItems(context.companyId, previousWeekStart, previousPeriodEnd),
-  ]);
-
-  res.json({
-    generatedAt: new Date().toISOString(),
-    timeZone: context.timeZone,
-    currentPeriod: {
-      start: currentWeekStart.toISOString(),
-      end: currentPeriodEnd.toISOString(),
-      totalItems: currentWeekTotal,
-    },
-    previousPeriod: {
-      start: previousWeekStart.toISOString(),
-      end: previousPeriodEnd.toISOString(),
-      totalItems: previousWeekTotal,
-    },
-    growthPercentage:
-      previousWeekTotal === 0
-        ? null
-        : Number((((currentWeekTotal - previousWeekTotal) / previousWeekTotal) * 100).toFixed(2)),
-  });
-});
 
 router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildTimezoneContext(req, res);
@@ -447,30 +338,6 @@ async function fetchLocationMachineRows(companyId: string, rangeStart: Date, ran
   );
 }
 
-async function fetchSkuRows(companyId: string, rangeStart: Date, rangeEnd: Date) {
-  return prisma.$queryRaw<SkuRow[]>(
-    Prisma.sql`
-      SELECT
-        sku.id AS sku_id,
-        sku.name AS sku_name,
-        sku.code AS sku_code,
-        SUM(pe.count) AS total_items
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN SKU sku ON sku.id = ci.skuId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY sku.id, sku.name, sku.code
-      HAVING SUM(pe.count) > 0
-      ORDER BY total_items DESC
-    `,
-  );
-}
-
 function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
   const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
   const totalsByLabel = new Map<string, number>();
@@ -584,24 +451,6 @@ function buildTopLocations(rows: LocationMachineRow[]) {
       totalItems: location.totalItems,
       machines: Array.from(location.machines.values()).sort((a, b) => b.totalItems - a.totalItems),
     }));
-}
-
-function buildSkuBreakdown(rows: SkuRow[]) {
-  const totals = rows
-    .map((row) => ({
-      skuId: row.sku_id,
-      skuName: row.sku_name,
-      skuCode: row.sku_code,
-      totalItems: toNumber(row.total_items),
-    }))
-    .filter((row) => row.totalItems > 0);
-
-  const aggregateTotal = totals.reduce((sum, row) => sum + row.totalItems, 0);
-
-  return totals.map((row) => ({
-    ...row,
-    percentage: aggregateTotal > 0 ? Number(((row.totalItems / aggregateTotal) * 100).toFixed(2)) : 0,
-  }));
 }
 
 async function sumPackedItems(companyId: string, rangeStart: Date, rangeEnd: Date): Promise<number> {
