@@ -1,11 +1,4 @@
 <section class="space-y-8">
-  <div class="soft-card p-8">
-    <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">Team management</p>
-    <h1 class="mt-2 text-3xl font-semibold text-gray-900">People overview</h1>
-    <p class="mt-4 max-w-2xl text-sm text-gray-600">
-      View everyone in your company, update their roles, or remove them when they no longer need access.
-    </p>
-  </div>
 
   <div class="space-y-4">
     @if (errorMessage) {
@@ -17,63 +10,80 @@
         Loading your team…
       </div>
     } @else {
-      <div class="soft-card divide-y divide-gray-100">
-        <div class="flex items-center justify-between px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          <span class="w-1/3 text-left">Member</span>
-          <span class="w-1/4 text-left">Contact</span>
-          <span class="w-1/4 text-left">Role</span>
-          <span class="w-1/6 text-right">Actions</span>
-        </div>
-
+      <div class="soft-card overflow-hidden">
         @if (people.length === 0) {
           <div class="px-6 py-10 text-center text-sm text-gray-500">Invite teammates to see them listed here.</div>
         } @else {
-          @let session = session$ | async;
-          @let userRole = session?.user?.role ?? null;
-          @let canManage = userRole === 'OWNER' || userRole === 'ADMIN';
-          @for (person of people; track trackByPersonId($index, person)) {
-            <div class="flex flex-wrap items-center gap-4 px-6 py-5 text-sm text-gray-800">
-              <div class="w-full sm:w-1/3">
-                <p class="font-semibold text-gray-900">{{ person.firstName }} {{ person.lastName }}</p>
-                <p class="text-xs uppercase tracking-wide text-gray-500">ID {{ person.id }}</p>
-              </div>
-              <div class="w-full sm:w-1/4">
-                <p class="text-gray-900">{{ person.email }}</p>
-                @if (person.phone) {
-                  <p class="text-xs text-gray-500">{{ person.phone }}</p>
+          <div class="overflow-x-auto">
+            <table class="min-w-full table-auto border-collapse text-sm text-gray-800">
+              <colgroup>
+                <col style="width: 34%" />
+                <col style="width: 22%" />
+                <col style="width: 30%; min-width: 320px" />
+                <col style="width: 14%; min-width: 150px" />
+              </colgroup>
+              <thead>
+                <tr class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th scope="col" class="px-6 py-4 text-left align-bottom">Member</th>
+                  <th scope="col" class="px-6 py-4 text-left align-bottom">Contact</th>
+                  <th scope="col" class="px-6 py-4 text-left align-bottom">Role</th>
+                  <th scope="col" class="px-6 py-4 text-left align-bottom">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @let session = session$ | async;
+                @let userRole = session?.user?.role ?? null;
+                @let canManage = userRole === 'OWNER' || userRole === 'ADMIN';
+                @for (person of people; track trackByPersonId($index, person)) {
+                  <tr class="border-t border-gray-100">
+                    <td class="px-6 py-5 align-top">
+                      <div class="space-y-1">
+                        <p class="font-semibold leading-snug text-gray-900">{{ person.firstName }} {{ person.lastName }}</p>
+                        <p class="text-xs uppercase tracking-wide text-gray-500">ID {{ person.id }}</p>
+                      </div>
+                    </td>
+                    <td class="px-6 py-5 align-top">
+                      <div class="space-y-1">
+                        <p class="text-gray-900">{{ person.email }}</p>
+                        @if (person.phone) {
+                          <p class="text-xs text-gray-500">{{ person.phone }}</p>
+                        }
+                      </div>
+                    </td>
+                    <td class="px-6 py-5 align-top">
+                      <div class="flex gap-2 flex-wrap lg:flex-nowrap">
+                        @for (roleOption of roleOptions; track roleOption.value) {
+                          <button
+                            type="button"
+                            class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
+                            [class.bg-gray-900]="person.role === roleOption.value"
+                            [class.text-white]="person.role === roleOption.value"
+                            [class.text-gray-700]="person.role !== roleOption.value"
+                            [disabled]="
+                              !canManage || isRoleBusy(person.id) || isRemoveBusy(person.id) || person.role === roleOption.value
+                            "
+                            (click)="changeRole(person, roleOption.value)"
+                          >
+                            {{ roleOption.label }}
+                          </button>
+                        }
+                      </div>
+                    </td>
+                    <td class="px-6 py-5 align-top whitespace-nowrap">
+                      <button
+                        type="button"
+                        class="rounded-full border border-rose-200 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        (click)="removePerson(person)"
+                        [disabled]="!canManage || isRemoveBusy(person.id) || isRoleBusy(person.id)"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
                 }
-              </div>
-              <div class="w-full sm:w-1/4">
-                <div class="flex flex-wrap gap-2">
-                  @for (roleOption of roleOptions; track roleOption.value) {
-                    <button
-                      type="button"
-                      class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
-                      [class.bg-gray-900]="person.role === roleOption.value"
-                      [class.text-white]="person.role === roleOption.value"
-                      [class.text-gray-700]="person.role !== roleOption.value"
-                      [disabled]="
-                        !canManage || isRoleBusy(person.id) || isRemoveBusy(person.id) || person.role === roleOption.value
-                      "
-                      (click)="changeRole(person, roleOption.value)"
-                    >
-                      {{ roleOption.label }}
-                    </button>
-                  }
-                </div>
-              </div>
-              <div class="flex w-full justify-start sm:w-1/6 sm:justify-end">
-                <button
-                  type="button"
-                  class="rounded-full border border-transparent px-4 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  (click)="removePerson(person)"
-                  [disabled]="!canManage || isRemoveBusy(person.id) || isRoleBusy(person.id)"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          }
+              </tbody>
+            </table>
+          </div>
         }
       </div>
     }

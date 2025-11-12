@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { finalize } from 'rxjs/operators';
 import { PeopleService, CompanyPerson } from './people.service';
 import { AuthService, UserRole } from '../auth/auth.service';
@@ -13,6 +13,7 @@ import { AuthService, UserRole } from '../auth/auth.service';
 export class PeopleComponent implements OnInit {
   private readonly peopleService = inject(PeopleService);
   private readonly authService = inject(AuthService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly session$ = this.authService.session$;
   readonly roleOptions: ReadonlyArray<{ label: string; value: UserRole }> = [
@@ -36,13 +37,20 @@ export class PeopleComponent implements OnInit {
     this.errorMessage = '';
     this.peopleService
       .listCompanyPeople()
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(
+        finalize(() => {
+          this.isLoading = false;
+          this.markViewForCheck();
+        }),
+      )
       .subscribe({
         next: (people) => {
           this.people = people;
+          this.markViewForCheck();
         },
         error: (error: Error) => {
           this.errorMessage = error.message;
+          this.markViewForCheck();
         },
       });
   }
@@ -69,6 +77,7 @@ export class PeopleComponent implements OnInit {
       .pipe(
         finalize(() => {
           this.updatingRoleIds.delete(person.id);
+          this.markViewForCheck();
         }),
       )
       .subscribe({
@@ -76,9 +85,11 @@ export class PeopleComponent implements OnInit {
           this.people = this.people.map((existing) =>
             existing.id === updated.id ? { ...existing, role: updated.role } : existing,
           );
+          this.markViewForCheck();
         },
         error: (error: Error) => {
           this.errorMessage = error.message;
+          this.markViewForCheck();
         },
       });
   }
@@ -97,15 +108,22 @@ export class PeopleComponent implements OnInit {
       .pipe(
         finalize(() => {
           this.removingIds.delete(person.id);
+          this.markViewForCheck();
         }),
       )
       .subscribe({
         next: () => {
           this.people = this.people.filter((existing) => existing.id !== person.id);
+          this.markViewForCheck();
         },
         error: (error: Error) => {
           this.errorMessage = error.message;
+          this.markViewForCheck();
         },
       });
+  }
+
+  private markViewForCheck(): void {
+    this.cdr.detectChanges();
   }
 }
