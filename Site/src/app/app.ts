@@ -1,18 +1,30 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { RouterOutlet, RouterLink } from '@angular/router';
+import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIf, AsyncPipe } from '@angular/common';
 import { take } from 'rxjs';
 import { AuthService } from './auth/auth.service';
 
+type HeaderTabId = 'runs' | 'people';
+
+interface HeaderTab {
+  id: HeaderTabId;
+  label: string;
+  route: string;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, NgIf, AsyncPipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIf, AsyncPipe],
   templateUrl: './app.component.html',
 })
 export class App implements OnInit {
   private readonly authService = inject(AuthService);
   readonly session$ = this.authService.session$;
+  readonly headerTabs: ReadonlyArray<HeaderTab> = [
+    { id: 'runs', label: 'Runs', route: '/dashboard/runs' },
+    { id: 'people', label: 'People', route: '/dashboard/people' },
+  ];
 
   ngOnInit(): void {
     this.authService.ensureBootstrap();

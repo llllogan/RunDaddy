@@ -1,27 +1,46 @@
 <div class="min-h-screen bg-gray-50 text-gray-900">
   <header class="border-b border-gray-200 bg-white/90 backdrop-blur">
-    <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-      <ng-container *ngIf="session$ | async as session; else loggedOutHeader">
-        <a routerLink="/" class="text-lg font-semibold tracking-tight text-gray-900">
-          {{ session.company?.name ?? 'Picker Agent' }}
+    <div class="mx-auto max-w-5xl px-6 py-4">
+      @let session = session$ | async;
+      <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[auto,1fr,auto]">
+        <a routerLink="/" class="justify-self-start text-lg font-semibold tracking-tight text-gray-900">
+          {{ session?.company?.name ?? 'Picker Agent' }}
         </a>
-        <div class="flex items-center gap-4 text-right text-sm">
-          <div>
-            <p class="font-semibold text-gray-900">{{ session.user.firstName }} {{ session.user.lastName }}</p>
-            <p class="text-xs text-gray-500">{{ session.user.email }}</p>
-          </div>
-          <button
-            type="button"
-            class="rounded-full border border-gray-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white"
-            (click)="onLogout()"
-          >
-            Log out
-          </button>
+        <div class="flex items-center justify-center gap-3">
+          @for (tab of headerTabs; track tab.id) {
+            <button
+              type="button"
+              class="rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+              [routerLink]="tab.route"
+              routerLinkActive="bg-gray-900 text-white"
+              [routerLinkActiveOptions]="{ exact: true }"
+              #rla="routerLinkActive"
+              [attr.aria-pressed]="rla.isActive"
+            >
+              {{ tab.label }}
+            </button>
+          }
         </div>
-      </ng-container>
-      <ng-template #loggedOutHeader>
-        <a routerLink="/" class="text-lg font-semibold tracking-tight text-gray-900">Picker Agent</a>
-      </ng-template>
+        <div class="justify-self-end text-right text-sm">
+          @if (session) {
+            <div class="flex items-center gap-4">
+              <div>
+                <p class="font-semibold text-gray-900">{{ session.user.firstName }} {{ session.user.lastName }}</p>
+                <p class="text-xs text-gray-500">{{ session.user.email }}</p>
+              </div>
+              <button
+                type="button"
+                class="rounded-full border border-gray-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white"
+                (click)="onLogout()"
+              >
+                Log out
+              </button>
+            </div>
+          } @else {
+            <a routerLink="/login" class="text-xs font-semibold uppercase tracking-wide text-gray-900">Log in</a>
+          }
+        </div>
+      </div>
     </div>
   </header>
 

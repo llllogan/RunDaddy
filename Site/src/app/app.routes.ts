@@ -4,6 +4,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { HomeComponent } from './home/home.component';
 import { authGuard } from './auth/auth.guard';
 import { SignupComponent } from './signup/signup.component';
+import { PeopleComponent } from './people/people.component';
 
 export const appRoutes: Routes = [
   {
@@ -20,8 +21,22 @@ export const appRoutes: Routes = [
   },
   {
     path: 'dashboard',
-    component: DashboardComponent,
     canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'runs',
+      },
+      {
+        path: 'runs',
+        component: DashboardComponent,
+      },
+      {
+        path: 'people',
+        component: PeopleComponent,
+      },
+    ],
   },
   {
     path: '**',
