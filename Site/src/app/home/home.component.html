@@ -1,0 +1,30 @@
+<section class="relative mx-auto max-w-4xl space-y-8 px-6 py-24 text-center text-gray-900">
+  <p class="text-sm uppercase tracking-[0.3em] text-gray-500">Picker Agent</p>
+  <h1 class="text-4xl font-semibold leading-tight text-gray-900 sm:text-5xl">
+    One surface for every item picked.
+  </h1>
+  <p class="text-base text-gray-600">
+    Keep loops, bins, and voice cues together in a focused dashboard. Sign in to start managing your team.
+  </p>
+  <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+    <a
+      href="mailto:hello@pickeragent.com"
+      class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
+    >
+      Contact the team
+    </a>
+    <a
+      routerLink="/login"
+      class="w-full rounded-full border border-gray-300 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-100 sm:w-auto"
+    >
+      Log in
+    </a>
+    <a
+      *ngIf="session$ | async"
+      routerLink="/dashboard"
+      class="w-full rounded-full border border-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white sm:w-auto"
+    >
+      Open dashboard
+    </a>
+  </div>
+</section>
