@@ -1,9 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { finalize } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
-import { buildApiUrl } from '../config/runtime-env';
+import { RunImportResponse, RunImportService, RunImportSummary } from '../run-imports/run-import.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -13,7 +12,7 @@ import { buildApiUrl } from '../config/runtime-env';
 })
 export class DashboardComponent {
   private readonly authService = inject(AuthService);
-  private readonly http = inject(HttpClient);
+  private readonly runImportService = inject(RunImportService);
   private readonly cdr = inject(ChangeDetectorRef);
   readonly session$ = this.authService.session$;
 
@@ -78,11 +77,9 @@ export class DashboardComponent {
     this.setFeedback('', '');
     this.uploadSummary = null;
     this.lastUploadedFile = file.name;
-    const formData = new FormData();
-    formData.append('file', file);
 
-    this.http
-      .post<RunImportResponse>(buildApiUrl('/run-imports/runs'), formData)
+    this.runImportService
+      .uploadRuns(file)
       .pipe(
         finalize(() => {
           this.isUploading = false;
@@ -95,8 +92,9 @@ export class DashboardComponent {
           this.uploadSummary = response.summary;
           this.markViewForCheck();
         },
-        error: (error: HttpErrorResponse) => {
-          const message = error.error?.error ?? 'Unable to upload the run. Please try again.';
+        error: (error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : 'Unable to upload the run. Please try again.';
           this.setFeedback(message, 'error');
           this.markViewForCheck();
         },
@@ -154,13 +152,3 @@ export class DashboardComponent {
     this.cdr.detectChanges();
   }
 }
-
-type RunImportSummary = {
-  runs: number;
-  machines: number;
-  pickEntries: number;
-};
-
-type RunImportResponse = {
-  summary: RunImportSummary;
-};
