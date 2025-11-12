@@ -66,3 +66,8 @@ fastlane/test_output
 /App/build*
 
 **/*.xlsx
+
+# Angular site local env artifacts
+/Site/.env
+/Site/.env.local
+/Site/public/assets/env.js

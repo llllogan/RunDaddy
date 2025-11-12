@@ -2,8 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, catchError, finalize, map, of, shareReplay, take, tap, throwError } from 'rxjs';
-
-const API_BASE = 'https://rundaddy.app/api';
+import { buildApiUrl } from '../config/runtime-env';
 
 export type UserRole = 'ADMIN' | 'OWNER' | 'PICKER';
 
@@ -78,7 +77,7 @@ export class AuthService {
     if (!this.bootstrapRequest$) {
       this.loadingSubject.next(true);
       this.bootstrapRequest$ = this.http
-        .get<SessionMeResponse>(`${API_BASE}/auth/me`)
+        .get<SessionMeResponse>(buildApiUrl('/auth/me'))
         .pipe(
           map((response) => this.mapSessionFromMeResponse(response)),
           tap((session) => this.sessionSubject.next(session)),
@@ -103,7 +102,7 @@ export class AuthService {
 
   login(payload: LoginPayload): Observable<AuthSession> {
     const body = { ...payload, context: 'WEB' as const };
-    return this.http.post<LoginResponse>(`${API_BASE}/auth/login`, body).pipe(
+    return this.http.post<LoginResponse>(buildApiUrl('/auth/login'), body).pipe(
       map((response) => this.mapSessionFromAuthResponse(response)),
       tap((session) => {
         this.sessionSubject.next(session);
@@ -113,7 +112,7 @@ export class AuthService {
   }
 
   logout(): Observable<void> {
-    return this.http.post(`${API_BASE}/auth/logout`, {}).pipe(
+    return this.http.post(buildApiUrl('/auth/logout'), {}).pipe(
       map(() => void 0),
       catchError(() => of(void 0)),
       tap(() => this.handleSessionExpiry()),
@@ -123,7 +122,7 @@ export class AuthService {
   refreshSession(): Observable<AuthSession> {
     if (!this.refreshRequest$) {
       this.refreshRequest$ = this.http
-        .post<LoginResponse>(`${API_BASE}/auth/refresh`, {})
+        .post<LoginResponse>(buildApiUrl('/auth/refresh'), {})
         .pipe(
           map((response) => this.mapSessionFromAuthResponse(response)),
           tap((session) => {

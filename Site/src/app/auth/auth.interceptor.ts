@@ -2,17 +2,18 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
+import { buildApiUrl } from '../config/runtime-env';
 
 const AUTH_ENDPOINTS = [
-  '/api/auth/login',
-  '/api/auth/refresh',
-  '/api/auth/logout',
-  '/api/auth/me',
-];
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/me',
+].map((path) => buildApiUrl(path));
 
 const isAuthEndpoint = (url: string): boolean => {
   const sanitized = url.split('?')[0] ?? url;
-  return AUTH_ENDPOINTS.some((endpoint) => sanitized.endsWith(endpoint));
+  return AUTH_ENDPOINTS.some((endpoint) => sanitized === endpoint);
 };
 
 export const credentialsInterceptor: HttpInterceptorFn = (req, next) => {
