@@ -6,24 +6,27 @@
     Combine runs from Cantaloupe, the other one, and the other one into a single view. Pack for these runs with ease while keeping an eye on useful insights.
   </p>
   <div class="flex flex-col items-stretch justify-start gap-4 sm:flex-row">
-    <a
-      href="mailto:hello@pickeragent.com"
-      class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
-    >
-      Contact the team
-    </a>
-    <a
-      routerLink="/login"
-      class="w-full rounded-full border border-gray-300 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-100 sm:w-auto"
-    >
-      Log in
-    </a>
-    <a
-      *ngIf="session$ | async"
-      routerLink="/dashboard"
-      class="w-full rounded-full border border-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white sm:w-auto"
-    >
-      Open dashboard
-    </a>
+    <ng-container *ngIf="session$ | async; else loggedOutCtas">
+      <a
+        routerLink="/dashboard"
+        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
+      >
+        Go to dashboard
+      </a>
+    </ng-container>
+    <ng-template #loggedOutCtas>
+      <a
+        href="mailto:hello@pickeragent.com"
+        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
+      >
+        Contact the team
+      </a>
+      <a
+        routerLink="/login"
+        class="w-full rounded-full border border-gray-300 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-100 sm:w-auto"
+      >
+        Log in
+      </a>
+    </ng-template>
   </div>
 </section>

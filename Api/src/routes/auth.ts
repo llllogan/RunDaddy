@@ -15,6 +15,7 @@ import {
   formatMembershipChoices,
   respondWithSession,
   buildSessionPayload,
+  buildAuthCookieOptions,
   type MembershipSummary,
 } from './helpers/auth.js';
 
@@ -620,8 +621,9 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
 
 // Clears authentication cookies to log the user out.
 router.post('/logout', setLogConfig({ level: 'minimal' }), (req, res) => {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  const cookieOptions = buildAuthCookieOptions();
+  res.clearCookie('accessToken', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
   res.status(200).json({ message: 'Logged out' });
 });
 

@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+import type { CookieOptions, Response } from 'express';
 import { z } from 'zod';
 import { AuthContext, UserRole } from '../../types/enums.js';
 
@@ -72,29 +72,29 @@ export const formatMembershipChoices = (memberships: MembershipSummary[]) =>
     role: member.role,
   }));
 
+const isProductionEnv = () => process.env.NODE_ENV === 'production';
+
+export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'strict' } => {
+  const isProduction = isProductionEnv();
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/api',
+    ...(isProduction ? {} : { domain: 'localhost' }),
+  };
+};
+
 export const respondWithSession = (
   res: Response,
   data: { company: SessionCompany; user: SessionUser; tokens: SessionTokens },
   status = 200,
   extras?: Record<string, unknown>,
 ) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict' as const,
-    path: '/api',
-    ...(isProduction ? {} : { domain: 'localhost' }),
-  };
+  const cookieOptions = buildAuthCookieOptions();
 
-  res.cookie('accessToken', data.tokens.accessToken, {
-    ...cookieOptions,
-    expires: data.tokens.accessTokenExpiresAt,
-  });
-  res.cookie('refreshToken', data.tokens.refreshToken, {
-    ...cookieOptions,
-    expires: data.tokens.refreshTokenExpiresAt,
-  });
+  res.cookie('accessToken', data.tokens.accessToken, { ...cookieOptions, expires: data.tokens.accessTokenExpiresAt });
+  res.cookie('refreshToken', data.tokens.refreshToken, { ...cookieOptions, expires: data.tokens.refreshTokenExpiresAt });
 
   const responseData: Record<string, unknown> = {
     company: data.company,
