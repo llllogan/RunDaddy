@@ -54,8 +54,8 @@ body {
 }
 
 .header-title {
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
 }
 
 .theme-switch {
@@ -64,8 +64,7 @@ body {
   border-radius: 9999px;
   padding: 0.35rem 0.85rem;
   font-size: 0.7rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--text-primary);
   transition: color 150ms ease, border-color 150ms ease;
 }
@@ -94,8 +93,7 @@ body {
   color: var(--cta-text);
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: normal;
   text-decoration: none;
   transition: background-color 150ms ease, color 150ms ease;
 }
