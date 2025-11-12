@@ -1,6 +1,6 @@
 <section *ngIf="session$ | async as session; else loading" class="space-y-6">
   <div class="soft-card p-8">
-    <p class="text-sm uppercase tracking-[0.3em] text-gray-500">Dashboard</p>
+    <p class="text-sm uppercase tracking-wide text-gray-500">Dashboard</p>
     <h1 class="mt-2 text-4xl font-semibold text-gray-900">Dashboard</h1>
     <p class="mt-4 text-base text-gray-700">
       Signed in as <span class="font-semibold text-gray-900">{{ session.user.firstName }} {{ session.user.lastName }}</span>
