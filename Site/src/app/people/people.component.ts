@@ -1,5 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
+import { finalize } from 'rxjs/operators';
+import { PeopleService, CompanyPerson } from './people.service';
+import { AuthService, UserRole } from '../auth/auth.service';
 
 @Component({
   selector: 'app-people',
@@ -7,4 +10,102 @@ import { Component } from '@angular/core';
   imports: [CommonModule],
   templateUrl: './people.component.html',
 })
-export class PeopleComponent {}
+export class PeopleComponent implements OnInit {
+  private readonly peopleService = inject(PeopleService);
+  private readonly authService = inject(AuthService);
+
+  readonly session$ = this.authService.session$;
+  readonly roleOptions: ReadonlyArray<{ label: string; value: UserRole }> = [
+    { label: 'Owner', value: 'OWNER' },
+    { label: 'Admin', value: 'ADMIN' },
+    { label: 'Picker', value: 'PICKER' },
+  ];
+
+  people: CompanyPerson[] = [];
+  isLoading = false;
+  errorMessage = '';
+  private readonly updatingRoleIds = new Set<string>();
+  private readonly removingIds = new Set<string>();
+
+  ngOnInit(): void {
+    this.loadPeople();
+  }
+
+  loadPeople(): void {
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.peopleService
+      .listCompanyPeople()
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: (people) => {
+          this.people = people;
+        },
+        error: (error: Error) => {
+          this.errorMessage = error.message;
+        },
+      });
+  }
+
+  trackByPersonId(_: number, person: CompanyPerson): string {
+    return person.id;
+  }
+
+  isRoleBusy(personId: string): boolean {
+    return this.updatingRoleIds.has(personId);
+  }
+
+  isRemoveBusy(personId: string): boolean {
+    return this.removingIds.has(personId);
+  }
+
+  changeRole(person: CompanyPerson, role: UserRole): void {
+    if (person.role === role || this.isRoleBusy(person.id)) {
+      return;
+    }
+    this.updatingRoleIds.add(person.id);
+    this.peopleService
+      .updatePersonRole(person.id, role)
+      .pipe(
+        finalize(() => {
+          this.updatingRoleIds.delete(person.id);
+        }),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.people = this.people.map((existing) =>
+            existing.id === updated.id ? { ...existing, role: updated.role } : existing,
+          );
+        },
+        error: (error: Error) => {
+          this.errorMessage = error.message;
+        },
+      });
+  }
+
+  removePerson(person: CompanyPerson): void {
+    if (this.isRemoveBusy(person.id)) {
+      return;
+    }
+    const confirmed = confirm(`Remove ${person.firstName} ${person.lastName} from the company?`);
+    if (!confirmed) {
+      return;
+    }
+    this.removingIds.add(person.id);
+    this.peopleService
+      .removePerson(person.id)
+      .pipe(
+        finalize(() => {
+          this.removingIds.delete(person.id);
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.people = this.people.filter((existing) => existing.id !== person.id);
+        },
+        error: (error: Error) => {
+          this.errorMessage = error.message;
+        },
+      });
+  }
+}

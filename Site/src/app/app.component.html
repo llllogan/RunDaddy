@@ -6,21 +6,23 @@
         <a routerLink="/" class="justify-self-start text-lg font-semibold tracking-tight text-gray-900">
           {{ session?.company?.name ?? 'Picker Agent' }}
         </a>
-        <div class="flex items-center justify-center gap-3">
-          @for (tab of headerTabs; track tab.id) {
-            <button
-              type="button"
-              class="rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-              [routerLink]="tab.route"
-              routerLinkActive="bg-gray-900 text-white"
-              [routerLinkActiveOptions]="{ exact: true }"
-              #rla="routerLinkActive"
-              [attr.aria-pressed]="rla.isActive"
-            >
-              {{ tab.label }}
-            </button>
-          }
-        </div>
+        @if (session) {
+          <div class="flex items-center justify-center gap-3">
+            @for (tab of headerTabs; track tab.id) {
+              <button
+                type="button"
+                class="rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                [routerLink]="tab.route"
+                routerLinkActive="bg-gray-900 text-white"
+                [routerLinkActiveOptions]="{ exact: true }"
+                #rla="routerLinkActive"
+                [attr.aria-pressed]="rla.isActive"
+              >
+                {{ tab.label }}
+              </button>
+            }
+          </div>
+        }
         <div class="justify-self-end text-right text-sm">
           @if (session) {
             <div class="flex items-center gap-4">
