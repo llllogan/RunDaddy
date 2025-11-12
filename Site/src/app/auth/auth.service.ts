@@ -45,6 +45,15 @@ export interface LoginPayload {
   setAsDefault?: boolean;
 }
 
+export interface RegisterPayload {
+  companyName: string;
+  userFirstName: string;
+  userLastName: string;
+  userEmail: string;
+  userPassword: string;
+  userPhone?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly sessionSubject = new BehaviorSubject<AuthSession | null>(null);
@@ -103,6 +112,16 @@ export class AuthService {
   login(payload: LoginPayload): Observable<AuthSession> {
     const body = { ...payload, context: 'WEB' as const };
     return this.http.post<LoginResponse>(buildApiUrl('/auth/login'), body).pipe(
+      map((response) => this.mapSessionFromAuthResponse(response)),
+      tap((session) => {
+        this.sessionSubject.next(session);
+        this.bootstrappedSubject.next(true);
+      }),
+    );
+  }
+
+  registerCompanyAccount(payload: RegisterPayload): Observable<AuthSession> {
+    return this.http.post<LoginResponse>(buildApiUrl('/auth/register'), payload).pipe(
       map((response) => this.mapSessionFromAuthResponse(response)),
       tap((session) => {
         this.sessionSubject.next(session);

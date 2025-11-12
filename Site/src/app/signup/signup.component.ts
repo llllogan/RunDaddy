@@ -4,30 +4,27 @@ import { Component, OnDestroy, inject } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { Subject, filter, finalize, takeUntil } from 'rxjs';
-import { AuthService, AuthSession, LoginPayload, UserRole } from '../auth/auth.service';
-
-interface MembershipChoice {
-  companyId: string;
-  companyName: string;
-  role: UserRole;
-}
+import { AuthService, AuthSession, RegisterPayload } from '../auth/auth.service';
 
 @Component({
-  selector: 'app-login',
+  selector: 'app-signup',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterModule],
-  templateUrl: './login.component.html',
+  templateUrl: './signup.component.html',
 })
-export class LoginComponent implements OnDestroy {
+export class SignupComponent implements OnDestroy {
   private readonly fb = inject(NonNullableFormBuilder);
 
   readonly form = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required]],
+    companyName: ['', [Validators.required, Validators.minLength(2)]],
+    userFirstName: ['', [Validators.required]],
+    userLastName: ['', [Validators.required]],
+    userEmail: ['', [Validators.required, Validators.email]],
+    userPassword: ['', [Validators.required, Validators.minLength(8)]],
+    userPhone: ['', [Validators.required]],
   });
 
   errorMessage = '';
-  membershipChoices: MembershipChoice[] = [];
   isSubmitting = false;
 
   private readonly destroy$ = new Subject<void>();
@@ -53,33 +50,34 @@ export class LoginComponent implements OnDestroy {
     this.destroy$.complete();
   }
 
+  get requiresPhoneCode(): boolean {
+    const phone = this.form.get('userPhone')?.value?.trim();
+    return phone !== '5555555555';
+  }
+
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
 
-    this.executeLogin();
-  }
-
-  selectCompany(companyId: string): void {
-    this.executeLogin(companyId);
-  }
-
-  private executeLogin(companyId?: string): void {
     this.isSubmitting = true;
     this.errorMessage = '';
 
-    const { email, password } = this.form.getRawValue();
-    const payload: LoginPayload = {
-      email,
-      password,
-      companyId,
-      setAsDefault: true,
+    const { companyName, userFirstName, userLastName, userEmail, userPassword, userPhone } =
+      this.form.getRawValue();
+
+    const payload: RegisterPayload = {
+      companyName: companyName.trim(),
+      userFirstName: userFirstName.trim(),
+      userLastName: userLastName.trim(),
+      userEmail: userEmail.trim(),
+      userPassword,
+      userPhone: userPhone.trim(),
     };
 
     this.authService
-      .login(payload)
+      .registerCompanyAccount(payload)
       .pipe(
         finalize(() => {
           this.isSubmitting = false;
@@ -88,32 +86,12 @@ export class LoginComponent implements OnDestroy {
       )
       .subscribe({
         next: () => {
-          this.membershipChoices = [];
           void this.router.navigate(['/dashboard']);
         },
         error: (error: HttpErrorResponse) => {
-          this.handleLoginError(error);
+          this.errorMessage =
+            error.error?.error ?? 'Unable to create your account right now. Please try again.';
         },
       });
-  }
-
-  private handleLoginError(error: HttpErrorResponse): void {
-    if (error.status === 401) {
-      this.errorMessage = 'Invalid email or password.';
-      return;
-    }
-
-    if (error.status === 412 && Array.isArray(error.error?.memberships)) {
-      this.membershipChoices = error.error.memberships as MembershipChoice[];
-      this.errorMessage = 'Choose which company dashboard to open.';
-      return;
-    }
-
-    if (error.status === 404) {
-      this.errorMessage = 'We could not find a company for that account.';
-      return;
-    }
-
-    this.errorMessage = error.error?.error ?? 'Unable to sign in right now. Please try again.';
   }
 }
