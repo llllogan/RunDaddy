@@ -12,7 +12,7 @@ RUN mkdir -p /app/.tmp /app/.npm
 COPY package*.json ./
 # cache npm artifacts across builds
 RUN --mount=type=cache,target=/app/.npm \
-    npm ci --no-audit --no-fund
+    npm ci --include=dev --no-audit --no-fund
 
 COPY . .
 # run Angular build once (no duplicate --configuration flags)
