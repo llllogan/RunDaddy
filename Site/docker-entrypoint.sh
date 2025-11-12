@@ -6,7 +6,7 @@ if [ -n "${APP_DIST_DIR:-}" ]; then
 elif [ -d /usr/share/nginx/html ]; then
   dist_dir="/usr/share/nginx/html"
 else
-  dist_dir="/app/dist/rundaddy"
+  dist_dir="/app/dist/site"
 fi
 
 env_file_path=${ENV_FILE_PATH:-"${dist_dir}/assets/env.js"}
@@ -24,8 +24,8 @@ cat > "$env_file_path" <<EOF
 })(window);
 EOF
 
-echo "[RunDaddy] Wrote runtime env overrides to $env_file_path"
-echo "[RunDaddy] API_BASE_URL=${api_base_url}"
+echo "[PickerAgent] Wrote runtime env overrides to $env_file_path"
+echo "[PickerAgent] API_BASE_URL=${api_base_url}"
 
 default_cmd() {
   if command -v nginx >/dev/null 2>&1; then

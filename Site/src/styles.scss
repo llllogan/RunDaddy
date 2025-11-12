@@ -10,3 +10,110 @@ body {
     linear-gradient(180deg, #030712, #020617 60%, #020617);
   color-scheme: dark;
 }
+
+.surface {
+  --text-primary: #f8fafc;
+  --text-muted: rgba(226, 232, 240, 0.75);
+  --cta-bg: #ffffff;
+  --cta-text: #0f172a;
+  --cta-hover-bg: #f8fafc;
+  --toggle-bg: rgba(15, 23, 42, 0.45);
+  --toggle-text: rgba(248, 250, 252, 0.9);
+  --toggle-border: rgba(248, 250, 252, 0.25);
+  --glow-one: rgba(56, 189, 248, 0.3);
+  --glow-two: rgba(99, 102, 241, 0.25);
+}
+
+.surface-dark {
+  background-color: #05060b;
+  color: #e2e8f0;
+  color-scheme: dark;
+}
+
+.surface-light {
+  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+  color: #0f172a;
+  color-scheme: light;
+  --text-primary: #0f172a;
+  --text-muted: rgba(71, 85, 105, 0.9);
+  --cta-bg: #0f172a;
+  --cta-text: #f8fafc;
+  --cta-hover-bg: #0b1224;
+  --toggle-bg: rgba(255, 255, 255, 0.8);
+  --toggle-text: #0f172a;
+  --toggle-border: rgba(15, 23, 42, 0.15);
+  --glow-one: rgba(56, 189, 248, 0.4);
+  --glow-two: rgba(99, 102, 241, 0.3);
+}
+
+.site-header {
+  @apply relative mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  z-index: 10;
+}
+
+.header-title {
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.theme-switch {
+  background: transparent;
+  border: 1px solid var(--toggle-border);
+  border-radius: 9999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.theme-switch:hover {
+  border-color: var(--text-primary);
+}
+
+.hero-heading {
+  @apply text-4xl font-semibold leading-tight sm:text-5xl;
+  color: var(--text-primary);
+}
+
+.hero-copy {
+  @apply max-w-2xl text-base;
+  color: var(--text-muted);
+}
+
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 2.5rem;
+  border-radius: 9999px;
+  background-color: var(--cta-bg);
+  color: var(--cta-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.cta-button:hover {
+  background-color: var(--cta-hover-bg);
+}
+
+.glow {
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(160px);
+}
+
+.glow-one {
+  background: var(--glow-one);
+}
+
+.glow-two {
+  background: var(--glow-two);
+}
