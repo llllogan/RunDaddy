@@ -4,5 +4,9 @@
 
 html,
 body {
-  @apply m-0 min-h-full bg-rd-background font-sans text-rd-primary antialiased;
+  @apply m-0 min-h-full bg-slate-950 font-sans text-slate-100 antialiased;
+  background-image: radial-gradient(circle at 20% 20%, rgba(129, 140, 248, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 40%),
+    linear-gradient(180deg, #030712, #020617 60%, #020617);
+  color-scheme: dark;
 }
