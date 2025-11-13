@@ -25,6 +25,9 @@ export class AdminDashboardComponent implements OnInit {
   isLoadingDetail = false;
   listError = '';
   detailError = '';
+  isDeletingCompany = false;
+  deleteError = '';
+  isConfirmingDelete = false;
 
   ngOnInit(): void {
     this.loadCompanies();
@@ -75,6 +78,8 @@ export class AdminDashboardComponent implements OnInit {
     this.selectedCompanyId = companyId;
     this.selectedCompany = null;
     this.detailError = '';
+    this.deleteError = '';
+    this.isConfirmingDelete = false;
     this.isLoadingDetail = true;
 
     this.adminService
@@ -93,6 +98,49 @@ export class AdminDashboardComponent implements OnInit {
         error: (error: Error) => {
           this.detailError = error.message;
           this.selectedCompany = null;
+          this.markViewForCheck();
+        },
+      });
+  }
+
+  promptDeleteCompany(): void {
+    if (!this.selectedCompany || this.isDeletingCompany || this.isLoadingDetail) {
+      return;
+    }
+    this.deleteError = '';
+    this.isConfirmingDelete = true;
+  }
+
+  cancelDelete(): void {
+    this.isConfirmingDelete = false;
+  }
+
+  confirmDeleteCompany(): void {
+    const companyId = this.selectedCompanyId;
+    if (!companyId || this.isDeletingCompany) {
+      return;
+    }
+
+    this.isDeletingCompany = true;
+    this.isConfirmingDelete = false;
+    this.deleteError = '';
+
+    this.adminService
+      .deleteCompany(companyId)
+      .pipe(
+        finalize(() => {
+          this.isDeletingCompany = false;
+          this.markViewForCheck();
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.selectedCompany = null;
+          this.selectedCompanyId = null;
+          this.loadCompanies();
+        },
+        error: (error: Error) => {
+          this.deleteError = error.message;
           this.markViewForCheck();
         },
       });

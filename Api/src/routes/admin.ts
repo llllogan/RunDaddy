@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { RunStatus } from '@prisma/client';
+import { Prisma, RunStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requirePlatformAdmin } from '../middleware/require-platform-admin.js';
@@ -165,6 +165,33 @@ router.get(
           : null,
       })),
     });
+  },
+);
+
+router.delete(
+  '/companies/:companyId',
+  setLogConfig({ level: 'minimal' }),
+  async (req, res) => {
+    const { companyId } = req.params;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Company id is required' });
+    }
+    if (companyId === PLATFORM_ADMIN_COMPANY_ID) {
+      return res.status(403).json({ error: 'Admin workspace cannot be deleted' });
+    }
+
+    try {
+      await prisma.company.delete({
+        where: { id: companyId },
+      });
+      return res.status(204).end();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return res.status(404).json({ error: 'Company not found' });
+      }
+      console.error('Error deleting company:', error);
+      return res.status(500).json({ error: 'Unable to delete company' });
+    }
   },
 );
 

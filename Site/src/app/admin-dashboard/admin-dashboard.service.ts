@@ -56,17 +56,25 @@ export class AdminDashboardService {
   getCompanies(): Observable<AdminCompanySummary[]> {
     return this.http
       .get<AdminCompanySummary[]>(buildApiUrl('/admin/companies'))
-      .pipe(catchError((error) => this.handleError(error)));
+      .pipe(catchError((error) => this.handleError(error, 'Unable to load company list. Please try again.')));
   }
 
   getCompany(companyId: string): Observable<AdminCompanyDetail> {
     return this.http
       .get<AdminCompanyDetail>(buildApiUrl(`/admin/companies/${companyId}`))
-      .pipe(catchError((error) => this.handleError(error)));
+      .pipe(
+        catchError((error) => this.handleError(error, 'Unable to load company details. Please try again.')),
+      );
   }
 
-  private handleError(error: HttpErrorResponse) {
-    const message = error.error?.error ?? 'Unable to load admin data. Please try again.';
+  deleteCompany(companyId: string): Observable<void> {
+    return this.http
+      .delete<void>(buildApiUrl(`/admin/companies/${companyId}`))
+      .pipe(catchError((error) => this.handleError(error, 'Unable to delete company. Please try again.')));
+  }
+
+  private handleError(error: HttpErrorResponse, fallbackMessage = 'Unable to load admin data. Please try again.') {
+    const message = error.error?.error ?? fallbackMessage;
     return throwError(() => new Error(message));
   }
 }
