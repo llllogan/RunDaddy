@@ -48,6 +48,45 @@ struct SkuDetailView: View {
                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+                
+                Section {
+                    if let skuStats = skuStats {
+                        SkuStatsBento(
+                            mostRecentPick: skuStats.mostRecentPick,
+                            weekChange: skuStats.percentageChanges.week,
+                            monthChange: skuStats.percentageChanges.month,
+                            quarterChange: skuStats.percentageChanges.quarter
+                        )
+                    } else if isLoadingStats {
+                        ProgressView("Loading SKU stats...")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        Text("We couldn't load SKU stats right now.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                } header: {
+                    Text("SKU Statistics")
+                }
+                .listRowInsets(.init(top: 6, leading: 0, bottom: 8, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                if let skuStats = skuStats {
+                    Section {
+                        SkuStatsChartView(stats: skuStats)
+                            .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        Text("Recent Activity")
+                    }
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
             }
         }
         .navigationTitle(sku?.code ?? "SKU Details")
