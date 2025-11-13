@@ -1,0 +1,191 @@
+<section class="space-y-8">
+  <div class="grid gap-8 lg:grid-cols-[minmax(0,2fr),minmax(0,3fr)]">
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-gray-500">Admin Portal</p>
+          <h2 class="text-2xl font-semibold text-gray-900">Companies</h2>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-gray-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white disabled:opacity-50"
+          (click)="loadCompanies()"
+          [disabled]="isLoadingCompanies"
+        >
+          Refresh
+        </button>
+      </div>
+
+      @if (listError) {
+        <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ listError }}</div>
+      }
+
+      <div class="soft-card">
+        @if (isLoadingCompanies) {
+          <div class="px-4 py-6 text-center text-sm text-gray-500">Loading companies…</div>
+        } @else if (companies.length === 0) {
+          <div class="px-4 py-6 text-center text-sm text-gray-500">No companies available.</div>
+        } @else {
+          <ul class="divide-y divide-gray-100">
+            @for (company of companies; track trackByCompanyId($index, company)) {
+              <li>
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-gray-50"
+                  [class.bg-gray-900]="selectedCompanyId === company.id"
+                  [class.text-white]="selectedCompanyId === company.id"
+                  (click)="selectCompany(company.id)"
+                >
+                  <div>
+                    <p class="text-base font-semibold">{{ company.name }}</p>
+                    <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">
+                      {{ company.timeZone ?? '—' }} • Created {{ company.createdAt | date: 'MMM d, y' }}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-4 text-sm">
+                    <div class="text-center">
+                      <p class="font-semibold">{{ company.memberCount }}</p>
+                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Members</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-semibold">{{ company.runCount }}</p>
+                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Runs</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-semibold">{{ company.activeRunCount }}</p>
+                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Active</p>
+                    </div>
+                    <div class="text-right text-xs">
+                      <p class="uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">
+                        Last Run
+                      </p>
+                      @if (company.lastRunAt) {
+                        <p
+                          class="font-semibold text-sm"
+                          [class.text-white]="selectedCompanyId === company.id"
+                          [class.text-gray-600]="selectedCompanyId !== company.id"
+                        >
+                          {{ company.lastRunAt | date: 'MMM d, y' }}
+                        </p>
+                      } @else {
+                        <p [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">—</p>
+                      }
+                    </div>
+                  </div>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Company Details</p>
+        <h2 class="text-2xl font-semibold text-gray-900">
+          {{ selectedCompany?.name ?? 'Select a company' }}
+        </h2>
+      </div>
+
+      @if (detailError) {
+        <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ detailError }}</div>
+      }
+
+      @if (isLoadingDetail) {
+        <div class="rounded-3xl border border-dashed border-gray-200 bg-white/60 px-6 py-6 text-center text-sm text-gray-500">
+          Loading details…
+        </div>
+      } @else if (!selectedCompany) {
+        <div class="rounded-3xl border border-dashed border-gray-200 bg-white/60 px-6 py-6 text-center text-sm text-gray-500">
+          Choose a company from the list to preview members and runs.
+        </div>
+      } @else {
+        <div class="soft-card space-y-6">
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-gray-500">Members</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.memberCount }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-gray-500">Total Runs</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.runCount }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-gray-500">Active Runs</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.activeRunCount }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-900">Members</h3>
+              <p class="text-xs uppercase tracking-wide text-gray-500">{{ selectedCompany.members.length }} total</p>
+            </div>
+            @if (selectedCompany.members.length === 0) {
+              <p class="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-500">No members on record.</p>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="min-w-full table-auto border-collapse text-sm text-gray-800">
+                  <thead>
+                    <tr class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <th class="px-4 py-3 text-left">Name</th>
+                      <th class="px-4 py-3 text-left">Role</th>
+                      <th class="px-4 py-3 text-left">Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (member of selectedCompany.members; track trackByMemberId($index, member)) {
+                      <tr class="border-t border-gray-100">
+                        <td class="px-4 py-3">
+                          <p class="font-semibold text-gray-900">{{ member.firstName }} {{ member.lastName }}</p>
+                          <p class="text-xs uppercase tracking-wide text-gray-500">ID {{ member.userId }}</p>
+                        </td>
+                        <td class="px-4 py-3 text-xs uppercase tracking-wide text-gray-600">{{ member.role }}</td>
+                        <td class="px-4 py-3">
+                          <p class="text-sm text-gray-900">{{ member.email }}</p>
+                          <p class="text-xs text-gray-500">{{ member.phone ?? '—' }}</p>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-900">Recent Runs</h3>
+              <p class="text-xs uppercase tracking-wide text-gray-500">{{ selectedCompany.recentRuns.length }} shown</p>
+            </div>
+            @if (selectedCompany.recentRuns.length === 0) {
+              <p class="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-500">No recent runs scheduled.</p>
+            } @else {
+              <ul class="divide-y divide-gray-100">
+                @for (run of selectedCompany.recentRuns; track trackByRunId($index, run)) {
+                  <li class="py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p class="text-sm font-semibold text-gray-900">Run {{ run.id }}</p>
+                        <p class="text-xs uppercase tracking-wide text-gray-500">
+                          {{ run.scheduledFor ? (run.scheduledFor | date: 'MMM d, y h:mm a') : 'Unscheduled' }}
+                        </p>
+                      </div>
+                      <div class="text-right text-sm">
+                        <p class="font-semibold text-gray-900">{{ run.status }}</p>
+                        <p class="text-xs text-gray-500">
+                          Picker: {{ run.picker?.name ?? '—' }} • Runner: {{ run.runner?.name ?? '—' }}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</section>

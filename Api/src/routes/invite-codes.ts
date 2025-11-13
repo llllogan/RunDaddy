@@ -5,6 +5,8 @@ import { setLogConfig } from '../middleware/logging.js';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
 import { AuthContext } from '../types/enums.js';
+import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
+import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 
 const router = Router();
 
@@ -120,6 +122,9 @@ router.post('/use', authenticate, setLogConfig({ level: 'minimal' }), async (req
       company: { id: membership.company.id, name: membership.company.name },
     };
 
+    const platformAdmin = await userHasPlatformAdminAccess(user.id);
+    const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
     return respondWithSession(
       res,
       buildSessionPayload(
@@ -130,9 +135,11 @@ router.post('/use', authenticate, setLogConfig({ level: 'minimal' }), async (req
           lastName: user.lastName,
           role: membership.role,
           phone: user.phone,
+          platformAdmin,
         },
         companySummary,
         tokens,
+        platformAdminCompanyId,
       ),
       200,
       {

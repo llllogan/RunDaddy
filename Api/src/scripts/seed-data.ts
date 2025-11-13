@@ -2,6 +2,15 @@ import { RunItemStatus, RunStatus, UserRole } from '@prisma/client';
 import type { Location, MachineType, SKU } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword } from '../lib/password.js';
+import {
+  PLATFORM_ADMIN_COMPANY_ID,
+  PLATFORM_ADMIN_COMPANY_NAME,
+  PLATFORM_ADMIN_EMAIL,
+  PLATFORM_ADMIN_FIRST_NAME,
+  PLATFORM_ADMIN_LAST_NAME,
+  PLATFORM_ADMIN_PHONE,
+  PLATFORM_ADMIN_TIME_ZONE,
+} from '../config/platform-admin.js';
 
 const APP_STORE_COMPANY_NAME = 'Apple';
 const APP_STORE_TEST_EMAIL = process.env.APP_STORE_TEST_EMAIL ?? 'appstore-testing@apple.com';
@@ -868,11 +877,11 @@ async function seedAppleTesting() {
     firstName: 'App Store',
     lastName: 'Testing Account',
     phone: 'TESTING-APPLE',
-    role: UserRole.ADMIN,
+    role: UserRole.OWNER,
     password: APP_STORE_TEST_PASSWORD,
   });
 
-  const membership = await ensureMembership(user.id, company.id, UserRole.ADMIN);
+  const membership = await ensureMembership(user.id, company.id, UserRole.OWNER);
   await ensureDefaultMembership(user.id, membership.id);
 
   const locationDetails: LocationSeedResult[] = [];
@@ -980,12 +989,51 @@ async function seedExtraUsers() {
   }
 }
 
+async function seedPlatformAdminWorkspace() {
+  console.log('Configuring platform admin workspace...');
+  const company = await prisma.company.upsert({
+    where: { id: PLATFORM_ADMIN_COMPANY_ID },
+    update: {
+      name: PLATFORM_ADMIN_COMPANY_NAME,
+      timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
+    },
+    create: {
+      id: PLATFORM_ADMIN_COMPANY_ID,
+      name: PLATFORM_ADMIN_COMPANY_NAME,
+      timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
+    },
+  });
+
+  let user = await prisma.user.findUnique({
+    where: { email: PLATFORM_ADMIN_EMAIL },
+  });
+
+  if (!user) {
+    user = await upsertUser({
+      email: PLATFORM_ADMIN_EMAIL,
+      firstName: PLATFORM_ADMIN_FIRST_NAME,
+      lastName: PLATFORM_ADMIN_LAST_NAME,
+      phone: PLATFORM_ADMIN_PHONE,
+      role: UserRole.ADMIN,
+    });
+  }
+
+  const membership = await ensureMembership(user.id, company.id, UserRole.ADMIN);
+
+  if (!user.defaultMembershipId) {
+    await ensureDefaultMembership(user.id, membership.id);
+  }
+
+  console.log(`Platform admin company "${company.name}" ready for ${user.email}`);
+}
+
 async function main() {
   await seedMachineTypes();
   await seedSkus();
   await seedAppleTesting();
   await seedCompanyData();
   await seedExtraUsers();
+  await seedPlatformAdminWorkspace();
   console.log('Seed data completed.');
 }
 

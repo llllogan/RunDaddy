@@ -6,6 +6,8 @@ import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken, verifyAccessToken } from '../lib/tokens.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
+import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
+import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 import {
   registerSchema,
   signupSchema,
@@ -76,9 +78,11 @@ router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
         lastName: user.lastName,
         role: user.role,
         phone: user.phone,
+        platformAdmin: false,
       },
       null, // No company for standalone accounts
       tokens,
+      null,
     ),
     201,
   );
@@ -151,9 +155,11 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
         lastName: user.lastName,
         role: membership.role,
         phone: user.phone,
+        platformAdmin: false,
       },
       { id: company.id, name: company.name },
       tokens,
+      null,
     ),
     201,
   );
@@ -205,6 +211,11 @@ router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }
     company: { id: membership.company.id, name: membership.company.name },
   }));
 
+  const platformAdmin = loadedMemberships.some(
+    (member) => member.companyId === PLATFORM_ADMIN_COMPANY_ID && member.role === UserRole.ADMIN,
+  );
+  const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
   // For APP context, allow users without company memberships
   if (!memberships.length && context !== AuthContext.APP) {
     return res.status(403).json({ error: 'No active company memberships for this account' });
@@ -239,9 +250,11 @@ router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }
           lastName: user.lastName,
           role: user.role,
           phone: user.phone,
+          platformAdmin: false,
         },
         null,
         tokens,
+        null,
       ),
     );
   }
@@ -344,9 +357,11 @@ router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }
         lastName: user.lastName,
         role: membership.role,
         phone: user.phone,
+        platformAdmin,
       },
       { id: membership.company.id, name: membership.company.name },
       tokens,
+      platformAdminCompanyId,
     ),
   );
 });
@@ -372,6 +387,9 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
     if (stored.userId !== payload.sub || stored.context !== payload.context) {
       return res.status(401).json({ error: 'Refresh token invalid for this account' });
     }
+
+    const platformAdmin = await userHasPlatformAdminAccess(payload.sub);
+    const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
 
     if (!payload.companyId) {
       const user = await prisma.user.findUnique({
@@ -428,9 +446,11 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
             lastName: user.lastName,
             role: user.role,
             phone: user.phone,
+            platformAdmin,
           },
           null,
           tokens,
+          platformAdminCompanyId,
         ),
       );
     }
@@ -501,9 +521,11 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
           lastName: user.lastName,
           role: membership.role,
           phone: user.phone,
+          platformAdmin,
         },
         { id: membership.company.id, name: membership.company.name },
         tokens,
+        platformAdminCompanyId,
       ),
     );
   } catch (error) {
@@ -602,6 +624,9 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
     await writes[0];
   }
 
+  const platformAdmin = await userHasPlatformAdminAccess(membershipRecord.user.id);
+  const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
   return respondWithSession(
     res,
     buildSessionPayload(
@@ -612,9 +637,11 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
         lastName: membershipRecord.user.lastName,
         role: membership.role,
         phone: membershipRecord.user.phone,
+        platformAdmin,
       },
       { id: membership.company.id, name: membership.company.name },
       tokens,
+      platformAdminCompanyId,
     ),
   );
 });
@@ -648,6 +675,11 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
     role: membership.role,
   }));
 
+  const platformAdmin = memberships.some(
+    (membership) => membership.companyId === PLATFORM_ADMIN_COMPANY_ID && membership.role === UserRole.ADMIN,
+  );
+  const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
   // Handle users without company memberships
   if (memberships.length === 0) {
     const user = await prisma.user.findUnique({
@@ -666,6 +698,9 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const standalonePlatformAdmin = platformAdmin || (await userHasPlatformAdminAccess(req.auth.userId));
+    const standalonePlatformAdminCompanyId = standalonePlatformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
     return res.json({
       companies: [],
       currentCompany: null,
@@ -676,7 +711,9 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
         lastName: user.lastName,
         role: user.role,
         phone: user.phone,
+        platformAdmin: standalonePlatformAdmin,
       },
+      platformAdminCompanyId: standalonePlatformAdminCompanyId,
     });
   }
 
@@ -710,7 +747,9 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
       lastName: user.lastName,
       role: currentCompany?.role ?? user.role,
       phone: user.phone,
+      platformAdmin,
     },
+    platformAdminCompanyId,
   });
 });
 

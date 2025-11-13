@@ -5,6 +5,8 @@ import { HomeComponent } from './home/home.component';
 import { authGuard } from './auth/auth.guard';
 import { SignupComponent } from './signup/signup.component';
 import { PeopleComponent } from './people/people.component';
+import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
+import { adminGuard } from './auth/admin.guard';
 
 export const appRoutes: Routes = [
   {
@@ -35,6 +37,11 @@ export const appRoutes: Routes = [
       {
         path: 'people',
         component: PeopleComponent,
+      },
+      {
+        path: 'admin',
+        canActivate: [adminGuard],
+        component: AdminDashboardComponent,
       },
     ],
   },

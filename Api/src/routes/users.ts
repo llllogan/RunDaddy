@@ -7,6 +7,7 @@ import { setLogConfig } from '../middleware/logging.js';
 import { hashPassword } from '../lib/password.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import { createUserSchema, updateUserSchema, userLookupSchema } from './helpers/users.js';
+import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 
 const router = Router();
 
@@ -201,6 +202,9 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   }
 
   const { email, password, firstName, lastName, phone, role } = parsed.data;
+  if (role === UserRole.ADMIN && req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID) {
+    return res.status(403).json({ error: 'Only the platform admin workspace can assign ADMIN roles' });
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
 
@@ -317,6 +321,13 @@ router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) =>
 
   if (parsed.data.role && !isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to change roles' });
+  }
+
+  if (
+    parsed.data.role === UserRole.ADMIN &&
+    req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID
+  ) {
+    return res.status(403).json({ error: 'Only the platform admin workspace can assign ADMIN roles' });
   }
 
   const userUpdates: Record<string, unknown> = {};

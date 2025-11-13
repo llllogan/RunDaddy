@@ -32,8 +32,9 @@
               </thead>
               <tbody>
                 @let session = session$ | async;
-                @let userRole = session?.user?.role ?? null;
-                @let canManage = userRole === 'OWNER' || userRole === 'ADMIN';
+                @let membershipRole = session?.company?.role ?? null;
+                @let canManage = membershipRole === 'OWNER' || membershipRole === 'ADMIN';
+                @let isPlatformAdminCompany = session?.platformAdminCompanyId && session?.company?.id === session?.platformAdminCompanyId;
                 @for (person of people; track trackByPersonId($index, person)) {
                   <tr class="border-t border-gray-100">
                     <td class="px-6 py-5 align-top">
@@ -53,19 +54,24 @@
                     <td class="px-6 py-5 align-top">
                       <div class="flex gap-2 flex-wrap lg:flex-nowrap">
                         @for (roleOption of roleOptions; track roleOption.value) {
-                          <button
-                            type="button"
-                            class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
-                            [class.bg-gray-900]="person.role === roleOption.value"
-                            [class.text-white]="person.role === roleOption.value"
-                            [class.text-gray-700]="person.role !== roleOption.value"
-                            [disabled]="
-                              !canManage || isRoleBusy(person.id) || isRemoveBusy(person.id) || person.role === roleOption.value
-                            "
-                            (click)="changeRole(person, roleOption.value)"
-                          >
-                            {{ roleOption.label }}
-                          </button>
+                          @if (isPlatformAdminCompany || roleOption.value !== 'ADMIN') {
+                            <button
+                              type="button"
+                              class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
+                              [class.bg-gray-900]="person.role === roleOption.value"
+                              [class.text-white]="person.role === roleOption.value"
+                              [class.text-gray-700]="person.role !== roleOption.value"
+                              [disabled]="
+                                !canManage ||
+                                isRoleBusy(person.id) ||
+                                isRemoveBusy(person.id) ||
+                                person.role === roleOption.value
+                              "
+                              (click)="changeRole(person, roleOption.value)"
+                            >
+                              {{ roleOption.label }}
+                            </button>
+                          }
                         }
                       </div>
                     </td>

@@ -4,12 +4,13 @@ import { AsyncPipe } from '@angular/common';
 import { take } from 'rxjs';
 import { AuthService } from './auth/auth.service';
 
-type HeaderTabId = 'runs' | 'people';
+type HeaderTabId = 'runs' | 'people' | 'admin';
 
 interface HeaderTab {
   id: HeaderTabId;
   label: string;
   route: string;
+  requiresAdminContext?: boolean;
 }
 
 @Component({
@@ -24,6 +25,7 @@ export class App implements OnInit {
   readonly headerTabs: ReadonlyArray<HeaderTab> = [
     { id: 'runs', label: 'Runs', route: '/dashboard/runs' },
     { id: 'people', label: 'People', route: '/dashboard/people' },
+    { id: 'admin', label: 'Admin', route: '/dashboard/admin', requiresAdminContext: true },
   ];
 
   ngOnInit(): void {

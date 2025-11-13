@@ -7,6 +7,8 @@ import { randomBytes } from 'crypto';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
 import { AuthContext } from '../types/enums.js';
+import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
+import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 
 const router = Router();
 
@@ -213,6 +215,9 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
         }
       : null;
 
+    const platformAdmin = await userHasPlatformAdminAccess(user.id);
+    const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
+
     return respondWithSession(
       res,
       buildSessionPayload(
@@ -223,9 +228,11 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
           lastName: user.lastName,
           role: sessionRole,
           phone: user.phone,
+          platformAdmin,
         },
         companySummary,
         tokens,
+        platformAdminCompanyId,
       ),
       200,
       {

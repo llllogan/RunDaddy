@@ -12,6 +12,7 @@ import { companyRouter } from './routes/companies.js';
 import { authenticate } from './middleware/authenticate.js';
 import { loggingMiddleware } from './middleware/logging.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { adminRouter } from './routes/admin.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -48,6 +49,7 @@ app.use('/api/skus', skuRouter);
 app.use('/api/invite-codes', inviteCodesRouter);
 app.use('/api/companies', companyRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/admin', adminRouter);
 
 if (process.env.NODE_ENV !== 'production') {
   const { debugRouter } = await import('./routes/debug.js');

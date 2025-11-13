@@ -41,6 +41,7 @@ export type SessionUser = {
   lastName: string;
   role: UserRole;
   phone?: string | null;
+  platformAdmin: boolean;
 };
 
 export type SessionTokens = {
@@ -87,7 +88,12 @@ export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'strict' }
 
 export const respondWithSession = (
   res: Response,
-  data: { company: SessionCompany; user: SessionUser; tokens: SessionTokens },
+  data: {
+    company: SessionCompany;
+    user: SessionUser;
+    tokens: SessionTokens;
+    platformAdminCompanyId?: string | null;
+  },
   status = 200,
   extras?: Record<string, unknown>,
 ) => {
@@ -105,8 +111,11 @@ export const respondWithSession = (
       lastName: data.user.lastName,
       role: data.user.role,
       phone: data.user.phone ?? null,
+      platformAdmin: data.user.platformAdmin,
     },
   };
+
+  responseData.platformAdminCompanyId = data.platformAdminCompanyId ?? null;
 
   if (data.tokens.context === AuthContext.APP) {
     responseData.accessToken = data.tokens.accessToken;
@@ -127,8 +136,10 @@ export const buildSessionPayload = (
   user: SessionUser,
   company: SessionCompany,
   tokens: SessionTokens,
+  platformAdminCompanyId?: string | null,
 ) => ({
   company,
   user,
   tokens,
+  platformAdminCompanyId: platformAdminCompanyId ?? null,
 });

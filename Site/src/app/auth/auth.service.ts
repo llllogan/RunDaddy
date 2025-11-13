@@ -9,12 +9,14 @@ export type UserRole = 'ADMIN' | 'OWNER' | 'PICKER';
 type LoginResponse = {
   user: SessionUser;
   company: SessionCompany | null;
+  platformAdminCompanyId: string | null;
 };
 
 type SessionMeResponse = {
   user: SessionUser;
   currentCompany: SessionCompany | null;
   companies: SessionCompany[];
+  platformAdminCompanyId: string | null;
 };
 
 export interface SessionUser {
@@ -24,6 +26,7 @@ export interface SessionUser {
   lastName: string;
   role: UserRole;
   phone?: string | null;
+  platformAdmin: boolean;
 }
 
 export interface SessionCompany {
@@ -36,6 +39,7 @@ export interface AuthSession {
   user: SessionUser;
   company: SessionCompany | null;
   companies?: SessionCompany[];
+  platformAdminCompanyId: string | null;
 }
 
 export interface LoginPayload {
@@ -174,6 +178,7 @@ export class AuthService {
     return {
       user: response.user,
       company: response.company ?? null,
+      platformAdminCompanyId: response.platformAdminCompanyId ?? null,
     };
   }
 
@@ -182,6 +187,7 @@ export class AuthService {
       user: response.user,
       company: response.currentCompany ?? null,
       companies: response.companies,
+      platformAdminCompanyId: response.platformAdminCompanyId ?? null,
     };
   }
 }
