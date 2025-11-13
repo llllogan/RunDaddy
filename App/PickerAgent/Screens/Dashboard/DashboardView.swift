@@ -16,6 +16,11 @@ struct DashboardView: View {
     @StateObject private var chartsViewModel: ChartsViewModel
     @State private var isShowingProfile = false
     @State private var chartRefreshTrigger = false
+    @State private var searchText = ""
+    @State private var searchResults: [SearchResult] = []
+    @State private var isSearching = false
+    @State private var showingSearchResults = false
+    private let searchService = SearchService()
 
     private var hasCompany: Bool {
         // User has company if they have company memberships
@@ -57,103 +62,135 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             List {
-                if let message = viewModel.errorMessage {
-                    Section {
-                        ErrorStateRow(message: message)
-                    }
-                }
-
-                // Only show "Runs for Today" section if there are runs or currently loading
-                if !viewModel.todayRuns.isEmpty
-                    || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
-                {
-                    Section("Runs for Today") {
-                        if viewModel.isLoading && viewModel.todayRuns.isEmpty {
-                            LoadingStateRow()
+                if showingSearchResults {
+                    Section("Search Results") {
+                        if searchResults.isEmpty {
+                            Text("No results found")
+                                .foregroundStyle(.secondary)
                         } else {
-                            ForEach(viewModel.todayRuns.prefix(3)) { run in
-                                NavigationLink {
-                                    RunDetailView(runId: run.id, session: session)
-                                } label: {
-                                    RunRow(run: run, currentUserId: session.credentials.userID)
+                            ForEach(searchResults) { result in
+                                NavigationLink(destination: destinationView(for: result)) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(result.title)
+                                            .font(.headline)
+                                        Text(result.subtitle)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.vertical, 2)
                                 }
-                            }
-                            if viewModel.todayRuns.count > 3 {
-                                NavigationLink {
-                                    RunsListView(
-                                        session: session,
-                                        title: "Runs for Today",
-                                        runs: viewModel.todayRuns
-                                    )
-                                } label: {
-                                    ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
-                                }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
-                }
+                } else {
+                    if let message = viewModel.errorMessage {
+                        Section {
+                            ErrorStateRow(message: message)
+                        }
+                    }
 
-                // Only show "Runs to be Packed" section if there are runs or currently loading
-                if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
-                {
-                    Section("Runs for Tomorrow") {
-                        if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
-                            LoadingStateRow()
-                        } else {
-                            ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
-                                NavigationLink {
-                                    RunDetailView(runId: run.id, session: session)
-                                } label: {
-                                    RunRow(run: run, currentUserId: session.credentials.userID)
+                    // Only show "Runs for Today" section if there are runs or currently loading
+                    if !viewModel.todayRuns.isEmpty
+                        || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
+                    {
+                        Section("Runs for Today") {
+                            if viewModel.isLoading && viewModel.todayRuns.isEmpty {
+                                LoadingStateRow()
+                            } else {
+                                ForEach(viewModel.todayRuns.prefix(3)) { run in
+                                    NavigationLink {
+                                        RunDetailView(runId: run.id, session: session)
+                                    } label: {
+                                        RunRow(run: run, currentUserId: session.credentials.userID)
+                                    }
                                 }
-                            }
-                            if viewModel.tomorrowRuns.count > 3 {
-                                NavigationLink {
-                                    RunsListView(
-                                        session: session,
-                                        title: "Runs for Tomorrow",
-                                        runs: viewModel.tomorrowRuns
-                                    )
-                                } label: {
-                                    ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
+                                if viewModel.todayRuns.count > 3 {
+                                    NavigationLink {
+                                        RunsListView(
+                                            session: session,
+                                            title: "Runs for Today",
+                                            runs: viewModel.todayRuns
+                                        )
+                                    } label: {
+                                        ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
-                }
 
-                Section("All Runs") {
-                    NavigationLink {
-                        AllRunsView(session: session)
-                    } label: {
-                        HStack {
-                            Text("View All Runs")
-                                .foregroundStyle(.primary)
+                    // Only show "Runs to be Packed" section if there are runs or currently loading
+                    if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
+                    {
+                        Section("Runs for Tomorrow") {
+                            if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
+                                LoadingStateRow()
+                            } else {
+                                ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
+                                    NavigationLink {
+                                        RunDetailView(runId: run.id, session: session)
+                                    } label: {
+                                        RunRow(run: run, currentUserId: session.credentials.userID)
+                                    }
+                                }
+                                if viewModel.tomorrowRuns.count > 3 {
+                                    NavigationLink {
+                                        RunsListView(
+                                            session: session,
+                                            title: "Runs for Tomorrow",
+                                            runs: viewModel.tomorrowRuns
+                                        )
+                                    } label: {
+                                        ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
                     }
-                    .buttonStyle(.plain)
-                }
 
-                if shouldShowInsights {
-                    Section("Insights") {
-                        DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                        
+                    Section("All Runs") {
                         NavigationLink {
-                            AnalyticsView(session: session)
+                            AllRunsView(session: session)
                         } label: {
-                            Text("View more data")
-                                .foregroundStyle(.primary)
+                            HStack {
+                                Text("View All Runs")
+                                    .foregroundStyle(.primary)
+                            }
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    if shouldShowInsights {
+                        Section("Insights") {
+                            DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+
+                            NavigationLink {
+                                AnalyticsView(session: session)
+                            } label: {
+                                Text("View more data")
+                                    .foregroundStyle(.primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Hi \(session.profile.firstName)")
             .navigationSubtitle(navigationSubtitleText)
+            .searchable(text: $searchText, prompt: "Search locations, machines, SKUs...")
+            .onSubmit(of: .search) {
+                performSearch()
+            }
+            .onChange(of: searchText) { _, newValue in
+                if newValue.isEmpty {
+                    showingSearchResults = false
+                    searchResults = []
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -163,6 +200,13 @@ struct DashboardView: View {
                     } label: {
                         Label("Profile", systemImage: "person.fill")
                     }
+                }
+            }
+            .overlay {
+                if isSearching {
+                    ProgressView("Searching...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
                 }
             }
         }
@@ -196,5 +240,44 @@ struct DashboardView: View {
             }
         }
 
+    }
+
+    @ViewBuilder
+    private func destinationView(for result: SearchResult) -> some View {
+        switch result.type {
+        case "machine":
+            MachineDetailView(machineId: result.id, session: session)
+        case "location":
+            SearchLocationDetailView(locationId: result.id, session: session)
+        case "sku":
+            SkuDetailView(skuId: result.id, session: session)
+        default:
+            Text("Unknown result type")
+        }
+    }
+
+    private func performSearch() {
+        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showingSearchResults = false
+            searchResults = []
+            return
+        }
+
+        isSearching = true
+        Task {
+            do {
+                let response = try await searchService.search(query: searchText)
+                await MainActor.run {
+                    searchResults = response.results
+                    showingSearchResults = true
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    isSearching = false
+                    // Could show error message here
+                }
+            }
+        }
     }
 }
