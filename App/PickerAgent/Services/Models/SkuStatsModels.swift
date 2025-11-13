@@ -71,6 +71,7 @@ struct SkuBestMachine: Codable, Identifiable {
     let machineId: String
     let machineCode: String
     let machineName: String?
+    let locationName: String?
     let totalPacks: Int
 
     var id: String { machineId }

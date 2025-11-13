@@ -97,7 +97,7 @@ struct SkuInfoBento: View {
         cards.append(
             BentoItem(title: "Best Machine",
                       value: bestMachine?.machineName ?? "No data",
-                      subtitle: bestMachine?.machineCode ?? "No machine data yet",
+                      subtitle: bestMachine?.locationName ?? bestMachine?.machineCode ?? "No machine data yet",
                       symbolName: "building",
                       symbolTint: .cyan,
                       isProminent: bestMachine != nil)

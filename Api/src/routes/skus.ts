@@ -528,6 +528,7 @@ async function getSkuBestMachine(skuId: string, companyId: string) {
     machineId: string;
     machineCode: string;
     machineName: string | null;
+    locationName: string | null;
     totalPicked: bigint;
   }>>(
     Prisma.sql`
@@ -535,15 +536,17 @@ async function getSkuBestMachine(skuId: string, companyId: string) {
         mach.id AS machineId,
         mach.code AS machineCode,
         mach.description AS machineName,
+        loc.name AS locationName,
         SUM(pe.count) AS totalPicked
       FROM PickEntry pe
       JOIN CoilItem ci ON ci.id = pe.coilItemId
       JOIN Coil coil ON coil.id = ci.coilId
       JOIN Machine mach ON mach.id = coil.machineId
+      LEFT JOIN Location loc ON loc.id = mach.locationId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND r.companyId = ${companyId}
-      GROUP BY mach.id, mach.code, mach.description
+      GROUP BY mach.id, mach.code, mach.description, loc.name
       ORDER BY totalPicked DESC
       LIMIT 1
     `,
@@ -558,6 +561,7 @@ async function getSkuBestMachine(skuId: string, companyId: string) {
     machineId: row.machineId,
     machineCode: row.machineCode,
     machineName: row.machineName,
+    locationName: row.locationName,
     totalPacks: Number(row.totalPicked),
   };
 }
