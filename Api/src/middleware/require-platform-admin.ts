@@ -7,7 +7,7 @@ export const requirePlatformAdmin = (req: Request, res: Response, next: NextFunc
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID || req.auth.role !== UserRole.ADMIN) {
+  if (req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID || req.auth.role !== UserRole.GOD) {
     return res.status(403).json({ error: 'Platform admin access required' });
   }
 

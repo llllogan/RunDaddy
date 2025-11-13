@@ -212,7 +212,7 @@ router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }
   }));
 
   const platformAdmin = loadedMemberships.some(
-    (member) => member.companyId === PLATFORM_ADMIN_COMPANY_ID && member.role === UserRole.ADMIN,
+    (member) => member.companyId === PLATFORM_ADMIN_COMPANY_ID && member.role === UserRole.GOD,
   );
   const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
 
@@ -263,7 +263,7 @@ router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }
   const eligibleMemberships = memberships.filter((member) => allowedRoles.has(member.role));
 
   if (context === AuthContext.WEB && !eligibleMemberships.length) {
-    return res.status(403).json({ error: 'Web dashboard requires ADMIN or OWNER membership' });
+    return res.status(403).json({ error: 'Web dashboard requires GOD, ADMIN, or OWNER membership' });
   }
 
   let membership: MembershipSummary | undefined;
@@ -676,7 +676,7 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
   }));
 
   const platformAdmin = memberships.some(
-    (membership) => membership.companyId === PLATFORM_ADMIN_COMPANY_ID && membership.role === UserRole.ADMIN,
+    (membership) => membership.companyId === PLATFORM_ADMIN_COMPANY_ID && membership.role === UserRole.GOD,
   );
   const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
 

@@ -59,7 +59,7 @@ export type MembershipSummary = {
   company: { id: string; name: string };
 };
 
-const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
+const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.GOD, UserRole.ADMIN, UserRole.OWNER]);
 const ALL_ALLOWED_ROLES = new Set<UserRole>(Object.values(UserRole));
 
 export const getAllowedRolesForContext = (context: AuthContext): ReadonlySet<UserRole> => {

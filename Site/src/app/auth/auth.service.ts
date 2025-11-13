@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, catchError, finalize, map, of, shareReplay, take, tap, throwError } from 'rxjs';
 import { buildApiUrl } from '../config/runtime-env';
 
-export type UserRole = 'ADMIN' | 'OWNER' | 'PICKER';
+export type UserRole = 'GOD' | 'ADMIN' | 'OWNER' | 'PICKER';
 
 type LoginResponse = {
   user: SessionUser;

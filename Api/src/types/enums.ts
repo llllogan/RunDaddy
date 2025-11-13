@@ -16,6 +16,7 @@ export const RunItemStatus = {
 export type RunItemStatus = typeof RunItemStatus[keyof typeof RunItemStatus];
 
 export const UserRole = {
+  GOD: 'GOD',
   ADMIN: 'ADMIN',
   OWNER: 'OWNER',
   PICKER: 'PICKER',

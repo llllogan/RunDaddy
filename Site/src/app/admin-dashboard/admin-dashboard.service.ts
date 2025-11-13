@@ -19,7 +19,7 @@ export interface AdminCompanySummary {
 export interface AdminCompanyMember {
   id: string;
   userId: string;
-  role: 'ADMIN' | 'OWNER' | 'PICKER';
+  role: 'GOD' | 'ADMIN' | 'OWNER' | 'PICKER';
   firstName: string;
   lastName: string;
   email: string;

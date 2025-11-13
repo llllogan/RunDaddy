@@ -18,7 +18,7 @@ export const adminGuard: CanActivateFn = () => {
       const isAdminContext =
         Boolean(platformAdminCompanyId) &&
         platformAdminCompanyId === currentCompanyId &&
-        session?.user.platformAdmin;
+        session?.user?.platformAdmin;
 
       return isAdminContext ? true : router.createUrlTree(['/dashboard']);
     }),

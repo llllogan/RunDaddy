@@ -11,7 +11,7 @@
             @for (tab of headerTabs; track tab.id) {
               @if (
                 !tab.requiresAdminContext ||
-                (session?.user.platformAdmin &&
+                (session?.user?.platformAdmin &&
                   session?.platformAdminCompanyId &&
                   session?.company?.id === session?.platformAdminCompanyId)
               ) {

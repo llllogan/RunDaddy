@@ -65,7 +65,7 @@ struct InviteCodeGeneratorView: View {
                                     .font(.headline)
                                     .fontWeight(.medium)
                                 
-                                ForEach(UserRole.allCases, id: \.self) { role in
+                                ForEach(UserRole.inviteAssignableRoles, id: \.self) { role in
                                     Button(action: {
                                         viewModel.selectedRole = role
                                     }) {

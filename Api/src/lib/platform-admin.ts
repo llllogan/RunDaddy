@@ -15,7 +15,7 @@ export const userHasPlatformAdminAccess = async (userId: string): Promise<boolea
     where: {
       userId,
       companyId: PLATFORM_ADMIN_COMPANY_ID,
-      role: UserRole.ADMIN,
+      role: UserRole.GOD,
     },
     select: { id: true },
   });

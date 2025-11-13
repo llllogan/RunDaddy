@@ -202,8 +202,8 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   }
 
   const { email, password, firstName, lastName, phone, role } = parsed.data;
-  if (role === UserRole.ADMIN && req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID) {
-    return res.status(403).json({ error: 'Only the platform admin workspace can assign ADMIN roles' });
+  if (role === UserRole.GOD && req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID) {
+    return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -324,10 +324,10 @@ router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) =>
   }
 
   if (
-    parsed.data.role === UserRole.ADMIN &&
+    parsed.data.role === UserRole.GOD &&
     req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID
   ) {
-    return res.status(403).json({ error: 'Only the platform admin workspace can assign ADMIN roles' });
+    return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
   }
 
   const userUpdates: Record<string, unknown> = {};

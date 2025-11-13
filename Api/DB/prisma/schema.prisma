@@ -21,6 +21,7 @@ enum RunItemStatus {
 }
 
 enum UserRole {
+  GOD
   ADMIN
   OWNER
   PICKER

@@ -33,7 +33,7 @@
               <tbody>
                 @let session = session$ | async;
                 @let membershipRole = session?.company?.role ?? null;
-                @let canManage = membershipRole === 'OWNER' || membershipRole === 'ADMIN';
+                @let canManage = membershipRole === 'OWNER' || membershipRole === 'ADMIN' || membershipRole === 'GOD';
                 @let isPlatformAdminCompany = session?.platformAdminCompanyId && session?.company?.id === session?.platformAdminCompanyId;
                 @for (person of people; track trackByPersonId($index, person)) {
                   <tr class="border-t border-gray-100">
@@ -54,7 +54,7 @@
                     <td class="px-6 py-5 align-top">
                       <div class="flex gap-2 flex-wrap lg:flex-nowrap">
                         @for (roleOption of roleOptions; track roleOption.value) {
-                          @if (isPlatformAdminCompany || roleOption.value !== 'ADMIN') {
+                          @if (isPlatformAdminCompany || roleOption.value !== 'GOD') {
                             <button
                               type="button"
                               class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"

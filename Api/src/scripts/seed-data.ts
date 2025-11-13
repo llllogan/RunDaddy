@@ -10,6 +10,7 @@ import {
   PLATFORM_ADMIN_LAST_NAME,
   PLATFORM_ADMIN_PHONE,
   PLATFORM_ADMIN_TIME_ZONE,
+  PLATFORM_ADMIN_PASSWORD,
 } from '../config/platform-admin.js';
 
 const APP_STORE_COMPANY_NAME = 'Apple';
@@ -1004,21 +1005,16 @@ async function seedPlatformAdminWorkspace() {
     },
   });
 
-  let user = await prisma.user.findUnique({
-    where: { email: PLATFORM_ADMIN_EMAIL },
+  const user = await upsertUser({
+    email: PLATFORM_ADMIN_EMAIL,
+    firstName: PLATFORM_ADMIN_FIRST_NAME,
+    lastName: PLATFORM_ADMIN_LAST_NAME,
+    phone: PLATFORM_ADMIN_PHONE,
+    role: UserRole.GOD,
+    password: PLATFORM_ADMIN_PASSWORD,
   });
 
-  if (!user) {
-    user = await upsertUser({
-      email: PLATFORM_ADMIN_EMAIL,
-      firstName: PLATFORM_ADMIN_FIRST_NAME,
-      lastName: PLATFORM_ADMIN_LAST_NAME,
-      phone: PLATFORM_ADMIN_PHONE,
-      role: UserRole.ADMIN,
-    });
-  }
-
-  const membership = await ensureMembership(user.id, company.id, UserRole.ADMIN);
+  const membership = await ensureMembership(user.id, company.id, UserRole.GOD);
 
   if (!user.defaultMembershipId) {
     await ensureDefaultMembership(user.id, membership.id);

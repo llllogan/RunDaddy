@@ -23,12 +23,16 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       return res.status(400).json({ error: 'Role is required' });
     }
 
+    if (role === 'GOD' && companyId !== PLATFORM_ADMIN_COMPANY_ID) {
+      return res.status(403).json({ error: 'Only the platform admin workspace can create GOD invites' });
+    }
+
     // Verify user is admin/owner of this specific company
     const membership = await prisma.membership.findFirst({
       where: {
         userId,
         companyId: companyId!,
-        role: { in: ['ADMIN', 'OWNER'] }
+        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
       }
     });
 
@@ -76,7 +80,7 @@ router.get('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'mini
       where: {
         userId,
         companyId: companyId!,
-        role: { in: ['ADMIN', 'OWNER'] }
+        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
       }
     });
 
@@ -257,7 +261,7 @@ router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level:
       where: {
         userId: currentUserId,
         companyId: companyId!,
-        role: { in: ['ADMIN', 'OWNER'] }
+        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
       }
     });
 

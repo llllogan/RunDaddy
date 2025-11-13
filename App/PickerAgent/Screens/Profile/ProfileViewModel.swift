@@ -43,7 +43,7 @@ class ProfileViewModel: ObservableObject {
                     
                     if let roleString = profile.role, let role = UserRole(rawValue: roleString.uppercased()) {
                         userRole = role
-                        canGenerateInvites = (role == .admin || role == .owner)
+                        canGenerateInvites = (role == .god || role == .admin || role == .owner)
                     }
 
                     currentCompany = profile.currentCompany
