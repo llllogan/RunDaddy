@@ -98,13 +98,32 @@ export const determineScheduledFor = (runDate: Date | null, timeZone?: string): 
   return convertDateToTimezoneMidnight(runDate, timeZone);
 };
 
-const getLocalDateParts = (reference: Date, timeZone: string) => {
+export const getLocalDateParts = (reference: Date, timeZone: string) => {
   const formatter = getDateOnlyFormatter(timeZone);
   const parts = formatter.formatToParts(reference);
   const year = parsePartAsInt(getPartValue(parts, 'year'));
   const month = parsePartAsInt(getPartValue(parts, 'month'));
   const day = parsePartAsInt(getPartValue(parts, 'day'));
   return { year, month, day };
+};
+
+const WEEKDAY_MAP: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+export const getWeekdayIndexInTimezone = (reference: Date, timeZone: string): number => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone,
+  });
+  const shortWeekday = formatter.format(reference);
+  return WEEKDAY_MAP[shortWeekday] ?? 0;
 };
 
 export interface TimezoneDayRange {

@@ -8,6 +8,9 @@ import {
     getTimezoneDayRange,
     isValidTimezone,
     formatDateInTimezone,
+    convertDateToTimezoneMidnight,
+    getLocalDateParts,
+    getWeekdayIndexInTimezone,
 } from '../lib/timezone.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
@@ -275,20 +278,19 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
     periodQuery === 'week' || periodQuery === 'month' || periodQuery === 'quarter'
       ? (periodQuery as SkuStatsPeriod)
       : 'week';
-  const periodDays = PERIOD_DAY_COUNTS[period];
-  const periodDurationMs = periodDays * ONE_DAY_MS;
-
-  const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference: now });
-  const periodStart = new Date(todayRange.start);
-  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
-  const elapsedMs = Math.max(0, Math.min(now.getTime() - periodStart.getTime(), periodDurationMs));
+  const periodRange = buildPeriodRange(period, now, timeZone);
+  const periodStart = periodRange.start;
+  const periodEnd = periodRange.end;
+  const periodDurationMs = periodEnd.getTime() - periodStart.getTime();
+  const periodDays = periodRange.dayCount || PERIOD_DAY_COUNTS[period];
+  const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
   const previousWindowEnd = new Date(periodStart);
   const previousWindowStart = new Date(periodStart.getTime() - elapsedMs);
 
   const { points, totalItems } = await buildSkuChartPoints(
     skuId,
     periodStart,
-    now,
+    new Date(Math.min(now.getTime(), periodEnd.getTime())),
     req.auth!.companyId,
     timeZone,
     periodDays,
@@ -568,6 +570,49 @@ function buildPeriodLabels(startDate: Date, periodDays: number, timeZone: string
   }
 
   return labels;
+}
+
+function buildPeriodRange(period: SkuStatsPeriod, reference: Date, timeZone: string) {
+  const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference });
+  const { year, month } = getLocalDateParts(reference, timeZone);
+
+  let start: Date;
+  switch (period) {
+    case 'week': {
+      const weekday = getWeekdayIndexInTimezone(reference, timeZone);
+      const offsetFromMonday = (weekday + 6) % 7;
+      start = new Date(todayRange.start);
+      start.setUTCDate(start.getUTCDate() - offsetFromMonday);
+      break;
+    }
+    case 'month': {
+      const candidate = new Date(Date.UTC(year, month - 1, 1));
+      start = convertDateToTimezoneMidnight(candidate, timeZone);
+      break;
+    }
+    case 'quarter': {
+      const quarterStartMonth = Math.floor((month - 1) / 3) * 3;
+      const candidate = new Date(Date.UTC(year, quarterStartMonth, 1));
+      start = convertDateToTimezoneMidnight(candidate, timeZone);
+      break;
+    }
+  }
+
+  const end = new Date(start);
+  switch (period) {
+    case 'week':
+      end.setUTCDate(end.getUTCDate() + 7);
+      break;
+    case 'month':
+      end.setUTCMonth(end.getUTCMonth() + 1);
+      break;
+    case 'quarter':
+      end.setUTCMonth(end.getUTCMonth() + 3);
+      break;
+  }
+
+  const dayCount = Math.round((end.getTime() - start.getTime()) / ONE_DAY_MS);
+  return { start, end, dayCount };
 }
 
 export const skuRouter = router;
