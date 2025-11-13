@@ -195,12 +195,12 @@ struct LoginView: View {
                         if authViewModel.isProcessing {
                             ProgressView()
                                 .progressViewStyle(.circular)
-                                .tint(.white)
+                                .tint(Theme.contrastOnBlackOnWhite)
                         }
 
                         Text(authViewModel.isProcessing ? "Creating…" : "Create Account")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.contrastOnBlackOnWhite)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .padding(.horizontal, 24)
@@ -245,12 +245,12 @@ struct LoginView: View {
                         if authViewModel.isProcessing {
                             ProgressView()
                                 .progressViewStyle(.circular)
-                                .tint(.white)
+                                .tint(Theme.contrastOnBlackOnWhite)
                         }
 
                         Text(authViewModel.isProcessing ? "Signing In…" : "Log In")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.contrastOnBlackOnWhite)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .padding(.horizontal, 24)

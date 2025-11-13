@@ -16,6 +16,13 @@ enum Theme {
         })
     }
     
+    /// Complementary color to `blackOnWhite` for legible foregrounds on that background.
+    static var contrastOnBlackOnWhite: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? .black : .white
+        })
+    }
+    
     /// Green color for positive trends
     static var trendUp: Color {
         .green.opacity(0.90)
