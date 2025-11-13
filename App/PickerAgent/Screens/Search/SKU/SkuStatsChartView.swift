@@ -41,9 +41,10 @@ struct SkuStatsChartView: View {
                     ForEach(stats.points, id: \.date) { point in
                         ForEach(point.machines) { machine in
                             if let dayDate = chartDate(from: point.date) {
+                                let dayLabel = formatLabel(for: dayDate)
                                 let machineLabel = machine.machineName ?? machine.machineCode
                                 BarMark(
-                                    x: .value("Day", dayDate),
+                                    x: .value("Day", dayLabel),
                                     y: .value("Items", machine.count)
                                 )
                                 .foregroundStyle(by: .value("Machine", machineLabel))
@@ -51,15 +52,16 @@ struct SkuStatsChartView: View {
                         }
                     }
                 }
-                .chartLegend(position: .bottom, alignment: .leading)
+                .chartLegend(position: .top, alignment: .leading)
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
                 .chartXAxis {
-                    AxisMarks(values: stats.points.compactMap { chartDate(from: $0.date) }) { value in
+                    AxisMarks(values: orderedDayLabels) { value in
+                        AxisGridLine()
                         AxisValueLabel {
-                            if let date = value.as(Date.self) {
-                                Text(formatLabel(for: date))
+                            if let label = value.as(String.self) {
+                                Text(label)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.center)
                             }
@@ -96,10 +98,26 @@ struct SkuStatsChartView: View {
         return formatter.string(from: date)
     }
 
+    private var orderedDayLabels: [String] {
+        stats.points
+            .compactMap { chartDate(from: $0.date).map(formatLabel(for:)) }
+            .reducingUnique()
+    }
+
     private static let inputDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter
     }()
+}
+
+private extension Sequence where Element: Hashable {
+    func reducingUnique() -> [Element] {
+        var seen = Set<Element>()
+        return compactMap { element in
+            let inserted = seen.insert(element).inserted
+            return inserted ? element : nil
+        }
+    }
 }
