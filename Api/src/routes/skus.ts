@@ -327,13 +327,13 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
 
 async function getMostRecentPick(skuId: string, companyId: string) {
   const result = await prisma.$queryRaw<Array<{
-    pickedAt: Date;
+    scheduledFor: Date | null;
     locationName: string;
     runId: string;
   }>>(
     Prisma.sql`
       SELECT 
-        pe.pickedAt,
+        r.scheduledFor,
         loc.name AS locationName,
         r.id AS runId
       FROM PickEntry pe
@@ -343,10 +343,9 @@ async function getMostRecentPick(skuId: string, companyId: string) {
       LEFT JOIN Location loc ON loc.id = mach.locationId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
+        AND r.scheduledFor IS NOT NULL
         AND r.companyId = ${companyId}
-      ORDER BY pe.pickedAt DESC
+      ORDER BY r.scheduledFor DESC
       LIMIT 1
     `
   );
@@ -361,7 +360,7 @@ async function getMostRecentPick(skuId: string, companyId: string) {
   }
 
   return {
-    pickedAt: row.pickedAt.toISOString(),
+    pickedAt: row.scheduledFor?.toISOString() ?? new Date().toISOString(),
     locationName: row.locationName || 'Unknown',
     runId: row.runId,
   };
@@ -407,7 +406,7 @@ async function buildSkuChartPoints(
   const rows = await prisma.$queryRaw<Array<ChartRow>>(
     Prisma.sql`
       SELECT 
-        DATE_FORMAT(CONVERT_TZ(pe.pickedAt, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
+        DATE_FORMAT(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
         mach.id AS machineId,
         mach.code AS machineCode,
         mach.description AS machineName,
@@ -418,10 +417,9 @@ async function buildSkuChartPoints(
       JOIN Machine mach ON mach.id = coil.machineId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${startDate}
-        AND pe.pickedAt < ${endDate}
+        AND r.scheduledFor IS NOT NULL
+        AND r.scheduledFor >= ${startDate}
+        AND r.scheduledFor < ${endDate}
         AND r.companyId = ${companyId}
       GROUP BY date, mach.id, mach.code, mach.description
       ORDER BY date ASC, mach.code ASC
@@ -485,10 +483,9 @@ async function getSkuTotalPicks(
       JOIN CoilItem ci ON ci.id = pe.coilItemId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${startDate}
-        AND pe.pickedAt < ${endDate}
+        AND r.scheduledFor IS NOT NULL
+        AND r.scheduledFor >= ${startDate}
+        AND r.scheduledFor < ${endDate}
         AND r.companyId = ${companyId}
     `,
   );
@@ -515,8 +512,6 @@ async function getSkuBestMachine(skuId: string, companyId: string) {
       JOIN Machine mach ON mach.id = coil.machineId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
         AND r.companyId = ${companyId}
       GROUP BY mach.id, mach.code, mach.description
       ORDER BY totalPicked DESC

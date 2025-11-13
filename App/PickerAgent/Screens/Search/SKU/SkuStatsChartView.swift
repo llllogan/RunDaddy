@@ -15,7 +15,7 @@ struct SkuStatsChartView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 2) {
-                Text("Data for the last")
+                Text("Totals for the last ")
                 Menu {
                     ForEach(SkuPeriod.allCases) { period in
                         Button(action: { selectedPeriod = period }) {
@@ -32,9 +32,6 @@ struct SkuStatsChartView: View {
                 }
                 .foregroundStyle(.secondary)
                 Spacer()
-                Text("Period progress: \(stats.progress.ratio, format: .percent.precision(.fractionLength(0)))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             .font(.subheadline)
             .foregroundStyle(.primary)
@@ -42,16 +39,16 @@ struct SkuStatsChartView: View {
             if hasChartData {
                 Chart {
                     ForEach(stats.points, id: \.date) { point in
-                    ForEach(point.machines) { machine in
-                        if let dayDate = chartDate(from: point.date) {
-                            let machineLabel = machine.machineName ?? machine.machineCode
-                            BarMark(
-                                x: .value("Day", dayDate),
-                                y: .value("Items", machine.count)
-                            )
-                            .foregroundStyle(by: .value("Machine", machineLabel))
+                        ForEach(point.machines) { machine in
+                            if let dayDate = chartDate(from: point.date) {
+                                let machineLabel = machine.machineName ?? machine.machineCode
+                                BarMark(
+                                    x: .value("Day", dayDate),
+                                    y: .value("Items", machine.count)
+                                )
+                                .foregroundStyle(by: .value("Machine", machineLabel))
+                            }
                         }
-                    }
                     }
                 }
                 .chartLegend(position: .bottom, alignment: .leading)
@@ -60,11 +57,11 @@ struct SkuStatsChartView: View {
                 }
                 .chartXAxis {
                     AxisMarks(values: stats.points.compactMap { chartDate(from: $0.date) }) { value in
-                        AxisGridLine()
                         AxisValueLabel {
                             if let date = value.as(Date.self) {
                                 Text(formatLabel(for: date))
-                                    .font(.caption2)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
                             }
                         }
                     }
@@ -78,7 +75,6 @@ struct SkuStatsChartView: View {
                     .frame(maxWidth: .infinity, minHeight: 150)
             }
         }
-        .padding()
     }
 
     private var hasChartData: Bool {
