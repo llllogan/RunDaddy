@@ -751,7 +751,15 @@ function formatMonthName(date: Date, timeZone: string) {
 }
 
 function parseLocalDate(dateString: string, timeZone: string): Date {
-  const [year, month, day] = dateString.split('-').map(part => Number(part));
+  const [yearPart, monthPart, dayPart] = dateString.split('-');
+
+  if (!yearPart || !monthPart || !dayPart) {
+    throw new Error(`Invalid local date: ${dateString}`);
+  }
+
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
   const candidate = new Date(Date.UTC(year, month - 1, day));
   return convertDateToTimezoneMidnight(candidate, timeZone);
 }
