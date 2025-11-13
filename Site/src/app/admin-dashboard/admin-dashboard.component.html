@@ -3,7 +3,6 @@
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase tracking-wide text-gray-500">Admin Portal</p>
           <h2 class="text-2xl font-semibold text-gray-900">Companies</h2>
         </div>
         <button
@@ -43,18 +42,7 @@
                     </p>
                   </div>
                   <div class="flex items-center gap-4 text-sm">
-                    <div class="text-center">
-                      <p class="font-semibold">{{ company.memberCount }}</p>
-                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Members</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-semibold">{{ company.runCount }}</p>
-                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Runs</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-semibold">{{ company.activeRunCount }}</p>
-                      <p class="text-xs uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">Active</p>
-                    </div>
+                    
                     <div class="text-right text-xs">
                       <p class="uppercase tracking-wide" [class.text-gray-300]="selectedCompanyId === company.id" [class.text-gray-500]="selectedCompanyId !== company.id">
                         Last Run
@@ -82,7 +70,6 @@
 
     <div class="space-y-4">
       <div>
-        <p class="text-xs uppercase tracking-wide text-gray-500">Company Details</p>
         <h2 class="text-2xl font-semibold text-gray-900">
           {{ selectedCompany?.name ?? 'Select a company' }}
         </h2>
@@ -101,7 +88,7 @@
           Choose a company from the list to preview members and runs.
         </div>
       } @else {
-        <div class="soft-card space-y-6">
+        <div class="soft-card space-y-6 p-6">
           <div class="grid gap-4 sm:grid-cols-3">
             <div>
               <p class="text-xs uppercase tracking-wide text-gray-500">Members</p>
