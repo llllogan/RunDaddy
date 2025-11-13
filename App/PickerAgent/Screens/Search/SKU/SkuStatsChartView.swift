@@ -9,11 +9,51 @@ import SwiftUI
 import Charts
 
 struct SkuStatsChartView: View {
-    let stats: SkuStatsResponse
-    @Binding var selectedPeriod: SkuPeriod
+    let refreshTrigger: Bool
+    @ObservedObject private var viewModel: ChartsViewModel
+    @State private var selectedRange: RangeOption
+    
+    enum RangeOption: Int, CaseIterable, Identifiable {
+        case week = 7
+        case month = 30
+        case quarter = 90
+        
+        var id: Int { rawValue }
+        
+        var label: String {
+            switch self {
+            case .week: return "Week"
+            case .month: return "Month"
+            case .quarter: return "Quarter"
+            }
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 2) {
+                Text("Data for the last ")
+                Menu {
+                    ForEach(RangeOption.allCases) { range in
+                        Button(action: {
+                            selectedRange = range
+                            viewModel.updateLookbackDays(range.rawValue)
+                        }) {
+                            HStack {
+                                Text(range.label)
+                                if selectedRange == range {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    filterChip(label: selectedRange.label)
+                }
+                .foregroundStyle(.secondary)
+            }
+            .font(.subheadline)
+            .foregroundStyle(.primary)
             // Chart
             Chart {
                 ForEach(Array(currentPeriodData.enumerated()), id: \.offset) { index, dayStat in

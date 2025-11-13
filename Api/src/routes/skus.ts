@@ -317,31 +317,25 @@ async function getSkuStats(skuId: string, startDate: Date, endDate: Date, compan
   }>>(
     Prisma.sql`
       SELECT 
-        formatted_date AS date,
+        DATE_FORMAT(CONVERT_TZ(pe.pickedAt, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
         loc.id AS locationId,
         loc.name AS locationName,
         SUM(pe.count) AS totalPicked
-      FROM (
-        SELECT 
-          DATE_FORMAT(CONVERT_TZ(pe.pickedAt, 'UTC', ${timeZone}), '%Y-%m-%d') AS formatted_date,
-          pe.count,
-          mach.locationId
-        FROM PickEntry pe
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        JOIN Run r ON r.id = pe.runId
-        WHERE ci.skuId = ${skuId}
-          AND pe.status = 'PICKED'
-          AND pe.pickedAt IS NOT NULL
-          AND pe.pickedAt >= ${startDate}
-          AND pe.pickedAt < ${endDate}
-          AND r.companyId = ${companyId}
-          AND mach.locationId IS NOT NULL
-      ) AS pe_with_date
-      JOIN Location loc ON loc.id = pe_with_date.locationId
-      GROUP BY formatted_date, loc.id, loc.name
-      ORDER BY formatted_date ASC, locationName ASC
+      FROM PickEntry pe
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      JOIN Location loc ON loc.id = mach.locationId
+      JOIN Run r ON r.id = pe.runId
+      WHERE ci.skuId = ${skuId}
+        AND pe.status = 'PICKED'
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${startDate}
+        AND pe.pickedAt < ${endDate}
+        AND r.companyId = ${companyId}
+        AND mach.locationId IS NOT NULL
+      GROUP BY date, loc.id, loc.name
+      ORDER BY date ASC, locationName ASC
     `
   );
 
