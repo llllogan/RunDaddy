@@ -32,7 +32,7 @@
               </thead>
               <tbody>
                 @let session = session$ | async;
-                @let membershipRole = session?.company?.role ?? null;
+                @let membershipRole = session?.company?.role ?? session?.user?.role ?? null;
                 @let canManage = membershipRole === 'OWNER' || membershipRole === 'ADMIN' || membershipRole === 'GOD';
                 @let isPlatformAdminCompany = session?.platformAdminCompanyId && session?.company?.id === session?.platformAdminCompanyId;
                 @for (person of people; track trackByPersonId($index, person)) {
