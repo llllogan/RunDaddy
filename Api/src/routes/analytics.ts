@@ -188,6 +188,83 @@ router.get('/skus/top-picked', setLogConfig({ level: 'minimal' }), async (req, r
 });
 
 
+router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const query = req.query.q as string;
+  if (!query || query.trim().length === 0) {
+    res.status(400).json({ error: 'Search query is required' });
+    return;
+  }
+
+  const searchTerm = `%${query.trim()}%`;
+
+  const [locations, machines, skus] = await Promise.all([
+    prisma.$queryRaw<Array<{ id: string; name: string; address: string | null }>>(
+      Prisma.sql`
+        SELECT id, name, address
+        FROM Location
+        WHERE companyId = ${context.companyId}
+          AND (name LIKE ${searchTerm} OR address LIKE ${searchTerm})
+        ORDER BY name ASC
+        LIMIT 10
+      `,
+    ),
+    prisma.$queryRaw<Array<{ id: string; code: string; description: string | null }>>(
+      Prisma.sql`
+        SELECT id, code, description
+        FROM Machine
+        WHERE companyId = ${context.companyId}
+          AND (code LIKE ${searchTerm} OR description LIKE ${searchTerm})
+        ORDER BY code ASC
+        LIMIT 10
+      `,
+    ),
+    prisma.$queryRaw<Array<{ id: string; code: string; name: string; type: string; category: string | null }>>(
+      Prisma.sql`
+        SELECT id, code, name, type, category
+        FROM SKU
+        WHERE code LIKE ${searchTerm} 
+           OR name LIKE ${searchTerm} 
+           OR type LIKE ${searchTerm} 
+           OR category LIKE ${searchTerm}
+        ORDER BY code ASC
+        LIMIT 10
+      `,
+    ),
+  ]);
+
+  const results = [
+    ...locations.map(item => ({
+      type: 'location',
+      id: item.id,
+      title: item.name,
+      subtitle: item.address || 'No address',
+    })),
+    ...machines.map(item => ({
+      type: 'machine',
+      id: item.id,
+      title: item.code,
+      subtitle: item.description || 'No description',
+    })),
+    ...skus.map(item => ({
+      type: 'sku',
+      id: item.id,
+      title: item.code,
+      subtitle: `${item.name} • ${item.type}${item.category ? ` • ${item.category}` : ''}`,
+    })),
+  ];
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    query: query.trim(),
+    results,
+  });
+});
+
 router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildTimezoneContext(req, res);
   if (!context) {
