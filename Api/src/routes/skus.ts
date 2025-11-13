@@ -698,12 +698,11 @@ function buildWeeklyBuckets(start: Date, end: Date, timeZone: string): PeriodBuc
 
 function buildMonthlyBuckets(start: Date, end: Date, timeZone: string): PeriodBucket[] {
   const buckets: PeriodBucket[] = [];
-  let cursor = new Date(start);
+  let cursor = getMonthStart(start, timeZone);
 
   while (cursor < end) {
     const bucketStart = new Date(cursor);
-    const bucketEnd = new Date(bucketStart);
-    bucketEnd.setUTCMonth(bucketEnd.getUTCMonth() + 1);
+    const bucketEnd = getNextMonthStart(bucketStart, timeZone);
 
     buckets.push(createBucket(formatMonthName(bucketStart, timeZone), bucketStart, bucketEnd));
     cursor = bucketEnd;
@@ -747,6 +746,18 @@ function formatMonthName(date: Date, timeZone: string) {
 function parseLocalDate(dateString: string, timeZone: string): Date {
   const [year, month, day] = dateString.split('-').map(part => Number(part));
   const candidate = new Date(Date.UTC(year, month - 1, day));
+  return convertDateToTimezoneMidnight(candidate, timeZone);
+}
+
+function getMonthStart(date: Date, timeZone: string): Date {
+  const { year, month } = getLocalDateParts(date, timeZone);
+  const candidate = new Date(Date.UTC(year, month - 1, 1));
+  return convertDateToTimezoneMidnight(candidate, timeZone);
+}
+
+function getNextMonthStart(date: Date, timeZone: string): Date {
+  const { year, month } = getLocalDateParts(date, timeZone);
+  const candidate = new Date(Date.UTC(year, month, 1));
   return convertDateToTimezoneMidnight(candidate, timeZone);
 }
 
