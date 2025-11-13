@@ -70,14 +70,10 @@ struct DashboardView: View {
                         } else {
                             ForEach(searchResults) { result in
                                 NavigationLink(destination: destinationView(for: result)) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.title)
-                                            .font(.headline)
-                                        Text(result.subtitle)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.vertical, 2)
+                                    SearchResultRow(
+                                        result: result,
+                                        icon: symbolDetails(for: result.type)
+                                    )
                                 }
                             }
                         }
@@ -256,6 +252,19 @@ struct DashboardView: View {
         }
     }
 
+    private func symbolDetails(for type: String) -> (systemName: String, color: Color) {
+        switch type.lowercased() {
+        case "machine":
+            return ("building", .blue)
+        case "sku":
+            return ("cart", .orange)
+        case "location":
+            return ("mappin.circle", .purple)
+        default:
+            return ("magnifyingglass", .gray)
+        }
+    }
+
     private func performSearch() {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             showingSearchResults = false
@@ -279,5 +288,30 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+}
+
+private struct SearchResultRow: View {
+    let result: SearchResult
+    let icon: (systemName: String, color: Color)
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon.systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(icon.color)
+                .frame(width: 36, height: 36)
+                .background(icon.color.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.title)
+                    .font(.headline)
+                Text(result.subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

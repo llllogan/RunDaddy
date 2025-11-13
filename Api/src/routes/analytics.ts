@@ -81,7 +81,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/daily-totals', setLogConfig({ level: 'full' }), async (req, res) => {
+router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildLookbackContext(req, res);
   if (!context) {
     return;
