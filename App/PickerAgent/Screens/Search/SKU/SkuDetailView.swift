@@ -53,9 +53,8 @@ struct SkuDetailView: View {
                     if let skuStats = skuStats {
                         SkuStatsBento(
                             mostRecentPick: skuStats.mostRecentPick,
-                            weekChange: skuStats.percentageChanges.week,
-                            monthChange: skuStats.percentageChanges.month,
-                            quarterChange: skuStats.percentageChanges.quarter
+                            percentageChange: skuStats.percentageChange,
+                            bestMachine: skuStats.bestMachine
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -76,7 +75,7 @@ struct SkuDetailView: View {
 
                 if let skuStats = skuStats {
                     Section {
-                        SkuStatsChartView(stats: skuStats)
+                        SkuStatsChartView(stats: skuStats, selectedPeriod: $selectedPeriod)
                             .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -94,6 +93,11 @@ struct SkuDetailView: View {
         .task {
             await loadSkuDetails()
         }
+        .onChange(of: selectedPeriod) { _, _ in
+            Task {
+                await loadSkuStats()
+            }
+        }
     }
     
     private func loadSkuDetails() async {
@@ -110,14 +114,14 @@ struct SkuDetailView: View {
     }
     
     private func loadSkuStats() async {
+        isLoadingStats = true
         do {
-            skuStats = try await skusService.getSkuStats(id: skuId)
-            isLoadingStats = false
+            skuStats = try await skusService.getSkuStats(id: skuId, period: selectedPeriod)
         } catch {
             // Don't show error for stats failure, just log it
             print("Failed to load SKU stats: \(error)")
-            isLoadingStats = false
         }
+        isLoadingStats = false
     }
     
     private func toggleCheeseStatus() {

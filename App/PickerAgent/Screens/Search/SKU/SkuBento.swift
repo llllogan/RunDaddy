@@ -79,9 +79,8 @@ struct SkuInfoBento: View {
 
 struct SkuStatsBento: View {
     let mostRecentPick: MostRecentPick?
-    let weekChange: SkuPercentageChange?
-    let monthChange: SkuPercentageChange?
-    let quarterChange: SkuPercentageChange?
+    let percentageChange: SkuPercentageChange?
+    let bestMachine: SkuBestMachine?
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -98,27 +97,21 @@ struct SkuStatsBento: View {
         }
         
         cards.append(
-            BentoItem(title: "Week Change",
-                      value: formatPercentageChange(weekChange),
-                      symbolName: trendSymbol(weekChange?.trend),
-                      symbolTint: trendColor(weekChange?.trend),
-                      isProminent: weekChange?.trend == "up")
+            BentoItem(title: "Pack Trend",
+                      value: formatPercentageChange(percentageChange),
+                      subtitle: formatTrendSubtitle(percentageChange?.trend),
+                      symbolName: trendSymbol(percentageChange?.trend),
+                      symbolTint: trendColor(percentageChange?.trend),
+                      isProminent: percentageChange?.trend == "up")
         )
-        
+
         cards.append(
-            BentoItem(title: "Month Change",
-                      value: formatPercentageChange(monthChange),
-                      symbolName: trendSymbol(monthChange?.trend),
-                      symbolTint: trendColor(monthChange?.trend),
-                      isProminent: monthChange?.trend == "up")
-        )
-        
-        cards.append(
-            BentoItem(title: "Quarter Change",
-                      value: formatPercentageChange(quarterChange),
-                      symbolName: trendSymbol(quarterChange?.trend),
-                      symbolTint: trendColor(quarterChange?.trend),
-                      isProminent: quarterChange?.trend == "up")
+            BentoItem(title: "Best Machine",
+                      value: bestMachine?.machineCode ?? "No data",
+                      subtitle: bestMachine?.machineName ?? "No machine data yet",
+                      symbolName: "gearshape",
+                      symbolTint: .gray,
+                      isProminent: bestMachine != nil)
         )
         
         return cards
@@ -145,6 +138,19 @@ struct SkuStatsBento: View {
         guard let change = change else { return "No Data" }
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
     }
+
+    private func formatTrendSubtitle(_ trend: String?) -> String {
+        switch trend {
+        case "up":
+            return "Up from previous period"
+        case "down":
+            return "Down from previous period"
+        case "neutral":
+            return "Stable vs previous period"
+        default:
+            return "No data"
+        }
+    }
     
     private func trendSymbol(_ trend: String?) -> String {
         switch trend {
@@ -168,4 +174,3 @@ struct SkuStatsBento: View {
         }
     }
 }
-

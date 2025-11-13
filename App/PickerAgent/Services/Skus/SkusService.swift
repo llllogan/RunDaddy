@@ -2,7 +2,7 @@ import Foundation
 
 protocol SkusServicing {
     func getSku(id: String) async throws -> SKU
-    func getSkuStats(id: String) async throws -> SkuStatsResponse
+    func getSkuStats(id: String, period: SkuPeriod) async throws -> SkuStatsResponse
     func updateCheeseStatus(id: String, isCheeseAndCrackers: Bool) async throws
 }
 
@@ -55,7 +55,7 @@ final class SkusService: SkusServicing {
         return try decoder.decode(SKU.self, from: data)
     }
     
-    func getSkuStats(id: String) async throws -> SkuStatsResponse {
+    func getSkuStats(id: String, period: SkuPeriod) async throws -> SkuStatsResponse {
         guard let credentials = credentialStore.loadCredentials() else {
             throw AuthError.unauthorized
         }
@@ -64,8 +64,11 @@ final class SkusService: SkusServicing {
         url.appendPathComponent("skus")
         url.appendPathComponent(id)
         url.appendPathComponent("stats")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "period", value: period.rawValue)]
+        let resolvedURL = components?.url ?? url
         
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: resolvedURL)
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")

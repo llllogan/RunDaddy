@@ -8,7 +8,6 @@ import {
     getTimezoneDayRange,
     isValidTimezone,
     formatDateInTimezone,
-    convertDateToTimezoneMidnight,
 } from '../lib/timezone.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
@@ -219,7 +218,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
 });
 
 // Get SKU statistics
-router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -243,11 +242,8 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
   const now = new Date();
   const timeZone: string = await resolveCompanyTimezone(req.auth!.companyId, timezoneOverride);
 
-  // Check if SKU belongs to user's company
-  const sku = await prisma.sKU.findFirst({
-    where: {
-      id: skuId,
-    },
+  const sku = await prisma.sKU.findUnique({
+    where: { id: skuId },
     include: {
       coilItems: {
         include: {
@@ -265,7 +261,7 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     return res.status(404).json({ error: 'SKU not found' });
   }
 
-  const belongsToCompany = sku.coilItems.some(coilItem => 
+  const belongsToCompany = sku.coilItems.some(coilItem =>
     coilItem.coil.machine?.companyId === req.auth!.companyId
   );
 
@@ -273,97 +269,59 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
-  // Calculate date ranges for week, month, quarter
-  const weekStart = getTimezoneDayRange({ timeZone: timeZone!, dayOffset: -7, reference: now });
-  const monthStart = getTimezoneDayRange({ timeZone: timeZone!, dayOffset: -30, reference: now });
-  const quarterStart = getTimezoneDayRange({ timeZone: timeZone!, dayOffset: -90, reference: now });
-  const today = getTimezoneDayRange({ timeZone: timeZone!, dayOffset: 0, reference: now });
+  const periodQuery =
+    typeof req.query.period === 'string' ? req.query.period.toLowerCase() : undefined;
+  const period =
+    periodQuery === 'week' || periodQuery === 'month' || periodQuery === 'quarter'
+      ? (periodQuery as SkuStatsPeriod)
+      : 'week';
+  const periodDays = PERIOD_DAY_COUNTS[period];
+  const periodDurationMs = periodDays * ONE_DAY_MS;
 
-  const [weekData, monthData, quarterData, mostRecentPick] = await Promise.all([
-    getSkuStats(skuId, weekStart.start, today.end, req.auth!.companyId, timeZone),
-    getSkuStats(skuId, monthStart.start, today.end, req.auth!.companyId, timeZone),
-    getSkuStats(skuId, quarterStart.start, today.end, req.auth!.companyId, timeZone),
-    getMostRecentPick(skuId, req.auth!.companyId),
-  ]);
+  const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference: now });
+  const periodStart = new Date(todayRange.start);
+  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
+  const elapsedMs = Math.max(0, Math.min(now.getTime() - periodStart.getTime(), periodDurationMs));
+  const previousWindowEnd = new Date(periodStart);
+  const previousWindowStart = new Date(periodStart.getTime() - elapsedMs);
 
-  // Calculate percentage changes
-  const weekChange = await calculatePercentageChange(skuId, weekStart.start, today.end, req.auth!.companyId, 'week');
-  const monthChange = await calculatePercentageChange(skuId, monthStart.start, today.end, req.auth!.companyId, 'month');
-  const quarterChange = await calculatePercentageChange(skuId, quarterStart.start, today.end, req.auth!.companyId, 'quarter');
+  const { points, totalItems } = await buildSkuChartPoints(
+    skuId,
+    periodStart,
+    now,
+    req.auth!.companyId,
+    timeZone,
+    periodDays,
+  );
+
+  const previousTotal =
+    elapsedMs > 0
+      ? await getSkuTotalPicks(skuId, previousWindowStart, previousWindowEnd, req.auth!.companyId)
+      : 0;
+
+  const percentageChange =
+    elapsedMs > 0 ? buildPercentageChange(totalItems, previousTotal) : null;
+  const bestMachine = await getSkuBestMachine(skuId, req.auth!.companyId);
+  const mostRecentPick = await getMostRecentPick(skuId, req.auth!.companyId);
 
   return res.json({
     generatedAt: new Date().toISOString(),
     timeZone,
+    period,
+    rangeStart: periodStart.toISOString(),
+    rangeEnd: now.toISOString(),
+    lookbackDays: periodDays,
+    progress: {
+      elapsedSeconds: Math.round(elapsedMs / 1000),
+      periodSeconds: Math.round(periodDurationMs / 1000),
+      ratio: periodDurationMs > 0 ? Number((elapsedMs / periodDurationMs).toFixed(3)) : 0,
+    },
+    percentageChange,
+    bestMachine,
+    points,
     mostRecentPick,
-    percentageChanges: {
-      week: weekChange,
-      month: monthChange,
-      quarter: quarterChange,
-    },
-    periods: {
-      week: weekData,
-      month: monthData,
-      quarter: quarterData,
-    },
   });
 });
-
-async function getSkuStats(skuId: string, startDate: Date, endDate: Date, companyId: string, timeZone: string) {
-  const rows = await prisma.$queryRaw<Array<{
-    date: string;
-    locationId: string;
-    locationName: string;
-    totalPicked: bigint;
-  }>>(
-    Prisma.sql`
-      SELECT 
-        DATE_FORMAT(CONVERT_TZ(pe.pickedAt, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
-        loc.id AS locationId,
-        loc.name AS locationName,
-        SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Location loc ON loc.id = mach.locationId
-      JOIN Run r ON r.id = pe.runId
-      WHERE ci.skuId = ${skuId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${startDate}
-        AND pe.pickedAt < ${endDate}
-        AND r.companyId = ${companyId}
-        AND mach.locationId IS NOT NULL
-      GROUP BY date, loc.id, loc.name
-      ORDER BY date ASC, locationName ASC
-    `
-  );
-
-  // Group by date and calculate totals
-  const dailyStats = new Map<string, { total: number; locations: Array<{ name: string; count: number }> }>();
-  
-  for (const row of rows) {
-    const date = row.date;
-    const count = Number(row.totalPicked);
-    
-    if (!dailyStats.has(date)) {
-      dailyStats.set(date, { total: 0, locations: [] });
-    }
-    
-    const stat = dailyStats.get(date)!;
-    stat.total += count;
-    stat.locations.push({
-      name: row.locationName || 'Unknown',
-      count,
-    });
-  }
-
-  return Array.from(dailyStats.entries()).map(([date, data]) => ({
-    date,
-    total: data.total,
-    locations: data.locations,
-  }));
-}
 
 async function getMostRecentPick(skuId: string, companyId: string) {
   const result = await prisma.$queryRaw<Array<{
@@ -407,19 +365,118 @@ async function getMostRecentPick(skuId: string, companyId: string) {
   };
 }
 
-async function calculatePercentageChange(
-  skuId: string, 
-  currentPeriodStart: Date, 
-  currentPeriodEnd: Date, 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+type SkuStatsPeriod = 'week' | 'month' | 'quarter';
+
+const PERIOD_DAY_COUNTS: Record<SkuStatsPeriod, number> = {
+  week: 7,
+  month: 30,
+  quarter: 90,
+};
+
+type ChartRow = {
+  date: string;
+  machineId: string;
+  machineCode: string;
+  machineName: string | null;
+  totalPicked: bigint;
+};
+
+type ChartPoint = {
+  date: string;
+  totalItems: number;
+  machines: Array<{
+    machineId: string;
+    machineCode: string;
+    machineName: string | null;
+    count: number;
+  }>;
+};
+
+async function buildSkuChartPoints(
+  skuId: string,
+  startDate: Date,
+  endDate: Date,
   companyId: string,
-  periodType: 'week' | 'month' | 'quarter'
-): Promise<{ value: number; trend: 'up' | 'down' | 'neutral' } | null> {
-  const periodDays = periodType === 'week' ? 7 : periodType === 'month' ? 30 : 90;
-  const previousPeriodStart = new Date(currentPeriodStart.getTime() - (periodDays * 24 * 60 * 60 * 1000));
-  const previousPeriodEnd = currentPeriodStart;
+  timeZone: string,
+  periodDays: number,
+) {
+  const rows = await prisma.$queryRaw<Array<ChartRow>>(
+    Prisma.sql`
+      SELECT 
+        DATE_FORMAT(CONVERT_TZ(pe.pickedAt, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
+        mach.id AS machineId,
+        mach.code AS machineCode,
+        mach.description AS machineName,
+        SUM(pe.count) AS totalPicked
+      FROM PickEntry pe
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      JOIN Run r ON r.id = pe.runId
+      WHERE ci.skuId = ${skuId}
+        AND pe.status = 'PICKED'
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${startDate}
+        AND pe.pickedAt < ${endDate}
+        AND r.companyId = ${companyId}
+      GROUP BY date, mach.id, mach.code, mach.description
+      ORDER BY date ASC, mach.code ASC
+    `,
+  );
 
-  // Get current period data
-  const currentResult = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
+  const machinesByDate = new Map<
+    string,
+    Map<string, { machineCode: string; machineName: string | null; count: number }>
+  >();
+
+  for (const row of rows) {
+    const date = row.date;
+    const dateBucket = machinesByDate.get(date) ?? new Map();
+    const existing = dateBucket.get(row.machineId);
+    const count = Number(row.totalPicked);
+
+    dateBucket.set(row.machineId, {
+      machineCode: row.machineCode,
+      machineName: row.machineName,
+      count: (existing?.count ?? 0) + count,
+    });
+
+    machinesByDate.set(date, dateBucket);
+  }
+
+  const labels = buildPeriodLabels(startDate, periodDays, timeZone);
+  const points: ChartPoint[] = labels.map(date => {
+    const bucket = machinesByDate.get(date);
+    const machines = bucket
+      ? Array.from(bucket.entries()).map(([machineId, machineData]) => ({
+          machineId,
+          machineCode: machineData.machineCode,
+          machineName: machineData.machineName,
+          count: machineData.count,
+        }))
+      : [];
+
+    const totalItems = machines.reduce((sum, machine) => sum + machine.count, 0);
+    return {
+      date,
+      totalItems,
+      machines,
+    };
+  });
+
+  const totalItems = points.reduce((sum, point) => sum + point.totalItems, 0);
+  return { points, totalItems };
+}
+
+async function getSkuTotalPicks(
+  skuId: string,
+  startDate: Date,
+  endDate: Date,
+  companyId: string,
+) {
+  const result = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
     Prisma.sql`
       SELECT SUM(pe.count) AS totalPicked
       FROM PickEntry pe
@@ -427,61 +484,90 @@ async function calculatePercentageChange(
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND pe.status = 'PICKED'
-        AND pe.pickedAt >= ${currentPeriodStart}
-        AND pe.pickedAt < ${currentPeriodEnd}
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${startDate}
+        AND pe.pickedAt < ${endDate}
         AND r.companyId = ${companyId}
-    `
+    `,
   );
 
-  // Get previous period data
-  const previousResult = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
+  return Number(result[0]?.totalPicked ?? 0);
+}
+
+async function getSkuBestMachine(skuId: string, companyId: string) {
+  const result = await prisma.$queryRaw<Array<{
+    machineId: string;
+    machineCode: string;
+    machineName: string | null;
+    totalPicked: bigint;
+  }>>(
     Prisma.sql`
-      SELECT SUM(pe.count) AS totalPicked
+      SELECT 
+        mach.id AS machineId,
+        mach.code AS machineCode,
+        mach.description AS machineName,
+        SUM(pe.count) AS totalPicked
       FROM PickEntry pe
       JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND pe.status = 'PICKED'
-        AND pe.pickedAt >= ${previousPeriodStart}
-        AND pe.pickedAt < ${previousPeriodEnd}
+        AND pe.pickedAt IS NOT NULL
         AND r.companyId = ${companyId}
-    `
+      GROUP BY mach.id, mach.code, mach.description
+      ORDER BY totalPicked DESC
+      LIMIT 1
+    `,
   );
 
-  const currentTotal = Number(currentResult[0]?.totalPicked || 0);
-  const previousTotal = Number(previousResult[0]?.totalPicked || 0);
+  if (result.length === 0) {
+    return null;
+  }
 
-  // If no data in either period, return null
+  const row = result[0]!;
+  return {
+    machineId: row.machineId,
+    machineCode: row.machineCode,
+    machineName: row.machineName,
+    totalPacks: Number(row.totalPicked),
+  };
+}
+
+function buildPercentageChange(currentTotal: number, previousTotal: number) {
   if (currentTotal === 0 && previousTotal === 0) {
     return null;
   }
 
-  // If no previous data but current data exists, show as positive trend
   if (previousTotal === 0 && currentTotal > 0) {
-    return { value: 100, trend: 'up' };
+    return { value: 100, trend: 'up' as const };
   }
 
-  // If previous data exists but no current data, show as negative trend
   if (previousTotal > 0 && currentTotal === 0) {
-    return { value: -100, trend: 'down' };
+    return { value: -100, trend: 'down' as const };
   }
 
-  // Calculate percentage change
   const percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
-  
-  let trend: 'up' | 'down' | 'neutral';
-  if (percentageChange > 0.5) {
-    trend = 'up';
-  } else if (percentageChange < -0.5) {
-    trend = 'down';
-  } else {
-    trend = 'neutral';
-  }
+  const trend =
+    percentageChange > 0.5 ? 'up' : percentageChange < -0.5 ? 'down' : 'neutral';
 
   return {
-    value: Math.round(percentageChange * 10) / 10, // Round to 1 decimal place
-    trend
+    value: Math.round(percentageChange * 10) / 10,
+    trend,
   };
+}
+
+function buildPeriodLabels(startDate: Date, periodDays: number, timeZone: string): string[] {
+  const labels: string[] = [];
+  const cursor = new Date(startDate);
+
+  for (let i = 0; i < periodDays; i += 1) {
+    labels.push(formatDateInTimezone(cursor, timeZone));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return labels;
 }
 
 export const skuRouter = router;
