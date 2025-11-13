@@ -39,9 +39,16 @@ struct SkuStatsChartView: View {
             if hasChartData {
                 Chart {
                     ForEach(stats.points, id: \.date) { point in
-                        ForEach(point.machines) { machine in
-                            if let dayDate = chartDate(from: point.date) {
-                                let dayLabel = formatLabel(for: dayDate)
+                        let dayLabel = pointLabel(for: point)
+                        if point.machines.isEmpty {
+                            BarMark(
+                                x: .value("Day", dayLabel),
+                                y: .value("Items", 0)
+                            )
+                            .foregroundStyle(.gray)
+                            .opacity(0.6)
+                        } else {
+                            ForEach(point.machines) { machine in
                                 let machineLabel = machine.machineName ?? machine.machineCode
                                 BarMark(
                                     x: .value("Day", dayLabel),
@@ -80,7 +87,7 @@ struct SkuStatsChartView: View {
     }
 
     private var hasChartData: Bool {
-        stats.points.contains { $0.totalItems > 0 }
+        !stats.points.isEmpty
     }
 
     private var maxYValue: Double {
@@ -100,7 +107,7 @@ struct SkuStatsChartView: View {
 
     private var orderedDayLabels: [String] {
         stats.points
-            .compactMap { chartDate(from: $0.date).map(formatLabel(for:)) }
+            .map(pointLabel(for:))
             .reducingUnique()
     }
 
@@ -110,6 +117,13 @@ struct SkuStatsChartView: View {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter
     }()
+
+    private func pointLabel(for point: SkuStatsPoint) -> String {
+        if let date = chartDate(from: point.date) {
+            return formatLabel(for: date)
+        }
+        return point.date
+    }
 }
 
 private extension Sequence where Element: Hashable {

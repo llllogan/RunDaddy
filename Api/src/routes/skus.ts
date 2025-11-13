@@ -282,18 +282,23 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
   const periodStart = periodRange.start;
   const periodEnd = periodRange.end;
   const periodDurationMs = periodEnd.getTime() - periodStart.getTime();
-  const periodDays = periodRange.dayCount || PERIOD_DAY_COUNTS[period];
+  const periodDays = PERIOD_DAY_COUNTS[period];
+  const chartRange = buildChartRange(period, periodRange, timeZone);
+  const dataEnd = new Date(
+    Math.min(now.getTime(), chartRange.end.getTime()),
+  );
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
   const previousWindowEnd = new Date(periodStart);
   const previousWindowStart = new Date(periodStart.getTime() - elapsedMs);
 
   const { points, totalItems } = await buildSkuChartPoints(
     skuId,
-    periodStart,
-    new Date(Math.min(now.getTime(), periodEnd.getTime())),
+    chartRange.start,
+    chartRange.end,
+    dataEnd,
     req.auth!.companyId,
     timeZone,
-    periodDays,
+    period,
   );
 
   const previousTotal =
@@ -395,13 +400,23 @@ type ChartPoint = {
   }>;
 };
 
+type PeriodBucket = {
+  key: string;
+  label: string;
+  start: Date;
+  end: Date;
+  startMs: number;
+  endMs: number;
+};
+
 async function buildSkuChartPoints(
   skuId: string,
-  startDate: Date,
-  endDate: Date,
+  chartStart: Date,
+  chartEnd: Date,
+  dataEnd: Date,
   companyId: string,
   timeZone: string,
-  periodDays: number,
+  period: SkuStatsPeriod,
 ) {
   const rows = await prisma.$queryRaw<Array<ChartRow>>(
     Prisma.sql`
@@ -418,39 +433,47 @@ async function buildSkuChartPoints(
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${startDate}
-        AND r.scheduledFor < ${endDate}
+        AND r.scheduledFor >= ${chartStart}
+        AND r.scheduledFor < ${dataEnd}
         AND r.companyId = ${companyId}
       GROUP BY date, mach.id, mach.code, mach.description
       ORDER BY date ASC, mach.code ASC
     `,
   );
 
-  const machinesByDate = new Map<
+  const buckets = buildChartBuckets(period, chartStart, chartEnd, timeZone);
+
+  const bucketTotals = new Map<string, number>();
+  const bucketMachines = new Map<
     string,
     Map<string, { machineCode: string; machineName: string | null; count: number }>
   >();
 
   for (const row of rows) {
-    const date = row.date;
-    const dateBucket = machinesByDate.get(date) ?? new Map();
-    const existing = dateBucket.get(row.machineId);
-    const count = Number(row.totalPicked);
+    const rowDate = parseLocalDate(row.date, timeZone).getTime();
+    const bucket = buckets.find(b => rowDate >= b.startMs && rowDate < b.endMs);
+    if (!bucket) {
+      continue;
+    }
 
-    dateBucket.set(row.machineId, {
+    const count = Number(row.totalPicked);
+    const machinesForBucket = bucketMachines.get(bucket.key) ?? new Map();
+    const existing = machinesForBucket.get(row.machineId);
+
+    machinesForBucket.set(row.machineId, {
       machineCode: row.machineCode,
       machineName: row.machineName,
       count: (existing?.count ?? 0) + count,
     });
 
-    machinesByDate.set(date, dateBucket);
+    bucketMachines.set(bucket.key, machinesForBucket);
+    bucketTotals.set(bucket.key, (bucketTotals.get(bucket.key) ?? 0) + count);
   }
 
-  const labels = buildPeriodLabels(startDate, periodDays, timeZone);
-  const points: ChartPoint[] = labels.map(date => {
-    const bucket = machinesByDate.get(date);
-    const machines = bucket
-      ? Array.from(bucket.entries()).map(([machineId, machineData]) => ({
+  const points: ChartPoint[] = buckets.map(bucket => {
+    const machinesForBucket = bucketMachines.get(bucket.key);
+    const machines = machinesForBucket
+      ? Array.from(machinesForBucket.entries()).map(([machineId, machineData]) => ({
           machineId,
           machineCode: machineData.machineCode,
           machineName: machineData.machineName,
@@ -458,9 +481,9 @@ async function buildSkuChartPoints(
         }))
       : [];
 
-    const totalItems = machines.reduce((sum, machine) => sum + machine.count, 0);
+    const totalItems = bucketTotals.get(bucket.key) ?? 0;
     return {
-      date,
+      date: bucket.label,
       totalItems,
       machines,
     };
@@ -555,18 +578,6 @@ function buildPercentageChange(currentTotal: number, previousTotal: number) {
   };
 }
 
-function buildPeriodLabels(startDate: Date, periodDays: number, timeZone: string): string[] {
-  const labels: string[] = [];
-  const cursor = new Date(startDate);
-
-  for (let i = 0; i < periodDays; i += 1) {
-    labels.push(formatDateInTimezone(cursor, timeZone));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return labels;
-}
-
 function buildPeriodRange(period: SkuStatsPeriod, reference: Date, timeZone: string) {
   const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference });
   const { year, month } = getLocalDateParts(reference, timeZone);
@@ -608,6 +619,135 @@ function buildPeriodRange(period: SkuStatsPeriod, reference: Date, timeZone: str
 
   const dayCount = Math.round((end.getTime() - start.getTime()) / ONE_DAY_MS);
   return { start, end, dayCount };
+}
+
+function buildChartRange(
+  period: SkuStatsPeriod,
+  periodRange: { start: Date; end: Date },
+  timeZone: string,
+) {
+  if (period === 'month') {
+    const start = getWeekStart(periodRange.start, timeZone);
+    const endWeekStart = getWeekStart(periodRange.end, timeZone);
+    const end = new Date(endWeekStart);
+    end.setUTCDate(end.getUTCDate() + 7);
+    return { start, end };
+  }
+
+  return {
+    start: new Date(periodRange.start),
+    end: new Date(periodRange.end),
+  };
+}
+
+function buildChartBuckets(
+  period: SkuStatsPeriod,
+  chartStart: Date,
+  chartEnd: Date,
+  timeZone: string,
+) {
+  switch (period) {
+    case 'week':
+      return buildDailyBuckets(chartStart, chartEnd, timeZone);
+    case 'month':
+      return buildWeeklyBuckets(chartStart, chartEnd, timeZone);
+    case 'quarter':
+      return buildMonthlyBuckets(chartStart, chartEnd, timeZone);
+    default:
+      return buildDailyBuckets(chartStart, chartEnd, timeZone);
+  }
+}
+
+function buildDailyBuckets(start: Date, end: Date, timeZone: string): PeriodBucket[] {
+  const buckets: PeriodBucket[] = [];
+  let cursor = new Date(start);
+
+  while (cursor < end) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCDate(bucketEnd.getUTCDate() + 1);
+
+    buckets.push(
+      createBucket(formatDateInTimezone(bucketStart, timeZone), bucketStart, bucketEnd),
+    );
+
+    cursor = bucketEnd;
+  }
+
+  return buckets;
+}
+
+function buildWeeklyBuckets(start: Date, end: Date, timeZone: string): PeriodBucket[] {
+  const buckets: PeriodBucket[] = [];
+  let cursor = getWeekStart(start, timeZone);
+
+  while (cursor < end) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCDate(bucketEnd.getUTCDate() + 7);
+
+    buckets.push(
+      createBucket(formatDateInTimezone(bucketStart, timeZone), bucketStart, bucketEnd),
+    );
+
+    cursor = bucketEnd;
+  }
+
+  return buckets;
+}
+
+function buildMonthlyBuckets(start: Date, end: Date, timeZone: string): PeriodBucket[] {
+  const buckets: PeriodBucket[] = [];
+  let cursor = new Date(start);
+
+  while (cursor < end) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCMonth(bucketEnd.getUTCMonth() + 1);
+
+    buckets.push(createBucket(formatMonthName(bucketStart, timeZone), bucketStart, bucketEnd));
+    cursor = bucketEnd;
+  }
+
+  return buckets;
+}
+
+function createBucket(label: string, start: Date, end: Date): PeriodBucket {
+  return {
+    key: start.toISOString(),
+    label,
+    start,
+    end,
+    startMs: start.getTime(),
+    endMs: end.getTime(),
+  };
+}
+
+function getWeekStart(date: Date, timeZone: string): Date {
+  const weekday = getWeekdayIndexInTimezone(date, timeZone);
+  const offsetFromMonday = (weekday + 6) % 7;
+  const start = new Date(date);
+  start.setUTCDate(start.getUTCDate() - offsetFromMonday);
+  return start;
+}
+
+const MONTH_NAME_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>();
+
+function formatMonthName(date: Date, timeZone: string) {
+  const key = `${timeZone}-month`;
+  if (!MONTH_NAME_FORMATTER_CACHE.has(key)) {
+    MONTH_NAME_FORMATTER_CACHE.set(
+      key,
+      new Intl.DateTimeFormat('en-US', { month: 'long', timeZone }),
+    );
+  }
+  return MONTH_NAME_FORMATTER_CACHE.get(key)!.format(date);
+}
+
+function parseLocalDate(dateString: string, timeZone: string): Date {
+  const [year, month, day] = dateString.split('-').map(part => Number(part));
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  return convertDateToTimezoneMidnight(candidate, timeZone);
 }
 
 export const skuRouter = router;
