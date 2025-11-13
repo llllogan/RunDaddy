@@ -22,6 +22,20 @@ struct DashboardView: View {
         viewModel.currentUserProfile?.hasCompany ?? false
     }
 
+    private var isPickerUser: Bool {
+        let roleValue = viewModel.currentUserProfile?.role ?? session.profile.role
+        guard let role = roleValue?.uppercased(),
+              let resolvedRole = UserRole(rawValue: role)
+        else {
+            return false
+        }
+        return resolvedRole == .picker
+    }
+
+    private var shouldShowInsights: Bool {
+        hasCompany && !isPickerUser
+    }
+
     private var navigationSubtitleText: String {
         let companyName = viewModel.currentUserProfile?.currentCompany?.name ?? "No Company"
         let dateString = Date().formatted(
@@ -122,17 +136,19 @@ struct DashboardView: View {
                     .buttonStyle(.plain)
                 }
 
-                Section("Insights") {
-                    DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    
-                    NavigationLink {
-                        AnalyticsView(session: session)
-                    } label: {
-                        Text("View more data")
-                            .foregroundStyle(.primary)
+                if shouldShowInsights {
+                    Section("Insights") {
+                        DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        
+                        NavigationLink {
+                            AnalyticsView(session: session)
+                        } label: {
+                            Text("View more data")
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .listStyle(.insetGrouped)
