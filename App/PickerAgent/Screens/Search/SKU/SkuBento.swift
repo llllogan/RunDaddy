@@ -30,16 +30,10 @@ struct SkuInfoBento: View {
                                 .font(.title3.weight(.semibold))
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
-
-                            Text("Type: \(sku.type)")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
-
-                            Text("Category: \(sku.category ?? "None")")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                            
+                            InfoChip(title: "Type", date: nil, text: sku.type, colour: nil, foregroundColour: nil, icon: nil)
+                            
+                            InfoChip(title: "Category", date: nil, text: sku.category ?? "None", colour: nil, foregroundColour: nil, icon: nil)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))
@@ -49,7 +43,6 @@ struct SkuInfoBento: View {
             cards.append(
                 BentoItem(title: "Most Recent Pick",
                           value: formatDate(mostRecentPick.pickedAt),
-                          subtitle: "\(mostRecentPick.locationName)",
                           symbolName: "clock",
                           symbolTint: .indigo,
                           allowsMultilineValue: true)
