@@ -124,7 +124,7 @@ struct PackingSessionSheet: View {
                                 }
                             }
                         } label: {
-                            Label("Chese", systemImage: viewModel.currentPickItem?.sku?.isCheeseAndCrackers == true ? "minus.circle.fill" : "plus.circle.fill")
+                            Label("Cheese Tub", systemImage: viewModel.currentPickItem?.sku?.isCheeseAndCrackers == true ? "minus.circle.fill" : "plus.circle.fill")
                         }
                         .disabled(viewModel.currentPickItem == nil || viewModel.isSpeaking)
                         

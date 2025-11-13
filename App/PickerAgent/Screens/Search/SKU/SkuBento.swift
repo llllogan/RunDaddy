@@ -11,9 +11,50 @@ struct SkuInfoBento: View {
     let sku: SKU
     let isUpdatingCheeseStatus: Bool
     let onToggleCheeseStatus: () -> Void
+    let mostRecentPick: MostRecentPick?
+    let percentageChange: SkuPercentageChange?
+    let bestMachine: SkuBestMachine?
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
+        
+        cards.append(
+            BentoItem(title: "Details",
+                      value: sku.name,
+                      symbolName: "tag",
+                      symbolTint: .orange,
+                      allowsMultilineValue: true,
+                      customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(sku.name)
+                                .font(.title3.weight(.semibold))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+
+                            Text("Type: \(sku.type)")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+
+                            Text("Category: \(sku.category ?? "None")")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
+        )
+        
+        if let mostRecentPick = mostRecentPick {
+            cards.append(
+                BentoItem(title: "Most Recent Pick",
+                          value: formatDate(mostRecentPick.pickedAt),
+                          subtitle: "\(mostRecentPick.locationName)",
+                          symbolName: "clock",
+                          symbolTint: .indigo,
+                          allowsMultilineValue: true)
+            )
+        }
         
         cards.append(
             BentoItem(title: "Code",
@@ -22,34 +63,14 @@ struct SkuInfoBento: View {
                       symbolTint: .blue)
         )
         
-        cards.append(
-            BentoItem(title: "Name",
-                      value: sku.name,
-                      symbolName: "tag",
-                      symbolTint: .green,
-                      allowsMultilineValue: true)
-        )
+        
         
         cards.append(
-            BentoItem(title: "Type",
-                      value: sku.type,
-                      symbolName: "cube.box",
-                      symbolTint: .orange)
-        )
-        
-        cards.append(
-            BentoItem(title: "Category",
-                      value: sku.category ?? "None",
-                      symbolName: "folder",
-                      symbolTint: .purple)
-        )
-        
-        cards.append(
-            BentoItem(title: "Cheese & Crackers",
+            BentoItem(title: "Cheese Tub",
                       value: sku.isCheeseAndCrackers ? "Enabled" : "Disabled",
                       subtitle: "Tap to toggle",
-                      symbolName: sku.isCheeseAndCrackers ? "checkmark.circle.fill" : "xmark.circle.fill",
-                      symbolTint: sku.isCheeseAndCrackers ? .green : .red,
+                      symbolName: sku.isCheeseAndCrackers ? "square.fill" : "square.fill",
+                      symbolTint: sku.isCheeseAndCrackers ? .yellow : .secondary,
                       onTap: { onToggleCheeseStatus() },
                       showsChevron: false,
                       customContent: AnyView(
@@ -58,9 +79,9 @@ struct SkuInfoBento: View {
                                 ProgressView()
                                     .scaleEffect(0.8)
                             } else {
-                                Text(sku.isCheeseAndCrackers ? "Enabled" : "Disabled")
+                                Text(sku.isCheeseAndCrackers ? "Included" : "Not Included")
                                     .font(.headline)
-                                    .foregroundColor(sku.isCheeseAndCrackers ? .green : .red)
+                                    .foregroundColor(sku.isCheeseAndCrackers ? .yellow : .secondary)
                             }
                             Spacer()
                             Image(systemName: sku.isCheeseAndCrackers ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -69,32 +90,7 @@ struct SkuInfoBento: View {
                     ))
         )
         
-        return cards
-    }
-    
-    var body: some View {
-        StaggeredBentoGrid(items: items, columnCount: 2)
-    }
-}
-
-struct SkuStatsBento: View {
-    let mostRecentPick: MostRecentPick?
-    let percentageChange: SkuPercentageChange?
-    let bestMachine: SkuBestMachine?
-    
-    private var items: [BentoItem] {
-        var cards: [BentoItem] = []
         
-        if let mostRecentPick = mostRecentPick {
-            cards.append(
-                BentoItem(title: "Most Recent Pick",
-                          value: formatDate(mostRecentPick.pickedAt),
-                          subtitle: "\(mostRecentPick.locationName) • \(mostRecentPick.runId)",
-                          symbolName: "clock",
-                          symbolTint: .indigo,
-                          allowsMultilineValue: true)
-            )
-        }
         
         cards.append(
             BentoItem(title: "Pack Trend",
@@ -107,10 +103,10 @@ struct SkuStatsBento: View {
 
         cards.append(
             BentoItem(title: "Best Machine",
-                      value: bestMachine?.machineCode ?? "No data",
-                      subtitle: bestMachine?.machineName ?? "No machine data yet",
-                      symbolName: "gearshape",
-                      symbolTint: .gray,
+                      value: bestMachine?.machineName ?? "No data",
+                      subtitle: bestMachine?.machineCode ?? "No machine data yet",
+                      symbolName: "building",
+                      symbolTint: .cyan,
                       isProminent: bestMachine != nil)
         )
         
@@ -155,9 +151,9 @@ struct SkuStatsBento: View {
     private func trendSymbol(_ trend: String?) -> String {
         switch trend {
         case "up":
-            return "arrow.up"
+            return "arrow.up.forward"
         case "down":
-            return "arrow.down"
+            return "arrow.down.left"
         default:
             return "minus"
         }

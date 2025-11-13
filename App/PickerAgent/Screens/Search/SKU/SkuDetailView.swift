@@ -37,21 +37,11 @@ struct SkuDetailView: View {
             } else if let sku = sku {
                 // SKU Information Section
                 Section {
-                    SkuInfoBento(
-                        sku: sku,
-                        isUpdatingCheeseStatus: isUpdatingCheeseStatus,
-                        onToggleCheeseStatus: { toggleCheeseStatus() }
-                    )
-                } header: {
-                    Text("SKU Information")
-                }
-                .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                
-                Section {
                     if let skuStats = skuStats {
-                        SkuStatsBento(
+                        SkuInfoBento(
+                            sku: sku,
+                            isUpdatingCheeseStatus: isUpdatingCheeseStatus,
+                            onToggleCheeseStatus: { toggleCheeseStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
                             percentageChange: skuStats.percentageChange,
                             bestMachine: skuStats.bestMachine
@@ -67,9 +57,9 @@ struct SkuDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 } header: {
-                    Text("SKU Statistics")
+                    Text("SKU Information")
                 }
-                .listRowInsets(.init(top: 6, leading: 0, bottom: 8, trailing: 0))
+                .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 

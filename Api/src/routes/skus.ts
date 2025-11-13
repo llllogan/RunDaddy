@@ -364,8 +364,15 @@ async function getMostRecentPick(skuId: string, companyId: string) {
     return null;
   }
 
+  const scheduledDate = row.scheduledFor ?? new Date();
+  const pickedAt = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(scheduledDate);
+
   return {
-    pickedAt: row.scheduledFor?.toISOString() ?? new Date().toISOString(),
+    pickedAt,
     locationName: row.locationName || 'Unknown',
     runId: row.runId,
   };

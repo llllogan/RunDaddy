@@ -180,7 +180,7 @@ struct LocationDetailView: View {
                                     await toggleCheeseStatus(pickItem)
                                 }
                             } label: {
-                                Label(pickItem.sku?.isCheeseAndCrackers == true ? "Remove Cheese" : "Add as Cheese", systemImage: pickItem.sku?.isCheeseAndCrackers == true ? "minus.circle" : "plus.circle")
+                                Label(pickItem.sku?.isCheeseAndCrackers == true ? "Remove Cheese" : "Cheese Tub", systemImage: pickItem.sku?.isCheeseAndCrackers == true ? "minus.circle" : "plus.circle")
                             }
                             .tint(pickItem.sku?.isCheeseAndCrackers == true ? .orange : .yellow)
                             
