@@ -284,8 +284,10 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
   const periodDurationMs = periodEnd.getTime() - periodStart.getTime();
   const periodDays = PERIOD_DAY_COUNTS[period];
   const chartRange = buildChartRange(period, periodRange, timeZone);
+  const currentDayRange = getTimezoneDayRange({ timeZone, reference: now });
+  // Include the rest of the current day so packs from runs scheduled later today are counted
   const dataEnd = new Date(
-    Math.min(now.getTime(), chartRange.end.getTime()),
+    Math.min(currentDayRange.end.getTime(), chartRange.end.getTime()),
   );
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
   const previousWindowEnd = new Date(periodStart);
