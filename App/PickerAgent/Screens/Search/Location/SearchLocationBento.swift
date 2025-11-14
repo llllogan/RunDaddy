@@ -17,8 +17,8 @@ struct SearchLocationInfoBento: View {
             BentoItem(
                 title: "Address",
                 value: addressValue,
-                symbolName: "mappin.and.ellipse",
-                symbolTint: .blue,
+                symbolName: "mappin.circle",
+                symbolTint: .orange,
                 allowsMultilineValue: true
             )
         )

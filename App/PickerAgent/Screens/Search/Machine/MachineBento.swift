@@ -101,7 +101,7 @@ struct MachineInfoBento: View {
                 title: "Best SKU",
                 value: "No data",
                 subtitle: "No SKU data yet",
-                symbolName: "star.circle",
+                symbolName: "shippingbox",
                 symbolTint: .cyan
             )
         }
@@ -113,9 +113,8 @@ struct MachineInfoBento: View {
             title: "Best SKU",
             value: bestSku.skuName.isEmpty ? bestSku.skuCode : bestSku.skuName,
             subtitle: subtitle,
-            symbolName: "star.circle",
+            symbolName: "shippingbox",
             symbolTint: .cyan,
-            isProminent: true,
             onTap: { onBestSkuTap?(bestSku) },
             showsChevron: true
         )
