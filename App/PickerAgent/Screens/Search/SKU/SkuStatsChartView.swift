@@ -97,8 +97,15 @@ struct SkuStatsChartView: View {
         stats.points.contains { !$0.machines.isEmpty }
     }
 
+    private var chartMachineCount: Int {
+        let machineIds = stats.points.flatMap { point in
+            point.machines.map(\.machineId)
+        }
+        return Set(machineIds).count
+    }
+
     private var shouldHideLegend: Bool {
-        machineOptions.count > 6
+        chartMachineCount > 6
     }
 
     private var maxYValue: Double {
