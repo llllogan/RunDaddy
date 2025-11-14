@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import SwiftUI
 
 struct CompanyUser: Identifiable, Equatable {
     let id: String
@@ -97,6 +98,9 @@ final class RunDetailViewModel: ObservableObject {
   @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
   @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
   @Published var showingChocolateBoxesSheet = false
+    
+    // MARK: - Haptic Feedback Triggers
+    @Published var resetTrigger = false
 
     let runId: String
     let session: AuthSession
@@ -357,6 +361,8 @@ final class RunDetailViewModel: ObservableObject {
                 credentials: session.credentials
             )
             await load(force: true)
+            // Trigger haptic feedback for successful reset
+            resetTrigger.toggle()
             return true
         } catch {
             if let authError = error as? AuthError {

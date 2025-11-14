@@ -184,6 +184,7 @@ struct RunDetailView: View {
         } message: {
             Text("This will mark every packed pick entry in this run as pending.")
         }
+        .sensoryFeedback(.warning, trigger: viewModel.resetTrigger)
     }
 }
 
@@ -506,6 +507,7 @@ struct PendingPickEntriesView: View {
     @State private var selectedLocationFilter: String?
     @State private var selectedMachineFilter: String?
     @State private var updatingPickIds: Set<String> = []
+    @State private var pickStatusToggleTrigger = false
 
     private var locations: [RunDetail.Location] {
         var lookup: [String: RunDetail.Location] = [:]
@@ -614,12 +616,14 @@ struct PendingPickEntriesView: View {
                         PickEntryRow(
                             pickItem: pickItem,
                             onToggle: {
+                                HapticsService.shared.actionCompleted()
                                 Task {
                                     await togglePickStatus(pickItem)
                                 }
                             },
                             showsLocation: true
                         )
+                        .sensoryFeedback(.selection, trigger: updatingPickIds.contains(pickItem.id) ? false : true)
                         .disabled(updatingPickIds.contains(pickItem.id))
                     }
                 }
@@ -710,6 +714,8 @@ struct PendingPickEntriesView: View {
                 credentials: session.credentials
             )
             await viewModel.load(force: true)
+            // Trigger haptic feedback for successful pick status change
+            pickStatusToggleTrigger.toggle()
         } catch {
             print("Failed to update pick status: \(error)")
         }

@@ -55,21 +55,25 @@ struct RunOverviewBento: View {
                           customContent: AnyView(
                             Menu {
                                 Button("Created") {
+                                    HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "CREATED")
                                     }
                                 }
                                 Button("Picking") {
+                                    HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "PICKING")
                                     }
                                 }
                                 Button("Pending Fresh") {
+                                    HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "PENDING_FRESH")
                                     }
                                 }
                                 Button("Ready") {
+                                    HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "READY")
                                     }
@@ -77,7 +81,8 @@ struct RunOverviewBento: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(currentStatus.statusDisplay)
-                                        .font(.title3.weight(.semibold))
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
                                         .lineLimit(1)
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.subheadline.weight(.medium))
@@ -109,6 +114,7 @@ struct RunOverviewBento: View {
                             Menu {
                                 ForEach(viewModel.companyUsers) { user in
                                     Button(user.displayName) {
+                                        HapticsService.shared.userAssigned()
                                         Task {
                                             await viewModel.assignUser(userId: user.id, to: "RUNNER")
                                         }
@@ -116,6 +122,7 @@ struct RunOverviewBento: View {
                                 }
                                 Divider()
                                 Button("Unassign") {
+                                    HapticsService.shared.userUnassigned()
                                     Task {
                                         await viewModel.unassignUser(from: "RUNNER")
                                     }
@@ -123,7 +130,8 @@ struct RunOverviewBento: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(runner)
-                                        .font(.title3.weight(.semibold))
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
                                         .lineLimit(1)
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.subheadline.weight(.medium))
@@ -171,6 +179,7 @@ struct RunOverviewBento: View {
                             Menu {
                                 ForEach(viewModel.companyUsers) { user in
                                     Button(user.displayName) {
+                                        HapticsService.shared.userAssigned()
                                         Task {
                                             await viewModel.assignUser(userId: user.id, to: "PICKER")
                                         }
@@ -178,6 +187,7 @@ struct RunOverviewBento: View {
                                 }
                                 Divider()
                                 Button("Unassign") {
+                                    HapticsService.shared.userUnassigned()
                                     Task {
                                         await viewModel.unassignUser(from: "PICKER")
                                     }
@@ -185,7 +195,8 @@ struct RunOverviewBento: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(picker)
-                                        .font(.title3.weight(.semibold))
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
                                         .lineLimit(1)
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.subheadline.weight(.medium))
@@ -227,6 +238,7 @@ struct RunnerAssignButtons: View {
     var body: some View {
         HStack(spacing: 0) {
             Button("Assign me") {
+                HapticsService.shared.userAssigned()
                 print("Runner Assign Me button tapped")
                 Task { @MainActor in
                     await viewModel.assignUser(to: "RUNNER")
@@ -243,6 +255,7 @@ struct RunnerAssignButtons: View {
             Menu {
                 ForEach(viewModel.companyUsers) { user in
                     Button(user.displayName) {
+                        HapticsService.shared.userAssigned()
                         Task {
                             await viewModel.assignUser(userId: user.id, to: "RUNNER")
                         }
@@ -269,6 +282,7 @@ struct PickerAssignButtons: View {
     var body: some View {
         HStack(spacing: 0) {
             Button("Assign me") {
+                HapticsService.shared.userAssigned()
                 Task { @MainActor in
                     await viewModel.assignUser(to: "PICKER")
                 }
@@ -284,6 +298,7 @@ struct PickerAssignButtons: View {
             Menu {
                 ForEach(viewModel.companyUsers) { user in
                     Button(user.displayName) {
+                        HapticsService.shared.userAssigned()
                         Task {
                             await viewModel.assignUser(userId: user.id, to: "PICKER")
                         }
