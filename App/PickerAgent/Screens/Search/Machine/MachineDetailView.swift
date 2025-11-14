@@ -3,71 +3,107 @@ import SwiftUI
 struct MachineDetailView: View {
     let machineId: String
     let session: AuthSession
-    
+
     @State private var machine: Machine?
+    @State private var machineStats: MachineStatsResponse?
     @State private var isLoading = true
+    @State private var isLoadingStats = true
     @State private var errorMessage: String?
-    
+    @State private var selectedPeriod: SkuPeriod = .week
+
+    private let machinesService = MachinesService()
+
     var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("Loading machine details...")
-            } else if let errorMessage = errorMessage {
-                VStack {
-                    Text("Error")
-                        .font(.headline)
-                    Text(errorMessage)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+        List {
+            if isLoading && machine == nil {
+                Section {
+                    ProgressView("Loading machine details...")
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .padding()
+            } else if let errorMessage = errorMessage {
+                Section {
+                    VStack {
+                        Text("Error")
+                            .font(.headline)
+                        Text(errorMessage)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                }
             } else if let machine = machine {
-                List {
-                    Section("Machine Information") {
-                        HStack {
-                            Text("Code")
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text(machine.code)
-                                .foregroundColor(.primary)
-                        }
-                        if let description = machine.description {
-                            HStack {
-                                Text("Description")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text(description)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        if let location = machine.location {
-                            HStack {
-                                Text("Location")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text(location.name)
-                                    .foregroundColor(.primary)
-                            }
-                        }
+                Section {
+                    if let machineStats = machineStats {
+                        MachineInfoBento(
+                            machine: machine,
+                            stats: machineStats,
+                            selectedPeriod: selectedPeriod
+                        )
+                    } else if isLoadingStats {
+                        ProgressView("Loading machine stats...")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        MachineInfoBento(
+                            machine: machine,
+                            stats: nil,
+                            selectedPeriod: selectedPeriod
+                        )
+                    }
+                } header: {
+                    Text("Machine Information")
+                }
+                .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                if let machineStats = machineStats {
+                    Section {
+                        MachineStatsChartView(
+                            stats: machineStats,
+                            selectedPeriod: $selectedPeriod
+                        )
+                    } header: {
+                        Text("Recent Activity")
                     }
                 }
-                .navigationTitle(machine.code)
-                .navigationBarTitleDisplayMode(.large)
             }
         }
+        .navigationTitle(machine?.code ?? "Machine Details")
+        .navigationBarTitleDisplayMode(.large)
         .task {
             await loadMachineDetails()
         }
+        .onChange(of: selectedPeriod) { _, _ in
+            Task {
+                await loadMachineStats()
+            }
+        }
     }
-    
+
     private func loadMachineDetails() async {
         do {
-            machine = try await MachinesService().getMachine(id: machineId)
+            machine = try await machinesService.getMachine(id: machineId)
             isLoading = false
+            await loadMachineStats()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
         }
+    }
+
+    private func loadMachineStats() async {
+        isLoadingStats = true
+        do {
+            machineStats = try await machinesService.getMachineStats(
+                id: machineId,
+                period: selectedPeriod
+            )
+        } catch {
+            print("Failed to load machine stats: \(error)")
+            machineStats = nil
+        }
+        isLoadingStats = false
     }
 }

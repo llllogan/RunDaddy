@@ -250,12 +250,23 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
       title: item.code,
       subtitle: item.description || 'No description',
     })),
-    ...skus.map(item => ({
-      type: 'sku',
-      id: item.id,
-      title: item.code,
-      subtitle: `${item.name} • ${item.type}${item.category ? ` • ${item.category}` : ''}`,
-    })),
+    ...skus.map(item => {
+      const subtitleParts: string[] = [item.name];
+      const trimmedType = item.type.trim();
+      const normalizedType = trimmedType.toLowerCase();
+      if (trimmedType && normalizedType !== 'general') {
+        subtitleParts.push(item.type);
+      }
+      if (item.category) {
+        subtitleParts.push(item.category);
+      }
+      return {
+        type: 'sku',
+        id: item.id,
+        title: item.code,
+        subtitle: subtitleParts.join(' • '),
+      };
+    }),
   ];
 
   res.json({

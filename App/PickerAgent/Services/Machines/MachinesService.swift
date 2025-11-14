@@ -2,6 +2,7 @@ import Foundation
 
 protocol MachinesServicing {
     func getMachine(id: String) async throws -> Machine
+    func getMachineStats(id: String, period: SkuPeriod) async throws -> MachineStatsResponse
 }
 
 final class MachinesService: MachinesServicing {
@@ -51,6 +52,43 @@ final class MachinesService: MachinesServicing {
         }
         
         return try decoder.decode(Machine.self, from: data)
+    }
+
+    func getMachineStats(id: String, period: SkuPeriod) async throws -> MachineStatsResponse {
+        guard let credentials = credentialStore.loadCredentials() else {
+            throw AuthError.unauthorized
+        }
+
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("machines")
+        url.appendPathComponent(id)
+        url.appendPathComponent("stats")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "period", value: period.rawValue)]
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw MachinesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw MachinesServiceError.machineNotFound
+            }
+            throw MachinesServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        return try decoder.decode(MachineStatsResponse.self, from: data)
     }
 }
 
