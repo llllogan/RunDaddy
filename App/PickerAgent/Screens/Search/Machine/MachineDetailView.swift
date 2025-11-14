@@ -10,7 +10,7 @@ struct MachineDetailView: View {
     @State private var isLoadingStats = true
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
-    @State private var skuDetailNavigationId: String?
+    @State private var skuNavigationTarget: MachineDetailSkuNavigation?
 
     private let machinesService = MachinesService()
 
@@ -85,7 +85,9 @@ struct MachineDetailView: View {
                 await loadMachineStats()
             }
         }
-        .background(skuNavigationLink)
+        .navigationDestination(item: $skuNavigationTarget) { target in
+            SkuDetailView(skuId: target.id, session: session)
+        }
     }
 
     private func loadMachineDetails() async {
@@ -125,30 +127,10 @@ struct MachineDetailView: View {
 
     private func navigateToSkuDetail(_ bestSku: MachineBestSku) {
         guard !bestSku.skuId.isEmpty else { return }
-        skuDetailNavigationId = bestSku.skuId
+        skuNavigationTarget = MachineDetailSkuNavigation(id: bestSku.skuId)
     }
+}
 
-    private var skuNavigationLink: some View {
-        NavigationLink(
-            isActive: Binding(
-                get: { skuDetailNavigationId != nil },
-                set: { isActive in
-                    if !isActive {
-                        skuDetailNavigationId = nil
-                    }
-                }
-            ),
-            destination: {
-                if let skuId = skuDetailNavigationId {
-                    SkuDetailView(skuId: skuId, session: session)
-                } else {
-                    EmptyView()
-                }
-            },
-            label: {
-                EmptyView()
-            }
-        )
-        .hidden()
-    }
+private struct MachineDetailSkuNavigation: Identifiable, Hashable {
+    let id: String
 }

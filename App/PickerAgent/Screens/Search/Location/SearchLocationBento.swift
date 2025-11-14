@@ -27,7 +27,6 @@ struct SearchLocationInfoBento: View {
             BentoItem(
                 title: "Last Packed",
                 value: lastPackedValue,
-                subtitle: lastPackedSubtitle,
                 symbolName: "clock.arrow.circlepath",
                 symbolTint: .indigo,
                 allowsMultilineValue: true
@@ -123,7 +122,7 @@ struct SearchLocationInfoBento: View {
             return isoString
         }
         formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.timeStyle = .none
         return formatter.string(from: date)
     }
 

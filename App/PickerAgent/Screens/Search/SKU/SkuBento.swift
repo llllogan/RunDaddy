@@ -22,18 +22,16 @@ struct SkuInfoBento: View {
         
         cards.append(
             BentoItem(title: "Details",
-                      value: sku.name,
+                      value: sku.type,
                       symbolName: "tag",
                       symbolTint: .orange,
                       allowsMultilineValue: true,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(sku.name)
+                            Text(sku.type)
                                 .font(.title3.weight(.semibold))
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
-                            
-                            InfoChip(title: "Type", date: nil, text: sku.type, colour: nil, foregroundColour: nil, icon: nil)
                             
                             InfoChip(title: "Category", date: nil, text: sku.category ?? "None", colour: nil, foregroundColour: nil, icon: nil)
                         }

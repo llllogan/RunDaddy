@@ -18,25 +18,33 @@ struct MachineInfoBento: View {
     }
 
     private var detailsCard: BentoItem {
-        BentoItem(
+        let typeName = machine.machineType?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let displayName = typeName.isEmpty ? "Unknown type" : typeName
+        let typeDescription = machine.machineType?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chipText: String
+        if let typeDescription, !typeDescription.isEmpty {
+            chipText = typeDescription
+        } else if machine.machineType != nil {
+            chipText = "No description yet"
+        } else {
+            chipText = "No type details"
+        }
+
+        return BentoItem(
             title: "Details",
-            value: machine.description ?? "No description yet",
+            value: displayName,
             symbolName: "building",
             symbolTint: .orange,
             allowsMultilineValue: true,
             customContent: AnyView(
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(machine.description?.isEmpty == false ? (machine.description ?? "") : "No description yet")
+                    Text(displayName)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
 
-                    if let machineType = machine.machineType {
-                        InfoChip(title: "Type", date: nil, text: machineType.name, colour: nil, foregroundColour: nil, icon: nil)
-                    } else {
-                        InfoChip(title: "Type", date: nil, text: "Unknown", colour: nil, foregroundColour: nil, icon: nil)
-                    }
+                    InfoChip(title: "Type", date: nil, text: chipText, colour: nil, foregroundColour: nil, icon: nil)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             )

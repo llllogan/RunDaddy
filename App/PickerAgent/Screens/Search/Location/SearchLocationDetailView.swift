@@ -11,8 +11,10 @@ struct SearchLocationDetailView: View {
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var selectedBreakdown: LocationChartBreakdown = .machines
-    @State private var machineDetailNavigationId: String?
-    @State private var skuDetailNavigationId: String?
+    @State private var machineNavigationTarget: SearchLocationMachineNavigation?
+    @State private var skuNavigationTarget: SearchLocationSkuNavigation?
+    @Environment(\.openURL) private var openURL
+    @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
     private let locationsService: LocationsServicing = LocationsService()
 
@@ -88,7 +90,23 @@ struct SearchLocationDetailView: View {
                 await loadLocationStats()
             }
         }
-        .background(navigationLinks)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    openDirections()
+                } label: {
+                    Image(systemName: "map")
+                }
+                .disabled(locationDirectionsQuery == nil)
+                .accessibilityLabel("Get directions")
+            }
+        }
+        .navigationDestination(item: $machineNavigationTarget) { target in
+            MachineDetailView(machineId: target.id, session: session)
+        }
+        .navigationDestination(item: $skuNavigationTarget) { target in
+            SkuDetailView(skuId: target.id, session: session)
+        }
     }
 
     private func loadLocationDetails() async {
@@ -121,60 +139,50 @@ struct SearchLocationDetailView: View {
 
     private func navigateToMachineDetail(_ machine: LocationBestMachine) {
         guard !machine.machineId.isEmpty else { return }
-        machineDetailNavigationId = machine.machineId
+        machineNavigationTarget = SearchLocationMachineNavigation(id: machine.machineId)
     }
 
     private func navigateToSkuDetail(_ sku: LocationBestSku) {
         guard !sku.skuId.isEmpty else { return }
-        skuDetailNavigationId = sku.skuId
+        skuNavigationTarget = SearchLocationSkuNavigation(id: sku.skuId)
     }
 
-    @ViewBuilder
-    private var navigationLinks: some View {
-        VStack {
-            NavigationLink(
-                isActive: Binding(
-                    get: { machineDetailNavigationId != nil },
-                    set: { isActive in
-                        if !isActive {
-                            machineDetailNavigationId = nil
-                        }
-                    }
-                ),
-                destination: {
-                    if let machineId = machineDetailNavigationId {
-                        MachineDetailView(machineId: machineId, session: session)
-                    } else {
-                        EmptyView()
-                    }
-                },
-                label: {
-                    EmptyView()
-                }
-            )
-            .hidden()
+    private var preferredDirectionsApp: DirectionsApp {
+        DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
+    }
 
-            NavigationLink(
-                isActive: Binding(
-                    get: { skuDetailNavigationId != nil },
-                    set: { isActive in
-                        if !isActive {
-                            skuDetailNavigationId = nil
-                        }
-                    }
-                ),
-                destination: {
-                    if let skuId = skuDetailNavigationId {
-                        SkuDetailView(skuId: skuId, session: session)
-                    } else {
-                        EmptyView()
-                    }
-                },
-                label: {
-                    EmptyView()
-                }
-            )
-            .hidden()
+    private var locationDirectionsQuery: String? {
+        guard let location else { return nil }
+        let trimmedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedAddress.isEmpty {
+            return trimmedAddress
+        }
+
+        let trimmedName = location.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? nil : trimmedName
+    }
+
+    private func openDirections() {
+        guard let query = locationDirectionsQuery,
+              let targetURL = preferredDirectionsApp.url(for: query) else {
+            return
+        }
+
+        openURL(targetURL) { accepted in
+            guard !accepted,
+                  preferredDirectionsApp == .waze,
+                  let fallbackURL = DirectionsApp.appleMaps.url(for: query) else {
+                return
+            }
+            openURL(fallbackURL)
         }
     }
+}
+
+private struct SearchLocationMachineNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct SearchLocationSkuNavigation: Identifiable, Hashable {
+    let id: String
 }
