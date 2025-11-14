@@ -13,6 +13,7 @@ import { loggingMiddleware } from './middleware/logging.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { adminRouter } from './routes/admin.js';
 import { machinesRouter } from './routes/machines.js';
+import { locationsRouter } from './routes/locations.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -47,6 +48,7 @@ app.use('/api/run-imports', runImportsRouter);
 app.use('/api/runs', runRouter);
 app.use('/api/skus', skuRouter);
 app.use('/api/machines', machinesRouter);
+app.use('/api/locations', locationsRouter);
 app.use('/api/invite-codes', inviteCodesRouter);
 app.use('/api/companies', companyRouter);
 app.use('/api/analytics', analyticsRouter);
