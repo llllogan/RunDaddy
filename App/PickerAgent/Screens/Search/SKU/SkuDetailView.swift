@@ -11,6 +11,8 @@ struct SkuDetailView: View {
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var isUpdatingCheeseStatus = false
+    @State private var selectedLocationFilter: String?
+    @State private var selectedMachineFilter: String?
     
     private let skusService = SkusService()
     
@@ -66,7 +68,15 @@ struct SkuDetailView: View {
 
                 if let skuStats = skuStats {
                     Section {
-                        SkuStatsChartView(stats: skuStats, selectedPeriod: $selectedPeriod)
+                        SkuStatsChartView(
+                            stats: skuStats,
+                            selectedPeriod: $selectedPeriod,
+                            selectedLocationFilter: $selectedLocationFilter,
+                            selectedMachineFilter: $selectedMachineFilter,
+                            onFilterChange: { locationId, machineId in
+                                await applySkuStatsFilters(locationId: locationId, machineId: machineId)
+                            }
+                        )
                     } header: {
                         Text("Recent Activity")
                     }
@@ -101,12 +111,27 @@ struct SkuDetailView: View {
     private func loadSkuStats() async {
         isLoadingStats = true
         do {
-            skuStats = try await skusService.getSkuStats(id: skuId, period: selectedPeriod)
+            skuStats = try await skusService.getSkuStats(
+                id: skuId,
+                period: selectedPeriod,
+                locationId: selectedLocationFilter,
+                machineId: selectedMachineFilter
+            )
         } catch {
             // Don't show error for stats failure, just log it
             print("Failed to load SKU stats: \(error)")
         }
         isLoadingStats = false
+    }
+    
+    private func applySkuStatsFilters(locationId: String?, machineId: String?) async {
+        let didChange = selectedLocationFilter != locationId || selectedMachineFilter != machineId
+        if !didChange {
+            return
+        }
+        selectedLocationFilter = locationId
+        selectedMachineFilter = machineId
+        await loadSkuStats()
     }
     
     private func toggleCheeseStatus() {

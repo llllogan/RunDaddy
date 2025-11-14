@@ -2,7 +2,12 @@ import Foundation
 
 protocol SkusServicing {
     func getSku(id: String) async throws -> SKU
-    func getSkuStats(id: String, period: SkuPeriod) async throws -> SkuStatsResponse
+    func getSkuStats(
+        id: String,
+        period: SkuPeriod,
+        locationId: String?,
+        machineId: String?
+    ) async throws -> SkuStatsResponse
     func updateCheeseStatus(id: String, isCheeseAndCrackers: Bool) async throws
 }
 
@@ -55,7 +60,12 @@ final class SkusService: SkusServicing {
         return try decoder.decode(SKU.self, from: data)
     }
     
-    func getSkuStats(id: String, period: SkuPeriod) async throws -> SkuStatsResponse {
+    func getSkuStats(
+        id: String,
+        period: SkuPeriod,
+        locationId: String? = nil,
+        machineId: String? = nil
+    ) async throws -> SkuStatsResponse {
         guard let credentials = credentialStore.loadCredentials() else {
             throw AuthError.unauthorized
         }
@@ -65,7 +75,14 @@ final class SkusService: SkusServicing {
         url.appendPathComponent(id)
         url.appendPathComponent("stats")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "period", value: period.rawValue)]
+        var queryItems = [URLQueryItem(name: "period", value: period.rawValue)]
+        if let locationId, !locationId.isEmpty {
+            queryItems.append(URLQueryItem(name: "locationId", value: locationId))
+        }
+        if let machineId, !machineId.isEmpty {
+            queryItems.append(URLQueryItem(name: "machineId", value: machineId))
+        }
+        components?.queryItems = queryItems
         let resolvedURL = components?.url ?? url
         
         var request = URLRequest(url: resolvedURL)

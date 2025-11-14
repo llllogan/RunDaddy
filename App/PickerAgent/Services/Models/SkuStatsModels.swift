@@ -42,6 +42,9 @@ struct SkuStatsResponse: Codable {
     let bestMachine: SkuBestMachine?
     let points: [SkuStatsPoint]
     let mostRecentPick: MostRecentPick?
+    let filters: SkuStatsFilters
+    let locations: [SkuStatsLocationOption]
+    let machines: [SkuStatsMachineOption]
 }
 
 struct SkuStatsProgress: Codable {
@@ -86,4 +89,38 @@ struct MostRecentPick: Codable {
     let pickedAt: String
     let locationName: String
     let runId: String
+}
+
+struct SkuStatsFilters: Codable {
+    let locationId: String?
+    let machineId: String?
+}
+
+struct SkuStatsLocationOption: Codable, Identifiable, Equatable {
+    let id: String
+    let name: String
+    let totalItems: Int
+
+    var displayName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Location" : trimmed
+    }
+}
+
+struct SkuStatsMachineOption: Codable, Identifiable, Equatable {
+    let id: String
+    let code: String
+    let description: String
+    let locationId: String?
+    let locationName: String?
+    let totalItems: Int
+
+    var displayName: String {
+        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDescription.isEmpty {
+            return trimmedDescription
+        }
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedCode.isEmpty ? "Machine" : trimmedCode
+    }
 }

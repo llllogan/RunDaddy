@@ -221,7 +221,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
 });
 
 // Get SKU statistics
-router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -272,6 +272,9 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
+  const locationFilter = normalizeFilterValue(req.query.locationId);
+  const machineFilter = normalizeFilterValue(req.query.machineId);
+
   const periodQuery =
     typeof req.query.period === 'string' ? req.query.period.toLowerCase() : undefined;
   const period =
@@ -287,17 +290,25 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
   const dataEnd = new Date(Math.min(periodRange.end.getTime(), chartRange.end.getTime()));
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
 
-  const { points, totalItems, latestPeriodRowEndMs } = await buildSkuChartPoints(
-    skuId,
-    chartRange.start,
-    chartRange.end,
-    dataEnd,
-    periodStart,
-    periodEnd,
-    req.auth!.companyId,
-    timeZone,
-    period,
-  );
+  const [chartData, locationRows, machineRows] = await Promise.all([
+    buildSkuChartPoints(
+      skuId,
+      chartRange.start,
+      chartRange.end,
+      dataEnd,
+      periodStart,
+      periodEnd,
+      req.auth!.companyId,
+      timeZone,
+      period,
+      locationFilter,
+      machineFilter,
+    ),
+    fetchSkuLocationOptions(skuId, req.auth!.companyId),
+    fetchSkuMachineOptions(skuId, req.auth!.companyId),
+  ]);
+
+  const { points, totalItems, latestPeriodRowEndMs } = chartData;
 
   const coverageReferenceMs = Math.max(now.getTime(), latestPeriodRowEndMs ?? now.getTime());
   const coverageMs = Math.max(
@@ -309,13 +320,30 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
 
   const previousTotal =
     coverageMs > 0
-      ? await getSkuTotalPicks(skuId, previousWindowStart, previousWindowEnd, req.auth!.companyId)
+      ? await getSkuTotalPicks(
+          skuId,
+          previousWindowStart,
+          previousWindowEnd,
+          req.auth!.companyId,
+          locationFilter,
+          machineFilter,
+        )
       : 0;
 
   const percentageChange =
     coverageMs > 0 ? buildPercentageChange(totalItems, previousTotal) : null;
-  const bestMachine = await getSkuBestMachine(skuId, req.auth!.companyId);
-  const mostRecentPick = await getMostRecentPick(skuId, req.auth!.companyId);
+  const bestMachine = await getSkuBestMachine(
+    skuId,
+    req.auth!.companyId,
+    locationFilter,
+    machineFilter,
+  );
+  const mostRecentPick = await getMostRecentPick(
+    skuId,
+    req.auth!.companyId,
+    locationFilter,
+    machineFilter,
+  );
 
   return res.json({
     generatedAt: new Date().toISOString(),
@@ -333,10 +361,38 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     bestMachine,
     points,
     mostRecentPick,
+    filters: {
+      locationId: locationFilter,
+      machineId: machineFilter,
+    },
+    locations: locationRows
+      .filter(row => row.locationId)
+      .map(row => ({
+        id: row.locationId!,
+        name: row.locationName ?? 'Location',
+        totalItems: Number(row.machineCount ?? 0),
+      })),
+    machines: machineRows
+      .filter(row => row.machineId)
+      .map(row => ({
+        id: row.machineId!,
+        code: row.machineCode ?? 'Machine',
+        description: row.machineDescription ?? row.machineCode ?? 'Machine',
+        locationId: row.locationId ?? undefined,
+        locationName: row.locationName ?? undefined,
+        totalItems: Number(row.placementCount ?? 0),
+      })),
   });
 });
 
-async function getMostRecentPick(skuId: string, companyId: string) {
+async function getMostRecentPick(
+  skuId: string,
+  companyId: string,
+  locationFilter: string | null,
+  machineFilter: string | null,
+) {
+  const machineFilters = buildMachineFilterSql(locationFilter, machineFilter);
+
   const result = await prisma.$queryRaw<Array<{
     scheduledFor: Date | null;
     locationName: string;
@@ -356,6 +412,7 @@ async function getMostRecentPick(skuId: string, companyId: string) {
       WHERE ci.skuId = ${skuId}
         AND r.scheduledFor IS NOT NULL
         AND r.companyId = ${companyId}
+        ${machineFilters}
       ORDER BY r.scheduledFor DESC
       LIMIT 1
     `
@@ -413,6 +470,21 @@ type ChartPoint = {
   }>;
 };
 
+type SkuLocationOptionRow = {
+  locationId: string | null;
+  locationName: string | null;
+  machineCount: bigint | number | null;
+};
+
+type SkuMachineOptionRow = {
+  machineId: string | null;
+  machineCode: string | null;
+  machineDescription: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  placementCount: bigint | number | null;
+};
+
 type PeriodBucket = {
   key: string;
   label: string;
@@ -432,7 +504,11 @@ async function buildSkuChartPoints(
   companyId: string,
   timeZone: string,
   period: SkuStatsPeriod,
+  locationFilter: string | null,
+  machineFilter: string | null,
 ) {
+  const machineFilters = buildMachineFilterSql(locationFilter, machineFilter);
+
   const rows = await prisma.$queryRaw<Array<ChartRow>>(
     Prisma.sql`
       SELECT 
@@ -451,6 +527,7 @@ async function buildSkuChartPoints(
         AND r.scheduledFor >= ${chartStart}
         AND r.scheduledFor < ${dataEnd}
         AND r.companyId = ${companyId}
+        ${machineFilters}
       GROUP BY date, mach.id, mach.code, mach.description
       ORDER BY date ASC, mach.code ASC
     `,
@@ -523,30 +600,86 @@ async function buildSkuChartPoints(
   return { points, totalItems: periodTotalItems, latestPeriodRowEndMs };
 }
 
+async function fetchSkuLocationOptions(skuId: string, companyId: string) {
+  return prisma.$queryRaw<Array<SkuLocationOptionRow>>(
+    Prisma.sql`
+      SELECT 
+        loc.id AS locationId,
+        loc.name AS locationName,
+        COUNT(DISTINCT mach.id) AS machineCount
+      FROM Machine mach
+      JOIN Coil coil ON coil.machineId = mach.id
+      JOIN CoilItem ci ON ci.coilId = coil.id
+      LEFT JOIN Location loc ON loc.id = mach.locationId
+      WHERE ci.skuId = ${skuId}
+        AND mach.companyId = ${companyId}
+        AND loc.id IS NOT NULL
+      GROUP BY loc.id, loc.name
+      ORDER BY loc.name ASC
+    `,
+  );
+}
+
+async function fetchSkuMachineOptions(skuId: string, companyId: string) {
+  return prisma.$queryRaw<Array<SkuMachineOptionRow>>(
+    Prisma.sql`
+      SELECT
+        mach.id AS machineId,
+        mach.code AS machineCode,
+        mach.description AS machineDescription,
+        loc.id AS locationId,
+        loc.name AS locationName,
+        COUNT(ci.id) AS placementCount
+      FROM Machine mach
+      JOIN Coil coil ON coil.machineId = mach.id
+      JOIN CoilItem ci ON ci.coilId = coil.id
+      LEFT JOIN Location loc ON loc.id = mach.locationId
+      WHERE ci.skuId = ${skuId}
+        AND mach.companyId = ${companyId}
+      GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
+      ORDER BY mach.code ASC
+    `,
+  );
+}
+
 async function getSkuTotalPicks(
   skuId: string,
   startDate: Date,
   endDate: Date,
   companyId: string,
+  locationFilter: string | null,
+  machineFilter: string | null,
 ) {
+  const machineFilters = buildMachineFilterSql(locationFilter, machineFilter);
+
   const result = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
     Prisma.sql`
       SELECT SUM(pe.count) AS totalPicked
       FROM PickEntry pe
       JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND r.scheduledFor IS NOT NULL
         AND r.scheduledFor >= ${startDate}
         AND r.scheduledFor < ${endDate}
         AND r.companyId = ${companyId}
+        ${machineFilters}
     `,
   );
 
   return Number(result[0]?.totalPicked ?? 0);
 }
 
-async function getSkuBestMachine(skuId: string, companyId: string) {
+async function getSkuBestMachine(
+  skuId: string,
+  companyId: string,
+  locationFilter: string | null,
+  machineFilter: string | null,
+) {
+  const machineFilters = buildMachineFilterSql(locationFilter, machineFilter);
+
   const result = await prisma.$queryRaw<Array<{
     machineId: string;
     machineCode: string;
@@ -569,6 +702,7 @@ async function getSkuBestMachine(skuId: string, companyId: string) {
       JOIN Run r ON r.id = pe.runId
       WHERE ci.skuId = ${skuId}
         AND r.companyId = ${companyId}
+        ${machineFilters}
       GROUP BY mach.id, mach.code, mach.description, loc.name
       ORDER BY totalPicked DESC
       LIMIT 1
@@ -801,6 +935,27 @@ function getNextMonthStart(date: Date, timeZone: string): Date {
   const { year, month } = getLocalDateParts(date, timeZone);
   const candidate = new Date(Date.UTC(year, month, 1));
   return convertDateToTimezoneMidnight(candidate, timeZone);
+}
+
+function buildMachineFilterSql(locationFilter: string | null, machineFilter: string | null) {
+  if (locationFilter && machineFilter) {
+    return Prisma.sql`AND mach.locationId = ${locationFilter} AND mach.id = ${machineFilter}`;
+  }
+  if (locationFilter) {
+    return Prisma.sql`AND mach.locationId = ${locationFilter}`;
+  }
+  if (machineFilter) {
+    return Prisma.sql`AND mach.id = ${machineFilter}`;
+  }
+  return Prisma.sql``;
+}
+
+function normalizeFilterValue(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export const skuRouter = router;
