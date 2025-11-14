@@ -284,32 +284,36 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
   const periodDurationMs = periodEnd.getTime() - periodStart.getTime();
   const periodDays = PERIOD_DAY_COUNTS[period];
   const chartRange = buildChartRange(period, periodRange, timeZone);
-  const currentDayRange = getTimezoneDayRange({ timeZone, reference: now });
-  // Include the rest of the current day so packs from runs scheduled later today are counted
-  const dataEnd = new Date(
-    Math.min(currentDayRange.end.getTime(), chartRange.end.getTime()),
-  );
+  const dataEnd = new Date(Math.min(periodRange.end.getTime(), chartRange.end.getTime()));
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
-  const previousWindowEnd = new Date(periodStart);
-  const previousWindowStart = new Date(periodStart.getTime() - elapsedMs);
 
-  const { points, totalItems } = await buildSkuChartPoints(
+  const { points, totalItems, latestPeriodRowEndMs } = await buildSkuChartPoints(
     skuId,
     chartRange.start,
     chartRange.end,
     dataEnd,
+    periodStart,
+    periodEnd,
     req.auth!.companyId,
     timeZone,
     period,
   );
 
+  const coverageReferenceMs = Math.max(now.getTime(), latestPeriodRowEndMs ?? now.getTime());
+  const coverageMs = Math.max(
+    0,
+    Math.min(periodDurationMs, coverageReferenceMs - periodStart.getTime()),
+  );
+  const previousWindowEnd = new Date(periodStart);
+  const previousWindowStart = new Date(periodStart.getTime() - coverageMs);
+
   const previousTotal =
-    elapsedMs > 0
+    coverageMs > 0
       ? await getSkuTotalPicks(skuId, previousWindowStart, previousWindowEnd, req.auth!.companyId)
       : 0;
 
   const percentageChange =
-    elapsedMs > 0 ? buildPercentageChange(totalItems, previousTotal) : null;
+    coverageMs > 0 ? buildPercentageChange(totalItems, previousTotal) : null;
   const bestMachine = await getSkuBestMachine(skuId, req.auth!.companyId);
   const mostRecentPick = await getMostRecentPick(skuId, req.auth!.companyId);
 
@@ -423,6 +427,8 @@ async function buildSkuChartPoints(
   chartStart: Date,
   chartEnd: Date,
   dataEnd: Date,
+  periodStart: Date,
+  periodEnd: Date,
   companyId: string,
   timeZone: string,
   period: SkuStatsPeriod,
@@ -452,31 +458,47 @@ async function buildSkuChartPoints(
 
   const buckets = buildChartBuckets(period, chartStart, chartEnd, timeZone);
 
+  const periodStartMs = periodStart.getTime();
+  const periodEndMs = periodEnd.getTime();
   const bucketTotals = new Map<string, number>();
   const bucketMachines = new Map<
     string,
     Map<string, { machineCode: string; machineName: string | null; count: number }>
   >();
+  let latestPeriodRowEndMs: number | null = null;
+  let periodTotalItems = 0;
 
   for (const row of rows) {
-    const rowDate = parseLocalDate(row.date, timeZone).getTime();
-    const bucket = buckets.find(b => rowDate >= b.startMs && rowDate < b.endMs);
+    const rowDate = parseLocalDate(row.date, timeZone);
+    const rowDateMs = rowDate.getTime();
+    const rowEndMs = rowDateMs + ONE_DAY_MS;
+    const rowCount = Number(row.totalPicked);
+
+    if (rowEndMs > periodStartMs && rowDateMs < periodEndMs) {
+      periodTotalItems += rowCount;
+      const clampedRowEnd = Math.min(rowEndMs, periodEndMs);
+      latestPeriodRowEndMs =
+        latestPeriodRowEndMs === null
+          ? clampedRowEnd
+          : Math.max(latestPeriodRowEndMs, clampedRowEnd);
+    }
+
+    const bucket = buckets.find(b => rowDateMs >= b.startMs && rowDateMs < b.endMs);
     if (!bucket) {
       continue;
     }
 
-    const count = Number(row.totalPicked);
     const machinesForBucket = bucketMachines.get(bucket.key) ?? new Map();
     const existing = machinesForBucket.get(row.machineId);
 
     machinesForBucket.set(row.machineId, {
       machineCode: row.machineCode,
       machineName: row.machineName,
-      count: (existing?.count ?? 0) + count,
+      count: (existing?.count ?? 0) + rowCount,
     });
 
     bucketMachines.set(bucket.key, machinesForBucket);
-    bucketTotals.set(bucket.key, (bucketTotals.get(bucket.key) ?? 0) + count);
+    bucketTotals.set(bucket.key, (bucketTotals.get(bucket.key) ?? 0) + rowCount);
   }
 
   const points: ChartPoint[] = buckets.map(bucket => {
@@ -498,8 +520,7 @@ async function buildSkuChartPoints(
     };
   });
 
-  const totalItems = points.reduce((sum, point) => sum + point.totalItems, 0);
-  return { points, totalItems };
+  return { points, totalItems: periodTotalItems, latestPeriodRowEndMs };
 }
 
 async function getSkuTotalPicks(
