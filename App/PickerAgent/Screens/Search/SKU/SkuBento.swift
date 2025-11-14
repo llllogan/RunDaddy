@@ -43,7 +43,7 @@ struct SkuInfoBento: View {
         
         if let mostRecentPick = mostRecentPick {
             cards.append(
-                BentoItem(title: "Most Recent Pick",
+                BentoItem(title: "Last Packed",
                           value: formatDate(mostRecentPick.pickedAt),
                           symbolName: "clock",
                           symbolTint: .indigo,

@@ -10,6 +10,7 @@ struct MachineDetailView: View {
     @State private var isLoadingStats = true
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
+    @State private var skuDetailNavigationId: String?
 
     private let machinesService = MachinesService()
 
@@ -39,7 +40,10 @@ struct MachineDetailView: View {
                         MachineInfoBento(
                             machine: machine,
                             stats: machineStats,
-                            selectedPeriod: selectedPeriod
+                            selectedPeriod: selectedPeriod,
+                            onBestSkuTap: { bestSku in
+                                navigateToSkuDetail(bestSku)
+                            }
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading machine stats...")
@@ -48,7 +52,8 @@ struct MachineDetailView: View {
                         MachineInfoBento(
                             machine: machine,
                             stats: nil,
-                            selectedPeriod: selectedPeriod
+                            selectedPeriod: selectedPeriod,
+                            onBestSkuTap: nil
                         )
                     }
                 } header: {
@@ -80,6 +85,7 @@ struct MachineDetailView: View {
                 await loadMachineStats()
             }
         }
+        .background(skuNavigationLink)
     }
 
     private func loadMachineDetails() async {
@@ -115,5 +121,34 @@ struct MachineDetailView: View {
             return code
         }
         return "Machine Details"
+    }
+
+    private func navigateToSkuDetail(_ bestSku: MachineBestSku) {
+        guard !bestSku.skuId.isEmpty else { return }
+        skuDetailNavigationId = bestSku.skuId
+    }
+
+    private var skuNavigationLink: some View {
+        NavigationLink(
+            isActive: Binding(
+                get: { skuDetailNavigationId != nil },
+                set: { isActive in
+                    if !isActive {
+                        skuDetailNavigationId = nil
+                    }
+                }
+            ),
+            destination: {
+                if let skuId = skuDetailNavigationId {
+                    SkuDetailView(skuId: skuId, session: session)
+                } else {
+                    EmptyView()
+                }
+            },
+            label: {
+                EmptyView()
+            }
+        )
+        .hidden()
     }
 }

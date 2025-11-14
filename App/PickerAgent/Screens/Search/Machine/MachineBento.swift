@@ -4,6 +4,7 @@ struct MachineInfoBento: View {
     let machine: Machine
     let stats: MachineStatsResponse?
     let selectedPeriod: SkuPeriod
+    let onBestSkuTap: ((MachineBestSku) -> Void)?
 
     private var cards: [BentoItem] {
         [
@@ -87,23 +88,28 @@ struct MachineInfoBento: View {
     }
 
     private var bestSkuCard: BentoItem {
-        let bestSku = stats?.bestSku
-        let subtitle: String? = {
-            guard let bestSku else {
-                return "No SKU data yet"
-            }
-            let trimmed = bestSku.skuType.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.lowercased() == "general" || trimmed.isEmpty {
-                return nil
-            }
-            return trimmed
-        }()
+        guard let stats, let bestSku = stats.bestSku else {
+            return BentoItem(
+                title: "Best SKU",
+                value: "No data",
+                subtitle: "No SKU data yet",
+                symbolName: "star.circle",
+                symbolTint: .cyan
+            )
+        }
+
+        let trimmedType = bestSku.skuType.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtitle = trimmedType.lowercased() == "general" || trimmedType.isEmpty ? bestSku.skuCode : trimmedType
+
         return BentoItem(
             title: "Best SKU",
-            value: bestSku?.skuName ?? "No data",
+            value: bestSku.skuName.isEmpty ? bestSku.skuCode : bestSku.skuName,
             subtitle: subtitle,
             symbolName: "star.circle",
-            symbolTint: .cyan
+            symbolTint: .cyan,
+            isProminent: true,
+            onTap: { onBestSkuTap?(bestSku) },
+            showsChevron: true
         )
     }
 
