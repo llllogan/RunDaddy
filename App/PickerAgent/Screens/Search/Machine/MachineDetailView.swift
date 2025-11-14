@@ -70,7 +70,7 @@ struct MachineDetailView: View {
                 }
             }
         }
-        .navigationTitle(machine?.code ?? "Machine Details")
+        .navigationTitle(machineDisplayTitle)
         .navigationBarTitleDisplayMode(.large)
         .task {
             await loadMachineDetails()
@@ -105,5 +105,15 @@ struct MachineDetailView: View {
             machineStats = nil
         }
         isLoadingStats = false
+    }
+
+    private var machineDisplayTitle: String {
+        if let description = machine?.description, !description.isEmpty {
+            return description
+        }
+        if let code = machine?.code, !code.isEmpty {
+            return code
+        }
+        return "Machine Details"
     }
 }

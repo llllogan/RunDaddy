@@ -83,7 +83,7 @@ struct SkuDetailView: View {
                 }
             }
         }
-        .navigationTitle(sku?.code ?? "SKU Details")
+        .navigationTitle(skuDisplayTitle)
         .navigationBarTitleDisplayMode(.large)
         .task {
             await loadSkuDetails()
@@ -153,5 +153,15 @@ struct SkuDetailView: View {
             }
             isUpdatingCheeseStatus = false
         }
+    }
+    
+    private var skuDisplayTitle: String {
+        if let name = sku?.name, !name.isEmpty {
+            return name
+        }
+        if let code = sku?.code, !code.isEmpty {
+            return code
+        }
+        return "SKU Details"
     }
 }

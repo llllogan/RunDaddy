@@ -20,8 +20,8 @@ struct MachineInfoBento: View {
         BentoItem(
             title: "Details",
             value: machine.description ?? "No description yet",
-            symbolName: "wrench.and.screwdriver",
-            symbolTint: .blue,
+            symbolName: "building",
+            symbolTint: .orange,
             allowsMultilineValue: true,
             customContent: AnyView(
                 VStack(alignment: .leading, spacing: 8) {
@@ -57,7 +57,7 @@ struct MachineInfoBento: View {
             title: "Code",
             value: machine.code,
             symbolName: "barcode",
-            symbolTint: .orange
+            symbolTint: .blue
         )
     }
 
@@ -103,8 +103,7 @@ struct MachineInfoBento: View {
             value: bestSku?.skuName ?? "No data",
             subtitle: subtitle,
             symbolName: "star.circle",
-            symbolTint: .green,
-            isProminent: bestSku != nil
+            symbolTint: .cyan
         )
     }
 

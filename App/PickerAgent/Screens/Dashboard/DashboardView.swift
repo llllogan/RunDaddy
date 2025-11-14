@@ -305,13 +305,61 @@ private struct SearchResultRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(result.title)
+                Text(primaryText)
                     .font(.headline)
-                Text(result.subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let secondaryText, !secondaryText.isEmpty {
+                    Text(secondaryText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var primaryText: String {
+        switch result.type.lowercased() {
+        case "machine":
+            return result.subtitle.isEmpty ? result.title : result.subtitle
+        case "sku":
+            return skuName ?? (result.subtitle.isEmpty ? result.title : result.subtitle)
+        default:
+            return result.title
+        }
+    }
+
+    private var secondaryText: String? {
+        switch result.type.lowercased() {
+        case "machine":
+            return result.title
+        case "sku":
+            let detailText = skuDetails
+            var parts: [String] = []
+            if let detailText, !detailText.isEmpty {
+                parts.append(detailText)
+            }
+            if !result.title.isEmpty {
+                parts.append(result.title)
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " • ")
+        default:
+            return result.subtitle.isEmpty ? nil : result.subtitle
+        }
+    }
+
+    private var skuName: String? {
+        skuSubtitleComponents.first
+    }
+
+    private var skuDetails: String? {
+        let details = skuSubtitleComponents.dropFirst().joined(separator: " • ")
+        return details.isEmpty ? nil : details
+    }
+
+    private var skuSubtitleComponents: [String] {
+        result.subtitle
+            .split(separator: "•")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }
