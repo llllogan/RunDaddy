@@ -68,46 +68,7 @@ struct SkuStatsChartView: View {
             filterControls
 
             if hasChartData {
-                Chart {
-                    ForEach(stats.points, id: \.date) { point in
-                        let dayLabel = pointLabel(for: point)
-                        if point.machines.isEmpty {
-                            BarMark(
-                                x: .value("Day", dayLabel),
-                                y: .value("Items", 0)
-                            )
-                            .foregroundStyle(.gray)
-                            .opacity(0.6)
-                        } else {
-                            ForEach(point.machines) { machine in
-                                let machineLabel = machine.machineName ?? machine.machineCode
-                                BarMark(
-                                    x: .value("Day", dayLabel),
-                                    y: .value("Items", machine.count)
-                                )
-                                .foregroundStyle(by: .value("Machine", machineLabel))
-                            }
-                        }
-                    }
-                }
-                .chartLegend(position: .top, alignment: .leading)
-                .chartYAxis {
-                    AxisMarks(position: .leading)
-                }
-                .chartXAxis {
-                    AxisMarks(values: orderedDayLabels) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let label = value.as(String.self) {
-                                Text(label)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.center)
-                            }
-                        }
-                    }
-                }
-                .chartYScale(domain: 0...maxYValue)
-                .frame(height: 240)
+                chartView
             } else {
                 Text("No data is available for the selected period.")
                     .font(.caption)
@@ -134,6 +95,10 @@ struct SkuStatsChartView: View {
 
     private var hasChartData: Bool {
         stats.points.contains { !$0.machines.isEmpty }
+    }
+
+    private var shouldHideLegend: Bool {
+        machineOptions.count > 6
     }
 
     private var maxYValue: Double {
@@ -170,7 +135,7 @@ struct SkuStatsChartView: View {
         }
         return point.date
     }
-    
+
     @ViewBuilder
     private var filterControls: some View {
         HStack {
@@ -221,6 +186,57 @@ struct SkuStatsChartView: View {
     private func applyFilters(locationId: String?, machineId: String?) {
         Task {
             await onFilterChange(locationId, machineId)
+        }
+    }
+
+    @ViewBuilder
+    private var chartView: some View {
+        let chart = Chart {
+            ForEach(stats.points, id: \.date) { point in
+                let dayLabel = pointLabel(for: point)
+                if point.machines.isEmpty {
+                    BarMark(
+                        x: .value("Day", dayLabel),
+                        y: .value("Items", 0)
+                    )
+                    .foregroundStyle(.gray)
+                    .opacity(0.6)
+                } else {
+                    ForEach(point.machines) { machine in
+                        let machineLabel = machine.machineName ?? machine.machineCode
+                        BarMark(
+                            x: .value("Day", dayLabel),
+                            y: .value("Items", machine.count)
+                        )
+                        .foregroundStyle(by: .value("Machine", machineLabel))
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading)
+        }
+        .chartXAxis {
+            AxisMarks(values: orderedDayLabels) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let label = value.as(String.self) {
+                        Text(label)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+        }
+        .chartYScale(domain: 0...maxYValue)
+        .frame(height: 240)
+
+        if shouldHideLegend {
+            chart
+                .chartLegend(.hidden)
+        } else {
+            chart
+                .chartLegend(position: .top, alignment: .leading)
         }
     }
 }
