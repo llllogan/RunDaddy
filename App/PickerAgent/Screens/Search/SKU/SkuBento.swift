@@ -15,6 +15,7 @@ struct SkuInfoBento: View {
     let percentageChange: SkuPercentageChange?
     let bestMachine: SkuBestMachine?
     let selectedPeriod: SkuPeriod?
+    let onBestMachineTap: ((SkuBestMachine) -> Void)?
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -95,14 +96,27 @@ struct SkuInfoBento: View {
                       isProminent: percentageChange?.trend == "up")
         )
 
-        cards.append(
-            BentoItem(title: "Best Machine",
-                      value: bestMachine?.machineName ?? "No data",
-                      subtitle: bestMachine?.locationName ?? bestMachine?.machineCode ?? "No machine data yet",
-                      symbolName: "building",
-                      symbolTint: .cyan,
-                      isProminent: bestMachine != nil)
-        )
+        if let bestMachine = bestMachine {
+            cards.append(
+                BentoItem(title: "Best Machine",
+                          value: (bestMachine.machineName?.isEmpty == false ? bestMachine.machineName : nil) ?? bestMachine.machineCode,
+                          subtitle: bestMachine.locationName ?? bestMachine.machineCode,
+                          symbolName: "building",
+                          symbolTint: .cyan,
+                          isProminent: true,
+                          onTap: { onBestMachineTap?(bestMachine) },
+                          showsChevron: true)
+            )
+        } else {
+            cards.append(
+                BentoItem(title: "Best Machine",
+                          value: "No data",
+                          subtitle: "No machine data yet",
+                          symbolName: "building",
+                          symbolTint: .cyan,
+                          isProminent: false)
+            )
+        }
         
         return cards
     }

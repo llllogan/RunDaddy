@@ -13,6 +13,7 @@ struct SkuDetailView: View {
     @State private var isUpdatingCheeseStatus = false
     @State private var selectedLocationFilter: String?
     @State private var selectedMachineFilter: String?
+    @State private var machineDetailNavigationId: String?
     
     private let skusService = SkusService()
     
@@ -47,7 +48,10 @@ struct SkuDetailView: View {
                             mostRecentPick: skuStats.mostRecentPick,
                             percentageChange: skuStats.percentageChange,
                             bestMachine: skuStats.bestMachine,
-                            selectedPeriod: selectedPeriod
+                            selectedPeriod: selectedPeriod,
+                            onBestMachineTap: { bestMachine in
+                                navigateToMachineDetail(bestMachine)
+                            }
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -93,6 +97,7 @@ struct SkuDetailView: View {
                 await loadSkuStats()
             }
         }
+        .background(machineNavigationLink)
     }
     
     private func loadSkuDetails() async {
@@ -163,5 +168,34 @@ struct SkuDetailView: View {
             return code
         }
         return "SKU Details"
+    }
+
+    private func navigateToMachineDetail(_ bestMachine: SkuBestMachine) {
+        guard !bestMachine.machineId.isEmpty else { return }
+        machineDetailNavigationId = bestMachine.machineId
+    }
+
+    private var machineNavigationLink: some View {
+        NavigationLink(
+            isActive: Binding(
+                get: { machineDetailNavigationId != nil },
+                set: { isActive in
+                    if !isActive {
+                        machineDetailNavigationId = nil
+                    }
+                }
+            ),
+            destination: {
+                if let machineId = machineDetailNavigationId {
+                    MachineDetailView(machineId: machineId, session: session)
+                } else {
+                    EmptyView()
+                }
+            },
+            label: {
+                EmptyView()
+            }
+        )
+        .hidden()
     }
 }
