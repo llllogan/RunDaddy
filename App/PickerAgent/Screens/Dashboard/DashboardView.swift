@@ -255,11 +255,11 @@ struct DashboardView: View {
     private func symbolDetails(for type: String) -> (systemName: String, color: Color) {
         switch type.lowercased() {
         case "machine":
-            return ("building", .blue)
+            return ("building", .purple)
         case "sku":
-            return ("cart", .orange)
+            return ("tag", .teal)
         case "location":
-            return ("mappin.circle", .purple)
+            return ("mappin.circle", .orange)
         default:
             return ("magnifyingglass", .gray)
         }

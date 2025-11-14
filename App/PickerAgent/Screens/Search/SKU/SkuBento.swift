@@ -24,7 +24,7 @@ struct SkuInfoBento: View {
             BentoItem(title: "Details",
                       value: sku.type,
                       symbolName: "tag",
-                      symbolTint: .orange,
+                      symbolTint: .teal,
                       allowsMultilineValue: true,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 8) {
@@ -100,7 +100,7 @@ struct SkuInfoBento: View {
                           value: (bestMachine.machineName?.isEmpty == false ? bestMachine.machineName : nil) ?? bestMachine.machineCode,
                           subtitle: bestMachine.locationName ?? bestMachine.machineCode,
                           symbolName: "building",
-                          symbolTint: .cyan,
+                          symbolTint: .purple,
                           isProminent: true,
                           onTap: { onBestMachineTap?(bestMachine) },
                           showsChevron: true)
@@ -111,7 +111,7 @@ struct SkuInfoBento: View {
                           value: "No data",
                           subtitle: "No machine data yet",
                           symbolName: "building",
-                          symbolTint: .cyan,
+                          symbolTint: .purple,
                           isProminent: false)
             )
         }

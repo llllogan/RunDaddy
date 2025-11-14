@@ -72,7 +72,7 @@ struct LocationOverviewBento: View {
             BentoItem(title: "Machines",
                       value: "",
                       symbolName: "building.2",
-                      symbolTint: .cyan,
+                      symbolTint: .purple,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(machines, id: \.id) { machine in

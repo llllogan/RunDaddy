@@ -95,7 +95,7 @@ struct RunOverviewBento: View {
             BentoItem(title: "Machines",
                       value: "\(summary.machineCount)",
                       symbolName: "building.2",
-                      symbolTint: .cyan)
+                      symbolTint: .purple)
         )
         
         if let runner = summary.runnerName, !runner.isEmpty {

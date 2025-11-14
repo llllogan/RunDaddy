@@ -40,7 +40,7 @@ struct SearchLocationInfoBento: View {
                     value: bestMachine.displayName,
                     subtitle: bestMachine.totalPacks > 0 ? "\(bestMachine.totalPacks) packs" : nil,
                     symbolName: "building",
-                    symbolTint: .cyan,
+                    symbolTint: .purple,
                     allowsMultilineValue: true,
                     onTap: { onBestMachineTap?(bestMachine) },
                     showsChevron: true
@@ -64,7 +64,7 @@ struct SearchLocationInfoBento: View {
                     title: "Best SKU",
                     value: bestSku.displayName,
                     subtitle: bestSku.totalPacks > 0 ? "\(bestSku.totalPacks) packs" : nil,
-                    symbolName: "shippingbox",
+                    symbolName: "tag",
                     symbolTint: .teal,
                     allowsMultilineValue: true,
                     onTap: { onBestSkuTap?(bestSku) },
@@ -77,7 +77,7 @@ struct SearchLocationInfoBento: View {
                     title: "Best SKU",
                     value: "No data",
                     subtitle: "No SKU activity",
-                    symbolName: "shippingbox",
+                    symbolName: "tag",
                     symbolTint: .gray
                 )
             )

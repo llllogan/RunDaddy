@@ -34,7 +34,7 @@ struct MachineInfoBento: View {
             title: "Details",
             value: displayName,
             symbolName: "building",
-            symbolTint: .orange,
+            symbolTint: .purple,
             allowsMultilineValue: true,
             customContent: AnyView(
                 VStack(alignment: .leading, spacing: 8) {
@@ -79,7 +79,7 @@ struct MachineInfoBento: View {
             value: locationName,
             subtitle: address,
             symbolName: "mappin.circle",
-            symbolTint: .purple,
+            symbolTint: .orange,
             allowsMultilineValue: true
         )
     }
@@ -101,8 +101,8 @@ struct MachineInfoBento: View {
                 title: "Best SKU",
                 value: "No data",
                 subtitle: "No SKU data yet",
-                symbolName: "shippingbox",
-                symbolTint: .cyan
+                symbolName: "tag",
+                symbolTint: .teal
             )
         }
 
@@ -113,8 +113,8 @@ struct MachineInfoBento: View {
             title: "Best SKU",
             value: bestSku.skuName.isEmpty ? bestSku.skuCode : bestSku.skuName,
             subtitle: subtitle,
-            symbolName: "shippingbox",
-            symbolTint: .cyan,
+            symbolName: "tag",
+            symbolTint: .teal,
             onTap: { onBestSkuTap?(bestSku) },
             showsChevron: true
         )
