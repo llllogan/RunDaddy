@@ -44,7 +44,8 @@ struct SkuDetailView: View {
                             onToggleCheeseStatus: { toggleCheeseStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
                             percentageChange: skuStats.percentageChange,
-                            bestMachine: skuStats.bestMachine
+                            bestMachine: skuStats.bestMachine,
+                            selectedPeriod: selectedPeriod
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")

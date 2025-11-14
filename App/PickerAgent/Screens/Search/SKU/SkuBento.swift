@@ -14,6 +14,7 @@ struct SkuInfoBento: View {
     let mostRecentPick: MostRecentPick?
     let percentageChange: SkuPercentageChange?
     let bestMachine: SkuBestMachine?
+    let selectedPeriod: SkuPeriod?
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -88,7 +89,7 @@ struct SkuInfoBento: View {
         cards.append(
             BentoItem(title: "Pack Trend",
                       value: formatPercentageChange(percentageChange),
-                      subtitle: formatTrendSubtitle(percentageChange?.trend),
+                      subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
                       symbolName: trendSymbol(percentageChange?.trend),
                       symbolTint: trendColor(percentageChange?.trend),
                       isProminent: percentageChange?.trend == "up")
@@ -128,14 +129,14 @@ struct SkuInfoBento: View {
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
     }
 
-    private func formatTrendSubtitle(_ trend: String?) -> String {
+    private func formatTrendSubtitle(_ trend: String?, period: SkuPeriod?) -> String {
         switch trend {
         case "up":
-            return "Up from previous period"
+            return "Up from previous \(period?.displayName ?? "period")"
         case "down":
-            return "Down from previous period"
+            return "Down from previous \(period?.displayName ?? "period")"
         case "neutral":
-            return "Stable vs previous period"
+            return "Stable vs previous \(period?.displayName ?? "period")"
         default:
             return "No data"
         }
