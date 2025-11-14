@@ -5,6 +5,7 @@ struct MachineInfoBento: View {
     let stats: MachineStatsResponse?
     let selectedPeriod: SkuPeriod
     let onBestSkuTap: ((MachineBestSku) -> Void)?
+    let onLocationTap: ((Location) -> Void)?
 
     private var cards: [BentoItem] {
         [
@@ -73,6 +74,7 @@ struct MachineInfoBento: View {
     private var locationCard: BentoItem {
         let locationName = machine.location?.name ?? "Unassigned"
         let address = machine.location?.address ?? "No address on file"
+        let hasLocationLink = (machine.location?.id.isEmpty == false)
 
         return BentoItem(
             title: "Location",
@@ -80,8 +82,15 @@ struct MachineInfoBento: View {
             subtitle: address,
             symbolName: "mappin.circle",
             symbolTint: .orange,
-            allowsMultilineValue: true
+            allowsMultilineValue: true,
+            onTap: hasLocationLink ? { navigateToLocationDetail() } : nil,
+            showsChevron: hasLocationLink
         )
+    }
+
+    private func navigateToLocationDetail() {
+        guard let location = machine.location else { return }
+        onLocationTap?(location)
     }
 
     private var packTrendCard: BentoItem {

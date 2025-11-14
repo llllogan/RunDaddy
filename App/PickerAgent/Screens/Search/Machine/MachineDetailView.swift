@@ -11,6 +11,7 @@ struct MachineDetailView: View {
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var skuNavigationTarget: MachineDetailSkuNavigation?
+    @State private var locationNavigationTarget: MachineDetailLocationNavigation?
 
     private let machinesService = MachinesService()
 
@@ -43,6 +44,9 @@ struct MachineDetailView: View {
                             selectedPeriod: selectedPeriod,
                             onBestSkuTap: { bestSku in
                                 navigateToSkuDetail(bestSku)
+                            },
+                            onLocationTap: { location in
+                                navigateToLocationDetail(location)
                             }
                         )
                     } else if isLoadingStats {
@@ -53,7 +57,10 @@ struct MachineDetailView: View {
                             machine: machine,
                             stats: nil,
                             selectedPeriod: selectedPeriod,
-                            onBestSkuTap: nil
+                            onBestSkuTap: nil,
+                            onLocationTap: { location in
+                                navigateToLocationDetail(location)
+                            }
                         )
                     }
                 } header: {
@@ -87,6 +94,9 @@ struct MachineDetailView: View {
         }
         .navigationDestination(item: $skuNavigationTarget) { target in
             SkuDetailView(skuId: target.id, session: session)
+        }
+        .navigationDestination(item: $locationNavigationTarget) { target in
+            SearchLocationDetailView(locationId: target.id, session: session)
         }
     }
 
@@ -129,8 +139,17 @@ struct MachineDetailView: View {
         guard !bestSku.skuId.isEmpty else { return }
         skuNavigationTarget = MachineDetailSkuNavigation(id: bestSku.skuId)
     }
+
+    private func navigateToLocationDetail(_ location: Location) {
+        guard !location.id.isEmpty else { return }
+        locationNavigationTarget = MachineDetailLocationNavigation(id: location.id)
+    }
 }
 
 private struct MachineDetailSkuNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct MachineDetailLocationNavigation: Identifiable, Hashable {
     let id: String
 }

@@ -101,7 +101,6 @@ struct SkuInfoBento: View {
                           subtitle: bestMachine.locationName ?? bestMachine.machineCode,
                           symbolName: "building",
                           symbolTint: .purple,
-                          isProminent: true,
                           onTap: { onBestMachineTap?(bestMachine) },
                           showsChevron: true)
             )
@@ -111,8 +110,7 @@ struct SkuInfoBento: View {
                           value: "No data",
                           subtitle: "No machine data yet",
                           symbolName: "building",
-                          symbolTint: .purple,
-                          isProminent: false)
+                          symbolTint: .purple)
             )
         }
         
