@@ -417,6 +417,70 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   },
 ];
 
+const TREND_SCENARIO_COMPANY = {
+  name: 'Pulse Logistics Collective',
+  timeZone: 'America/Chicago',
+  owner: {
+    firstName: 'Morgan',
+    lastName: 'Hart',
+    email: 'morgan.hart+seed@rundaddy.test',
+    phone: '555-0606',
+  },
+  locations: [
+    {
+      name: 'Pulse Uptown Lab',
+      address: '2121 Uptown Blvd, Chicago, IL',
+      machines: [
+        {
+          code: 'PULSE-UP-01',
+          description: 'Uptown snack pilot',
+          machineType: 'Snack Tower',
+          coils: [
+            { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
+            { code: 'A2', skuCode: 'SKU-CHIPS-SEA', par: 15 },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'Pulse Riverfront Clinic',
+      address: '501 Riverfront Dr, Chicago, IL',
+      machines: [
+        {
+          code: 'PULSE-RF-01',
+          description: 'Riverfront beverage pilot',
+          machineType: 'Cold Beverage Cooler',
+          coils: [
+            { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
+            { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 11 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+type TrendPickNeed = {
+  machineCode: string;
+  skuCode: string;
+  need: number;
+};
+
+const TREND_SCENARIO_PICK_CONFIG: Record<'lastWeek' | 'thisWeek', TrendPickNeed[]> = {
+  lastWeek: [
+    { machineCode: 'PULSE-UP-01', skuCode: 'SKU-PBAR-ALM', need: 5 },
+    { machineCode: 'PULSE-UP-01', skuCode: 'SKU-CHIPS-SEA', need: 3 },
+    { machineCode: 'PULSE-RF-01', skuCode: 'SKU-COFF-COLD', need: 4 },
+    { machineCode: 'PULSE-RF-01', skuCode: 'SKU-JUICE-CIT', need: 4 },
+  ],
+  thisWeek: [
+    { machineCode: 'PULSE-UP-01', skuCode: 'SKU-PBAR-ALM', need: 9 },
+    { machineCode: 'PULSE-UP-01', skuCode: 'SKU-CHIPS-SEA', need: 2 },
+    { machineCode: 'PULSE-RF-01', skuCode: 'SKU-COFF-COLD', need: 3 },
+    { machineCode: 'PULSE-RF-01', skuCode: 'SKU-JUICE-CIT', need: 2 },
+  ],
+};
+
 const EXTRA_USERS = [
   {
     firstName: 'Casey',
@@ -438,6 +502,8 @@ const skuCache = new Map<string, SKU>();
 type CoilItemSeedInfo = {
   id: string;
   par: number;
+  machineCode: string;
+  skuCode: string;
 };
 
 const toNullable = <T>(value: T | null | undefined): T | null => (value ?? null);
@@ -750,7 +816,12 @@ async function ensureLocationWithEquipment(
       const coil = await ensureCoil(machine.id, coilConfig.code);
       const sku = await getSkuByCode(coilConfig.skuCode);
       const coilItem = await ensureCoilItem(coil.id, sku.id, coilConfig.par);
-      coilItems.push({ id: coilItem.id, par: coilItem.par });
+      coilItems.push({
+        id: coilItem.id,
+        par: coilItem.par,
+        machineCode: machineConfig.code,
+        skuCode: coilConfig.skuCode,
+      });
     }
   }
 
@@ -861,6 +932,61 @@ async function ensurePickEntries(runId: string, coilItems: CoilItemSeedInfo[]) {
         current,
         par: coilItem.par,
         need,
+        forecast: total,
+        total,
+        status: RunItemStatus.PENDING,
+      };
+    }),
+  });
+}
+
+type PickEntrySeed = {
+  coilItemId: string;
+  par: number;
+  current: number;
+  need: number;
+};
+
+const buildCoilItemLookup = (locationDetails: LocationSeedResult[]) => {
+  const map = new Map<string, CoilItemSeedInfo>();
+  for (const detail of locationDetails) {
+    for (const coilItem of detail.coilItems) {
+      map.set(`${coilItem.machineCode}:${coilItem.skuCode}`, coilItem);
+    }
+  }
+  return map;
+};
+
+const makePickEntrySeed = (
+  coilItem: CoilItemSeedInfo,
+  need: number,
+  current?: number,
+): PickEntrySeed => {
+  const resolvedCurrent = current ?? Math.max(coilItem.par - need, 0);
+  return {
+    coilItemId: coilItem.id,
+    par: coilItem.par,
+    current: resolvedCurrent,
+    need,
+  };
+};
+
+async function seedPickEntriesWithConfig(runId: string, entries: PickEntrySeed[]) {
+  await prisma.pickEntry.deleteMany({ where: { runId } });
+  if (!entries.length) {
+    return;
+  }
+
+  await prisma.pickEntry.createMany({
+    data: entries.map((entry) => {
+      const total = entry.current + entry.need;
+      return {
+        runId,
+        coilItemId: entry.coilItemId,
+        par: entry.par,
+        current: entry.current,
+        need: entry.need,
+        count: entry.need,
         forecast: total,
         total,
         status: RunItemStatus.PENDING,
@@ -980,6 +1106,68 @@ async function seedCompanyData() {
   return seeded;
 }
 
+function toPickEntrySeeds(
+  lookup: Map<string, CoilItemSeedInfo>,
+  configs: TrendPickNeed[],
+): PickEntrySeed[] {
+  return configs.map((config) => {
+    const key = `${config.machineCode}:${config.skuCode}`;
+    const coilItem = lookup.get(key);
+    if (!coilItem) {
+      throw new Error(`Missing coil item for ${config.machineCode} ${config.skuCode}`);
+    }
+    return makePickEntrySeed(coilItem, config.need);
+  });
+}
+
+async function seedTrendScenarioCompany() {
+  console.log('Creating trend comparison company...');
+  const company = await ensureCompany(TREND_SCENARIO_COMPANY.name, TREND_SCENARIO_COMPANY.timeZone);
+  const owner = await upsertUser({
+    email: TREND_SCENARIO_COMPANY.owner.email,
+    firstName: TREND_SCENARIO_COMPANY.owner.firstName,
+    lastName: TREND_SCENARIO_COMPANY.owner.lastName,
+    phone: TREND_SCENARIO_COMPANY.owner.phone ?? null,
+    role: UserRole.OWNER,
+  });
+  const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
+  await ensureDefaultMembership(owner.id, membership.id);
+
+  const locationDetails: LocationSeedResult[] = [];
+  for (const locationConfig of TREND_SCENARIO_COMPANY.locations) {
+    locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
+  }
+
+  const locationIds = locationDetails.map((detail) => detail.location.id);
+  const coilLookup = buildCoilItemLookup(locationDetails);
+
+  const lastWeekRun = await ensureRunWithLocations({
+    companyId: company.id,
+    pickerId: owner.id,
+    scheduledFor: scheduleForDay(-7, 9),
+    locationIds,
+  });
+  await seedPickEntriesWithConfig(
+    lastWeekRun.id,
+    toPickEntrySeeds(coilLookup, TREND_SCENARIO_PICK_CONFIG.lastWeek),
+  );
+
+  const thisWeekRun = await ensureRunWithLocations({
+    companyId: company.id,
+    pickerId: owner.id,
+    scheduledFor: scheduleForDay(0, 10),
+    locationIds,
+  });
+  await seedPickEntriesWithConfig(
+    thisWeekRun.id,
+    toPickEntrySeeds(coilLookup, TREND_SCENARIO_PICK_CONFIG.thisWeek),
+  );
+
+  console.log(
+    `Trend company "${company.name}" ready with user ${owner.email} and runs ${lastWeekRun.id} / ${thisWeekRun.id}`,
+  );
+}
+
 async function seedExtraUsers() {
   console.log('Creating additional standalone users...');
   for (const user of EXTRA_USERS) {
@@ -1028,6 +1216,7 @@ async function main() {
   await seedSkus();
   await seedAppleTesting();
   await seedCompanyData();
+  await seedTrendScenarioCompany();
   await seedExtraUsers();
   await seedPlatformAdminWorkspace();
   console.log('Seed data completed.');

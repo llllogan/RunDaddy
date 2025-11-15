@@ -180,7 +180,7 @@ struct SearchLocationInfoBento: View {
         case "up":
             return "arrow.up.forward"
         case "down":
-            return "arrow.down.left"
+            return "arrow.down.right"
         default:
             return "minus"
         }
