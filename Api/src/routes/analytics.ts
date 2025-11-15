@@ -380,7 +380,7 @@ router.get('/search/suggestions', setLogConfig({ level: 'minimal' }), async (req
   });
 });
 
-router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/packs/period-comparison', setLogConfig({ level: 'full' }), async (req, res) => {
   const context = await buildTimezoneContext(req, res);
   if (!context) {
     return;

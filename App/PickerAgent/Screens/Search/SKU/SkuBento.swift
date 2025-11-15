@@ -78,7 +78,7 @@ struct SkuInfoBento: View {
                             }
                             Spacer()
                             Image(systemName: sku.isCheeseAndCrackers ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(sku.isCheeseAndCrackers ? .green : .red)
+                                .foregroundColor(sku.isCheeseAndCrackers ? .green : .secondary)
                         }
                     ))
         )
@@ -91,7 +91,7 @@ struct SkuInfoBento: View {
                       subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
                       symbolName: trendSymbol(percentageChange?.trend),
                       symbolTint: trendColor(percentageChange?.trend),
-                      isProminent: percentageChange?.trend == "up")
+                      isProminent: true)
         )
 
         if let bestMachine = bestMachine {

@@ -119,7 +119,7 @@ struct SearchLocationInfoBento: View {
                 subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
                 symbolName: trendSymbol(percentageChange?.trend),
                 symbolTint: trendColor(percentageChange?.trend),
-                isProminent: percentageChange?.trend == "up"
+                isProminent: true
             )
         )
 

@@ -100,7 +100,7 @@ struct MachineInfoBento: View {
             subtitle: formatTrendSubtitle(stats?.percentageChange?.trend, period: selectedPeriod),
             symbolName: trendSymbol(stats?.percentageChange?.trend),
             symbolTint: trendColor(stats?.percentageChange?.trend),
-            isProminent: stats?.percentageChange?.trend == "up"
+            isProminent: true
         )
     }
 
