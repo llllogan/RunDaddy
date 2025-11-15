@@ -31,6 +31,7 @@ struct DashboardView: View {
     @State private var suggestionsErrorMessage: String?
     @State private var searchDisplayState: SearchDisplayState = .dashboard
     private let searchService = SearchService()
+    @State private var searchDebounceTask: Task<Void, Never>?
 
     private var hasCompany: Bool {
         // User has company if they have company memberships
@@ -96,6 +97,9 @@ struct DashboardView: View {
                 if newValue.isEmpty {
                     searchResults = []
                     searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+                    searchDebounceTask?.cancel()
+                } else {
+                    scheduleDebouncedSearch(for: newValue)
                 }
             }
             .onChange(of: isSearchPresented) { _, isPresented in
@@ -107,7 +111,11 @@ struct DashboardView: View {
                     searchDisplayState = .dashboard
                     isSearching = false
                     searchText = ""
+                    searchDebounceTask?.cancel()
                 }
+            }
+            .onDisappear {
+                searchDebounceTask?.cancel()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -302,6 +310,27 @@ struct DashboardView: View {
         }
     }
 
+    private func scheduleDebouncedSearch(for text: String) {
+        searchDebounceTask?.cancel()
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return
+        }
+        searchDebounceTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                performSearch(query: trimmedText)
+            }
+        }
+    }
+
     private func loadSuggestionsIfNeeded(force: Bool = false) {
         if isLoadingSuggestions || (suggestions.isEmpty == false && !force) {
             return
@@ -352,25 +381,36 @@ struct DashboardView: View {
         }
     }
 
-    private func performSearch() {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    @MainActor
+    private func performSearch(query: String? = nil) {
+        let trimmedQuery = (query ?? searchText).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedQuery.isEmpty else {
             searchResults = []
             searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+            isSearching = false
             return
         }
 
         isSearching = true
         searchResults = []
         searchDisplayState = .results
+        let activeQuery = trimmedQuery
         Task {
             do {
-                let response = try await searchService.search(query: searchText)
+                let response = try await searchService.search(query: activeQuery)
                 await MainActor.run {
+                    guard activeQuery == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                        return
+                    }
                     searchResults = response.results
                     isSearching = false
                 }
             } catch {
                 await MainActor.run {
+                    guard activeQuery == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                        return
+                    }
                     isSearching = false
                     searchResults = []
                 }
