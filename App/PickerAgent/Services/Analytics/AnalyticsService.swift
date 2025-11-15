@@ -300,6 +300,46 @@ struct DashboardMomentumSnapshot: Equatable {
         }
     }
 
+    struct AnalyticsSummary: Equatable {
+        struct SkuComparison: Equatable {
+            struct Totals: Equatable {
+                let currentWeek: Int
+                let previousWeek: Int
+
+                var maxTotal: Int {
+                    max(currentWeek, previousWeek)
+                }
+            }
+
+            struct Segment: Equatable, Identifiable {
+                let skuId: String
+                let currentTotal: Int
+                let previousTotal: Int
+                let isOther: Bool
+
+                var id: String {
+                    if !skuId.isEmpty {
+                        return skuId
+                    }
+                    return isOther ? "other" : "segment-unknown"
+                }
+            }
+
+            let totals: Totals
+            let segments: [Segment]
+
+            var hasData: Bool {
+                totals.currentWeek > 0 || totals.previousWeek > 0
+            }
+        }
+
+        let skuComparison: SkuComparison?
+
+        static var empty: AnalyticsSummary {
+            AnalyticsSummary(skuComparison: nil)
+        }
+    }
+
     enum Direction: String, Equatable, CaseIterable, Hashable {
         case up
         case down
@@ -348,6 +388,7 @@ struct DashboardMomentumSnapshot: Equatable {
     let skuMomentum: MomentumLeaders<SkuLeader>
     let machineMomentum: MomentumLeaders<MachineLeader>
     let locationMomentum: MomentumLeaders<LocationLeader>
+    let analytics: AnalyticsSummary
 
     var normalizedProgressPercentage: Double {
         currentWeek.normalizedProgressPercentage
@@ -1006,6 +1047,67 @@ private struct DashboardMomentumResponse: Decodable {
         let location: LocationMomentumGroup?
     }
 
+    struct AnalyticsSummary: Decodable {
+        struct SkuComparison: Decodable {
+            struct Segment: Decodable {
+                let skuId: String
+                let currentTotal: Int
+                let previousTotal: Int
+                let isOther: Bool
+
+                private enum CodingKeys: String, CodingKey {
+                    case skuId
+                    case currentTotal
+                    case previousTotal
+                    case isOther
+                }
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    skuId = try container.decode(String.self, forKey: .skuId)
+                    currentTotal = DashboardMomentumResponse.decodeCount(from: container, key: .currentTotal)
+                    previousTotal = DashboardMomentumResponse.decodeCount(from: container, key: .previousTotal)
+                    isOther = try container.decodeIfPresent(Bool.self, forKey: .isOther) ?? false
+                }
+
+                func toDomain() -> DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison.Segment {
+                    DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison.Segment(
+                        skuId: skuId,
+                        currentTotal: currentTotal,
+                        previousTotal: previousTotal,
+                        isOther: isOther
+                    )
+                }
+            }
+
+            struct Totals: Decodable {
+                let currentWeek: Int
+                let previousWeek: Int
+            }
+
+            let totals: Totals
+            let segments: [Segment]
+
+            func toDomain() -> DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison {
+                DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison(
+                    totals: DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison.Totals(
+                        currentWeek: max(totals.currentWeek, 0),
+                        previousWeek: max(totals.previousWeek, 0)
+                    ),
+                    segments: segments.map { $0.toDomain() }
+                )
+            }
+        }
+
+        let skuComparison: SkuComparison?
+
+        func toDomain() -> DashboardMomentumSnapshot.AnalyticsSummary {
+            DashboardMomentumSnapshot.AnalyticsSummary(
+                skuComparison: skuComparison?.toDomain()
+            )
+        }
+    }
+
     struct SkuMomentumGroup: Decodable {
         let up: Sku?
         let down: Sku?
@@ -1204,6 +1306,7 @@ private struct DashboardMomentumResponse: Decodable {
     let currentWeek: WeekWindow
     let previousWeek: WeekWindow
     let leaders: Leaders
+    let analytics: AnalyticsSummary?
 
     func toDomain() -> DashboardMomentumSnapshot {
         DashboardMomentumSnapshot(
@@ -1223,7 +1326,8 @@ private struct DashboardMomentumResponse: Decodable {
             ),
             skuMomentum: leaders.sku?.toDomain() ?? .empty(),
             machineMomentum: leaders.machine?.toDomain() ?? .empty(),
-            locationMomentum: leaders.location?.toDomain() ?? .empty()
+            locationMomentum: leaders.location?.toDomain() ?? .empty(),
+            analytics: analytics?.toDomain() ?? .empty
         )
     }
 

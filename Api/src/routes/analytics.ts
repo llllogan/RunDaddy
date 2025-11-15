@@ -28,6 +28,7 @@ const MONTHS_IN_YEAR = 12;
 const QUARTERS_IN_YEAR = 4;
 const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
 const SEARCH_SUGGESTION_LIMIT = 2;
+const DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT = 4;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -126,6 +127,38 @@ type DashboardLocationMomentumRow = {
   location_name: string | null;
   current_total: bigint | number | string | null;
   previous_total: bigint | number | string | null;
+};
+
+type DashboardSkuComparisonRow = {
+  sku_id: string | null;
+  current_total: bigint | number | string | null;
+  previous_total: bigint | number | string | null;
+};
+
+type DashboardSkuTotalsRow = {
+  current_total: bigint | number | string | null;
+  previous_total: bigint | number | string | null;
+};
+
+type DashboardAnalyticsSummary = {
+  skuComparison: DashboardAnalyticsSkuComparison | null;
+};
+
+type DashboardAnalyticsSkuComparison = {
+  totals: DashboardAnalyticsSkuTotals;
+  segments: DashboardAnalyticsSkuComparisonSegment[];
+};
+
+type DashboardAnalyticsSkuTotals = {
+  currentWeek: number;
+  previousWeek: number;
+};
+
+type DashboardAnalyticsSkuComparisonSegment = {
+  skuId: string;
+  currentTotal: number;
+  previousTotal: number;
+  isOther: boolean;
 };
 
 type MomentumDirection = 'up' | 'down';
@@ -404,11 +437,28 @@ router.get('/dashboard', setLogConfig({ level: 'full' }), async (req, res) => {
   }
 
   const weekWindow = buildDashboardWeekWindow(context.timeZone, context.now);
-  const [skuLeaderRows, machineLeaderRows, locationLeaderRows] = await Promise.all([
+  const [
+    skuLeaderRows,
+    machineLeaderRows,
+    locationLeaderRows,
+    skuComparisonSegmentRows,
+    skuComparisonTotalsRow,
+  ] = await Promise.all([
     fetchDashboardSkuMomentumRows(context.companyId, weekWindow),
     fetchDashboardMachineMomentumRows(context.companyId, weekWindow),
     fetchDashboardLocationMomentumRows(context.companyId, weekWindow),
+    fetchDashboardSkuComparisonSegments(
+      context.companyId,
+      weekWindow,
+      DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT,
+    ),
+    fetchDashboardSkuComparisonTotals(context.companyId, weekWindow),
   ]);
+
+  const analyticsSummary = buildDashboardAnalyticsSummary(
+    skuComparisonSegmentRows,
+    skuComparisonTotalsRow,
+  );
 
   res.json({
     generatedAt: new Date().toISOString(),
@@ -429,6 +479,7 @@ router.get('/dashboard', setLogConfig({ level: 'full' }), async (req, res) => {
       machine: buildMomentumLeaderResponse(machineLeaderRows, mapMachineMomentumLeader),
       location: buildMomentumLeaderResponse(locationLeaderRows, mapLocationMomentumLeader),
     },
+    analytics: analyticsSummary,
   });
 });
 
@@ -1423,6 +1474,77 @@ async function fetchDashboardLocationMomentumLeader(
   return rows[0] ?? null;
 }
 
+async function fetchDashboardSkuComparisonSegments(
+  companyId: string,
+  window: DashboardWeekWindow,
+  limit: number = DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT,
+) {
+  const safeLimit = Math.max(1, limit);
+  return prisma.$queryRaw<DashboardSkuComparisonRow[]>(
+    Prisma.sql`
+      SELECT *
+      FROM (
+        SELECT
+          ci.skuId AS sku_id,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.currentStart}
+                 AND r.scheduledFor < ${window.currentComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS current_total,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.previousStart}
+                 AND r.scheduledFor < ${window.previousComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS previous_total
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${window.previousStart}
+          AND r.scheduledFor < ${window.currentComparisonEnd}
+          AND ci.skuId IS NOT NULL
+        GROUP BY ci.skuId
+      ) AS sku_totals
+      WHERE current_total > 0 OR previous_total > 0
+      ORDER BY (current_total + previous_total) DESC, current_total DESC, sku_id ASC
+      LIMIT ${safeLimit}
+    `,
+  );
+}
+
+async function fetchDashboardSkuComparisonTotals(
+  companyId: string,
+  window: DashboardWeekWindow,
+) {
+  const rows = await prisma.$queryRaw<DashboardSkuTotalsRow[]>(
+    Prisma.sql`
+      SELECT
+        SUM(CASE 
+              WHEN r.scheduledFor >= ${window.currentStart}
+               AND r.scheduledFor < ${window.currentComparisonEnd}
+              THEN pe.count
+              ELSE 0
+            END) AS current_total,
+        SUM(CASE 
+              WHEN r.scheduledFor >= ${window.previousStart}
+               AND r.scheduledFor < ${window.previousComparisonEnd}
+              THEN pe.count
+              ELSE 0
+            END) AS previous_total
+      FROM PickEntry pe
+      JOIN Run r ON r.id = pe.runId
+      WHERE r.companyId = ${companyId}
+        AND r.scheduledFor IS NOT NULL
+        AND r.scheduledFor >= ${window.previousStart}
+        AND r.scheduledFor < ${window.currentComparisonEnd}
+    `,
+  );
+  return rows[0] ?? null;
+}
+
 function mapSkuMomentumLeader(row: DashboardSkuMomentumRow | null) {
   if (!row || !row.sku_id) {
     return null;
@@ -1470,6 +1592,77 @@ function mapLocationMomentumLeader(row: DashboardLocationMomentumRow | null) {
     previousTotal,
     delta: currentTotal - previousTotal,
   };
+}
+
+function buildDashboardAnalyticsSummary(
+  segmentRows: DashboardSkuComparisonRow[],
+  totalsRow: DashboardSkuTotalsRow | null,
+): DashboardAnalyticsSummary {
+  return {
+    skuComparison: buildDashboardSkuComparison(segmentRows, totalsRow),
+  } satisfies DashboardAnalyticsSummary;
+}
+
+function buildDashboardSkuComparison(
+  segmentRows: DashboardSkuComparisonRow[],
+  totalsRow: DashboardSkuTotalsRow | null,
+): DashboardAnalyticsSkuComparison | null {
+  const totals = mapDashboardSkuTotals(totalsRow);
+  const mappedSegments = segmentRows
+    .map(mapDashboardSkuComparisonSegment)
+    .filter((segment) => segment.currentTotal > 0 || segment.previousTotal > 0);
+
+  let segments: DashboardAnalyticsSkuComparisonSegment[] = [...mappedSegments];
+  const displayedCurrent = segments.reduce((sum, segment) => sum + segment.currentTotal, 0);
+  const displayedPrevious = segments.reduce((sum, segment) => sum + segment.previousTotal, 0);
+  const remainingCurrent = Math.max(totals.currentWeek - displayedCurrent, 0);
+  const remainingPrevious = Math.max(totals.previousWeek - displayedPrevious, 0);
+
+  if (remainingCurrent > 0 || remainingPrevious > 0) {
+    segments = segments.concat({
+      skuId: 'other',
+      currentTotal: remainingCurrent,
+      previousTotal: remainingPrevious,
+      isOther: true,
+    });
+  }
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return {
+    totals,
+    segments,
+  } satisfies DashboardAnalyticsSkuComparison;
+}
+
+function mapDashboardSkuComparisonSegment(
+  row: DashboardSkuComparisonRow,
+): DashboardAnalyticsSkuComparisonSegment {
+  const skuId = row.sku_id ?? '';
+  const currentTotal = Math.max(toNumber(row.current_total), 0);
+  const previousTotal = Math.max(toNumber(row.previous_total), 0);
+  return {
+    skuId,
+    currentTotal,
+    previousTotal,
+    isOther: false,
+  } satisfies DashboardAnalyticsSkuComparisonSegment;
+}
+
+function mapDashboardSkuTotals(row: DashboardSkuTotalsRow | null): DashboardAnalyticsSkuTotals {
+  if (!row) {
+    return {
+      currentWeek: 0,
+      previousWeek: 0,
+    } satisfies DashboardAnalyticsSkuTotals;
+  }
+
+  return {
+    currentWeek: Math.max(toNumber(row.current_total), 0),
+    previousWeek: Math.max(toNumber(row.previous_total), 0),
+  } satisfies DashboardAnalyticsSkuTotals;
 }
 
 function buildMomentumLeaderResponse<RowType, LeaderType extends { delta: number }>(
