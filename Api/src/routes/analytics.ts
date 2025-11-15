@@ -128,6 +128,19 @@ type DashboardLocationMomentumRow = {
   previous_total: bigint | number | string | null;
 };
 
+type MomentumDirection = 'up' | 'down';
+
+type MomentumLeaderRows<RowType> = {
+  up: RowType | null;
+  down: RowType | null;
+};
+
+type MomentumLeadersResponse<LeaderType> = {
+  up: LeaderType | null;
+  down: LeaderType | null;
+  defaultSelection: MomentumDirection;
+};
+
 const router = Router();
 
 router.use(authenticate);
@@ -384,17 +397,17 @@ router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async
   });
 });
 
-router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/dashboard', setLogConfig({ level: 'full' }), async (req, res) => {
   const context = await buildTimezoneContext(req, res);
   if (!context) {
     return;
   }
 
   const weekWindow = buildDashboardWeekWindow(context.timeZone, context.now);
-  const [skuLeaderRow, machineLeaderRow, locationLeaderRow] = await Promise.all([
-    fetchDashboardSkuMomentumLeader(context.companyId, weekWindow),
-    fetchDashboardMachineMomentumLeader(context.companyId, weekWindow),
-    fetchDashboardLocationMomentumLeader(context.companyId, weekWindow),
+  const [skuLeaderRows, machineLeaderRows, locationLeaderRows] = await Promise.all([
+    fetchDashboardSkuMomentumRows(context.companyId, weekWindow),
+    fetchDashboardMachineMomentumRows(context.companyId, weekWindow),
+    fetchDashboardLocationMomentumRows(context.companyId, weekWindow),
   ]);
 
   res.json({
@@ -412,9 +425,9 @@ router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) =>
       comparisonEnd: weekWindow.previousComparisonEnd.toISOString(),
     },
     leaders: {
-      sku: mapSkuMomentumLeader(skuLeaderRow),
-      machine: mapMachineMomentumLeader(machineLeaderRow),
-      location: mapLocationMomentumLeader(locationLeaderRow),
+      sku: buildMomentumLeaderResponse(skuLeaderRows, mapSkuMomentumLeader),
+      machine: buildMomentumLeaderResponse(machineLeaderRows, mapMachineMomentumLeader),
+      location: buildMomentumLeaderResponse(locationLeaderRows, mapLocationMomentumLeader),
     },
   });
 });
@@ -1246,10 +1259,20 @@ function buildDashboardWeekWindow(timeZone: string, reference: Date): DashboardW
   };
 }
 
+async function fetchDashboardSkuMomentumRows(companyId: string, window: DashboardWeekWindow) {
+  const [up, down] = await Promise.all([
+    fetchDashboardSkuMomentumLeader(companyId, window, 'desc'),
+    fetchDashboardSkuMomentumLeader(companyId, window, 'asc'),
+  ]);
+  return { up, down } satisfies MomentumLeaderRows<DashboardSkuMomentumRow>;
+}
+
 async function fetchDashboardSkuMomentumLeader(
   companyId: string,
   window: DashboardWeekWindow,
+  direction: 'asc' | 'desc' = 'desc',
 ) {
+  const orderDirection = direction === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`;
   const rows = await prisma.$queryRaw<DashboardSkuMomentumRow[]>(
     Prisma.sql`
       SELECT *
@@ -1281,17 +1304,27 @@ async function fetchDashboardSkuMomentumLeader(
         GROUP BY sku.id, sku.code, sku.name
       ) AS sku_totals
       WHERE current_total > 0 OR previous_total > 0
-      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC
       LIMIT 1
     `,
   );
   return rows[0] ?? null;
 }
 
+async function fetchDashboardMachineMomentumRows(companyId: string, window: DashboardWeekWindow) {
+  const [up, down] = await Promise.all([
+    fetchDashboardMachineMomentumLeader(companyId, window, 'desc'),
+    fetchDashboardMachineMomentumLeader(companyId, window, 'asc'),
+  ]);
+  return { up, down } satisfies MomentumLeaderRows<DashboardMachineMomentumRow>;
+}
+
 async function fetchDashboardMachineMomentumLeader(
   companyId: string,
   window: DashboardWeekWindow,
+  direction: 'asc' | 'desc' = 'desc',
 ) {
+  const orderDirection = direction === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`;
   const rows = await prisma.$queryRaw<DashboardMachineMomentumRow[]>(
     Prisma.sql`
       SELECT *
@@ -1327,17 +1360,30 @@ async function fetchDashboardMachineMomentumLeader(
         GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
       ) AS machine_totals
       WHERE current_total > 0 OR previous_total > 0
-      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC
       LIMIT 1
     `,
   );
   return rows[0] ?? null;
 }
 
-async function fetchDashboardLocationMomentumLeader(
+async function fetchDashboardLocationMomentumRows(
   companyId: string,
   window: DashboardWeekWindow,
 ) {
+  const [up, down] = await Promise.all([
+    fetchDashboardLocationMomentumLeader(companyId, window, 'desc'),
+    fetchDashboardLocationMomentumLeader(companyId, window, 'asc'),
+  ]);
+  return { up, down } satisfies MomentumLeaderRows<DashboardLocationMomentumRow>;
+}
+
+async function fetchDashboardLocationMomentumLeader(
+  companyId: string,
+  window: DashboardWeekWindow,
+  direction: 'asc' | 'desc' = 'desc',
+) {
+  const orderDirection = direction === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`;
   const rows = await prisma.$queryRaw<DashboardLocationMomentumRow[]>(
     Prisma.sql`
       SELECT *
@@ -1370,7 +1416,7 @@ async function fetchDashboardLocationMomentumLeader(
         GROUP BY loc.id, loc.name
       ) AS location_totals
       WHERE (current_total > 0 OR previous_total > 0) AND location_id IS NOT NULL
-      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC
       LIMIT 1
     `,
   );
@@ -1424,6 +1470,54 @@ function mapLocationMomentumLeader(row: DashboardLocationMomentumRow | null) {
     previousTotal,
     delta: currentTotal - previousTotal,
   };
+}
+
+function buildMomentumLeaderResponse<RowType, LeaderType extends { delta: number }>(
+  rows: MomentumLeaderRows<RowType>,
+  mapper: (row: RowType | null) => LeaderType | null,
+): MomentumLeadersResponse<LeaderType> {
+  const upLeader = sanitizeMomentumLeader(mapper(rows.up), 'up');
+  const downLeader = sanitizeMomentumLeader(mapper(rows.down), 'down');
+
+  return {
+    up: upLeader,
+    down: downLeader,
+    defaultSelection: determineDefaultSelection(upLeader, downLeader),
+  };
+}
+
+function sanitizeMomentumLeader<T extends { delta: number }>(
+  leader: T | null,
+  direction: MomentumDirection,
+): T | null {
+  if (!leader) {
+    return null;
+  }
+  if (direction === 'up' && leader.delta < 0) {
+    return null;
+  }
+  if (direction === 'down' && leader.delta >= 0) {
+    return null;
+  }
+  return leader;
+}
+
+function determineDefaultSelection<T extends { delta: number }>(
+  up: T | null,
+  down: T | null,
+): MomentumDirection {
+  if (up && down) {
+    const upMagnitude = Math.abs(up.delta);
+    const downMagnitude = Math.abs(down.delta);
+    if (downMagnitude > upMagnitude) {
+      return 'down';
+    }
+    return 'up';
+  }
+  if (down) {
+    return 'down';
+  }
+  return 'up';
 }
 
 export const analyticsRouter = router;

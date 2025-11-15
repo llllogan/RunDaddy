@@ -300,13 +300,54 @@ struct DashboardMomentumSnapshot: Equatable {
         }
     }
 
+    enum Direction: String, Equatable, CaseIterable, Hashable {
+        case up
+        case down
+
+        var label: String {
+            switch self {
+            case .up:
+                return "Up"
+            case .down:
+                return "Down"
+            }
+        }
+    }
+
+    struct MomentumLeaders<Leader: Equatable>: Equatable {
+        let up: Leader?
+        let down: Leader?
+        let defaultSelection: Direction
+
+        func leader(for direction: Direction) -> Leader? {
+            switch direction {
+            case .up:
+                return up
+            case .down:
+                return down
+            }
+        }
+
+        var hasData: Bool {
+            up != nil || down != nil
+        }
+
+        var allowsDirectionToggle: Bool {
+            up != nil && down != nil
+        }
+
+        static func empty(defaultSelection: Direction = .up) -> Self {
+            Self(up: nil, down: nil, defaultSelection: defaultSelection)
+        }
+    }
+
     let generatedAt: Date
     let timeZone: String
     let currentWeek: WeekWindow
     let previousWeek: WeekWindow
-    let skuLeader: SkuLeader?
-    let machineLeader: MachineLeader?
-    let locationLeader: LocationLeader?
+    let skuMomentum: MomentumLeaders<SkuLeader>
+    let machineMomentum: MomentumLeaders<MachineLeader>
+    let locationMomentum: MomentumLeaders<LocationLeader>
 
     var normalizedProgressPercentage: Double {
         currentWeek.normalizedProgressPercentage
@@ -960,9 +1001,93 @@ private struct DashboardMomentumResponse: Decodable {
     }
 
     struct Leaders: Decodable {
-        let sku: Sku?
-        let machine: Machine?
-        let location: Location?
+        let sku: SkuMomentumGroup?
+        let machine: MachineMomentumGroup?
+        let location: LocationMomentumGroup?
+    }
+
+    struct SkuMomentumGroup: Decodable {
+        let up: Sku?
+        let down: Sku?
+        let defaultSelection: DashboardMomentumSnapshot.Direction
+
+        private enum CodingKeys: String, CodingKey {
+            case up
+            case down
+            case defaultSelection
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            up = try container.decodeIfPresent(Sku.self, forKey: .up)
+            down = try container.decodeIfPresent(Sku.self, forKey: .down)
+            let rawDirection = try container.decodeIfPresent(String.self, forKey: .defaultSelection)
+            defaultSelection = rawDirection.flatMap(DashboardMomentumSnapshot.Direction.init(rawValue:)) ?? .up
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.MomentumLeaders<DashboardMomentumSnapshot.SkuLeader> {
+            DashboardMomentumSnapshot.MomentumLeaders(
+                up: up?.toDomain(),
+                down: down?.toDomain(),
+                defaultSelection: defaultSelection
+            )
+        }
+    }
+
+    struct MachineMomentumGroup: Decodable {
+        let up: Machine?
+        let down: Machine?
+        let defaultSelection: DashboardMomentumSnapshot.Direction
+
+        private enum CodingKeys: String, CodingKey {
+            case up
+            case down
+            case defaultSelection
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            up = try container.decodeIfPresent(Machine.self, forKey: .up)
+            down = try container.decodeIfPresent(Machine.self, forKey: .down)
+            let rawDirection = try container.decodeIfPresent(String.self, forKey: .defaultSelection)
+            defaultSelection = rawDirection.flatMap(DashboardMomentumSnapshot.Direction.init(rawValue:)) ?? .up
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.MomentumLeaders<DashboardMomentumSnapshot.MachineLeader> {
+            DashboardMomentumSnapshot.MomentumLeaders(
+                up: up?.toDomain(),
+                down: down?.toDomain(),
+                defaultSelection: defaultSelection
+            )
+        }
+    }
+
+    struct LocationMomentumGroup: Decodable {
+        let up: Location?
+        let down: Location?
+        let defaultSelection: DashboardMomentumSnapshot.Direction
+
+        private enum CodingKeys: String, CodingKey {
+            case up
+            case down
+            case defaultSelection
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            up = try container.decodeIfPresent(Location.self, forKey: .up)
+            down = try container.decodeIfPresent(Location.self, forKey: .down)
+            let rawDirection = try container.decodeIfPresent(String.self, forKey: .defaultSelection)
+            defaultSelection = rawDirection.flatMap(DashboardMomentumSnapshot.Direction.init(rawValue:)) ?? .up
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.MomentumLeaders<DashboardMomentumSnapshot.LocationLeader> {
+            DashboardMomentumSnapshot.MomentumLeaders(
+                up: up?.toDomain(),
+                down: down?.toDomain(),
+                defaultSelection: defaultSelection
+            )
+        }
     }
 
     struct Sku: Decodable {
@@ -1096,9 +1221,9 @@ private struct DashboardMomentumResponse: Decodable {
                 comparisonEnd: previousWeek.comparisonEnd,
                 progressPercentage: previousWeek.progressPercentage ?? 100
             ),
-            skuLeader: leaders.sku?.toDomain(),
-            machineLeader: leaders.machine?.toDomain(),
-            locationLeader: leaders.location?.toDomain()
+            skuMomentum: leaders.sku?.toDomain() ?? .empty(),
+            machineMomentum: leaders.machine?.toDomain() ?? .empty(),
+            locationMomentum: leaders.location?.toDomain() ?? .empty()
         )
     }
 

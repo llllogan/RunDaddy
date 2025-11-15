@@ -296,7 +296,7 @@ struct DashboardView: View {
         }
 
         if shouldShowInsights {
-            Section("Insights") {
+            Section("Biggest Changes week on week") {
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(snapshot: snapshot)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

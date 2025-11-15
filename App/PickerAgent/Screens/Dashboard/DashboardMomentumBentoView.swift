@@ -10,8 +10,24 @@ import SwiftUI
 struct DashboardMomentumBentoView: View {
     let snapshot: DashboardMomentumSnapshot
 
+    @State private var skuSelection: DashboardMomentumSnapshot.Direction
+    @State private var machineSelection: DashboardMomentumSnapshot.Direction
+    @State private var locationSelection: DashboardMomentumSnapshot.Direction
+
+    init(snapshot: DashboardMomentumSnapshot) {
+        self.snapshot = snapshot
+        _skuSelection = State(initialValue: snapshot.skuMomentum.defaultSelection)
+        _machineSelection = State(initialValue: snapshot.machineMomentum.defaultSelection)
+        _locationSelection = State(initialValue: snapshot.locationMomentum.defaultSelection)
+    }
+
     var body: some View {
         StaggeredBentoGrid(items: items, columnCount: 2)
+            .onChange(of: snapshot, initial: false) { _, newSnapshot in
+                skuSelection = newSnapshot.skuMomentum.defaultSelection
+                machineSelection = newSnapshot.machineMomentum.defaultSelection
+                locationSelection = newSnapshot.locationMomentum.defaultSelection
+            }
     }
 
     private var items: [BentoItem] {
@@ -23,77 +39,65 @@ struct DashboardMomentumBentoView: View {
     }
 
     private var skuItem: BentoItem {
-        guard let leader = snapshot.skuLeader else {
-            return BentoItem(
-                title: "SKU Momentum",
-                value: "",
-                symbolName: "tag",
-                symbolTint: .gray,
-                customContent: AnyView(MomentumStatContent(primaryText: "No data yet", percentageText: nil))
-            )
-        }
-
+        let momentum = snapshot.skuMomentum
         return BentoItem(
             title: "SKU Momentum",
             value: "",
             symbolName: "tag",
-            symbolTint: .teal,
+            symbolTint: momentum.hasData ? .teal : .gray,
             customContent: AnyView(
-                MomentumStatContent(
-                    primaryText: leader.displayName,
-                    percentageText: formattedPercentageChange(current: leader.currentTotal, previous: leader.previousTotal)
+                MomentumStatContent<DashboardMomentumSnapshot.SkuLeader>(
+                    momentum: momentum,
+                    selection: $skuSelection,
+                    placeholderText: "No data yet",
+                    primaryText: { $0.displayName },
+                    percentageText: { formattedPercentageChange(current: $0.currentTotal, previous: $0.previousTotal) },
+                    deltaProvider: { $0.delta }
                 )
             )
         )
     }
 
     private var machineItem: BentoItem {
-        guard let leader = snapshot.machineLeader else {
-            return BentoItem(
-                title: "Machine Momentum",
-                value: "",
-                symbolName: "building",
-                symbolTint: .gray,
-                customContent: AnyView(MomentumStatContent(primaryText: "No data yet", percentageText: nil))
-            )
-        }
-
-        let name = leader.locationDisplayName.map { "\($0) • \(leader.displayName)" } ?? leader.displayName
-
+        let momentum = snapshot.machineMomentum
         return BentoItem(
             title: "Machine Momentum",
             value: "",
             symbolName: "building",
-            symbolTint: .purple,
+            symbolTint: momentum.hasData ? .purple : .gray,
             customContent: AnyView(
-                MomentumStatContent(
-                    primaryText: name,
-                    percentageText: formattedPercentageChange(current: leader.currentTotal, previous: leader.previousTotal)
+                MomentumStatContent<DashboardMomentumSnapshot.MachineLeader>(
+                    momentum: momentum,
+                    selection: $machineSelection,
+                    placeholderText: "No data yet",
+                    primaryText: { leader in
+                        if let location = leader.locationDisplayName {
+                            return "\(location) • \(leader.displayName)"
+                        }
+                        return leader.displayName
+                    },
+                    percentageText: { formattedPercentageChange(current: $0.currentTotal, previous: $0.previousTotal) },
+                    deltaProvider: { $0.delta }
                 )
             )
         )
     }
 
     private var locationItem: BentoItem {
-        guard let leader = snapshot.locationLeader else {
-            return BentoItem(
-                title: "Location Momentum",
-                value: "",
-                symbolName: "mappin.circle",
-                symbolTint: .gray,
-                customContent: AnyView(MomentumStatContent(primaryText: "No data yet", percentageText: nil))
-            )
-        }
-
+        let momentum = snapshot.locationMomentum
         return BentoItem(
             title: "Location Momentum",
             value: "",
             symbolName: "mappin.circle",
-            symbolTint: .orange,
+            symbolTint: momentum.hasData ? .orange : .gray,
             customContent: AnyView(
-                MomentumStatContent(
-                    primaryText: leader.displayName,
-                    percentageText: formattedPercentageChange(current: leader.currentTotal, previous: leader.previousTotal)
+                MomentumStatContent<DashboardMomentumSnapshot.LocationLeader>(
+                    momentum: momentum,
+                    selection: $locationSelection,
+                    placeholderText: "No data yet",
+                    primaryText: { $0.displayName },
+                    percentageText: { formattedPercentageChange(current: $0.currentTotal, previous: $0.previousTotal) },
+                    deltaProvider: { $0.delta }
                 )
             )
         )
@@ -116,23 +120,46 @@ struct DashboardMomentumBentoView: View {
     }
 }
 
-private struct MomentumStatContent: View {
-    let primaryText: String
-    let percentageText: String?
+private struct MomentumStatContent<Leader: Equatable>: View {
+    let momentum: DashboardMomentumSnapshot.MomentumLeaders<Leader>
+    @Binding var selection: DashboardMomentumSnapshot.Direction
+    let placeholderText: String
+    let primaryText: (Leader) -> String
+    let percentageText: (Leader) -> String
+    let deltaProvider: (Leader) -> Int
+
+    private var activeLeader: Leader? {
+        momentum.leader(for: selection) ?? momentum.up ?? momentum.down
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(primaryText)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let percentageText {
-                Text(percentageText)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 8) {
+            if let leader = activeLeader {
+                Text(primaryText(leader))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(percentageText(leader))
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(deltaProvider(leader) >= 0 ? .green : .red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(placeholderText)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if momentum.allowsDirectionToggle {
+                Picker("Direction", selection: $selection) {
+                    ForEach(DashboardMomentumSnapshot.Direction.allCases, id: \.self) { direction in
+                        Text(direction.label)
+                            .tag(direction)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
