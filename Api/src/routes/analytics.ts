@@ -1093,10 +1093,9 @@ async function sumPackedItems(companyId: string, rangeStart: Date, rangeEnd: Dat
       FROM PickEntry pe
       JOIN Run r ON r.id = pe.runId
       WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
+        AND r.scheduledFor IS NOT NULL
+        AND r.scheduledFor >= ${rangeStart}
+        AND r.scheduledFor < ${rangeEnd}
     `,
   );
 
@@ -1111,8 +1110,7 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
     durationMs,
   );
   const progressFraction = durationMs > 0 ? elapsedMs / durationMs : 0;
-  const comparisonDurationMs = elapsedMs;
-  const currentComparisonEnd = new Date(currentWindow.start.getTime() + comparisonDurationMs);
+  const currentComparisonEnd = currentWindow.end;
 
   const currentTotalPromise = sumPackedItems(
     context.companyId,
@@ -1120,19 +1118,16 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
     currentComparisonEnd,
   );
 
-  // Align each historical period to the same elapsed share of time so we're comparing like-for-like progress.
+  // Fetch totals for the three prior full periods for comparison.
   const previousPeriods = await Promise.all(
     [1, 2, 3].map(async (index) => {
       const window = getPeriodWindow(period, context.timeZone, context.now, index);
-      const comparisonEnd = new Date(window.start.getTime() + comparisonDurationMs);
-      const boundedComparisonEnd =
-        comparisonEnd.getTime() > window.end.getTime() ? window.end : comparisonEnd;
-      const totalItems = await sumPackedItems(context.companyId, window.start, boundedComparisonEnd);
+      const totalItems = await sumPackedItems(context.companyId, window.start, window.end);
       return {
         index,
         start: window.start.toISOString(),
         end: window.end.toISOString(),
-        comparisonEnd: boundedComparisonEnd.toISOString(),
+        comparisonEnd: window.end.toISOString(),
         totalItems,
       };
     }),
@@ -1156,7 +1151,7 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
   return {
     period,
     progressPercentage: Number((progressFraction * 100).toFixed(2)),
-    comparisonDurationMs,
+    comparisonDurationMs: durationMs,
     currentPeriod: {
       start: currentWindow.start.toISOString(),
       end: currentWindow.end.toISOString(),
