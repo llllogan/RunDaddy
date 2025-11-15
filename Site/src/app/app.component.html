@@ -7,14 +7,14 @@
           {{ session?.company?.name ?? 'Picker Agent' }}
         </a>
         @if (session) {
+          @let isGodUser = session?.user?.role === 'GOD';
+          @let isPlatformAdminContext =
+            session?.user?.platformAdmin &&
+            session?.platformAdminCompanyId &&
+            session?.company?.id === session?.platformAdminCompanyId;
           <div class="flex items-center justify-center gap-3">
             @for (tab of headerTabs; track tab.id) {
-              @if (
-                !tab.requiresAdminContext ||
-                (session?.user?.platformAdmin &&
-                  session?.platformAdminCompanyId &&
-                  session?.company?.id === session?.platformAdminCompanyId)
-              ) {
+              @if (!tab.requiresAdminContext || isGodUser || isPlatformAdminContext) {
                 <button
                   type="button"
                   class="rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"

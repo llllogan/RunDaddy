@@ -13,6 +13,7 @@ export const adminGuard: CanActivateFn = () => {
     filter(([, bootstrapped]) => bootstrapped),
     take(1),
     map(([session]) => {
+      const isGod = session?.user?.role === 'GOD';
       const platformAdminCompanyId = session?.platformAdminCompanyId ?? null;
       const currentCompanyId = session?.company?.id ?? null;
       const isAdminContext =
@@ -20,7 +21,7 @@ export const adminGuard: CanActivateFn = () => {
         platformAdminCompanyId === currentCompanyId &&
         session?.user?.platformAdmin;
 
-      return isAdminContext ? true : router.createUrlTree(['/dashboard']);
+      return isGod || isAdminContext ? true : router.createUrlTree(['/dashboard']);
     }),
   );
 };
