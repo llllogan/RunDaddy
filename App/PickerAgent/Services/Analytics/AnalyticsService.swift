@@ -17,6 +17,7 @@ protocol AnalyticsServicing {
         machineId: String?,
         credentials: AuthCredentials
     ) async throws -> TopSkuStats
+    func fetchDashboardMomentum(credentials: AuthCredentials) async throws -> DashboardMomentumSnapshot
 }
 
 struct DailyInsights: Equatable {
@@ -215,6 +216,109 @@ struct PackPeriodComparisons: Equatable {
 
     var isEmpty: Bool {
         periods.isEmpty
+    }
+}
+
+struct DashboardMomentumSnapshot: Equatable {
+    struct WeekWindow: Equatable {
+        let start: Date
+        let end: Date
+        let comparisonEnd: Date
+        let progressPercentage: Double
+
+        var normalizedProgressPercentage: Double {
+            max(0, min(progressPercentage, 100))
+        }
+    }
+
+    struct SkuLeader: Equatable {
+        let skuId: String
+        let skuCode: String
+        let skuName: String
+        let currentTotal: Int
+        let previousTotal: Int
+
+        var delta: Int {
+            currentTotal - previousTotal
+        }
+
+        var displayName: String {
+            let trimmedName = skuName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty {
+                return trimmedName
+            }
+            let trimmedCode = skuCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedCode.isEmpty ? "SKU" : trimmedCode
+        }
+    }
+
+    struct MachineLeader: Equatable {
+        let machineId: String
+        let machineCode: String
+        let machineDescription: String
+        let locationId: String?
+        let locationName: String?
+        let currentTotal: Int
+        let previousTotal: Int
+
+        var delta: Int {
+            currentTotal - previousTotal
+        }
+
+        var displayName: String {
+            let trimmed = machineDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+            let code = machineCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            return code.isEmpty ? "Machine" : code
+        }
+
+        var locationDisplayName: String? {
+            guard let raw = locationName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty
+            else {
+                return nil
+            }
+            return raw
+        }
+    }
+
+    struct LocationLeader: Equatable {
+        let locationId: String
+        let locationName: String
+        let currentTotal: Int
+        let previousTotal: Int
+
+        var delta: Int {
+            currentTotal - previousTotal
+        }
+
+        var displayName: String {
+            let trimmed = locationName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "Location" : trimmed
+        }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let currentWeek: WeekWindow
+    let previousWeek: WeekWindow
+    let skuLeader: SkuLeader?
+    let machineLeader: MachineLeader?
+    let locationLeader: LocationLeader?
+
+    var normalizedProgressPercentage: Double {
+        currentWeek.normalizedProgressPercentage
+    }
+
+    var comparisonPeriodLabel: String {
+        let rounded = Int(round(normalizedProgressPercentage))
+        if rounded >= 100 {
+            return "last week"
+        }
+        let safeRounded = max(rounded, 1)
+        return "first \(safeRounded)% of last week"
     }
 }
 
@@ -422,6 +526,44 @@ final class AnalyticsService: AnalyticsServicing {
 
         do {
             let payload = try decoder.decode(TopSkuStatsResponse.self, from: data)
+            return payload.toDomain()
+        } catch {
+            throw AnalyticsServiceError.unableToDecode
+        }
+    }
+
+    func fetchDashboardMomentum(credentials: AuthCredentials) async throws -> DashboardMomentumSnapshot {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("analytics")
+        url.appendPathComponent("dashboard")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AnalyticsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw AnalyticsServiceError.noCompanyAccess
+            }
+            throw AnalyticsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        do {
+            let payload = try decoder.decode(DashboardMomentumResponse.self, from: data)
             return payload.toDomain()
         } catch {
             throw AnalyticsServiceError.unableToDecode
@@ -806,5 +948,170 @@ private struct TopSkuStatsResponse: Decodable {
                 )
             }
         )
+    }
+}
+
+private struct DashboardMomentumResponse: Decodable {
+    struct WeekWindow: Decodable {
+        let start: Date
+        let end: Date
+        let comparisonEnd: Date
+        let progressPercentage: Double?
+    }
+
+    struct Leaders: Decodable {
+        let sku: Sku?
+        let machine: Machine?
+        let location: Location?
+    }
+
+    struct Sku: Decodable {
+        let skuId: String
+        let skuCode: String
+        let skuName: String
+        let currentTotal: Int
+        let previousTotal: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case skuId
+            case skuCode
+            case skuName
+            case currentTotal
+            case previousTotal
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            skuId = try container.decode(String.self, forKey: .skuId)
+            skuCode = try container.decode(String.self, forKey: .skuCode)
+            skuName = try container.decode(String.self, forKey: .skuName)
+            currentTotal = DashboardMomentumResponse.decodeCount(from: container, key: .currentTotal)
+            previousTotal = DashboardMomentumResponse.decodeCount(from: container, key: .previousTotal)
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.SkuLeader {
+            DashboardMomentumSnapshot.SkuLeader(
+                skuId: skuId,
+                skuCode: skuCode,
+                skuName: skuName,
+                currentTotal: currentTotal,
+                previousTotal: previousTotal
+            )
+        }
+    }
+
+    struct Machine: Decodable {
+        let machineId: String
+        let machineCode: String
+        let machineDescription: String
+        let locationId: String?
+        let locationName: String?
+        let currentTotal: Int
+        let previousTotal: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case machineId
+            case machineCode
+            case machineDescription
+            case locationId
+            case locationName
+            case currentTotal
+            case previousTotal
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            machineId = try container.decode(String.self, forKey: .machineId)
+            machineCode = try container.decode(String.self, forKey: .machineCode)
+            machineDescription = try container.decodeIfPresent(String.self, forKey: .machineDescription) ?? ""
+            locationId = try container.decodeIfPresent(String.self, forKey: .locationId)
+            locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+            currentTotal = DashboardMomentumResponse.decodeCount(from: container, key: .currentTotal)
+            previousTotal = DashboardMomentumResponse.decodeCount(from: container, key: .previousTotal)
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.MachineLeader {
+            DashboardMomentumSnapshot.MachineLeader(
+                machineId: machineId,
+                machineCode: machineCode,
+                machineDescription: machineDescription,
+                locationId: locationId,
+                locationName: locationName,
+                currentTotal: currentTotal,
+                previousTotal: previousTotal
+            )
+        }
+    }
+
+    struct Location: Decodable {
+        let locationId: String
+        let locationName: String
+        let currentTotal: Int
+        let previousTotal: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case locationId
+            case locationName
+            case currentTotal
+            case previousTotal
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            locationId = try container.decode(String.self, forKey: .locationId)
+            locationName = try container.decode(String.self, forKey: .locationName)
+            currentTotal = DashboardMomentumResponse.decodeCount(from: container, key: .currentTotal)
+            previousTotal = DashboardMomentumResponse.decodeCount(from: container, key: .previousTotal)
+        }
+
+        func toDomain() -> DashboardMomentumSnapshot.LocationLeader {
+            DashboardMomentumSnapshot.LocationLeader(
+                locationId: locationId,
+                locationName: locationName,
+                currentTotal: currentTotal,
+                previousTotal: previousTotal
+            )
+        }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let currentWeek: WeekWindow
+    let previousWeek: WeekWindow
+    let leaders: Leaders
+
+    func toDomain() -> DashboardMomentumSnapshot {
+        DashboardMomentumSnapshot(
+            generatedAt: generatedAt,
+            timeZone: timeZone,
+            currentWeek: DashboardMomentumSnapshot.WeekWindow(
+                start: currentWeek.start,
+                end: currentWeek.end,
+                comparisonEnd: currentWeek.comparisonEnd,
+                progressPercentage: currentWeek.progressPercentage ?? 100
+            ),
+            previousWeek: DashboardMomentumSnapshot.WeekWindow(
+                start: previousWeek.start,
+                end: previousWeek.end,
+                comparisonEnd: previousWeek.comparisonEnd,
+                progressPercentage: previousWeek.progressPercentage ?? 100
+            ),
+            skuLeader: leaders.sku?.toDomain(),
+            machineLeader: leaders.machine?.toDomain(),
+            locationLeader: leaders.location?.toDomain()
+        )
+    }
+
+    private static func decodeCount<KeyType: CodingKey>(
+        from container: KeyedDecodingContainer<KeyType>,
+        key: KeyType
+    ) -> Int {
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return max(value, 0)
+        }
+        if let doubleValue = try? container.decode(Double.self, forKey: key) {
+            return max(Int(doubleValue.rounded()), 0)
+        }
+        return 0
     }
 }

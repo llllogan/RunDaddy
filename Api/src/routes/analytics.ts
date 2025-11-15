@@ -103,6 +103,31 @@ type SearchSuggestionSkuRow = {
   total_packed: bigint | number | string | null;
 };
 
+type DashboardSkuMomentumRow = {
+  sku_id: string | null;
+  sku_code: string | null;
+  sku_name: string | null;
+  current_total: bigint | number | string | null;
+  previous_total: bigint | number | string | null;
+};
+
+type DashboardMachineMomentumRow = {
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_description: string | null;
+  location_id: string | null;
+  location_name: string | null;
+  current_total: bigint | number | string | null;
+  previous_total: bigint | number | string | null;
+};
+
+type DashboardLocationMomentumRow = {
+  location_id: string | null;
+  location_name: string | null;
+  current_total: bigint | number | string | null;
+  previous_total: bigint | number | string | null;
+};
+
 const router = Router();
 
 router.use(authenticate);
@@ -359,6 +384,41 @@ router.get('/packs/period-comparison', setLogConfig({ level: 'minimal' }), async
   });
 });
 
+router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const weekWindow = buildDashboardWeekWindow(context.timeZone, context.now);
+  const [skuLeaderRow, machineLeaderRow, locationLeaderRow] = await Promise.all([
+    fetchDashboardSkuMomentumLeader(context.companyId, weekWindow),
+    fetchDashboardMachineMomentumLeader(context.companyId, weekWindow),
+    fetchDashboardLocationMomentumLeader(context.companyId, weekWindow),
+  ]);
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    currentWeek: {
+      start: weekWindow.currentStart.toISOString(),
+      end: weekWindow.currentEnd.toISOString(),
+      comparisonEnd: weekWindow.currentComparisonEnd.toISOString(),
+      progressPercentage: Number((weekWindow.progressFraction * 100).toFixed(2)),
+    },
+    previousWeek: {
+      start: weekWindow.previousStart.toISOString(),
+      end: weekWindow.previousEnd.toISOString(),
+      comparisonEnd: weekWindow.previousComparisonEnd.toISOString(),
+    },
+    leaders: {
+      sku: mapSkuMomentumLeader(skuLeaderRow),
+      machine: mapMachineMomentumLeader(machineLeaderRow),
+      location: mapLocationMomentumLeader(locationLeaderRow),
+    },
+  });
+});
+
 type LookbackContext = {
   companyId: string;
   timeZone: string;
@@ -404,6 +464,17 @@ type PeriodComparison = {
     deltaFromPreviousAverage: number | null;
     deltaPercentage: number | null;
   };
+};
+
+type DashboardWeekWindow = {
+  currentStart: Date;
+  currentEnd: Date;
+  currentComparisonEnd: Date;
+  previousStart: Date;
+  previousEnd: Date;
+  previousComparisonEnd: Date;
+  progressFraction: number;
+  comparisonDurationMs: number;
 };
 
 async function buildLookbackContext(req: Request, res: Response): Promise<LookbackContext | null> {
@@ -1151,6 +1222,208 @@ function buildTopSkuRange(timeZone: string, reference: Date, lookbackDays: numbe
   const startSeed = new Date(rangeEnd.getTime() - lookbackDays * DAY_IN_MS);
   const rangeStart = convertDateToTimezoneMidnight(startSeed, timeZone);
   return { rangeStart, rangeEnd };
+}
+
+function buildDashboardWeekWindow(timeZone: string, reference: Date): DashboardWeekWindow {
+  const currentStart = getIsoWeekStart(timeZone, reference);
+  const currentEnd = new Date(currentStart.getTime() + WEEK_IN_MS);
+  const startMs = currentStart.getTime();
+  const endMs = currentEnd.getTime();
+  const clampedNowMs = clamp(reference.getTime(), startMs, endMs);
+  const comparisonDurationMs = Math.max(0, Math.min(WEEK_IN_MS, clampedNowMs - startMs));
+  const previousStart = new Date(currentStart.getTime() - WEEK_IN_MS);
+  const previousEnd = new Date(currentStart);
+
+  return {
+    currentStart,
+    currentEnd,
+    currentComparisonEnd: new Date(startMs + comparisonDurationMs),
+    previousStart,
+    previousEnd,
+    previousComparisonEnd: new Date(previousStart.getTime() + comparisonDurationMs),
+    progressFraction: WEEK_IN_MS === 0 ? 0 : comparisonDurationMs / WEEK_IN_MS,
+    comparisonDurationMs,
+  };
+}
+
+async function fetchDashboardSkuMomentumLeader(
+  companyId: string,
+  window: DashboardWeekWindow,
+) {
+  const rows = await prisma.$queryRaw<DashboardSkuMomentumRow[]>(
+    Prisma.sql`
+      SELECT *
+      FROM (
+        SELECT
+          sku.id AS sku_id,
+          sku.code AS sku_code,
+          sku.name AS sku_name,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.currentStart}
+                 AND r.scheduledFor < ${window.currentComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS current_total,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.previousStart}
+                 AND r.scheduledFor < ${window.previousComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS previous_total
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN SKU sku ON sku.id = ci.skuId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${window.previousStart}
+          AND r.scheduledFor < ${window.currentComparisonEnd}
+        GROUP BY sku.id, sku.code, sku.name
+      ) AS sku_totals
+      WHERE current_total > 0 OR previous_total > 0
+      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      LIMIT 1
+    `,
+  );
+  return rows[0] ?? null;
+}
+
+async function fetchDashboardMachineMomentumLeader(
+  companyId: string,
+  window: DashboardWeekWindow,
+) {
+  const rows = await prisma.$queryRaw<DashboardMachineMomentumRow[]>(
+    Prisma.sql`
+      SELECT *
+      FROM (
+        SELECT
+          mach.id AS machine_id,
+          mach.code AS machine_code,
+          mach.description AS machine_description,
+          loc.id AS location_id,
+          loc.name AS location_name,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.currentStart}
+                 AND r.scheduledFor < ${window.currentComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS current_total,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.previousStart}
+                 AND r.scheduledFor < ${window.previousComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS previous_total
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN Coil coil ON coil.id = ci.coilId
+        JOIN Machine mach ON mach.id = coil.machineId
+        LEFT JOIN Location loc ON loc.id = mach.locationId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${window.previousStart}
+          AND r.scheduledFor < ${window.currentComparisonEnd}
+        GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
+      ) AS machine_totals
+      WHERE current_total > 0 OR previous_total > 0
+      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      LIMIT 1
+    `,
+  );
+  return rows[0] ?? null;
+}
+
+async function fetchDashboardLocationMomentumLeader(
+  companyId: string,
+  window: DashboardWeekWindow,
+) {
+  const rows = await prisma.$queryRaw<DashboardLocationMomentumRow[]>(
+    Prisma.sql`
+      SELECT *
+      FROM (
+        SELECT
+          loc.id AS location_id,
+          loc.name AS location_name,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.currentStart}
+                 AND r.scheduledFor < ${window.currentComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS current_total,
+          SUM(CASE 
+                WHEN r.scheduledFor >= ${window.previousStart}
+                 AND r.scheduledFor < ${window.previousComparisonEnd}
+                THEN pe.count
+                ELSE 0
+              END) AS previous_total
+        FROM PickEntry pe
+        JOIN Run r ON r.id = pe.runId
+        JOIN CoilItem ci ON ci.id = pe.coilItemId
+        JOIN Coil coil ON coil.id = ci.coilId
+        JOIN Machine mach ON mach.id = coil.machineId
+        JOIN Location loc ON loc.id = mach.locationId
+        WHERE r.companyId = ${companyId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${window.previousStart}
+          AND r.scheduledFor < ${window.currentComparisonEnd}
+        GROUP BY loc.id, loc.name
+      ) AS location_totals
+      WHERE (current_total > 0 OR previous_total > 0) AND location_id IS NOT NULL
+      ORDER BY (current_total - previous_total) DESC, current_total DESC
+      LIMIT 1
+    `,
+  );
+  return rows[0] ?? null;
+}
+
+function mapSkuMomentumLeader(row: DashboardSkuMomentumRow | null) {
+  if (!row || !row.sku_id) {
+    return null;
+  }
+  const currentTotal = Math.max(toNumber(row.current_total), 0);
+  const previousTotal = Math.max(toNumber(row.previous_total), 0);
+  return {
+    skuId: row.sku_id,
+    skuCode: row.sku_code ?? 'SKU',
+    skuName: row.sku_name ?? row.sku_code ?? 'SKU',
+    currentTotal,
+    previousTotal,
+    delta: currentTotal - previousTotal,
+  };
+}
+
+function mapMachineMomentumLeader(row: DashboardMachineMomentumRow | null) {
+  if (!row || !row.machine_id) {
+    return null;
+  }
+  const currentTotal = Math.max(toNumber(row.current_total), 0);
+  const previousTotal = Math.max(toNumber(row.previous_total), 0);
+  return {
+    machineId: row.machine_id,
+    machineCode: row.machine_code ?? 'Machine',
+    machineDescription: row.machine_description ?? row.machine_code ?? 'Machine',
+    locationId: row.location_id,
+    locationName: row.location_name ?? undefined,
+    currentTotal,
+    previousTotal,
+    delta: currentTotal - previousTotal,
+  };
+}
+
+function mapLocationMomentumLeader(row: DashboardLocationMomentumRow | null) {
+  if (!row || !row.location_id) {
+    return null;
+  }
+  const currentTotal = Math.max(toNumber(row.current_total), 0);
+  const previousTotal = Math.max(toNumber(row.previous_total), 0);
+  return {
+    locationId: row.location_id,
+    locationName: row.location_name ?? 'Location',
+    currentTotal,
+    previousTotal,
+    delta: currentTotal - previousTotal,
+  };
 }
 
 export const analyticsRouter = router;

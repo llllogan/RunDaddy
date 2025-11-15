@@ -19,9 +19,8 @@ struct DashboardView: View {
     let logoutAction: () -> Void
 
     @StateObject private var viewModel: DashboardViewModel
-    @StateObject private var chartsViewModel: ChartsViewModel
+    @StateObject private var momentumViewModel: DashboardMomentumViewModel
     @State private var isShowingProfile = false
-    @State private var chartRefreshTrigger = false
     @State private var searchText = ""
     @State private var searchResults: [SearchResult] = []
     @State private var suggestions: [SearchResult] = []
@@ -67,7 +66,7 @@ struct DashboardView: View {
         self.session = session
         self.logoutAction = logoutAction
         _viewModel = StateObject(wrappedValue: DashboardViewModel(session: session))
-        _chartsViewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+        _momentumViewModel = StateObject(wrappedValue: DashboardMomentumViewModel(session: session))
     }
 
     var body: some View {
@@ -138,10 +137,11 @@ struct DashboardView: View {
         }
         .task {
             await viewModel.loadRuns()
+            await momentumViewModel.loadSnapshot()
         }
         .refreshable {
             await viewModel.loadRuns(force: true)
-            chartRefreshTrigger.toggle()
+            await momentumViewModel.loadSnapshot(force: true)
         }
         .sheet(isPresented: $isShowingProfile) {
             ProfileView(
@@ -160,9 +160,10 @@ struct DashboardView: View {
         }
         .onChange(of: session, initial: false) { _, newSession in
             viewModel.updateSession(newSession)
-            chartsViewModel.updateSession(newSession)
+            momentumViewModel.updateSession(newSession)
             Task {
                 await viewModel.loadRuns(force: true)
+                await momentumViewModel.loadSnapshot(force: true)
             }
         }
 
@@ -296,16 +297,17 @@ struct DashboardView: View {
 
         if shouldShowInsights {
             Section("Insights") {
-                DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-
-                NavigationLink {
-                    AnalyticsView(session: session)
-                } label: {
-                    Text("View more data")
-                        .foregroundStyle(.primary)
+                if let snapshot = momentumViewModel.snapshot {
+                    DashboardMomentumBentoView(snapshot: snapshot)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
+                } else if momentumViewModel.isLoading {
+                    LoadingStateRow()
+                } else if let message = momentumViewModel.errorMessage {
+                    ErrorStateRow(message: message)
+                } else {
+                    EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
                 }
-                .buttonStyle(.plain)
             }
         }
     }
