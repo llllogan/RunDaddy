@@ -14,10 +14,18 @@ struct MachineType: Codable, Identifiable {
     let description: String?
 }
 
+struct LocationMachine: Codable, Identifiable {
+    let id: String
+    let code: String
+    let description: String?
+    let machineType: MachineType?
+}
+
 struct Location: Codable, Identifiable {
     let id: String
     let name: String
     let address: String?
+    let machines: [LocationMachine]?
 }
 
 struct SKU: Codable, Identifiable {

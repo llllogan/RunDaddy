@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		02EC34F02EC7FD4700E5F1E5 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = /Users/logan/Developer/RunDaddy/App/PickerAgent/Config/Debug.xcconfig; sourceTree = "<absolute>"; };
+		02EC34F22EC7FD4D00E5F1E5 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = /Users/logan/Developer/RunDaddy/App/PickerAgent/Config/Release.xcconfig; sourceTree = "<absolute>"; };
 		BEDC97A62EB8BA7D00B747F0 /* PickerAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PickerAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -29,11 +31,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		02EC34F42EC800F200E5F1E5 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				02EC34F02EC7FD4700E5F1E5 /* Debug.xcconfig */,
+				02EC34F22EC7FD4D00E5F1E5 /* Release.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		BEDC979D2EB8BA7D00B747F0 = {
 			isa = PBXGroup;
 			children = (
 				BEDC97A82EB8BA7D00B747F0 /* PickerAgent */,
 				BEDC97A72EB8BA7D00B747F0 /* Products */,
+				02EC34F42EC800F200E5F1E5 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};

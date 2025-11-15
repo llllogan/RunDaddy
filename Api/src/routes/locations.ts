@@ -45,10 +45,35 @@ router.get('/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) 
     return res.status(404).json({ error: 'Location not found' });
   }
 
+  const machines = await prisma.machine.findMany({
+    where: {
+      locationId,
+      companyId: req.auth.companyId,
+    },
+    include: {
+      machineType: true,
+    },
+    orderBy: {
+      code: 'asc',
+    },
+  });
+
   return res.json({
     id: location.id,
     name: location.name,
     address: location.address,
+    machines: machines.map(machine => ({
+      id: machine.id,
+      code: machine.code,
+      description: machine.description,
+      machineType: machine.machineType
+        ? {
+            id: machine.machineType.id,
+            name: machine.machineType.name,
+            description: machine.machineType.description,
+          }
+        : null,
+    })),
   });
 });
 

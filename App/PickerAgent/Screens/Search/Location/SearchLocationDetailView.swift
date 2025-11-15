@@ -43,6 +43,7 @@ struct SearchLocationDetailView: View {
                     if let stats = locationStats {
                         SearchLocationInfoBento(
                             location: location,
+                            machines: location.machines ?? [],
                             lastPacked: stats.lastPacked,
                             percentageChange: stats.percentageChange,
                             bestMachine: stats.bestMachine,

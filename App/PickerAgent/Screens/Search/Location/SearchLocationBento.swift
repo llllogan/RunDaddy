@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SearchLocationInfoBento: View {
     let location: Location
+    let machines: [LocationMachine]
     let lastPacked: LocationLastPacked?
     let percentageChange: SkuPercentageChange?
     let bestMachine: LocationBestMachine?
@@ -91,6 +92,56 @@ struct SearchLocationInfoBento: View {
                 symbolName: trendSymbol(percentageChange?.trend),
                 symbolTint: trendColor(percentageChange?.trend),
                 isProminent: percentageChange?.trend == "up"
+            )
+        )
+
+        cards.append(
+            BentoItem(
+                title: "Machines",
+                value: "",
+                symbolName: "building.2",
+                symbolTint: .purple,
+                customContent: AnyView(
+                    VStack(alignment: .leading, spacing: 8) {
+                        if machines.isEmpty {
+                            Text("No machines")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .italic()
+                        } else {
+                            ForEach(machines) { machine in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !description.isEmpty {
+                                        Text(description)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    HStack {
+                                        Text(machine.code)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                    }
+                                    
+                                    if let machineType = machine.machineType {
+                                        Text(machineType.name)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(.systemGray5))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                )
             )
         )
 
