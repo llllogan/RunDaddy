@@ -64,17 +64,6 @@ struct SearchLocationInfoBento: View {
         
         cards.append(
             BentoItem(
-                title: "Pack Trend",
-                value: formatPercentageChange(percentageChange),
-                subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
-                symbolName: trendSymbol(percentageChange?.trend),
-                symbolTint: trendColor(percentageChange?.trend),
-                isProminent: percentageChange?.trend == "up"
-            )
-        )
-
-        cards.append(
-            BentoItem(
                 title: "Share of Sales",
                 value: "",
                 symbolName: "building.2",
@@ -87,7 +76,8 @@ struct SearchLocationInfoBento: View {
                                 .foregroundStyle(.secondary)
                                 .italic()
                         } else {
-                            ForEach(machines) { machine in
+                            ForEach(machinesBySalesShare) { machine in
+                                let isBestMachine = bestMachineId == machine.id
                                 VStack(alignment: .leading, spacing: 0) {
                                     if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
                                        !description.isEmpty {
@@ -104,7 +94,14 @@ struct SearchLocationInfoBento: View {
                                         Spacer()
                                     }
                                     
-                                    InfoChip(title: machineShareText(for: machine), date: nil, text: nil, colour: nil, foregroundColour: nil, icon: nil)
+                                    InfoChip(
+                                        title: machineShareText(for: machine),
+                                        date: nil,
+                                        text: nil,
+                                        colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
+                                        foregroundColour: isBestMachine ? .green : .blue,
+                                        icon: nil
+                                    )
                                 }
                                 .padding(.vertical, 2)
                             }
@@ -114,6 +111,19 @@ struct SearchLocationInfoBento: View {
                 )
             )
         )
+        
+        cards.append(
+            BentoItem(
+                title: "Pack Trend",
+                value: formatPercentageChange(percentageChange),
+                subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
+                symbolName: trendSymbol(percentageChange?.trend),
+                symbolTint: trendColor(percentageChange?.trend),
+                isProminent: percentageChange?.trend == "up"
+            )
+        )
+
+        
 
         return cards
     }
@@ -189,5 +199,28 @@ struct SearchLocationInfoBento: View {
 
     private func machineShareText(for machine: LocationMachine) -> String {
         machineShareLookup[machine.id]?.roundedPercentageText ?? "0% of sales"
+    }
+
+    private func machineShareValue(for machine: LocationMachine) -> Double {
+        machineShareLookup[machine.id]?.percentage ?? 0
+    }
+
+    private var machinesBySalesShare: [LocationMachine] {
+        machines.sorted { first, second in
+            let firstShare = machineShareValue(for: first)
+            let secondShare = machineShareValue(for: second)
+            if firstShare == secondShare {
+                return first.id < second.id
+            }
+            return firstShare > secondShare
+        }
+    }
+
+    private var bestMachineId: String? {
+        guard let machine = machinesBySalesShare.first,
+              machineShareValue(for: machine) > 0 else {
+            return nil
+        }
+        return machine.id
     }
 }
