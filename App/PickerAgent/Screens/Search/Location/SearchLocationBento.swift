@@ -5,11 +5,14 @@ struct SearchLocationInfoBento: View {
     let machines: [LocationMachine]
     let lastPacked: LocationLastPacked?
     let percentageChange: SkuPercentageChange?
-    let bestMachine: LocationBestMachine?
     let bestSku: LocationBestSku?
+    let machineSalesShare: [LocationMachineSalesShare]
     let selectedPeriod: SkuPeriod?
-    let onBestMachineTap: ((LocationBestMachine) -> Void)?
     let onBestSkuTap: ((LocationBestSku) -> Void)?
+
+    private var machineShareLookup: [String: LocationMachineSalesShare] {
+        Dictionary(uniqueKeysWithValues: machineSalesShare.map { ($0.machineId, $0) })
+    }
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -33,31 +36,6 @@ struct SearchLocationInfoBento: View {
                 allowsMultilineValue: true
             )
         )
-
-        if let bestMachine = bestMachine {
-            cards.append(
-                BentoItem(
-                    title: "Best Machine",
-                    value: bestMachine.displayName,
-                    subtitle: bestMachine.totalPacks > 0 ? "\(bestMachine.totalPacks) packs" : nil,
-                    symbolName: "building",
-                    symbolTint: .purple,
-                    allowsMultilineValue: true,
-                    onTap: { onBestMachineTap?(bestMachine) },
-                    showsChevron: true
-                )
-            )
-        } else {
-            cards.append(
-                BentoItem(
-                    title: "Best Machine",
-                    value: "No data",
-                    subtitle: "No machine activity",
-                    symbolName: "building",
-                    symbolTint: .gray
-                )
-            )
-        }
 
         if let bestSku = bestSku {
             cards.append(
@@ -97,7 +75,7 @@ struct SearchLocationInfoBento: View {
 
         cards.append(
             BentoItem(
-                title: "Machines",
+                title: "Share of Sales",
                 value: "",
                 symbolName: "building.2",
                 symbolTint: .purple,
@@ -110,7 +88,7 @@ struct SearchLocationInfoBento: View {
                                 .italic()
                         } else {
                             ForEach(machines) { machine in
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 0) {
                                     if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
                                        !description.isEmpty {
                                         Text(description)
@@ -119,22 +97,14 @@ struct SearchLocationInfoBento: View {
                                             .lineLimit(1)
                                     }
                                     
-                                    HStack {
-                                        Text(machine.code)
+                                    if let machineType = machine.machineType {
+                                        Text(machineType.name)
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                         Spacer()
                                     }
                                     
-                                    if let machineType = machine.machineType {
-                                        Text(machineType.name)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color(.systemGray5))
-                                            .clipShape(Capsule())
-                                    }
+                                    InfoChip(title: machineShareText(for: machine), date: nil, text: nil, colour: nil, foregroundColour: nil, icon: nil)
                                 }
                                 .padding(.vertical, 2)
                             }
@@ -215,5 +185,9 @@ struct SearchLocationInfoBento: View {
         default:
             return .gray
         }
+    }
+
+    private func machineShareText(for machine: LocationMachine) -> String {
+        machineShareLookup[machine.id]?.roundedPercentageText ?? "0% of sales"
     }
 }

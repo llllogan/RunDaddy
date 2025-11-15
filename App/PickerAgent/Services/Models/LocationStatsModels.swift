@@ -12,6 +12,7 @@ struct LocationStatsResponse: Codable {
     let lastPacked: LocationLastPacked?
     let bestMachine: LocationBestMachine?
     let bestSku: LocationBestSku?
+    let machineSalesShare: [LocationMachineSalesShare]?
     let points: [LocationStatsPoint]
 }
 
@@ -44,6 +45,36 @@ struct LocationStatsMachineBreakdown: Codable, Identifiable {
             return trimmedCode.isEmpty ? "Machine" : trimmedCode
         }
         return machineName
+    }
+}
+
+struct LocationMachineSalesShare: Codable, Identifiable {
+    let machineId: String
+    let machineCode: String
+    let machineName: String?
+    let count: Int
+    let percentage: Double
+
+    var id: String { machineId }
+
+    var displayName: String {
+        let trimmed = machineName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        let codeTrimmed = machineCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        return codeTrimmed.isEmpty ? "Machine" : codeTrimmed
+    }
+
+    var roundedPercentageText: String {
+        if percentage == 0 {
+            return "0% of sales"
+        }
+        let rounded = percentage.rounded(.toNearestOrAwayFromZero)
+        if abs(rounded - percentage) < 0.05 {
+            return "\(Int(rounded))% of sales"
+        }
+        return String(format: "%.1f%% of sales", percentage)
     }
 }
 

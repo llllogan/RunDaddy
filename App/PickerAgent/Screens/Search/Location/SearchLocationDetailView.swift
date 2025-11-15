@@ -11,7 +11,6 @@ struct SearchLocationDetailView: View {
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var selectedBreakdown: LocationChartBreakdown = .machines
-    @State private var machineNavigationTarget: SearchLocationMachineNavigation?
     @State private var skuNavigationTarget: SearchLocationSkuNavigation?
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
@@ -46,10 +45,9 @@ struct SearchLocationDetailView: View {
                             machines: location.machines ?? [],
                             lastPacked: stats.lastPacked,
                             percentageChange: stats.percentageChange,
-                            bestMachine: stats.bestMachine,
                             bestSku: stats.bestSku,
+                            machineSalesShare: stats.machineSalesShare ?? [],
                             selectedPeriod: selectedPeriod,
-                            onBestMachineTap: { navigateToMachineDetail($0) },
                             onBestSkuTap: { navigateToSkuDetail($0) }
                         )
                     } else if isLoadingStats {
@@ -102,9 +100,6 @@ struct SearchLocationDetailView: View {
                 .accessibilityLabel("Get directions")
             }
         }
-        .navigationDestination(item: $machineNavigationTarget) { target in
-            MachineDetailView(machineId: target.id, session: session)
-        }
         .navigationDestination(item: $skuNavigationTarget) { target in
             SkuDetailView(skuId: target.id, session: session)
         }
@@ -136,11 +131,6 @@ struct SearchLocationDetailView: View {
 
     private var locationDisplayTitle: String {
         location?.name ?? "Location Details"
-    }
-
-    private func navigateToMachineDetail(_ machine: LocationBestMachine) {
-        guard !machine.machineId.isEmpty else { return }
-        machineNavigationTarget = SearchLocationMachineNavigation(id: machine.machineId)
     }
 
     private func navigateToSkuDetail(_ sku: LocationBestSku) {
@@ -178,10 +168,6 @@ struct SearchLocationDetailView: View {
             openURL(fallbackURL)
         }
     }
-}
-
-private struct SearchLocationMachineNavigation: Identifiable, Hashable {
-    let id: String
 }
 
 private struct SearchLocationSkuNavigation: Identifiable, Hashable {

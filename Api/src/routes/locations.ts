@@ -141,7 +141,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     period,
   );
 
-  const { points, totalItems, latestPeriodRowEndMs } = chartData;
+  const { points, totalItems, latestPeriodRowEndMs, machineSalesShare } = chartData;
 
   const coverageReferenceMs = Math.max(now.getTime(), latestPeriodRowEndMs ?? now.getTime());
   const coverageMs = Math.max(
@@ -186,6 +186,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     lastPacked,
     bestMachine,
     bestSku,
+    machineSalesShare,
     points,
   });
 });
@@ -216,6 +217,14 @@ type LocationChartPoint = {
     skuName: string;
     count: number;
   }>;
+};
+
+type LocationMachineSalesShare = {
+  machineId: string;
+  machineCode: string;
+  machineName: string | null;
+  count: number;
+  percentage: number;
 };
 
 async function buildLocationChartPoints(
@@ -268,6 +277,10 @@ async function buildLocationChartPoints(
     string,
     Map<string, { skuCode: string; skuName: string; count: number }>
   >();
+  const machinePeriodTotals = new Map<
+    string,
+    { machineCode: string; machineName: string | null; count: number }
+  >();
   const periodStartMs = periodStart.getTime();
   const periodEndMs = periodEnd.getTime();
   let latestPeriodRowEndMs: number | null = null;
@@ -286,6 +299,16 @@ async function buildLocationChartPoints(
         latestPeriodRowEndMs === null
           ? clampedRowEnd
           : Math.max(latestPeriodRowEndMs, clampedRowEnd);
+      const existingMachineTotals = machinePeriodTotals.get(row.machineId) ?? {
+        machineCode: row.machineCode,
+        machineName: row.machineDescription,
+        count: 0,
+      };
+      machinePeriodTotals.set(row.machineId, {
+        machineCode: existingMachineTotals.machineCode,
+        machineName: existingMachineTotals.machineName,
+        count: existingMachineTotals.count + rowCount,
+      });
     }
 
     const bucket = buckets.find(b => rowDateMs >= b.startMs && rowDateMs < b.endMs);
@@ -344,7 +367,20 @@ async function buildLocationChartPoints(
     };
   });
 
-  return { points, totalItems: periodTotalItems, latestPeriodRowEndMs };
+  const machineSalesShare: LocationMachineSalesShare[] =
+    periodTotalItems > 0
+      ? Array.from(machinePeriodTotals.entries())
+          .map(([machineId, machineData]) => ({
+            machineId,
+            machineCode: machineData.machineCode,
+            machineName: machineData.machineName,
+            count: machineData.count,
+            percentage: Number(((machineData.count / periodTotalItems) * 100).toFixed(1)),
+          }))
+          .sort((a, b) => b.count - a.count)
+      : [];
+
+  return { points, totalItems: periodTotalItems, latestPeriodRowEndMs, machineSalesShare };
 }
 
 async function getLocationTotalPicks(
