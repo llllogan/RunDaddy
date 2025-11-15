@@ -9,6 +9,7 @@ struct SearchLocationInfoBento: View {
     let machineSalesShare: [LocationMachineSalesShare]
     let selectedPeriod: SkuPeriod?
     let onBestSkuTap: ((LocationBestSku) -> Void)?
+    let onMachineTap: ((LocationMachine) -> Void)?
 
     private var machineShareLookup: [String: LocationMachineSalesShare] {
         Dictionary(uniqueKeysWithValues: machineSalesShare.map { ($0.machineId, $0) })
@@ -77,33 +78,8 @@ struct SearchLocationInfoBento: View {
                                 .italic()
                         } else {
                             ForEach(machinesBySalesShare) { machine in
-                                let isBestMachine = bestMachineId == machine.id
-                                VStack(alignment: .leading, spacing: 0) {
-                                    if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !description.isEmpty {
-                                        Text(description)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                    }
-                                    
-                                    if let machineType = machine.machineType {
-                                        Text(machineType.name)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                    }
-                                    
-                                    InfoChip(
-                                        title: machineShareText(for: machine),
-                                        date: nil,
-                                        text: nil,
-                                        colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
-                                        foregroundColour: isBestMachine ? .green : .blue,
-                                        icon: nil
-                                    )
-                                }
-                                .padding(.vertical, 2)
+                                machineRow(for: machine)
+                                    .padding(.vertical, 2)
                             }
                         }
                     }
@@ -126,6 +102,58 @@ struct SearchLocationInfoBento: View {
         
 
         return cards
+    }
+
+    @ViewBuilder
+    private func machineRow(for machine: LocationMachine) -> some View {
+        let isBestMachine = bestMachineId == machine.id
+
+        let row = VStack(alignment: .leading, spacing: 4) {
+            if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !description.isEmpty {
+                Text(description)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            if let machineType = machine.machineType {
+                Text(machineType.name)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                InfoChip(
+                    title: machineShareText(for: machine),
+                    date: nil,
+                    text: nil,
+                    colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
+                    foregroundColour: isBestMachine ? .green : .blue,
+                    icon: nil
+                )
+                if onMachineTap != nil {
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let onMachineTap {
+            Button {
+                onMachineTap(machine)
+            } label: {
+                row
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            row
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var addressValue: String {

@@ -41,6 +41,8 @@ struct LocationDetailView: View {
     
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
+    @State private var locationNavigationTarget: LocationDetailSearchNavigation?
+    @State private var machineNavigationTarget: LocationDetailMachineNavigation?
 
     private var overviewSummary: LocationOverviewSummary {
         LocationOverviewSummary(
@@ -112,13 +114,19 @@ struct LocationDetailView: View {
         List {
             Section {
                 LocationOverviewBento(
-                    summary: overviewSummary, 
-                    machines: machines, 
-                    viewModel: viewModel, 
+                    summary: overviewSummary,
+                    machines: machines,
+                    viewModel: viewModel,
                     onChocolateBoxesTap: {
                         showingChocolateBoxesSheet = true
                     },
-                    cheeseItems: cheeseItems
+                    cheeseItems: cheeseItems,
+                    onLocationTap: {
+                        navigateToSearchLocation()
+                    },
+                    onMachineTap: { machine in
+                        navigateToMachineDetail(machine)
+                    }
                 )
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                     .listRowBackground(Color.clear)
@@ -279,6 +287,12 @@ struct LocationDetailView: View {
         } message: {
             Text("This resets only the packed picks for \(detail.section.title).")
         }
+        .navigationDestination(item: $locationNavigationTarget) { target in
+            SearchLocationDetailView(locationId: target.id, session: session)
+        }
+        .navigationDestination(item: $machineNavigationTarget) { target in
+            MachineDetailView(machineId: target.id, session: session)
+        }
     }
     
     private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
@@ -406,6 +420,20 @@ struct LocationDetailView: View {
             openURL(fallbackURL)
         }
     }
+
+    private func navigateToSearchLocation() {
+        guard let locationId = detail.section.location?.id, !locationId.isEmpty else {
+            return
+        }
+        locationNavigationTarget = LocationDetailSearchNavigation(id: locationId)
+    }
+
+    private func navigateToMachineDetail(_ machine: RunDetail.Machine) {
+        guard !machine.id.isEmpty else {
+            return
+        }
+        machineNavigationTarget = LocationDetailMachineNavigation(id: machine.id)
+    }
     
     private var locationPickItemsSnapshot: [RunDetail.PickItem] {
         if let latestDetail = viewModel.locationDetail(for: detail.section.id) {
@@ -426,6 +454,14 @@ struct LocationDetailView: View {
         
         _ = await viewModel.resetPickStatuses(for: locationPickItemsSnapshot)
     }
+}
+
+private struct LocationDetailSearchNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct LocationDetailMachineNavigation: Identifiable, Hashable {
+    let id: String
 }
 
 struct CountPointerSelectionSheet: View {

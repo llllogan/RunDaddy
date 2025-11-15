@@ -26,13 +26,23 @@ struct LocationOverviewBento: View {
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
     let cheeseItems: [RunDetail.PickItem]
+    let onLocationTap: (() -> Void)?
+    let onMachineTap: ((RunDetail.Machine) -> Void)?
 
-    init(summary: LocationOverviewSummary, machines: [RunDetail.Machine] = [], viewModel: RunDetailViewModel, onChocolateBoxesTap: (() -> Void)? = nil, cheeseItems: [RunDetail.PickItem] = []) {
+    init(summary: LocationOverviewSummary,
+         machines: [RunDetail.Machine] = [],
+         viewModel: RunDetailViewModel,
+         onChocolateBoxesTap: (() -> Void)? = nil,
+         cheeseItems: [RunDetail.PickItem] = [],
+         onLocationTap: (() -> Void)? = nil,
+         onMachineTap: ((RunDetail.Machine) -> Void)? = nil) {
         self.summary = summary
         self.machines = machines
         self.viewModel = viewModel
         self.onChocolateBoxesTap = onChocolateBoxesTap
         self.cheeseItems = cheeseItems
+        self.onLocationTap = onLocationTap
+        self.onMachineTap = onMachineTap
     }
 
     private var items: [BentoItem] {
@@ -44,7 +54,9 @@ struct LocationOverviewBento: View {
                       subtitle: summary.address,
                       symbolName: "mappin.circle",
                       symbolTint: .orange,
-                      allowsMultilineValue: true)
+                      allowsMultilineValue: true,
+                      onTap: onLocationTap,
+                      showsChevron: onLocationTap != nil)
         )
         
         if summary.totalCoils > 0 {
@@ -76,33 +88,8 @@ struct LocationOverviewBento: View {
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(machines, id: \.id) { machine in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    
-                                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text(description)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                    }
-                                    
-                                    HStack {
-                                        Text(machine.code)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                    }
-                                    
-                                    if let machineType = machine.machineType {
-                                        Text(machineType.name)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color(.systemGray5))
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                .padding(.vertical, 2)
+                                machineRow(for: machine)
+                                    .padding(.vertical, 2)
                             }
                             
                             if machines.isEmpty {
@@ -208,6 +195,54 @@ struct LocationOverviewBento: View {
         )
 
         return cards
+    }
+
+    @ViewBuilder
+    private func machineRow(for machine: RunDetail.Machine) -> some View {
+        let details = VStack(alignment: .leading, spacing: 4) {
+            if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !description.isEmpty {
+                Text(description)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            if let machineType = machine.machineType {
+                Text(machineType.name)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                InfoChip(title: nil,
+                         date: nil,
+                         text: machine.code,
+                         colour: Color(.systemGray5),
+                         foregroundColour: .secondary,
+                         icon: nil)
+                if onMachineTap != nil {
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let onMachineTap {
+            Button {
+                onMachineTap(machine)
+            } label: {
+                details
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            details
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var chocolateBoxNumbersText: String {

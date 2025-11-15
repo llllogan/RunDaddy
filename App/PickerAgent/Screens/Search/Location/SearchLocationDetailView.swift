@@ -12,6 +12,7 @@ struct SearchLocationDetailView: View {
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var selectedBreakdown: LocationChartBreakdown = .machines
     @State private var skuNavigationTarget: SearchLocationSkuNavigation?
+    @State private var machineNavigationTarget: SearchLocationMachineNavigation?
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
@@ -48,7 +49,8 @@ struct SearchLocationDetailView: View {
                             bestSku: stats.bestSku,
                             machineSalesShare: stats.machineSalesShare ?? [],
                             selectedPeriod: selectedPeriod,
-                            onBestSkuTap: { navigateToSkuDetail($0) }
+                            onBestSkuTap: { navigateToSkuDetail($0) },
+                            onMachineTap: { navigateToMachineDetail($0) }
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading stats...")
@@ -103,6 +105,9 @@ struct SearchLocationDetailView: View {
         .navigationDestination(item: $skuNavigationTarget) { target in
             SkuDetailView(skuId: target.id, session: session)
         }
+        .navigationDestination(item: $machineNavigationTarget) { target in
+            MachineDetailView(machineId: target.id, session: session)
+        }
     }
 
     private func loadLocationDetails() async {
@@ -138,6 +143,11 @@ struct SearchLocationDetailView: View {
         skuNavigationTarget = SearchLocationSkuNavigation(id: sku.skuId)
     }
 
+    private func navigateToMachineDetail(_ machine: LocationMachine) {
+        guard !machine.id.isEmpty else { return }
+        machineNavigationTarget = SearchLocationMachineNavigation(id: machine.id)
+    }
+
     private var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
@@ -171,5 +181,9 @@ struct SearchLocationDetailView: View {
 }
 
 private struct SearchLocationSkuNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct SearchLocationMachineNavigation: Identifiable, Hashable {
     let id: String
 }

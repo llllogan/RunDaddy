@@ -63,7 +63,7 @@ struct DashboardView: View {
                 .month(.abbreviated)
                 .day()
         )
-        return "\(companyName), \(dateString)"
+        return "\(dateString), \(companyName)"
     }
 
     init(session: AuthSession, logoutAction: @escaping () -> Void) {
