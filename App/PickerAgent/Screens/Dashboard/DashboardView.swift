@@ -8,6 +8,12 @@
 import SwiftUI
 import Charts
 
+private enum SearchDisplayState {
+    case dashboard
+    case suggestions
+    case results
+}
+
 struct DashboardView: View {
     let session: AuthSession
     let logoutAction: () -> Void
@@ -18,8 +24,12 @@ struct DashboardView: View {
     @State private var chartRefreshTrigger = false
     @State private var searchText = ""
     @State private var searchResults: [SearchResult] = []
+    @State private var suggestions: [SearchResult] = []
     @State private var isSearching = false
-    @State private var showingSearchResults = false
+    @State private var isSearchPresented = false
+    @State private var isLoadingSuggestions = false
+    @State private var suggestionsErrorMessage: String?
+    @State private var searchDisplayState: SearchDisplayState = .dashboard
     private let searchService = SearchService()
 
     private var hasCompany: Bool {
@@ -62,129 +72,41 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             List {
-                if showingSearchResults {
-                    Section("Search Results") {
-                        if searchResults.isEmpty {
-                            Text("No results found")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(searchResults) { result in
-                                NavigationLink(destination: destinationView(for: result)) {
-                                    SearchResultRow(
-                                        result: result,
-                                        icon: symbolDetails(for: result.type)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    if let message = viewModel.errorMessage {
-                        Section {
-                            ErrorStateRow(message: message)
-                        }
-                    }
-
-                    // Only show "Runs for Today" section if there are runs or currently loading
-                    if !viewModel.todayRuns.isEmpty
-                        || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
-                    {
-                        Section("Runs for Today") {
-                            if viewModel.isLoading && viewModel.todayRuns.isEmpty {
-                                LoadingStateRow()
-                            } else {
-                                ForEach(viewModel.todayRuns.prefix(3)) { run in
-                                    NavigationLink {
-                                        RunDetailView(runId: run.id, session: session)
-                                    } label: {
-                                        RunRow(run: run, currentUserId: session.credentials.userID)
-                                    }
-                                }
-                                if viewModel.todayRuns.count > 3 {
-                                    NavigationLink {
-                                        RunsListView(
-                                            session: session,
-                                            title: "Runs for Today",
-                                            runs: viewModel.todayRuns
-                                        )
-                                    } label: {
-                                        ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-
-                    // Only show "Runs to be Packed" section if there are runs or currently loading
-                    if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
-                    {
-                        Section("Runs for Tomorrow") {
-                            if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
-                                LoadingStateRow()
-                            } else {
-                                ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
-                                    NavigationLink {
-                                        RunDetailView(runId: run.id, session: session)
-                                    } label: {
-                                        RunRow(run: run, currentUserId: session.credentials.userID)
-                                    }
-                                }
-                                if viewModel.tomorrowRuns.count > 3 {
-                                    NavigationLink {
-                                        RunsListView(
-                                            session: session,
-                                            title: "Runs for Tomorrow",
-                                            runs: viewModel.tomorrowRuns
-                                        )
-                                    } label: {
-                                        ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-
-                    Section("All Runs") {
-                        NavigationLink {
-                            AllRunsView(session: session)
-                        } label: {
-                            HStack {
-                                Text("View All Runs")
-                                    .foregroundStyle(.primary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if shouldShowInsights {
-                        Section("Insights") {
-                            DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-
-                            NavigationLink {
-                                AnalyticsView(session: session)
-                            } label: {
-                                Text("View more data")
-                                    .foregroundStyle(.primary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                switch searchDisplayState {
+                case .results:
+                    searchResultsSection()
+                case .suggestions:
+                    suggestionsSection()
+                case .dashboard:
+                    dashboardSections()
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Hi \(session.profile.firstName)")
-            .navigationSubtitle(navigationSubtitleText)
-            .searchable(text: $searchText, prompt: "Search locations, machines, SKUs...")
+            .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
+            .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
+            .searchable(
+                text: $searchText,
+                isPresented: $isSearchPresented,
+                prompt: "Search locations, machines, SKUs..."
+            )
             .onSubmit(of: .search) {
                 performSearch()
             }
             .onChange(of: searchText) { _, newValue in
                 if newValue.isEmpty {
-                    showingSearchResults = false
                     searchResults = []
+                    searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+                }
+            }
+            .onChange(of: isSearchPresented) { _, isPresented in
+                if isPresented {
+                    searchResults = []
+                    searchDisplayState = .suggestions
+                    loadSuggestionsIfNeeded()
+                } else {
+                    searchDisplayState = .dashboard
+                    isSearching = false
+                    searchText = ""
                 }
             }
             .toolbar {
@@ -239,6 +161,171 @@ struct DashboardView: View {
     }
 
     @ViewBuilder
+    private func searchResultsSection() -> some View {
+        Section("Results") {
+            if searchResults.isEmpty {
+                Text("No results found")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(searchResults) { result in
+                    NavigationLink(destination: destinationView(for: result)) {
+                        SearchResultRow(
+                            result: result,
+                            icon: symbolDetails(for: result.type)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func suggestionsSection() -> some View {
+        Section("Suggestions") {
+            if isLoadingSuggestions {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Loading suggestions…")
+                        .foregroundStyle(.secondary)
+                }
+            } else if let message = suggestionsErrorMessage {
+                Text(message)
+                    .foregroundStyle(.secondary)
+            } else if suggestions.isEmpty {
+                Text("No suggestions are available yet.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(suggestions) { suggestion in
+                    NavigationLink(destination: destinationView(for: suggestion)) {
+                        SearchResultRow(
+                            result: suggestion,
+                            icon: symbolDetails(for: suggestion.type)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardSections() -> some View {
+        if let message = viewModel.errorMessage {
+            Section {
+                ErrorStateRow(message: message)
+            }
+        }
+
+        if !viewModel.todayRuns.isEmpty
+            || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
+        {
+            Section("Runs for Today") {
+                if viewModel.isLoading && viewModel.todayRuns.isEmpty {
+                    LoadingStateRow()
+                } else {
+                    ForEach(viewModel.todayRuns.prefix(3)) { run in
+                        NavigationLink {
+                            RunDetailView(runId: run.id, session: session)
+                        } label: {
+                            RunRow(run: run, currentUserId: session.credentials.userID)
+                        }
+                    }
+                    if viewModel.todayRuns.count > 3 {
+                        NavigationLink {
+                            RunsListView(
+                                session: session,
+                                title: "Runs for Today",
+                                runs: viewModel.todayRuns
+                            )
+                        } label: {
+                            ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+
+        if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
+        {
+            Section("Runs for Tomorrow") {
+                if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
+                    LoadingStateRow()
+                } else {
+                    ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
+                        NavigationLink {
+                            RunDetailView(runId: run.id, session: session)
+                        } label: {
+                            RunRow(run: run, currentUserId: session.credentials.userID)
+                        }
+                    }
+                    if viewModel.tomorrowRuns.count > 3 {
+                        NavigationLink {
+                            RunsListView(
+                                session: session,
+                                title: "Runs for Tomorrow",
+                                runs: viewModel.tomorrowRuns
+                            )
+                        } label: {
+                            ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+
+        Section("All Runs") {
+            NavigationLink {
+                AllRunsView(session: session)
+            } label: {
+                HStack {
+                    Text("View All Runs")
+                        .foregroundStyle(.primary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+
+        if shouldShowInsights {
+            Section("Insights") {
+                DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+
+                NavigationLink {
+                    AnalyticsView(session: session)
+                } label: {
+                    Text("View more data")
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func loadSuggestionsIfNeeded(force: Bool = false) {
+        if isLoadingSuggestions || (suggestions.isEmpty == false && !force) {
+            return
+        }
+        isLoadingSuggestions = true
+        suggestionsErrorMessage = nil
+        Task {
+            do {
+                let response = try await searchService.fetchSuggestions(lookbackDays: nil)
+                await MainActor.run {
+                    suggestions = response.results
+                    isLoadingSuggestions = false
+                }
+            } catch {
+                await MainActor.run {
+                    suggestionsErrorMessage = (error as? LocalizedError)?.errorDescription
+                        ?? "Unable to load suggestions right now."
+                    isLoadingSuggestions = false
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private func destinationView(for result: SearchResult) -> some View {
         switch result.type {
         case "machine":
@@ -267,24 +354,25 @@ struct DashboardView: View {
 
     private func performSearch() {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showingSearchResults = false
             searchResults = []
+            searchDisplayState = isSearchPresented ? .suggestions : .dashboard
             return
         }
 
         isSearching = true
+        searchResults = []
+        searchDisplayState = .results
         Task {
             do {
                 let response = try await searchService.search(query: searchText)
                 await MainActor.run {
                     searchResults = response.results
-                    showingSearchResults = true
                     isSearching = false
                 }
             } catch {
                 await MainActor.run {
                     isSearching = false
-                    // Could show error message here
+                    searchResults = []
                 }
             }
         }

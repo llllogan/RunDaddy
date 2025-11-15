@@ -27,6 +27,7 @@ const WEEK_IN_MS = 7 * DAY_IN_MS;
 const MONTHS_IN_YEAR = 12;
 const QUARTERS_IN_YEAR = 4;
 const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
+const SEARCH_SUGGESTION_LIMIT = 2;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -75,6 +76,31 @@ type SkuMachineRow = {
   location_id: string | null;
   location_name: string | null;
   total_items: bigint | number | string | null;
+};
+
+type SearchSuggestionLocationRow = {
+  location_id: string | null;
+  location_name: string | null;
+  address: string | null;
+  total_packed: bigint | number | string | null;
+};
+
+type SearchSuggestionMachineRow = {
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_description: string | null;
+  location_id: string | null;
+  location_name: string | null;
+  total_packed: bigint | number | string | null;
+};
+
+type SearchSuggestionSkuRow = {
+  sku_id: string | null;
+  sku_code: string | null;
+  sku_name: string | null;
+  sku_type: string | null;
+  category: string | null;
+  total_packed: bigint | number | string | null;
 };
 
 const router = Router();
@@ -251,20 +277,11 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
       subtitle: item.description || 'No description',
     })),
     ...skus.map(item => {
-      const subtitleParts: string[] = [item.name];
-      const trimmedType = item.type.trim();
-      const normalizedType = trimmedType.toLowerCase();
-      if (trimmedType && normalizedType !== 'general') {
-        subtitleParts.push(item.type);
-      }
-      if (item.category) {
-        subtitleParts.push(item.category);
-      }
       return {
         type: 'sku',
         id: item.id,
         title: item.code,
-        subtitle: subtitleParts.join(' • '),
+        subtitle: buildSkuSubtitle(item.name, item.type, item.category),
       };
     }),
   ];
@@ -272,6 +289,55 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
   res.json({
     generatedAt: new Date().toISOString(),
     query: query.trim(),
+    results,
+  });
+});
+
+router.get('/search/suggestions', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const lookbackDays = parseTopSkuLookbackDays(req.query.lookbackDays);
+  const { rangeStart, rangeEnd } = buildTopSkuRange(context.timeZone, context.now, lookbackDays);
+
+  const [locations, machines, skus] = await Promise.all([
+    fetchTopPackedLocations(context.companyId, rangeStart, rangeEnd, SEARCH_SUGGESTION_LIMIT),
+    fetchTopPackedMachines(context.companyId, rangeStart, rangeEnd, SEARCH_SUGGESTION_LIMIT),
+    fetchTopPackedSkus(context.companyId, rangeStart, rangeEnd, SEARCH_SUGGESTION_LIMIT),
+  ]);
+
+  const results = [
+    ...locations
+      .filter(row => row.location_id)
+      .map(row => ({
+        type: 'location',
+        id: row.location_id!,
+        title: row.location_name ?? 'Location',
+        subtitle: row.address ?? 'No address',
+      })),
+    ...machines
+      .filter(row => row.machine_id)
+      .map(row => ({
+        type: 'machine',
+        id: row.machine_id!,
+        title: row.machine_code ?? 'Machine',
+        subtitle: row.machine_description ?? 'No description',
+      })),
+    ...skus
+      .filter(row => row.sku_id)
+      .map(row => ({
+        type: 'sku',
+        id: row.sku_id!,
+        title: row.sku_code ?? 'SKU',
+        subtitle: buildSkuSubtitle(row.sku_name, row.sku_type, row.category),
+      })),
+  ];
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    query: '',
     results,
   });
 });
@@ -652,6 +718,106 @@ async function fetchSkuMachineRows(companyId: string, rangeStart: Date, rangeEnd
   );
 }
 
+async function fetchTopPackedLocations(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  limit: number,
+) {
+  return prisma.$queryRaw<SearchSuggestionLocationRow[]>(
+    Prisma.sql`
+      SELECT
+        loc.id AS location_id,
+        loc.name AS location_name,
+        loc.address AS address,
+        SUM(pe.count) AS total_packed
+      FROM PickEntry pe
+      JOIN Run r ON r.id = pe.runId
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      JOIN Location loc ON loc.id = mach.locationId
+      WHERE r.companyId = ${companyId}
+        AND pe.status = 'PICKED'
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${rangeStart}
+        AND pe.pickedAt < ${rangeEnd}
+      GROUP BY loc.id, loc.name, loc.address
+      HAVING SUM(pe.count) > 0
+      ORDER BY total_packed DESC, loc.name ASC
+      LIMIT ${Prisma.raw(String(limit))}
+    `,
+  );
+}
+
+async function fetchTopPackedMachines(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  limit: number,
+) {
+  return prisma.$queryRaw<SearchSuggestionMachineRow[]>(
+    Prisma.sql`
+      SELECT
+        mach.id AS machine_id,
+        mach.code AS machine_code,
+        mach.description AS machine_description,
+        loc.id AS location_id,
+        loc.name AS location_name,
+        SUM(pe.count) AS total_packed
+      FROM PickEntry pe
+      JOIN Run r ON r.id = pe.runId
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      LEFT JOIN Location loc ON loc.id = mach.locationId
+      WHERE r.companyId = ${companyId}
+        AND pe.status = 'PICKED'
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${rangeStart}
+        AND pe.pickedAt < ${rangeEnd}
+      GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
+      HAVING SUM(pe.count) > 0
+      ORDER BY total_packed DESC, mach.code ASC
+      LIMIT ${Prisma.raw(String(limit))}
+    `,
+  );
+}
+
+async function fetchTopPackedSkus(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  limit: number,
+) {
+  return prisma.$queryRaw<SearchSuggestionSkuRow[]>(
+    Prisma.sql`
+      SELECT
+        sku.id AS sku_id,
+        sku.code AS sku_code,
+        sku.name AS sku_name,
+        sku.type AS sku_type,
+        sku.category AS category,
+        SUM(pe.count) AS total_packed
+      FROM PickEntry pe
+      JOIN Run r ON r.id = pe.runId
+      JOIN CoilItem ci ON ci.id = pe.coilItemId
+      JOIN SKU sku ON sku.id = ci.skuId
+      JOIN Coil coil ON coil.id = ci.coilId
+      JOIN Machine mach ON mach.id = coil.machineId
+      WHERE r.companyId = ${companyId}
+        AND pe.status = 'PICKED'
+        AND pe.pickedAt IS NOT NULL
+        AND pe.pickedAt >= ${rangeStart}
+        AND pe.pickedAt < ${rangeEnd}
+      GROUP BY sku.id, sku.code, sku.name, sku.type, sku.category
+      HAVING SUM(pe.count) > 0
+      ORDER BY total_packed DESC, sku.code ASC
+      LIMIT ${Prisma.raw(String(limit))}
+    `,
+  );
+}
+
 function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
   const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
   const totalsByLabel = new Map<string, number>();
@@ -765,6 +931,24 @@ function buildTopLocations(rows: LocationMachineRow[]) {
       totalItems: location.totalItems,
       machines: Array.from(location.machines.values()).sort((a, b) => b.totalItems - a.totalItems),
     }));
+}
+
+function buildSkuSubtitle(name: string | null, type: string | null, category: string | null): string {
+  const subtitleParts: string[] = [];
+  if (name) {
+    subtitleParts.push(name);
+  }
+  const trimmedType = (type ?? '').trim();
+  if (trimmedType) {
+    const normalizedType = trimmedType.toLowerCase();
+    if (normalizedType !== 'general') {
+      subtitleParts.push(trimmedType);
+    }
+  }
+  if (category) {
+    subtitleParts.push(category);
+  }
+  return subtitleParts.length > 0 ? subtitleParts.join(' • ') : 'SKU';
 }
 
 async function sumPackedItems(companyId: string, rangeStart: Date, rangeEnd: Date): Promise<number> {
