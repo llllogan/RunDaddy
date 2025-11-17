@@ -44,7 +44,16 @@ struct PackingSessionSheet: View {
                     .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else if let command = viewModel.currentCommand {
-                    CurrentCommandView(command: command, isSpeaking: viewModel.isSpeaking)
+                    HStack {
+                        // TODO: Add controlls
+                        CurrentCommandView(
+                            command: command,
+                            isSpeaking: viewModel.isSpeaking,
+                            skuType: viewModel.currentPickItem?.sku?.type,
+                            machineDescription: viewModel.currentMachine?.description,
+                            machineCode: viewModel.currentMachine?.code
+                        )
+                    }
                 } else if viewModel.isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
@@ -81,29 +90,6 @@ struct PackingSessionSheet: View {
                     .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
-                
-                VStack {
-                    
-                    HStack {
-                        Text("\(viewModel.completedCount) / \(viewModel.totalItems)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(Int(viewModel.progress * 100))%")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    ProgressView(value: viewModel.progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                        .scaleEffect(y: 1.5)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                Spacer()
             }
             .padding()
             .toolbar {
@@ -220,79 +206,110 @@ struct PackingSessionSheet: View {
 struct CurrentCommandView: View {
     let command: AudioCommandsResponse.AudioCommand
     let isSpeaking: Bool
-    
+    let skuType: String?
+    let machineDescription: String?
+    let machineCode: String?
+
+    private var coilCount: Int {
+        if let codes = command.coilCodes, !codes.isEmpty {
+            return codes.count
+        }
+        if let coilCode = command.coilCode, !coilCode.isEmpty {
+            return 1
+        }
+        return 0
+    }
+
+    private var coilSummary: String? {
+        guard coilCount > 0 else { return nil }
+        let suffix = coilCount == 1 ? "coil" : "coils"
+        return "\(coilCount) \(suffix)"
+    }
+
+    private var machineDisplayText: String? {
+        let hasDescription = !(machineDescription?.isEmpty ?? true)
+        let hasCode = !(machineCode?.isEmpty ?? true)
+
+        switch (hasDescription, hasCode) {
+        case (true, true):
+            return "\(machineDescription!) • \(machineCode!)"
+        case (true, false):
+            return machineDescription
+        case (false, true):
+            return machineCode
+        default:
+            return nil
+        }
+    }
+
+    private var locationDisplayText: String? {
+        command.locationName
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            
-            HStack {
-                
-                // Command Content
-                if command.type == "location" {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(command.locationName ?? "Unknown Location")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .multilineTextAlignment(.leading)
-                        
-                        Text("Navigate to this location to continue packing")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                } else if command.type == "machine" {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(command.machineName ?? "Unknown Machine")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .multilineTextAlignment(.leading)
-                        
-                        Text("Use the controls below to navigate through items")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
+            if command.type == "location" {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(command.locationName ?? "Unknown Location")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.leading)
+
+                    Spacer()
+                }
+            } else if command.type == "machine" {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(command.machineName ?? "Unknown Machine")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.leading)
+
+                    Spacer()
+                }
+            } else {
+                HStack(alignment: .top, spacing: 32) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(command.skuName ?? "Unknown Item")
-                            .font(.title)
+                            .font(.title2)
                             .fontWeight(.bold)
                             .multilineTextAlignment(.leading)
-                        
-                        if let skuCode = command.skuCode, !skuCode.isEmpty {
-                            Text(skuCode)
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        if let coilCodes = command.coilCodes, !coilCodes.isEmpty {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Coils (\(coilCodes.count))")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Text(coilCodes.joined(separator: ", "))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else if let coilCode = command.coilCode, !coilCode.isEmpty {
-                            Text("Coil \(coilCode)")
+
+                        if let skuType = skuType, !skuType.isEmpty {
+                            Text(skuType)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        
-                        HStack {
-                            Text("NEED")
-                                .font(.caption2)
+
+                        if let machineText = machineDisplayText {
+                            Text(machineText)
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            Spacer()
-                            Text("\(command.count)")
-                                .font(.system(size: 48, weight: .heavy, design: .rounded))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
                         }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                        if let locationText = locationDisplayText, !locationText.isEmpty {
+                            Text(locationText)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("\(command.count)")
+                            .font(.system(size: 72, weight: .heavy, design: .rounded))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+
+                        if let summary = coilSummary {
+                            Text(summary)
+                                .font(.footnote)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-                
                 Spacer()
             }
         }
