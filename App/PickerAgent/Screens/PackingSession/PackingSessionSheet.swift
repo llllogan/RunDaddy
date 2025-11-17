@@ -62,6 +62,7 @@ struct PackingSessionSheet: View {
                         machineCode: viewModel.currentMachine?.code,
                         locationName: viewModel.currentLocationName,
                         canAddChocolateBox: command.type == "item" && viewModel.currentMachine != nil,
+                        chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
                         onAddChocolateBoxTap: {
                             beginAddChocolateBoxFlow()
                         }
@@ -272,6 +273,14 @@ struct PackingSessionSheet: View {
             }
         }
     }
+    
+    private var chocolateBoxNumbersForCurrentMachine: [Int] {
+        guard let machineId = viewModel.currentMachine?.id else { return [] }
+        return viewModel.chocolateBoxes
+            .filter { $0.machine?.id == machineId }
+            .map { $0.number }
+            .sorted()
+    }
 }
 
 struct CurrentCommandView: View {
@@ -282,6 +291,7 @@ struct CurrentCommandView: View {
     let machineCode: String?
     let locationName: String?
     let canAddChocolateBox: Bool
+    let chocolateBoxNumbers: [Int]
     let onAddChocolateBoxTap: (() -> Void)?
 
     private var coilCount: Int {
@@ -315,6 +325,10 @@ struct CurrentCommandView: View {
             return nil
         }
     }
+    
+    private var shouldShowActionCards: Bool {
+        (!chocolateBoxNumbers.isEmpty) || (canAddChocolateBox && onAddChocolateBoxTap != nil)
+    }
 
     var body: some View {
         if command.type == "location" {
@@ -327,7 +341,6 @@ struct CurrentCommandView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
-            .padding()
             .background(Theme.packingSessionBackground)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
@@ -341,18 +354,27 @@ struct CurrentCommandView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
-            .padding()
             .background(Theme.packingSessionBackground)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
         } else {
             HStack(alignment: .top, spacing: 20) {
-                if canAddChocolateBox, let onAddChocolateBoxTap {
-                    AddChocolateBoxActionCard(
-                        machineDetails: machineDisplayText,
-                        action: onAddChocolateBoxTap
-                    )
-                    .frame(maxWidth: 220)
+                if shouldShowActionCards {
+                    VStack(spacing: 12) {
+                        if !chocolateBoxNumbers.isEmpty {
+                            ChocolateBoxNumbersActionCard(
+                                machineDetails: machineDisplayText,
+                                chocolateBoxNumbers: chocolateBoxNumbers
+                            )
+                        }
+                        if canAddChocolateBox, let onAddChocolateBoxTap {
+                            AddChocolateBoxActionCard(
+                                machineDetails: machineDisplayText,
+                                action: onAddChocolateBoxTap
+                            )
+                        }
+                    }
+                    .frame(maxWidth: 240)
                 }
                 PackingItemDetailCard(
                     command: command,
@@ -363,7 +385,6 @@ struct CurrentCommandView: View {
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
         }
     }
 }
@@ -442,6 +463,62 @@ struct AddChocolateBoxActionCard: View {
     }
 }
 
+struct ChocolateBoxNumbersActionCard: View {
+    let machineDetails: String?
+    let chocolateBoxNumbers: [Int]
+    
+    private var sortedNumbers: [Int] {
+        chocolateBoxNumbers.sorted()
+    }
+    
+    private let numberColumns: [GridItem] = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 20, weight: .bold))
+                    .frame(width: 44, height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.2))
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Chocolate boxes")
+                        .font(.headline.weight(.semibold))
+                    if let machineDetails, !machineDetails.isEmpty {
+                        Text(machineDetails)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                }
+            }
+            
+            LazyVGrid(columns: numberColumns, alignment: .leading, spacing: 2) {
+                ForEach(sortedNumbers, id: \.self) { number in
+                    Text("#\(number)")
+                        .font(.body.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Capsule())
+                        .accessibilityLabel("Chocolate box number \(number)")
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.packingSessionBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct PackingItemDetailCard: View {
     let command: AudioCommandsResponse.AudioCommand
     let skuType: String?
@@ -505,6 +582,7 @@ struct PackingItemDetailCard: View {
                                 .font(.headline)
                                 .foregroundStyle(.primary)
                                 .lineLimit(2)
+                                .multilineTextAlignment(.trailing)
                         }
                     }
                 }
