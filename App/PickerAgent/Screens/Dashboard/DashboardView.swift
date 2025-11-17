@@ -1,0 +1,558 @@
+//
+//  Dashboard.swift
+//  PickAgent
+//
+//  Created by Logan Janssen on 4/11/2025.
+//
+
+import SwiftUI
+import Charts
+
+private enum SearchDisplayState {
+    case dashboard
+    case suggestions
+    case results
+}
+
+struct DashboardView: View {
+    let session: AuthSession
+    let logoutAction: () -> Void
+
+    @StateObject private var viewModel: DashboardViewModel
+    @StateObject private var momentumViewModel: DashboardMomentumViewModel
+    @State private var isShowingProfile = false
+    @State private var searchText = ""
+    @State private var searchResults: [SearchResult] = []
+    @State private var suggestions: [SearchResult] = []
+    @State private var isSearching = false
+    @State private var isSearchPresented = false
+    @State private var isLoadingSuggestions = false
+    @State private var suggestionsErrorMessage: String?
+    @State private var searchDisplayState: SearchDisplayState = .dashboard
+    private let searchService = SearchService()
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var skuMomentumNavigationTarget: DashboardMomentumSkuNavigation?
+    @State private var machineMomentumNavigationTarget: DashboardMomentumMachineNavigation?
+    @State private var locationMomentumNavigationTarget: DashboardMomentumLocationNavigation?
+    @State private var analyticsNavigationTarget: DashboardMomentumAnalyticsNavigation?
+
+    private var hasCompany: Bool {
+        // User has company if they have company memberships
+        viewModel.currentUserProfile?.hasCompany ?? false
+    }
+
+    private var isPickerUser: Bool {
+        let roleValue = viewModel.currentUserProfile?.role ?? session.profile.role
+        guard let role = roleValue?.uppercased(),
+              let resolvedRole = UserRole(rawValue: role)
+        else {
+            return false
+        }
+        return resolvedRole == .picker
+    }
+
+    private var shouldShowInsights: Bool {
+        hasCompany && !isPickerUser
+    }
+
+    private var navigationSubtitleText: String {
+        let companyName = viewModel.currentUserProfile?.currentCompany?.name ?? "No Company"
+        let dateString = Date().formatted(
+            .dateTime
+                .weekday(.wide)
+                .month(.abbreviated)
+                .day()
+        )
+        return "\(dateString), \(companyName)"
+    }
+
+    init(session: AuthSession, logoutAction: @escaping () -> Void) {
+        self.session = session
+        self.logoutAction = logoutAction
+        _viewModel = StateObject(wrappedValue: DashboardViewModel(session: session))
+        _momentumViewModel = StateObject(wrappedValue: DashboardMomentumViewModel(session: session))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                switch searchDisplayState {
+                case .results:
+                    searchResultsSection()
+                case .suggestions:
+                    suggestionsSection()
+                case .dashboard:
+                    dashboardSections()
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
+            .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
+            .searchable(
+                text: $searchText,
+                isPresented: $isSearchPresented,
+                prompt: "Search locations, machines, SKUs..."
+            )
+            .onSubmit(of: .search) {
+                performSearch()
+            }
+            .onChange(of: searchText) { _, newValue in
+                if newValue.isEmpty {
+                    searchResults = []
+                    searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+                    searchDebounceTask?.cancel()
+                } else {
+                    scheduleDebouncedSearch(for: newValue)
+                }
+            }
+            .onChange(of: isSearchPresented) { _, isPresented in
+                if isPresented {
+                    searchResults = []
+                    searchDisplayState = .suggestions
+                    loadSuggestionsIfNeeded()
+                } else {
+                    searchDisplayState = .dashboard
+                    isSearching = false
+                    searchText = ""
+                    searchDebounceTask?.cancel()
+                }
+            }
+            .onDisappear {
+                searchDebounceTask?.cancel()
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                            isShowingProfile = true
+                        }
+                    } label: {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                }
+            }
+            .overlay {
+                if isSearching {
+                    ProgressView("Searching...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
+                }
+            }
+            .navigationDestination(item: $skuMomentumNavigationTarget) { target in
+                SkuDetailView(skuId: target.id, session: session)
+            }
+            .navigationDestination(item: $machineMomentumNavigationTarget) { target in
+                MachineDetailView(machineId: target.id, session: session)
+            }
+            .navigationDestination(item: $locationMomentumNavigationTarget) { target in
+                SearchLocationDetailView(locationId: target.id, session: session)
+            }
+            .navigationDestination(item: $analyticsNavigationTarget) { _ in
+                AnalyticsView(session: session)
+            }
+        }
+        .task {
+            await viewModel.loadRuns()
+            await momentumViewModel.loadSnapshot()
+        }
+        .refreshable {
+            await viewModel.loadRuns(force: true)
+            await momentumViewModel.loadSnapshot(force: true)
+        }
+        .sheet(isPresented: $isShowingProfile) {
+            ProfileView(
+                isPresentedAsSheet: true,
+                onDismiss: {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        isShowingProfile = false
+                    }
+                },
+                onLogout: logoutAction
+            )
+            .presentationDetents([.large])
+            .presentationCornerRadius(28)
+            .presentationDragIndicator(.visible)
+            .presentationCompactAdaptation(.fullScreenCover)
+        }
+        .onChange(of: session, initial: false) { _, newSession in
+            viewModel.updateSession(newSession)
+            momentumViewModel.updateSession(newSession)
+            Task {
+                await viewModel.loadRuns(force: true)
+                await momentumViewModel.loadSnapshot(force: true)
+            }
+        }
+
+    }
+
+    @ViewBuilder
+    private func searchResultsSection() -> some View {
+        Section("Results") {
+            if searchResults.isEmpty {
+                Text("No results found")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(searchResults) { result in
+                    NavigationLink(destination: destinationView(for: result)) {
+                        SearchResultRow(
+                            result: result,
+                            icon: symbolDetails(for: result.type)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func suggestionsSection() -> some View {
+        Section("Suggestions") {
+            if isLoadingSuggestions {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Loading suggestions…")
+                        .foregroundStyle(.secondary)
+                }
+            } else if let message = suggestionsErrorMessage {
+                Text(message)
+                    .foregroundStyle(.secondary)
+            } else if suggestions.isEmpty {
+                Text("No suggestions are available yet.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(suggestions) { suggestion in
+                    NavigationLink(destination: destinationView(for: suggestion)) {
+                        SearchResultRow(
+                            result: suggestion,
+                            icon: symbolDetails(for: suggestion.type)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardSections() -> some View {
+        if let message = viewModel.errorMessage {
+            Section {
+                ErrorStateRow(message: message)
+            }
+        }
+
+        if !viewModel.todayRuns.isEmpty
+            || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
+        {
+            Section("Runs for Today") {
+                if viewModel.isLoading && viewModel.todayRuns.isEmpty {
+                    LoadingStateRow()
+                } else {
+                    ForEach(viewModel.todayRuns.prefix(3)) { run in
+                        NavigationLink {
+                            RunDetailView(runId: run.id, session: session)
+                        } label: {
+                            RunRow(run: run, currentUserId: session.credentials.userID)
+                        }
+                    }
+                    if viewModel.todayRuns.count > 3 {
+                        NavigationLink {
+                            RunsListView(
+                                session: session,
+                                title: "Runs for Today",
+                                runs: viewModel.todayRuns
+                            )
+                        } label: {
+                            ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+
+        if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
+        {
+            Section("Runs for Tomorrow") {
+                if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
+                    LoadingStateRow()
+                } else {
+                    ForEach(viewModel.tomorrowRuns.prefix(3)) { run in
+                        NavigationLink {
+                            RunDetailView(runId: run.id, session: session)
+                        } label: {
+                            RunRow(run: run, currentUserId: session.credentials.userID)
+                        }
+                    }
+                    if viewModel.tomorrowRuns.count > 3 {
+                        NavigationLink {
+                            RunsListView(
+                                session: session,
+                                title: "Runs for Tomorrow",
+                                runs: viewModel.tomorrowRuns
+                            )
+                        } label: {
+                            ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+
+        Section("All Runs") {
+            NavigationLink {
+                AllRunsView(session: session)
+            } label: {
+                HStack {
+                    Text("View All Runs")
+                        .foregroundStyle(.primary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+
+        if shouldShowInsights {
+            Section("Biggest Changes week on week") {
+                if let snapshot = momentumViewModel.snapshot {
+                    DashboardMomentumBentoView(
+                        snapshot: snapshot,
+                        onSkuTap: { leader in
+                            handleMomentumSkuTap(leader)
+                        },
+                        onMachineTap: { leader in
+                            handleMomentumMachineTap(leader)
+                        },
+                        onLocationTap: { leader in
+                            handleMomentumLocationTap(leader)
+                        },
+                        onAnalyticsTap: handleAnalyticsTap
+                    )
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
+                } else if momentumViewModel.isLoading {
+                    LoadingStateRow()
+                } else if let message = momentumViewModel.errorMessage {
+                    ErrorStateRow(message: message)
+                } else {
+                    EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
+                }
+            }
+        }
+    }
+
+    private func handleMomentumSkuTap(_ leader: DashboardMomentumSnapshot.SkuLeader) {
+        guard !leader.skuId.isEmpty else { return }
+        skuMomentumNavigationTarget = DashboardMomentumSkuNavigation(id: leader.skuId)
+    }
+
+    private func handleMomentumMachineTap(_ leader: DashboardMomentumSnapshot.MachineLeader) {
+        guard !leader.machineId.isEmpty else { return }
+        machineMomentumNavigationTarget = DashboardMomentumMachineNavigation(id: leader.machineId)
+    }
+
+    private func handleMomentumLocationTap(_ leader: DashboardMomentumSnapshot.LocationLeader) {
+        guard !leader.locationId.isEmpty else { return }
+        locationMomentumNavigationTarget = DashboardMomentumLocationNavigation(id: leader.locationId)
+    }
+
+    private func handleAnalyticsTap() {
+        analyticsNavigationTarget = DashboardMomentumAnalyticsNavigation()
+    }
+
+    private func scheduleDebouncedSearch(for text: String) {
+        searchDebounceTask?.cancel()
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return
+        }
+        searchDebounceTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                performSearch(query: trimmedText)
+            }
+        }
+    }
+
+    private func loadSuggestionsIfNeeded(force: Bool = false) {
+        if isLoadingSuggestions || (suggestions.isEmpty == false && !force) {
+            return
+        }
+        isLoadingSuggestions = true
+        suggestionsErrorMessage = nil
+        Task {
+            do {
+                let response = try await searchService.fetchSuggestions(lookbackDays: nil)
+                await MainActor.run {
+                    suggestions = response.results
+                    isLoadingSuggestions = false
+                }
+            } catch {
+                await MainActor.run {
+                    suggestionsErrorMessage = (error as? LocalizedError)?.errorDescription
+                        ?? "Unable to load suggestions right now."
+                    isLoadingSuggestions = false
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView(for result: SearchResult) -> some View {
+        switch result.type {
+        case "machine":
+            MachineDetailView(machineId: result.id, session: session)
+        case "location":
+            SearchLocationDetailView(locationId: result.id, session: session)
+        case "sku":
+            SkuDetailView(skuId: result.id, session: session)
+        default:
+            Text("Unknown result type")
+        }
+    }
+
+    private func symbolDetails(for type: String) -> (systemName: String, color: Color) {
+        switch type.lowercased() {
+        case "machine":
+            return ("building", .purple)
+        case "sku":
+            return ("tag", .teal)
+        case "location":
+            return ("mappin.circle", .orange)
+        default:
+            return ("magnifyingglass", .gray)
+        }
+    }
+
+    @MainActor
+    private func performSearch(query: String? = nil) {
+        let trimmedQuery = (query ?? searchText).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedQuery.isEmpty else {
+            searchResults = []
+            searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+            isSearching = false
+            return
+        }
+
+        isSearching = true
+        searchResults = []
+        searchDisplayState = .results
+        let activeQuery = trimmedQuery
+        Task {
+            do {
+                let response = try await searchService.search(query: activeQuery)
+                await MainActor.run {
+                    guard activeQuery == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                        return
+                    }
+                    searchResults = response.results
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    guard activeQuery == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                        return
+                    }
+                    isSearching = false
+                    searchResults = []
+                }
+            }
+        }
+    }
+}
+
+private struct SearchResultRow: View {
+    let result: SearchResult
+    let icon: (systemName: String, color: Color)
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon.systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(icon.color)
+                .frame(width: 36, height: 36)
+                .background(icon.color.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(primaryText)
+                    .font(.headline)
+                if let secondaryText, !secondaryText.isEmpty {
+                    Text(secondaryText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var primaryText: String {
+        switch result.type.lowercased() {
+        case "machine":
+            return result.subtitle.isEmpty ? result.title : result.subtitle
+        case "sku":
+            return skuName ?? (result.subtitle.isEmpty ? result.title : result.subtitle)
+        default:
+            return result.title
+        }
+    }
+
+    private var secondaryText: String? {
+        switch result.type.lowercased() {
+        case "machine":
+            return result.title
+        case "sku":
+            let detailText = skuDetails
+            var parts: [String] = []
+            if let detailText, !detailText.isEmpty {
+                parts.append(detailText)
+            }
+            if !result.title.isEmpty {
+                parts.append(result.title)
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " • ")
+        default:
+            return result.subtitle.isEmpty ? nil : result.subtitle
+        }
+    }
+
+    private var skuName: String? {
+        skuSubtitleComponents.first
+    }
+
+    private var skuDetails: String? {
+        let details = skuSubtitleComponents.dropFirst().joined(separator: " • ")
+        return details.isEmpty ? nil : details
+    }
+
+    private var skuSubtitleComponents: [String] {
+        result.subtitle
+            .split(separator: "•")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+private struct DashboardMomentumSkuNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct DashboardMomentumMachineNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct DashboardMomentumLocationNavigation: Identifiable, Hashable {
+    let id: String
+}
+
+private struct DashboardMomentumAnalyticsNavigation: Identifiable, Hashable {
+    let id = UUID()
+}

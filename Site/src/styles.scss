@@ -1,1 +1,18 @@
-/* You can add global styles to this file, and also import other style files */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  @apply m-0 min-h-full bg-gray-50 font-sans text-gray-900 antialiased;
+  background: linear-gradient(180deg, #f8fafc, #e5e7eb);
+  color-scheme: light;
+}
+
+body {
+  @apply text-base;
+}
+
+.soft-card {
+  @apply rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/5;
+}

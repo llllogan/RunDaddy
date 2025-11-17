@@ -4,21 +4,41 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-	"dev": "tsx watch src/index.ts",
-	"build": "rimraf dist && tsc",
-    	"start": "node dist/index.js",
-    	"typecheck": "tsc --noEmit"
+    "dev": "tsx watch --env-file .env src/index.ts",
+    "build": "rimraf dist && tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate --schema DB/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema DB/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema DB/prisma/schema.prisma",
+    "db:sync": "npm run prisma:migrate && prisma db execute --schema DB/prisma/schema.prisma --file DB/sql/seed_views.sql && prisma db execute --schema DB/prisma/schema.prisma --file DB/sql/seed_stored_procs.sql",
+    "seed:data": "tsx --env-file .env src/scripts/seed-data.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
-    "express": "^5.1.0"
+    "@prisma/client": "^6.18.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/exceljs": "^0.5.3",
     "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
     "@types/node": "^24.9.1",
+    "prisma": "^6.18.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"

@@ -1,0 +1,105 @@
+import type { NextFunction, Request, Response } from 'express';
+import { verifyAccessToken } from '../lib/tokens.js';
+import { prisma } from '../lib/prisma.js';
+
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  let token: string | undefined;
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
+  } else if (req.cookies.accessToken) {
+    token = req.cookies.accessToken;
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
+
+  try {
+    const payload = verifyAccessToken(token);
+    if (!payload.sub || !payload.context) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    // Handle users without company memberships
+    if (!payload.companyId) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.auth = {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        companyId: null,
+        context: payload.context,
+      };
+      return next();
+    }
+
+    // Handle users with company memberships
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_companyId: {
+          userId: payload.sub,
+          companyId: payload.companyId,
+        },
+      },
+      select: {
+        role: true,
+        companyId: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!membership) {
+      const fallbackUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      if (!fallbackUser) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.auth = {
+        userId: fallbackUser.id,
+        email: fallbackUser.email,
+        role: fallbackUser.role,
+        companyId: null,
+        context: payload.context,
+      };
+      return next();
+    }
+
+    req.auth = {
+      userId: membership.user.id,
+      email: membership.user.email,
+      role: membership.role,
+      companyId: membership.companyId,
+      context: payload.context,
+    };
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token', detail: (error as Error).message });
+  }
+};

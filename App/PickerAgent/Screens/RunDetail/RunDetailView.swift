@@ -1,0 +1,752 @@
+//
+//  RunDetailView.swift
+//  PickAgent
+//
+//  Created by ChatGPT on 5/25/2025.
+//
+
+import SwiftUI
+
+struct RunDetailView: View {
+    @StateObject private var viewModel: RunDetailViewModel
+    @State private var showingPackingSession = false
+    @State private var showingLocationOrderSheet = false
+    @State private var showingPendingEntries = false
+    @State private var isResettingRunPickStatuses = false
+    @State private var confirmingRunReset = false
+    @State private var locationPendingDeletion: RunLocationSection?
+    @State private var deletingLocationIDs: Set<String> = []
+    @Environment(\.openURL) private var openURL
+    @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
+
+    init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
+        _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
+    }
+
+    var body: some View {
+        List {
+            if viewModel.isLoading && viewModel.overview == nil {
+                Section {
+                    LoadingRow()
+                }
+            } else {
+                if let overview = viewModel.overview {
+                    Section {
+                        RunOverviewBento(
+                            summary: overview,
+                            viewModel: viewModel,
+                            assignAction: { role in
+                                Task {
+                                    await viewModel.assignUser(to: role)
+                                }
+                            },
+                            pendingItemsTap: {
+                                showingPendingEntries = true
+                            }
+                        )
+                            .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    } header: {
+                        Text("Run Overview")
+                    }
+                }
+
+                Section("Locations") {
+                    if viewModel.locationSections.isEmpty {
+                        Text("No locations are assigned to this run yet.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        ForEach(viewModel.locationSections) { section in
+                            locationRow(for: section)
+                        }
+                    }
+                }
+            }
+
+            if let message = viewModel.errorMessage {
+                Section {
+                    ErrorRow(message: message)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Run Details")
+        .navigationDestination(isPresented: $showingPendingEntries) {
+            PendingPickEntriesView(
+                viewModel: viewModel,
+                runId: viewModel.detail?.id ?? viewModel.runId,
+                session: viewModel.session,
+                service: viewModel.service
+            )
+        }
+        .task {
+            await viewModel.load()
+        }
+        .refreshable {
+            await viewModel.load(force: true)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if isResettingRunPickStatuses {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                } else {
+                    Button {
+                        confirmingRunReset = true
+                    } label: {
+                        Label("Reset Packed Status", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!canResetRunPickStatuses)
+                    .accessibilityLabel("Reset packed status for all picks")
+                }
+
+                Menu {
+                    if locationMenuOptions.isEmpty {
+                        Text("No locations available")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(locationMenuOptions) { option in
+                            Button {
+                                openLocationInMaps(option)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.title)
+                                    if let subtitle = option.address {
+                                        Text(subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Locations", systemImage: "map")
+                }
+                .disabled(locationMenuOptions.isEmpty)
+
+                Button {
+                    showingLocationOrderSheet = true
+                } label: {
+                    Label("Reorder", systemImage: "list.number")
+                }
+                .disabled(viewModel.locationSections.count < 2)
+            }
+            
+            ToolbarItem(placement: .bottomBar) {
+                Button("Start Packing", systemImage: "play") {
+                    showingPackingSession = true
+                }
+                .labelStyle(.titleOnly)
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .fullScreenCover(isPresented: $showingPackingSession, onDismiss: {
+                    Task {
+                        await viewModel.load(force: true)
+                    }
+                }) {
+                    PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
+                }
+            }
+        }
+        .sheet(isPresented: $showingLocationOrderSheet) {
+            ReorderLocationsSheet(
+                viewModel: viewModel,
+                sections: viewModel.locationSections
+            )
+        }
+        .alert(item: $locationPendingDeletion) { section in
+            Alert(
+                title: Text("Delete picks at \(section.title)?"),
+                message: Text(locationDeletionMessage(for: section)),
+                primaryButton: .destructive(Text("Delete")) {
+                    locationPendingDeletion = nil
+                    Task {
+                        await deleteLocationPickEntries(for: section)
+                    }
+                },
+                secondaryButton: .cancel {
+                    locationPendingDeletion = nil
+                }
+            )
+        }
+        .alert("Reset Packed Status?", isPresented: $confirmingRunReset) {
+            Button("Reset", role: .destructive) {
+                Task {
+                    await resetRunPickStatuses()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will mark every packed pick entry in this run as pending.")
+        }
+        .sensoryFeedback(.warning, trigger: viewModel.resetTrigger)
+    }
+}
+
+private extension RunDetailView {
+    var preferredDirectionsApp: DirectionsApp {
+        DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
+    }
+
+    var canResetRunPickStatuses: Bool {
+        guard let pickItems = viewModel.detail?.pickItems else {
+            return false
+        }
+        return pickItems.contains(where: { $0.isPicked })
+    }
+
+    var locationMenuOptions: [LocationMenuOption] {
+        viewModel.locationSections.compactMap { section in
+            guard let location = section.location else { return nil }
+            let trimmedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let address = trimmedAddress.isEmpty ? nil : trimmedAddress
+            let querySource = address ?? section.title
+            return LocationMenuOption(
+                id: section.id,
+                title: section.title,
+                address: address,
+                query: querySource
+            )
+        }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    func openLocationInMaps(_ option: LocationMenuOption) {
+        let directionsApp = preferredDirectionsApp
+        guard let targetURL = directionsApp.url(for: option.query) else { return }
+
+        openURL(targetURL) { accepted in
+            guard !accepted, directionsApp == .waze, let fallbackURL = DirectionsApp.appleMaps.url(for: option.query) else {
+                return
+            }
+            openURL(fallbackURL)
+        }
+    }
+
+    @MainActor
+    func resetRunPickStatuses() async {
+        guard !isResettingRunPickStatuses else { return }
+        isResettingRunPickStatuses = true
+        defer { isResettingRunPickStatuses = false }
+
+        let pickItems = viewModel.detail?.pickItems ?? []
+        _ = await viewModel.resetPickStatuses(for: pickItems)
+    }
+
+    private func locationDeletionMessage(for section: RunLocationSection) -> String {
+        let pickCount = viewModel.pickItemCount(for: section.id)
+        if pickCount == 0 {
+            return "There are no pick entries to delete for this location."
+        }
+
+        let entryLabel = pickCount == 1 ? "pick entry" : "pick entries"
+        return "This will permanently delete \(pickCount) \(entryLabel) for this location in this run."
+    }
+
+    @MainActor
+    private func deleteLocationPickEntries(for section: RunLocationSection) async {
+        guard !deletingLocationIDs.contains(section.id) else { return }
+        deletingLocationIDs.insert(section.id)
+        defer { deletingLocationIDs.remove(section.id) }
+
+        _ = await viewModel.deletePickEntries(for: section.id)
+    }
+
+    @ViewBuilder
+    private func locationRow(for section: RunLocationSection) -> some View {
+        let isDeleting = deletingLocationIDs.contains(section.id)
+        let pickCount = viewModel.pickItemCount(for: section.id)
+
+        Group {
+            if let locationDetail = viewModel.locationDetail(for: section.id) {
+                NavigationLink {
+                    LocationDetailView(
+                        detail: locationDetail,
+                        runId: viewModel.detail?.id ?? "",
+                        session: viewModel.session,
+                        service: viewModel.service,
+                        viewModel: viewModel,
+                        onPickStatusChanged: {
+                            await viewModel.load(force: true)
+                        }
+                    )
+                } label: {
+                    LocationSummaryRow(section: section, isProcessing: isDeleting)
+                }
+                .disabled(isDeleting)
+            } else {
+                LocationSummaryRow(section: section, isProcessing: isDeleting)
+            }
+        }
+        .opacity(isDeleting ? 0.45 : 1)
+        .contentShape(Rectangle())
+        .swipeActions(edge: .trailing, allowsFullSwipe: pickCount > 0) {
+            Button(role: .destructive) {
+                locationPendingDeletion = section
+            } label: {
+                Label("Delete Picks", systemImage: "trash")
+            }
+            .disabled(isDeleting || pickCount == 0)
+        }
+    }
+}
+
+private struct LocationMenuOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let address: String?
+    let query: String
+}
+
+private struct LocationSummaryRow: View {
+    let section: RunLocationSection
+    var isProcessing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(section.title)
+                .font(.headline)
+                .fontWeight(.semibold)
+
+            if let subtitle = section.subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                InfoChip(title: nil, date: nil, text: "\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")", colour: nil, foregroundColour: nil, icon: nil)
+                
+                if section.remainingCoils > 0 {
+                    InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
+                } else {
+                    InfoChip(title: nil, date: nil, text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green, icon: nil)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            if isProcessing {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+private struct LoadingRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text("Loading run…")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct ErrorRow: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct ReorderLocationsSheet: View {
+    @ObservedObject var viewModel: RunDetailViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftSections: [RunLocationSection]
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var sectionPendingDeletion: RunLocationSection?
+
+    init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
+        self.viewModel = viewModel
+        _draftSections = State(initialValue: sections)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if draftSections.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "mappin")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No locations to reorder yet.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        Section(footer: footer) {
+                            ForEach(draftSections) { section in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(section.title)
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    if let subtitle = section.subtitle {
+                                        Text(subtitle)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .onMove { indices, newOffset in
+                                draftSections.move(fromOffsets: indices, toOffset: newOffset)
+                            }
+                        }
+                    }
+                    .environment(\.editMode, .constant(.active))
+                    .disabled(isSaving)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                }
+            }
+            .navigationTitle("Reorder Locations")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await persistChanges()
+                        }
+                    }
+                    .disabled(isSaving || draftSections.count < 2)
+                }
+            }
+            .overlay {
+                if isSaving {
+                    ProgressView("Saving")
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        Text("Drag the handle to control which locations appear first in the run detail and voice prompts.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 4)
+    }
+
+    private func persistChanges() async {
+        guard draftSections.count >= 1 else {
+            dismiss()
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+
+        let sectionsSnapshot = draftSections
+        let orderedLocationIds: [String?] = sectionsSnapshot.map { section in
+            locationIdentifier(for: section)
+        }
+        do {
+            try await viewModel.saveLocationOrder(with: orderedLocationIds)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isSaving = false
+    }
+
+    private func locationIdentifier(for section: RunLocationSection) -> String? {
+        if let locationId = section.location?.id, !locationId.isEmpty {
+            return locationId
+        }
+        if section.id == RunLocationSection.unassignedIdentifier || section.id.isEmpty {
+            return nil
+        }
+        return section.id
+    }
+}
+
+struct PendingPickEntriesView: View {
+    @ObservedObject var viewModel: RunDetailViewModel
+    let runId: String
+    let session: AuthSession
+    let service: RunsServicing
+
+    @State private var selectedLocationFilter: String?
+    @State private var selectedMachineFilter: String?
+    @State private var updatingPickIds: Set<String> = []
+    @State private var pickStatusToggleTrigger = false
+
+    private var locations: [RunDetail.Location] {
+        var lookup: [String: RunDetail.Location] = [:]
+        for item in viewModel.pendingPickItems {
+            if let location = item.location ?? item.machine?.location {
+                lookup[location.id] = location
+            }
+        }
+        return lookup.values.sorted { lhs, rhs in
+            let lhsLabel = locationDisplayName(lhs)
+            let rhsLabel = locationDisplayName(rhs)
+            return lhsLabel.localizedCaseInsensitiveCompare(rhsLabel) == .orderedAscending
+        }
+    }
+
+    private var allMachines: [RunDetail.Machine] {
+        var lookup: [String: RunDetail.Machine] = [:]
+        for item in viewModel.pendingPickItems {
+            if let machine = item.machine {
+                lookup[machine.id] = machine
+            }
+        }
+        return lookup.values.sorted { lhs, rhs in
+            lhs.code.localizedCaseInsensitiveCompare(rhs.code) == .orderedAscending
+        }
+    }
+
+    private var visibleMachines: [RunDetail.Machine] {
+        guard let locationId = selectedLocationFilter else {
+            return allMachines
+        }
+        return allMachines.filter { machine in
+            machine.location?.id == locationId
+        }
+    }
+
+    private var filteredPickItems: [RunDetail.PickItem] {
+        let baseItems = viewModel.pendingPickItems
+        let filteredByLocation: [RunDetail.PickItem]
+        if let locationId = selectedLocationFilter {
+            filteredByLocation = baseItems.filter { item in
+                let resolvedId = item.location?.id ?? item.machine?.location?.id
+                return resolvedId == locationId
+            }
+        } else {
+            filteredByLocation = baseItems
+        }
+
+        let filteredByMachine: [RunDetail.PickItem]
+        if let machineId = selectedMachineFilter {
+            filteredByMachine = filteredByLocation.filter { $0.machine?.id == machineId }
+        } else {
+            filteredByMachine = filteredByLocation
+        }
+
+        let grouped = Dictionary(grouping: filteredByMachine) { item in
+            item.machine?.id ?? "unknown"
+        }
+
+        let machineLookup = Dictionary(uniqueKeysWithValues: allMachines.map { ($0.id, $0) })
+
+        let sortedMachineIds = grouped.keys.sorted { lhs, rhs in
+            let lhsLabel = machineLookup[lhs]?.code ?? lhs
+            let rhsLabel = machineLookup[rhs]?.code ?? rhs
+            return lhsLabel.localizedCaseInsensitiveCompare(rhsLabel) == .orderedAscending
+        }
+
+        return sortedMachineIds.flatMap { machineId in
+            let entries = grouped[machineId] ?? []
+            return entries.sorted { first, second in
+                first.coilItem.coil.code.localizedCaseInsensitiveCompare(second.coilItem.coil.code) == .orderedDescending
+            }
+        }
+    }
+
+    private var machineFilterLabel: String {
+        guard let filter = selectedMachineFilter,
+              let machine = allMachines.first(where: { $0.id == filter }) else {
+            return "All Machines"
+        }
+        return machine.description ?? machine.code
+    }
+
+    private var locationFilterLabel: String {
+        guard let filter = selectedLocationFilter,
+              let location = locations.first(where: { $0.id == filter }) else {
+            return "All Locations"
+        }
+        return locationDisplayName(location)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                filterControls
+
+                if viewModel.isLoading && viewModel.pendingPickItems.isEmpty {
+                    LoadingRow()
+                } else if filteredPickItems.isEmpty {
+                    Text("No pick entries are waiting to be packed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                } else {
+                    ForEach(filteredPickItems, id: \.id) { pickItem in
+                        PickEntryRow(
+                            pickItem: pickItem,
+                            onToggle: {
+                                HapticsService.shared.actionCompleted()
+                                Task {
+                                    await togglePickStatus(pickItem)
+                                }
+                            },
+                            showsLocation: true
+                        )
+                        .sensoryFeedback(.selection, trigger: updatingPickIds.contains(pickItem.id) ? false : true)
+                        .disabled(updatingPickIds.contains(pickItem.id))
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Waiting to Pack")
+        .refreshable {
+            await viewModel.load(force: true)
+        }
+        .onChange(of: visibleMachines) { _, _ in
+            guard let selection = selectedMachineFilter else { return }
+            if visibleMachines.first(where: { $0.id == selection }) == nil {
+                selectedMachineFilter = nil
+            }
+        }
+        .onChange(of: locations) { _, _ in
+            guard let selection = selectedLocationFilter else { return }
+            if locations.first(where: { $0.id == selection }) == nil {
+                selectedLocationFilter = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var filterControls: some View {
+        HStack {
+            Menu {
+                Button("All Locations") {
+                    selectedLocationFilter = nil
+                }
+                if !locations.isEmpty {
+                    Divider()
+                    ForEach(locations, id: \.id) { location in
+                        Button(locationDisplayName(location)) {
+                            selectedLocationFilter = location.id
+                        }
+                    }
+                }
+            } label: {
+                filterChip(label: locationFilterLabel)
+            }
+            .foregroundStyle(.secondary)
+
+            Menu {
+                Button("All Machines") {
+                    selectedMachineFilter = nil
+                }
+                let machines = visibleMachines
+                if !machines.isEmpty {
+                    Divider()
+                    ForEach(machines, id: \.id) { machine in
+                        Button(machine.description ?? machine.code) {
+                            selectedMachineFilter = machine.id
+                        }
+                    }
+                }
+            } label: {
+                filterChip(label: machineFilterLabel)
+            }
+            .foregroundStyle(.secondary)
+
+            Spacer()
+        }
+    }
+
+    private func locationDisplayName(_ location: RunDetail.Location) -> String {
+        let trimmedName = location.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name = trimmedName, !name.isEmpty {
+            return name
+        }
+        let trimmedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let address = trimmedAddress, !address.isEmpty {
+            return address
+        }
+        return "Location"
+    }
+
+    private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
+        updatingPickIds.insert(pickItem.id)
+        let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
+
+        do {
+            try await service.updatePickItemStatuses(
+                runId: runId,
+                pickIds: [pickItem.id],
+                status: newStatus,
+                credentials: session.credentials
+            )
+            await viewModel.load(force: true)
+            // Trigger haptic feedback for successful pick status change
+            pickStatusToggleTrigger.toggle()
+        } catch {
+            print("Failed to update pick status: \(error)")
+        }
+
+        _ = await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+        }
+    }
+}
+
+#Preview {
+    
+
+    let credentials = AuthCredentials(
+        accessToken: "preview-token",
+        refreshToken: "preview-refresh",
+        userID: "user-1",
+        expiresAt: Date().addingTimeInterval(3600)
+    )
+    let profile = UserProfile(
+        id: "user-1",
+        email: "jordan@example.com",
+        firstName: "Jordan",
+        lastName: "Smith",
+        phone: nil,
+        role: "PICKER"
+    )
+    let session = AuthSession(credentials: credentials, profile: profile)
+
+    return NavigationStack {
+        RunDetailView(runId: "run-12345", session: session, service: PreviewRunsService())
+            .environment(\.colorScheme, .light)
+    }
+}

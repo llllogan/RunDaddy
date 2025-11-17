@@ -60,3 +60,14 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+
+**/*.DS_Store
+/App/build*
+
+**/*.xlsx
+
+# Angular site local env artifacts
+/Site/.env
+/Site/.env.local
+/Site/public/assets/env.js

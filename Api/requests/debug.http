@@ -1,0 +1,46 @@
+@baseUrl = http://localhost:3000
+@COMPANY_ID = cmhiqip7p05gpp601n70r1xn1
+@WORKBOOK_PATH = ./638976400958239922.xlsx
+@RUN_ID = cmhk1zz1r036dsbb7hyyf3jy4
+
+### List companies (debug only)
+GET {{baseUrl}}/api/debug/companies
+
+### List users (optional ?companyId= filter, debug only)
+GET {{baseUrl}}/api/debug/users?companyId={{COMPANY_ID}}
+
+### Import a run workbook for a company (debug only; not available in production)
+POST {{baseUrl}}/api/debug/run-imports
+Content-Type: application/json
+
+{
+  "companyId": "{{COMPANY_ID}}",
+  "workbookPath": "{{WORKBOOK_PATH}}",
+  "timezone": "Australia/Brisbane"
+}
+
+### Assign user to run
+POST {{baseUrl}}/api/runs/{{RUN_ID}}/assignment
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
+
+{
+  "userId": "cmhiqip7y05gqp601eat6zafy",
+  "role": "RUNNER"
+}
+
+### Update location order for a run
+PUT {{baseUrl}}/api/runs/{{RUN_ID}}/location-order
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
+
+{
+  "locations": [
+    {"locationId": "cmhiqip7p05gpp601n70r1xn2", "order": 0},
+    {"locationId": "cmhiqip7p05gpp601n70r1xn3", "order": 1},
+    {"locationId": null, "order": 2}
+  ]
+}
+
+### Delete a run (debug only; not available in production)
+DELETE {{baseUrl}}/api/debug/runs/{{RUN_ID}}?companyId={{COMPANY_ID}}

@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RunStatus {
+  CREATED
+  PENDING_FRESH
+  PICKING
+  READY
+}
+
+enum RunItemStatus {
+  PENDING
+  PICKED
+  SKIPPED
+}
+
+enum UserRole {
+  GOD
+  ADMIN
+  OWNER
+  PICKER
+}
+
+enum AuthContext {
+  WEB
+  APP
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole   @default(PICKER)
+  phone     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  defaultMembershipId String?  @unique
+
+  memberships  Membership[]
+  runsAsPicker Run[]       @relation("RunPicker")
+  runsAsRunner Run[]       @relation("RunRunner")
+  tokens       RefreshToken[]
+  defaultMembership Membership? @relation("UserDefaultMembership", fields: [defaultMembershipId], references: [id])
+  createdInvites InviteCode[] @relation("InviteCreator")
+  usedInvites    InviteCode[] @relation("InviteUsedBy")
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  role      UserRole @default(PICKER)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultForUser User?  @relation("UserDefaultMembership")
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  timeZone  String?
+
+  memberships    Membership[]
+  runs           Run[]
+  locations      Location[]
+  machines       Machine[]
+  inviteCodes    InviteCode[]
+}
+
+model MachineType {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+
+  machines Machine[]
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  address   String?
+
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  machines Machine[]
+  locationOrders RunLocationOrder[]
+
+  @@index([companyId])
+}
+
+model Machine {
+  id           String   @id @default(cuid())
+  companyId    String
+  code         String
+  description  String?
+  machineTypeId String
+  locationId    String?
+
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  machineType   MachineType @relation(fields: [machineTypeId], references: [id], onDelete: Restrict)
+  location      Location?   @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  coils         Coil[]
+  chocolateBoxes ChocolateBox[]
+
+  @@unique([companyId, code])
+  @@index([code])
+  @@index([machineTypeId])
+  @@index([locationId])
+  @@index([companyId])
+}
+
+model Coil {
+  id        String @id @default(cuid())
+  code      String
+  machineId String
+
+  machine   Machine    @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  coilItems CoilItem[]
+
+  @@unique([machineId, code])
+  @@index([machineId])
+}
+
+model CoilItem {
+  id      String @id @default(cuid())
+  coilId  String
+  skuId   String
+  par     Int
+
+  coil        Coil       @relation(fields: [coilId], references: [id], onDelete: Cascade)
+  sku         SKU        @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  pickEntries PickEntry[]
+
+  @@unique([coilId, skuId])
+  @@index([coilId])
+  @@index([skuId])
+}
+
+model SKU {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  name                String
+  type                String
+  category            String?
+  countNeededPointer  String?  @default("total")
+  isCheeseAndCrackers Boolean  @default(false)
+
+  coilItems CoilItem[]
+}
+
+model Run {
+  id               String     @id @default(cuid())
+  pickerId         String?
+  runnerId         String?
+  companyId        String
+  status           RunStatus  @default(CREATED)
+  pickingStartedAt DateTime?
+  pickingEndedAt   DateTime?
+  scheduledFor     DateTime?
+  createdAt        DateTime   @default(now())
+
+  picker         User?         @relation("RunPicker", fields: [pickerId], references: [id], onDelete: SetNull)
+  runner         User?         @relation("RunRunner", fields: [runnerId], references: [id], onDelete: SetNull)
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pickEntries    PickEntry[]
+  chocolateBoxes ChocolateBox[]
+  locationOrders RunLocationOrder[]
+
+  @@index([pickerId])
+  @@index([runnerId])
+  @@index([companyId])
+  @@index([companyId, scheduledFor])
+}
+
+model RunLocationOrder {
+  id         String   @id @default(cuid())
+  runId      String
+  locationId String?
+  position   Int
+
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([locationId])
+  @@index([runId, position])
+  @@unique([runId, locationId])
+}
+
+model PickEntry {
+  id         String        @id @default(cuid())
+  runId      String
+  coilItemId String
+  count      Int
+  current    Int?
+  par        Int?
+  need       Int?
+  forecast   Int?
+  total      Int?
+  status     RunItemStatus @default(PENDING)
+  pickedAt   DateTime?
+
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  coilItem CoilItem @relation(fields: [coilItemId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, coilItemId])
+  @@index([runId])
+  @@index([coilItemId])
+}
+
+
+model ChocolateBox {
+  id        String @id @default(cuid())
+  runId     String
+  machineId String
+  number    Int
+
+  run     Run     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, number])
+  @@index([runId])
+  @@index([machineId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenId   String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  context   AuthContext @default(WEB)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([context])
+}
+
+model InviteCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  companyId String
+  role      UserRole
+  createdBy String
+  expiresAt DateTime
+  usedBy    String?
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User    @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  usedByUser User? @relation("InviteUsedBy", fields: [usedBy], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@index([createdBy])
+}

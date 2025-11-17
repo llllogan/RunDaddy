@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `PickEntry` ADD COLUMN `current` INTEGER NULL,
+    ADD COLUMN `forecast` INTEGER NULL,
+    ADD COLUMN `need` INTEGER NULL,
+    ADD COLUMN `par` INTEGER NULL,
+    ADD COLUMN `total` INTEGER NULL;
