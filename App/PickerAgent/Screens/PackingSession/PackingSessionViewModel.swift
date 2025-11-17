@@ -77,6 +77,22 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         return nil
     }
     
+    var currentLocationName: String? {
+        if let commandLocation = currentCommand?.locationName,
+           !commandLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return commandLocation
+        }
+        if let machineLocation = currentMachine?.location?.name,
+           !machineLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return machineLocation
+        }
+        if let pickLocation = currentPickItem?.machine?.location?.name,
+           !pickLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return pickLocation
+        }
+        return nil
+    }
+    
     var currentLocationMachines: [RunDetail.Machine] {
         guard let runDetail = runDetail else { 
             print("🍫 No runDetail available")

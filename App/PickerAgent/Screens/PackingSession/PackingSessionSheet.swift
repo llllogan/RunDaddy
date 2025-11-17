@@ -49,13 +49,18 @@ struct PackingSessionSheet: View {
                     .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else if let command = viewModel.currentCommand {
-                    CommandDebugLogger(command: command, machines: viewModel.runDetail?.machines)
+                    CommandDebugLogger(
+                        command: command,
+                        machines: viewModel.runDetail?.machines,
+                        resolvedLocation: viewModel.currentLocationName
+                    )
                     CurrentCommandView(
                         command: command,
                         isSpeaking: viewModel.isSpeaking,
                         skuType: viewModel.currentPickItem?.sku?.type,
                         machineDescription: viewModel.currentMachine?.description,
                         machineCode: viewModel.currentMachine?.code,
+                        locationName: viewModel.currentLocationName,
                         canAddChocolateBox: command.type == "item" && viewModel.currentMachine != nil,
                         onAddChocolateBoxTap: {
                             beginAddChocolateBoxFlow()
@@ -275,6 +280,7 @@ struct CurrentCommandView: View {
     let skuType: String?
     let machineDescription: String?
     let machineCode: String?
+    let locationName: String?
     let canAddChocolateBox: Bool
     let onAddChocolateBoxTap: (() -> Void)?
 
@@ -308,10 +314,6 @@ struct CurrentCommandView: View {
         default:
             return nil
         }
-    }
-
-    private var locationDisplayText: String? {
-        command.locationName
     }
 
     var body: some View {
@@ -356,7 +358,7 @@ struct CurrentCommandView: View {
                     command: command,
                     skuType: skuType,
                     machineDisplayText: machineDisplayText,
-                    locationDisplayText: locationDisplayText,
+                    locationDisplayText: locationName,
                     coilSummary: coilSummary
                 )
             }
@@ -413,18 +415,9 @@ struct AddChocolateBoxActionCard: View {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(Color.white.opacity(0.2))
                         )
-                    Text("ADD CHOCOLATE BOX")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                VStack(alignment: .leading, spacing: 6) {
                     Text("Add chocolate box")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
-                    Text(machineDetails ?? "Assign to this machine")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(2)
                 }
             }
             .padding(12)
@@ -471,13 +464,6 @@ struct PackingItemDetailCard: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    
-                    if let machineDisplayText {
-                        Text(machineDisplayText)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                    }
                     Spacer(minLength: 0)
                 }
                 
@@ -500,13 +486,27 @@ struct PackingItemDetailCard: View {
             if let locationDisplayText, !locationDisplayText.isEmpty {
                 Divider()
                     .padding(.vertical, 4)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Location")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(locationDisplayText)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Location")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(locationDisplayText)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                    Spacer()
+                    if let machineDisplayText {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Machine")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(machineDisplayText)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -627,13 +627,15 @@ struct ChocolateBoxNumberPadSheet: View {
 }
 
 struct CommandDebugLogger: View {
-    init(command: AudioCommandsResponse.AudioCommand, machines: [RunDetail.Machine]?) {
+    init(command: AudioCommandsResponse.AudioCommand, machines: [RunDetail.Machine]?, resolvedLocation: String?) {
         print("🍫 Command type: \(command.type) machineId: \(command.machineId ?? "nil") pickEntryIds: \(command.pickEntryIds)")
         if let machines {
             print("🍫 Loaded machines: \(machines.map { $0.id })")
         } else {
             print("🍫 Run detail machines not loaded")
         }
+        let commandLocation = (command.locationName ?? "nil").isEmpty ? "empty" : (command.locationName ?? "nil")
+        print("🍫 Command locationName: \(commandLocation) | resolved location: \(resolvedLocation ?? "nil")")
     }
     
     var body: some View {
