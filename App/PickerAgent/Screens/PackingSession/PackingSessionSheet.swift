@@ -13,6 +13,11 @@ struct PackingSessionSheet: View {
     let session: AuthSession
     @StateObject private var viewModel: PackingSessionViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAddChocolateBoxSheet = false
+    @State private var chocolateBoxNumberInput = ""
+    @State private var chocolateBoxErrorMessage: String?
+    @State private var isCreatingChocolateBox = false
+    @State private var targetMachineForChocolateBox: RunDetail.Machine?
     
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         self.runId = runId
@@ -44,16 +49,18 @@ struct PackingSessionSheet: View {
                     .background(Theme.packingSessionBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else if let command = viewModel.currentCommand {
-                    HStack {
-                        // TODO: Add controlls
-                        CurrentCommandView(
-                            command: command,
-                            isSpeaking: viewModel.isSpeaking,
-                            skuType: viewModel.currentPickItem?.sku?.type,
-                            machineDescription: viewModel.currentMachine?.description,
-                            machineCode: viewModel.currentMachine?.code
+                    CommandDebugLogger(command: command, machines: viewModel.runDetail?.machines)
+                    CurrentCommandView(
+                        command: command,
+                        isSpeaking: viewModel.isSpeaking,
+                        skuType: viewModel.currentPickItem?.sku?.type,
+                        machineDescription: viewModel.currentMachine?.description,
+                        machineCode: viewModel.currentMachine?.code,
+                        canAddChocolateBox: command.type == "item" && viewModel.currentMachine != nil,
+                        onAddChocolateBoxTap: {
+                            beginAddChocolateBoxFlow()
+                        }
                         )
-                    }
                 } else if viewModel.isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
@@ -191,6 +198,28 @@ struct PackingSessionSheet: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $showingAddChocolateBoxSheet, onDismiss: {
+            chocolateBoxNumberInput = ""
+            chocolateBoxErrorMessage = nil
+            targetMachineForChocolateBox = nil
+        }) {
+            if let machine = targetMachineForChocolateBox {
+                ChocolateBoxNumberPadSheet(
+                    machineDescription: machine.description,
+                    machineCode: machine.code,
+                    numberText: $chocolateBoxNumberInput,
+                    isSubmitting: isCreatingChocolateBox,
+                    errorMessage: chocolateBoxErrorMessage,
+                    onCancel: {
+                        showingAddChocolateBoxSheet = false
+                        targetMachineForChocolateBox = nil
+                    },
+                    onSave: submitChocolateBoxEntry
+                )
+                .presentationDetents([.fraction(0.35), .medium])
+                .presentationDragIndicator(.visible)
+            }
+        }
 
         .onAppear {
             Task {
@@ -201,6 +230,43 @@ struct PackingSessionSheet: View {
             viewModel.stopSession()
         }
     }
+
+    private func beginAddChocolateBoxFlow() {
+        guard let machine = viewModel.currentMachine else { return }
+        targetMachineForChocolateBox = machine
+        chocolateBoxNumberInput = ""
+        chocolateBoxErrorMessage = nil
+        showingAddChocolateBoxSheet = true
+    }
+    
+    private func submitChocolateBoxEntry() {
+        guard let machine = targetMachineForChocolateBox else {
+            chocolateBoxErrorMessage = "Unable to determine machine for this chocolate box."
+            return
+        }
+        let trimmedNumber = chocolateBoxNumberInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let number = Int(trimmedNumber), number > 0 else {
+            chocolateBoxErrorMessage = "Enter a valid chocolate box number."
+            return
+        }
+        chocolateBoxErrorMessage = nil
+        isCreatingChocolateBox = true
+        Task {
+            do {
+                try await viewModel.createChocolateBox(number: number, machineId: machine.id)
+                await MainActor.run {
+                    isCreatingChocolateBox = false
+                    showingAddChocolateBoxSheet = false
+                    targetMachineForChocolateBox = nil
+                }
+            } catch {
+                await MainActor.run {
+                    chocolateBoxErrorMessage = error.localizedDescription
+                    isCreatingChocolateBox = false
+                }
+            }
+        }
+    }
 }
 
 struct CurrentCommandView: View {
@@ -209,6 +275,8 @@ struct CurrentCommandView: View {
     let skuType: String?
     let machineDescription: String?
     let machineCode: String?
+    let canAddChocolateBox: Bool
+    let onAddChocolateBoxTap: (() -> Void)?
 
     private var coilCount: Int {
         if let codes = command.coilCodes, !codes.isEmpty {
@@ -247,77 +315,54 @@ struct CurrentCommandView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if command.type == "location" {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(command.locationName ?? "Unknown Location")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
+        if command.type == "location" {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(command.locationName ?? "Unknown Location")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.leading)
 
-                    Spacer()
-                }
-            } else if command.type == "machine" {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(command.machineName ?? "Unknown Machine")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-
-                    Spacer()
-                }
-            } else {
-                HStack(alignment: .top, spacing: 32) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(command.skuName ?? "Unknown Item")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .multilineTextAlignment(.leading)
-
-                        if let skuType = skuType, !skuType.isEmpty {
-                            Text(skuType)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-
-                        if let machineText = machineDisplayText {
-                            Text(machineText)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-
-                        if let locationText = locationDisplayText, !locationText.isEmpty {
-                            Text(locationText)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("\(command.count)")
-                            .font(.system(size: 72, weight: .heavy, design: .rounded))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-
-                        if let summary = coilSummary {
-                            Text(summary)
-                                .font(.footnote)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
                 Spacer()
             }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Theme.packingSessionBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        } else if command.type == "machine" {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(command.machineName ?? "Unknown Machine")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Theme.packingSessionBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        } else {
+            HStack(alignment: .top, spacing: 20) {
+                if canAddChocolateBox, let onAddChocolateBoxTap {
+                    AddChocolateBoxActionCard(
+                        machineDetails: machineDisplayText,
+                        action: onAddChocolateBoxTap
+                    )
+                    .frame(maxWidth: 220)
+                }
+                PackingItemDetailCard(
+                    command: command,
+                    skuType: skuType,
+                    machineDisplayText: machineDisplayText,
+                    locationDisplayText: locationDisplayText,
+                    coilSummary: coilSummary
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Theme.packingSessionBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
 }
 
@@ -349,6 +394,265 @@ struct CircularButtonStyle: ButtonStyle {
             .shadow(color: primary ? .blue.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+    }
+}
+
+struct AddChocolateBoxActionCard: View {
+    let machineDetails: String?
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.brown)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.white.opacity(0.2))
+                        )
+                    Text("ADD CHOCOLATE BOX")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Add chocolate box")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(machineDetails ?? "Assign to this machine")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(2)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.42, green: 0.24, blue: 0.12), Color(red: 0.29, green: 0.16, blue: 0.07)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.2))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add chocolate box")
+    }
+}
+
+struct PackingItemDetailCard: View {
+    let command: AudioCommandsResponse.AudioCommand
+    let skuType: String?
+    let machineDisplayText: String?
+    let locationDisplayText: String?
+    let coilSummary: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(command.skuName ?? "Unknown Item")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    if let skuType, !skuType.isEmpty {
+                        Text(skuType)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if let machineDisplayText {
+                        Text(machineDisplayText)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(command.count)")
+                        .font(.system(size: 72, weight: .heavy, design: .rounded))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    
+                    if let coilSummary {
+                        Text(coilSummary)
+                            .font(.footnote)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            if let locationDisplayText, !locationDisplayText.isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Location")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(locationDisplayText)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.packingSessionBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+    }
+}
+
+struct ChocolateBoxNumberPadSheet: View {
+    let machineDescription: String?
+    let machineCode: String?
+    @Binding var numberText: String
+    let isSubmitting: Bool
+    let errorMessage: String?
+    let onCancel: () -> Void
+    let onSave: () -> Void
+    @FocusState private var isNumberFieldFocused: Bool
+    
+    private var machineSummary: String {
+        if let description = machineDescription, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let code = machineCode, !code.isEmpty {
+                return "\(description) • \(code)"
+            }
+            return description
+        }
+        return machineCode ?? "Assigned machine"
+    }
+    
+    private var isFormValid: Bool {
+        guard let value = Int(numberText), value > 0 else { return false }
+        return true
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Machine")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(machineSummary)
+                            .font(.headline)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Chocolate box number")
+                            .font(.subheadline.weight(.semibold))
+                        TextField("Enter number", text: $numberText)
+                            .keyboardType(.numberPad)
+                            .focused($isNumberFieldFocused)
+                            .padding(.vertical, 8)
+                            .font(.title2.weight(.medium))
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
+                    .onChangeCompat(of: numberText) { newValue in
+                        numberText = newValue.filter { $0.isNumber }
+                    }
+                    
+                    if let errorMessage, !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Add Chocolate Box")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                    .disabled(isSubmitting)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        onSave()
+                    } label: {
+                        if isSubmitting {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Add")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(!isFormValid || isSubmitting)
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSubmitting)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                isNumberFieldFocused = true
+            }
+        }
+    }
+}
+
+#Preview("Chocolate Box Number Pad Sheet") {
+    ChocolateBoxNumberPadSheet(
+        machineDescription: "Lobby",
+        machineCode: "A-101",
+        numberText: .constant("12"),
+        isSubmitting: false,
+        errorMessage: "This box already exists",
+        onCancel: {},
+        onSave: {}
+    )
+}
+
+struct CommandDebugLogger: View {
+    init(command: AudioCommandsResponse.AudioCommand, machines: [RunDetail.Machine]?) {
+        print("🍫 Command type: \(command.type) machineId: \(command.machineId ?? "nil") pickEntryIds: \(command.pickEntryIds)")
+        if let machines {
+            print("🍫 Loaded machines: \(machines.map { $0.id })")
+        } else {
+            print("🍫 Run detail machines not loaded")
+        }
+    }
+    
+    var body: some View {
+        EmptyView()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func onChangeCompat<Value: Equatable>(of value: Value, perform action: @escaping (Value) -> Void) -> some View {
+        if #available(iOS 17, *) {
+            self.onChange(of: value, initial: false) { _, newValue in
+                action(newValue)
+            }
+        } else {
+            self.onChange(of: value) { newValue in
+                action(newValue)
+            }
+        }
     }
 }
 

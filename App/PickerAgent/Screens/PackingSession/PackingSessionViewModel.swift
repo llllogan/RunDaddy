@@ -64,9 +64,17 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     var currentMachine: RunDetail.Machine? {
-        guard let machineId = currentCommand?.machineId,
-              let runDetail = runDetail else { return nil }
-        return runDetail.machines.first { $0.id == machineId }
+        guard let runDetail else { return nil }
+        if let machineId = currentCommand?.machineId, !machineId.isEmpty {
+            if let machine = runDetail.machines.first(where: { $0.id == machineId }) {
+                return machine
+            }
+        }
+        // Fallback to the pick item's machine if the command didn't include one
+        if let pickItemMachine = currentPickItem?.machine {
+            return pickItemMachine
+        }
+        return nil
     }
     
     var currentLocationMachines: [RunDetail.Machine] {
@@ -494,16 +502,21 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     // MARK: - Chocolate Boxes Management
-    func createChocolateBox(number: Int, machineId: String) async {
+    func createChocolateBox(number: Int, machineId: String) async throws {
         do {
-            _ = try await service.createChocolateBox(for: runId, number: number, machineId: machineId, credentials: session.credentials)
+            _ = try await service.createChocolateBox(
+                for: runId,
+                number: number,
+                machineId: machineId,
+                credentials: session.credentials
+            )
             // Refresh chocolate boxes after creation
             await refreshChocolateBoxes()
         } catch {
-            print("Failed to create chocolate box: \(error)")
+            throw error
         }
     }
-    
+
     func deleteChocolateBox(boxId: String) async {
         do {
             try await service.deleteChocolateBox(for: runId, boxId: boxId, credentials: session.credentials)
