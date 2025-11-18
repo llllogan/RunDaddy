@@ -439,18 +439,8 @@ fileprivate struct CurrentCommandView: View {
         "\(max(command.count, 0))"
     }
 
-    private var showChocolateBoxes: Bool {
-        (command.type == "item" || command.type == "machine") && !chocolateBoxNumbers.isEmpty
-    }
-
     private var chocolateBoxSummary: String {
         chocolateBoxNumbers.sorted().map(String.init).joined(separator: ", ")
-    }
-
-    private var showActions: Bool {
-        (canAddChocolateBox && onAddChocolateBoxTap != nil) ||
-        (canToggleCheese && onToggleCheeseTap != nil) ||
-        onChangeInputFieldTap != nil
     }
 
     private var cheeseButtonTitle: String {
@@ -505,11 +495,6 @@ fileprivate struct CurrentCommandView: View {
                 .font(.system(size: 96, weight: .black, design: .rounded))
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
-            if let coilSummary = coilSummary {
-                Text(coilSummary)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -523,7 +508,7 @@ fileprivate struct CurrentCommandView: View {
                 .foregroundStyle(.secondary)
                 .font(.caption2.bold())
                 .padding(.leading, 8)
-            Text(chocolateBoxSummary)
+            Text(chocolateBoxSummary.isEmpty ? "No chocolate boxes yet" : chocolateBoxSummary)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -568,27 +553,16 @@ fileprivate struct CurrentCommandView: View {
     }
 
     @ViewBuilder
-    private var actionButtonsContent: some View {
-        if canAddChocolateBox, onAddChocolateBoxTap != nil {
-            addChocolateBoxButton
-        }
-        if canToggleCheese, onToggleCheeseTap != nil {
-            cheeseButton
-        }
-        if onChangeInputFieldTap != nil {
-            changeInputFieldButton
-        }
-    }
-
-    @ViewBuilder
     private var actionsView: some View {
         if layout == .stacked {
             HStack(spacing: 8) {
-                actionButtonsContent
+                addChocolateBoxButton
+                cheeseButton
             }
         } else {
             VStack(spacing: 8) {
-                actionButtonsContent
+                addChocolateBoxButton
+                cheeseButton
             }
         }
     }
@@ -600,26 +574,16 @@ fileprivate struct CurrentCommandView: View {
                 VStack(spacing: 12) {
                     progressCard
                     detailCard
-                    if showChocolateBoxes {
-                        chocolateBoxCard
-                    }
-                    if showActions {
-                        actionsView
-                    }
+                    chocolateBoxCard
+                    actionsView
                 }
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
-                    if showActions || showChocolateBoxes {
-                        VStack(spacing: 12) {
-                            if showActions {
-                                actionsView
-                            }
-                            if showChocolateBoxes {
-                                chocolateBoxCard
-                            }
-                        }
-                        .frame(maxWidth: 260)
+                    VStack(spacing: 12) {
+                        actionsView
+                        chocolateBoxCard
                     }
+                    .frame(maxWidth: 260)
                     detailCard
                     VStack(spacing: 12) {
                         if showCount {
