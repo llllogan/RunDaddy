@@ -21,9 +21,11 @@ struct PackingSessionTestSheet: View {
                         .fill(.green)
                         .frame(maxHeight: 40)
                     VStack(alignment: .leading) {
+                        // This text box should say "Machine Progress" if an item is being shown, "Location Progress" if an machine is being shown, and "Run Progress" if a location is being shown
                         Text("Machine Progress")
                             .foregroundStyle(.secondary)
                             .font(.callout)
+                        // This should be the progress through the type the user is in the packing session, so 30% of the way through the run or 70% of the way through the machine and so on
                         Text("30%")
                             .font(.title3.bold())
                     }
@@ -67,7 +69,7 @@ struct PackingSessionTestSheet: View {
                         .font(.caption2.bold())
                         .padding(.leading, 8)
                     Text("3, 4, 58, 3")
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
                         .background(Color(.secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
