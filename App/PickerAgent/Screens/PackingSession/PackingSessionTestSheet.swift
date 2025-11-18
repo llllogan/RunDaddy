@@ -17,6 +17,7 @@ struct PackingSessionTestSheet: View {
             
             VStack {
                 HStack {
+                    // This should be repalced with a swift chart donut (styled to look like a progress indicator) and represent the current progress percentage shown as the number figure
                     Circle()
                         .fill(.green)
                         .frame(maxHeight: 40)
@@ -39,20 +40,25 @@ struct PackingSessionTestSheet: View {
                 
                 HStack(alignment: .top) {
                     VStack(alignment: .leading) {
+                        // This should be the SKU name, or machine description, or location name
                         Text("Coke")
                             .font(.title.bold())
+                        // This should be the SKU type, or machine code, or location name, or blank if location
                         Text("Bottle")
                             .font(.title3.bold())
+                        // This should be the number of coils the SKU entry is being read out for or "1 Coil" if only one, or machine type description, or blank for location
                         Text("3 Coils")
                             .foregroundStyle(.secondary)
                             .font(.headline)
                         Spacer()
+                        // If either a machine or location is being read out, these fields should be blank
                         Text("BR1 Fresh")
                             .font(.headline)
                         Text("Aldi Brendale")
                             .font(.headline)
                     }
                     Spacer()
+                    // This is the number of items needed to be packed. THis will be blank if machine or location
                     Text("5")
                         .font(.init(.custom("PackCounter", size: 100, relativeTo: .largeTitle)))
                         .fontDesign(.rounded)
@@ -68,7 +74,9 @@ struct PackingSessionTestSheet: View {
                         .foregroundStyle(.secondary)
                         .font(.caption2.bold())
                         .padding(.leading, 8)
+                    // This should be a comma separated list of the chocolate box number acossiated to this machine for this run
                     Text("3, 4, 58, 3")
+                        .font(.headline)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
                         .background(Color(.secondarySystemGroupedBackground))
@@ -80,6 +88,7 @@ struct PackingSessionTestSheet: View {
                         
                     } label: {
                         HStack {
+                            // This should make the add chocolate box sheet appear
                             Label("Chocolate Box", systemImage: "plus.circle.fill")
                         }
                         .frame(maxWidth: .infinity)
@@ -90,6 +99,9 @@ struct PackingSessionTestSheet: View {
                         
                     } label: {
                         HStack {
+                            // This should add this SKU to the cheese tub
+                            // This is the state of the SKU not being in the cheese tub (is cheese and crackers)
+                            // THere should be another state for is in the cheese tub, and pressing this button should toggle that field
                             Label("Cheese Tub", systemImage: "plus.circle.fill")
                         }
                         .frame(maxWidth: .infinity)
@@ -105,9 +117,11 @@ struct PackingSessionTestSheet: View {
             .background(Color(.systemGroupedBackground))
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    // Ignore this functionality for now
                     Button("Pause", systemImage: "pause.fill") {
                         
                     }
+                    // This should stop the packing session
                     Button("Stop", systemImage: "stop.fill") {
                         
                     }
@@ -115,16 +129,20 @@ struct PackingSessionTestSheet: View {
                 }
                 
                 ToolbarItemGroup(placement: .bottomBar) {
+                    // This should skip the current pick entry
                     Button("Skip") {
                         
                     }
                     Spacer()
+                    // This should go back to the previous instruction
                     Button("Back", systemImage: "backward.fill") {
                         
                     }
+                    // This should repeat the current instruction
                     Button("Repeat", systemImage: "repeat") {
                         
                     }
+                    // This should mark the current pick entry as packed and then move onto the next insturction
                     Button("Next", systemImage: "forward.fill") {
                         
                     }
@@ -165,6 +183,7 @@ struct PackingSessionTestSheet: View {
 //                            .font(.caption2.bold())
 //                            .padding(.leading, 8)
 //                        Text("3, 4, 58, 3")
+//                            .font(.headline)
 //                            .frame(maxWidth: .infinity, maxHeight: .infinity)
 //                            .padding()
 //                            .background(Color(.secondarySystemGroupedBackground))
