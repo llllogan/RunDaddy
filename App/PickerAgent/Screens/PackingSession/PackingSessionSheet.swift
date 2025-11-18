@@ -248,6 +248,9 @@ struct PackingSessionSheet: View {
     }
 
     private func progressInfo(for command: AudioCommandsResponse.AudioCommand) -> PackingInstructionProgress {
+        if viewModel.machineCompletionInfo != nil && command.type == "item" {
+            return PackingInstructionProgress(title: "Machine Progress", value: 1)
+        }
         switch command.type {
         case "item":
             let identifier = machineIdentifier(for: command)
@@ -256,7 +259,7 @@ struct PackingSessionSheet: View {
                 return PackingInstructionProgress(title: "Machine Progress", value: 0)
             }
             let index = items.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index + 1) / Double(items.count)
+            let progress = Double(index) / Double(items.count)
             return PackingInstructionProgress(title: "Machine Progress", value: min(max(progress, 0), 1))
         case "machine":
             let identifier = locationIdentifier(for: command)
@@ -265,7 +268,7 @@ struct PackingSessionSheet: View {
                 return PackingInstructionProgress(title: "Location Progress", value: 0)
             }
             let index = machines.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index + 1) / Double(machines.count)
+            let progress = Double(index) / Double(machines.count)
             return PackingInstructionProgress(title: "Location Progress", value: min(max(progress, 0), 1))
         case "location":
             let locations = viewModel.audioCommands.filter { $0.type == "location" }
@@ -273,7 +276,7 @@ struct PackingSessionSheet: View {
                 return PackingInstructionProgress(title: "Run Progress", value: 0)
             }
             let index = locations.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index + 1) / Double(locations.count)
+            let progress = Double(index) / Double(locations.count)
             return PackingInstructionProgress(title: "Run Progress", value: min(max(progress, 0), 1))
         default:
             return PackingInstructionProgress(title: "Progress", value: viewModel.progress)
@@ -462,6 +465,10 @@ fileprivate struct CurrentCommandView: View {
         return parts.joined(separator: " • ")
     }
 
+    private var shouldDisableAccessoryButtons: Bool {
+        machineCompletionInfo != nil
+    }
+
     private var cheeseButtonTitle: String {
         isCheeseAndCrackers ? "Remove Cheese Tub" : "Cheese Tub"
     }
@@ -482,6 +489,7 @@ fileprivate struct CurrentCommandView: View {
                 Text(info.message)
                     .font(.title3.weight(.semibold))
                     .lineLimit(4)
+                    .foregroundStyle(.secondary)
                 Spacer()
             } else {
                 Text(primaryTitle)
@@ -552,7 +560,7 @@ fileprivate struct CurrentCommandView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(cheeseButtonTint)
-        .disabled(onToggleCheeseTap == nil)
+        .disabled(onToggleCheeseTap == nil || shouldDisableAccessoryButtons)
     }
 
     private var addChocolateBoxButton: some View {
@@ -563,7 +571,7 @@ fileprivate struct CurrentCommandView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(onAddChocolateBoxTap == nil)
+        .disabled(onAddChocolateBoxTap == nil || shouldDisableAccessoryButtons)
     }
 
     private var changeInputFieldButton: some View {
@@ -607,8 +615,9 @@ fileprivate struct CurrentCommandView: View {
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
-                        actionsView
+                        cheeseButton
                         chocolateBoxCard
+                        addChocolateBoxButton
                     }
                     .frame(maxWidth: 260)
                     detailCard
