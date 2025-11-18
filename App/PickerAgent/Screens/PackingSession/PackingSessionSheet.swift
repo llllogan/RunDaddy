@@ -431,10 +431,6 @@ fileprivate struct CurrentCommandView: View {
         return command.locationName
     }
 
-    private var showCount: Bool {
-        command.type == "item" && command.count > 0
-    }
-
     private var countText: String {
         "\(max(command.count, 0))"
     }
@@ -490,11 +486,13 @@ fileprivate struct CurrentCommandView: View {
     }
 
     private var countCard: some View {
-        VStack(spacing: 6) {
+        let isItem = command.type == "item"
+        return VStack(spacing: 6) {
             Text(countText)
                 .font(.system(size: 96, weight: .black, design: .rounded))
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
+                .opacity(isItem ? 1 : 0)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -504,11 +502,11 @@ fileprivate struct CurrentCommandView: View {
 
     private var chocolateBoxCard: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Chocolate Box Numbers")
+            Text("Chocolate Box")
                 .foregroundStyle(.secondary)
                 .font(.caption2.bold())
                 .padding(.leading, 8)
-            Text(chocolateBoxSummary.isEmpty ? "No chocolate boxes yet" : chocolateBoxSummary)
+            Text(chocolateBoxSummary.isEmpty ? "None for this machine" : chocolateBoxSummary)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -574,6 +572,7 @@ fileprivate struct CurrentCommandView: View {
                 VStack(spacing: 12) {
                     progressCard
                     detailCard
+                    countCard
                     chocolateBoxCard
                     actionsView
                 }
@@ -586,9 +585,7 @@ fileprivate struct CurrentCommandView: View {
                     .frame(maxWidth: 260)
                     detailCard
                     VStack(spacing: 12) {
-                        if showCount {
-                            countCard
-                        }
+                        countCard
                         progressCard
                     }
                     .frame(maxWidth: 220)
@@ -640,7 +637,7 @@ struct ProgressDonutView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color(.systemGray5), lineWidth: 8)
+                .stroke(Color(.systemGray2), lineWidth: 8)
             Circle()
                 .trim(from: 0, to: CGFloat(clampedValue))
                 .stroke(
