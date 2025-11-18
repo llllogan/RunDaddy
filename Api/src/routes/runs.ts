@@ -29,8 +29,14 @@ interface AudioCommand {
   audioCommand: string;
   pickEntryIds: string[];
   type: 'location' | 'machine' | 'item';
+  locationId?: string | null;
   locationName?: string;
+  locationAddress?: string | null;
   machineName?: string;
+  machineId?: string | null;
+  machineCode?: string | null;
+  machineDescription?: string | null;
+  machineTypeName?: string | null;
   skuName?: string;
   skuCode?: string;
   count: number;
@@ -262,7 +268,9 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
         audioCommand: `Location ${location.name || 'Unknown'}`,
         pickEntryIds: [],
         type: 'location',
+        locationId: location.id ?? null,
         locationName: location.name || 'Unknown',
+        locationAddress: location.address ?? null,
         count: 0,
         order: orderCounter++
       });
@@ -281,7 +289,14 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
           audioCommand: `Machine ${machine.code || machine.description || 'Unknown'}`,
           pickEntryIds: [],
           type: 'machine',
+          locationId: machine.location?.id ?? null,
+          locationName: machine.location?.name || location?.name || 'Unknown',
+          locationAddress: machine.location?.address ?? null,
+          machineId: machine.id ?? null,
           machineName: machine.code || machine.description || 'Unknown',
+          machineCode: machine.code ?? null,
+          machineDescription: machine.description ?? null,
+          machineTypeName: machine.machineType?.description || machine.machineType?.name || null,
           count: 0,
           order: orderCounter++
         });
@@ -373,7 +388,14 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
             audioCommand: audioCommand,
             pickEntryIds: pickEntryIds,
             type: 'item',
+            locationId: machine?.location?.id ?? location?.id ?? null,
+            locationName: machine?.location?.name || location?.name || null,
+            locationAddress: machine?.location?.address ?? location?.address ?? null,
+            machineId: machine?.id ?? null,
             machineName: machine?.code || machine?.description || 'Unknown',
+            machineCode: machine?.code ?? null,
+            machineDescription: machine?.description ?? null,
+            machineTypeName: machine?.machineType?.description || machine?.machineType?.name || null,
             skuName: skuName,
             skuCode: skuCode,
             count: totalCount,

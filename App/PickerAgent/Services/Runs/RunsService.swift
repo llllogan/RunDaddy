@@ -122,9 +122,14 @@ struct AudioCommandsResponse: Equatable, Decodable {
         let audioCommand: String
         let pickEntryIds: [String]
         let type: String // 'location', 'machine', or 'item'
+        let locationId: String?
         let locationName: String?
+        let locationAddress: String?
         let machineName: String?
         let machineId: String?
+        let machineCode: String?
+        let machineDescription: String?
+        let machineTypeName: String?
         let skuName: String?
         let skuCode: String?
         let count: Int
