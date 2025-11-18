@@ -10,6 +10,15 @@ import AVFoundation
 import Combine
 import MediaPlayer
 
+struct MachineCompletionInfo: Equatable, Identifiable {
+    let id = UUID()
+    let machineCode: String?
+    let machineName: String?
+    let machineDescription: String?
+    let locationName: String?
+    let message: String
+}
+
 @MainActor
 class PackingSessionViewModel: NSObject, ObservableObject {
     let runId: String
@@ -31,11 +40,13 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var updatingSkuIds: Set<String> = []
     @Published private(set) var runDetail: RunDetail?
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
+    @Published var machineCompletionInfo: MachineCompletionInfo?
     
     private let synthesizer = AVSpeechSynthesizer()
     private let silentLoop = SilentLoopPlayer()
     private var audioSessionConfigured = false
     private var remoteCommandCenterConfigured = false
+    private var announcedMachineIdentifiers: Set<String> = []
     
     var currentCommand: AudioCommandsResponse.AudioCommand? {
         guard currentIndex >= 0 && currentIndex < audioCommands.count else { return nil }
@@ -145,6 +156,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     func loadAudioCommands() async {
         isLoading = true
         errorMessage = nil
+        machineCompletionInfo = nil
+        announcedMachineIdentifiers.removeAll()
         
         do {
             async let audioCommandsTask = service.fetchAudioCommands(for: runId, credentials: session.credentials)
@@ -179,23 +192,32 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func goForward() async {
+        if await acknowledgeMachineCompletionIfNeeded() {
+            return
+        }
+        
         guard !isSessionComplete else { return }
         
+        let finishedCommand = currentCommand
+        
         // Mark current item as completed if it's an item
-        if let currentCommand = currentCommand, currentCommand.type == "item" {
+        if let currentCommand = finishedCommand, currentCommand.type == "item" {
             await markAsPacked(pickEntryIds: currentCommand.pickEntryIds)
         }
         
-        if canGoForward {
-            currentIndex += 1
-            updateNowPlayingInfo()
-            await speakCurrentCommand()
-        } else {
-            completeSession()
+        if let finishedCommand, maybePauseForMachineCompletion(after: finishedCommand) {
+            return
         }
+        
+        await advanceToNextCommand()
     }
     
     func goBack() async {
+        if machineCompletionInfo != nil {
+            machineCompletionInfo = nil
+            return
+        }
+        
         guard canGoBack else { return }
         
         currentIndex -= 1
@@ -204,23 +226,32 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func skipCurrent() async {
+        if await acknowledgeMachineCompletionIfNeeded() {
+            return
+        }
+        
         guard !isSessionComplete else { return }
         
+        let finishedCommand = currentCommand
+        
         // Mark as skipped if it's an item
-        if let currentCommand = currentCommand, currentCommand.type == "item" {
+        if let currentCommand = finishedCommand, currentCommand.type == "item" {
             await markAsSkipped(pickEntryIds: currentCommand.pickEntryIds)
         }
         
-        if canGoForward {
-            currentIndex += 1
-            updateNowPlayingInfo()
-            await speakCurrentCommand()
-        } else {
-            completeSession()
+        if let finishedCommand, maybePauseForMachineCompletion(after: finishedCommand) {
+            return
         }
+        
+        await advanceToNextCommand()
     }
     
     func repeatCurrent() async {
+        if let completionInfo = machineCompletionInfo {
+            speakMachineCompletion(message: completionInfo.message)
+            return
+        }
+        
         updateNowPlayingInfo()
         await speakCurrentCommand()
     }
@@ -232,6 +263,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         deactivateAudioSession()
         deactivateRemoteCommandCenter()
         clearNowPlayingInfo()
+        machineCompletionInfo = nil
     }
     
     private func speakCurrentCommand() async {
@@ -243,28 +275,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         utterance.volume = 1.0
         
         // Use modern Apple voices with enhanced quality
-        let voices = AVSpeechSynthesisVoice.speechVoices()
-        let preferredVoice = voices.first { voice in
-            // Prefer enhanced quality voices for English
-            voice.language.hasPrefix("en") && 
-            voice.quality == .enhanced &&
-            (voice.name.contains("Siri") || 
-             voice.name.contains("Alex") || 
-             voice.name.contains("Daniel") ||
-             voice.name.contains("Karen") ||
-             voice.name.contains("Moira"))
-        } ?? voices.first { voice in
-            // Fallback to any enhanced English voice
-            voice.language.hasPrefix("en") && voice.quality == .enhanced
-        } ?? voices.first { voice in
-            // Final fallback to any English voice
-            voice.language.hasPrefix("en")
-        } ?? voices.first
-        
-        if let voice = preferredVoice {
-            utterance.voice = voice
-        }
-        
+        configurePreferredVoice(for: utterance)
         isSpeaking = true
         updateNowPlayingInfo()
         updatePlaybackState()
@@ -316,27 +327,59 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         utterance.pitchMultiplier = 1.1 // Slightly more upbeat for completion
         utterance.volume = 1.0
         
-        // Use the same voice selection logic as regular commands
+        configurePreferredVoice(for: utterance)
+        synthesizer.speak(utterance)
+    }
+    
+    private func speakMachineCompletion(message: String) {
+        let utterance = AVSpeechUtterance(string: message)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
+        utterance.pitchMultiplier = 1.05
+        utterance.volume = 1.0
+        configurePreferredVoice(for: utterance)
+        synthesizer.speak(utterance)
+    }
+    
+    private func configurePreferredVoice(for utterance: AVSpeechUtterance) {
         let voices = AVSpeechSynthesisVoice.speechVoices()
         let preferredVoice = voices.first { voice in
-            voice.language.hasPrefix("en") && 
+            // Prefer enhanced quality voices for English
+            voice.language.hasPrefix("en") &&
             voice.quality == .enhanced &&
-            (voice.name.contains("Siri") || 
-             voice.name.contains("Alex") || 
+            (voice.name.contains("Siri") ||
+             voice.name.contains("Alex") ||
              voice.name.contains("Daniel") ||
              voice.name.contains("Karen") ||
              voice.name.contains("Moira"))
         } ?? voices.first { voice in
+            // Fallback to any enhanced English voice
             voice.language.hasPrefix("en") && voice.quality == .enhanced
         } ?? voices.first { voice in
+            // Final fallback to any English voice
             voice.language.hasPrefix("en")
         } ?? voices.first
         
         if let voice = preferredVoice {
             utterance.voice = voice
         }
-        
-        synthesizer.speak(utterance)
+    }
+    
+    private func advanceToNextCommand() async {
+        if canGoForward {
+            currentIndex += 1
+            updateNowPlayingInfo()
+            await speakCurrentCommand()
+        } else {
+            completeSession()
+        }
+    }
+    
+    @discardableResult
+    private func acknowledgeMachineCompletionIfNeeded() async -> Bool {
+        guard let _ = machineCompletionInfo else { return false }
+        machineCompletionInfo = nil
+        await advanceToNextCommand()
+        return true
     }
     
     private func configureAudioSessionIfNeeded() {
@@ -550,6 +593,74 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         } catch {
             print("Failed to refresh chocolate boxes: \(error)")
         }
+    }
+    
+    // MARK: - Machine Completion Announcements
+    private func maybePauseForMachineCompletion(after command: AudioCommandsResponse.AudioCommand) -> Bool {
+        guard let identifier = machineIdentifier(for: command) else { return false }
+        guard !announcedMachineIdentifiers.contains(identifier) else { return false }
+        guard !hasRemainingItems(forMachineIdentifier: identifier, after: command.id) else { return false }
+
+        announcedMachineIdentifiers.insert(identifier)
+        let info = MachineCompletionInfo(
+            machineCode: command.machineCode,
+            machineName: command.machineName,
+            machineDescription: command.machineDescription,
+            locationName: command.locationName,
+            message: machineCompletionMessage(for: command)
+        )
+        machineCompletionInfo = info
+        speakMachineCompletion(message: info.message)
+        return true
+    }
+
+    private func hasRemainingItems(forMachineIdentifier identifier: String, after commandId: String) -> Bool {
+        guard let baseIndex = audioCommands.firstIndex(where: { $0.id == commandId }) else { return false }
+        guard baseIndex + 1 < audioCommands.count else { return false }
+
+        for index in (baseIndex + 1)..<audioCommands.count {
+            let candidate = audioCommands[index]
+            guard let candidateIdentifier = machineIdentifier(for: candidate) else { continue }
+            if candidateIdentifier == identifier && candidate.type == "item" {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func machineIdentifier(for command: AudioCommandsResponse.AudioCommand) -> String? {
+        if let machineId = command.machineId?.trimmingCharacters(in: .whitespacesAndNewlines), !machineId.isEmpty {
+            return machineId
+        }
+        if let machineCode = command.machineCode?.trimmingCharacters(in: .whitespacesAndNewlines), !machineCode.isEmpty {
+            return "code-\(machineCode)"
+        }
+        if let machineName = command.machineName?.trimmingCharacters(in: .whitespacesAndNewlines), !machineName.isEmpty {
+            return "name-\(machineName)"
+        }
+        return nil
+    }
+
+    private func machineCompletionMessage(for command: AudioCommandsResponse.AudioCommand) -> String {
+        let trimmedDescription = command.machineDescription?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedLocation = command.locationName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        var subject: String
+        if let machineCode = command.machineCode?.trimmingCharacters(in: .whitespacesAndNewlines), !machineCode.isEmpty {
+            subject = "Machine \(machineCode)"
+        } else if let machineName = command.machineName?.trimmingCharacters(in: .whitespacesAndNewlines), !machineName.isEmpty {
+            subject = "Machine \(machineName)"
+        } else if !trimmedDescription.isEmpty {
+            subject = trimmedDescription
+        } else {
+            subject = "This machine"
+        }
+
+        if !trimmedLocation.isEmpty {
+            return "\(subject) complete at \(trimmedLocation)."
+        }
+        return "\(subject) complete."
     }
 }
 

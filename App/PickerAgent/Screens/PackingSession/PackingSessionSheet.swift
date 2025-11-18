@@ -172,6 +172,7 @@ struct PackingSessionSheet: View {
                 CurrentCommandView(
                     layout: layout,
                     command: command,
+                    machineCompletionInfo: viewModel.machineCompletionInfo,
                     skuType: viewModel.currentPickItem?.sku?.type,
                     progressInfo: progressInfo(for: command),
                     chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
@@ -353,6 +354,7 @@ struct PackingSessionSheet: View {
 fileprivate struct CurrentCommandView: View {
     let layout: PackingSessionInstructionLayout
     let command: AudioCommandsResponse.AudioCommand
+    let machineCompletionInfo: MachineCompletionInfo?
     let skuType: String?
     let progressInfo: PackingInstructionProgress
     let chocolateBoxNumbers: [Int]
@@ -439,12 +441,29 @@ fileprivate struct CurrentCommandView: View {
         chocolateBoxNumbers.sorted().map(String.init).joined(separator: ", ")
     }
 
-    private var cheeseButtonTitle: String {
-        isCheeseAndCrackers ? "Remove Cheese Tub" : "Cheese Tub"
+    private func completionDetailText(for info: MachineCompletionInfo) -> String? {
+        var parts: [String] = []
+        if let description = info.machineDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !description.isEmpty {
+            parts.append(description)
+        }
+        if let code = info.machineCode?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !code.isEmpty {
+            parts.append("Code \(code)")
+        } else if let name = info.machineName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty {
+            parts.append(name)
+        }
+        if let location = info.locationName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !location.isEmpty {
+            parts.append(location)
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " • ")
     }
 
-    private var cheeseButtonIcon: String {
-        isCheeseAndCrackers ? "minus.circle.fill" : "plus.circle.fill"
+    private var cheeseButtonTitle: String {
+        isCheeseAndCrackers ? "Remove Cheese Tub" : "Cheese Tub"
     }
 
     private var cheeseButtonTint: Color {
@@ -457,26 +476,35 @@ fileprivate struct CurrentCommandView: View {
 
     private var detailCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(primaryTitle)
-                .font(.title.bold())
-                .multilineTextAlignment(.leading)
-            if let secondaryTitle, !secondaryTitle.isEmpty {
-                Text(secondaryTitle)
-                    .font(.title3.bold())
-            }
-            if let tertiaryTitle, !tertiaryTitle.isEmpty {
-                Text(tertiaryTitle)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-            if let machineLine = detailMachineText, !machineLine.isEmpty {
-                Text(machineLine)
-                    .font(.headline)
-            }
-            if let locationLine = detailLocationText, !locationLine.isEmpty {
-                Text(locationLine)
-                    .font(.headline)
+            if let info = machineCompletionInfo {
+                Text("Machine complete")
+                    .font(.title.bold())
+                Text(info.message)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(4)
+                Spacer()
+            } else {
+                Text(primaryTitle)
+                    .font(.title.bold())
+                    .multilineTextAlignment(.leading)
+                if let secondaryTitle, !secondaryTitle.isEmpty {
+                    Text(secondaryTitle)
+                        .font(.title3.bold())
+                }
+                if let tertiaryTitle, !tertiaryTitle.isEmpty {
+                    Text(tertiaryTitle)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                if let machineLine = detailMachineText, !machineLine.isEmpty {
+                    Text(machineLine)
+                        .font(.headline)
+                }
+                if let locationLine = detailLocationText, !locationLine.isEmpty {
+                    Text(locationLine)
+                        .font(.headline)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -508,7 +536,7 @@ fileprivate struct CurrentCommandView: View {
                 .padding(.leading, 8)
             Text(chocolateBoxSummary.isEmpty ? "None for this machine" : chocolateBoxSummary)
                 .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -519,7 +547,7 @@ fileprivate struct CurrentCommandView: View {
         Button {
             onToggleCheeseTap?()
         } label: {
-            Label(cheeseButtonTitle, systemImage: cheeseButtonIcon)
+            Text(cheeseButtonTitle)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
@@ -531,7 +559,7 @@ fileprivate struct CurrentCommandView: View {
         Button {
             onAddChocolateBoxTap?()
         } label: {
-            Label("Chocolate Box", systemImage: "plus.circle.fill")
+            Text("Add Chocolate Box")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
@@ -595,6 +623,7 @@ fileprivate struct CurrentCommandView: View {
         .animation(.easeInOut(duration: 0.2), value: chocolateBoxNumbers)
     }
 }
+
 
 fileprivate struct ProgressSummaryCard: View {
     let progressInfo: PackingInstructionProgress
