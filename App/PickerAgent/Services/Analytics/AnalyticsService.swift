@@ -33,8 +33,8 @@ struct DailyInsights: Equatable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let points: [Point]
 
     var totalItems: Int {
@@ -72,8 +72,8 @@ struct TopLocations: Equatable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let locations: [Location]
 
     var totalItems: Int {
@@ -138,8 +138,8 @@ struct TopSkuStats: Equatable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let limit: Int
     let appliedLocationId: String?
     let appliedMachineId: String?
@@ -653,11 +653,37 @@ final class AnalyticsService: AnalyticsServicing {
     }
 }
 
+private enum AnalyticsDateParser {
+    static func date(from value: String, timeZoneIdentifier: String) -> Date {
+        let parts = value.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return Date()
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        let timeZone = TimeZone(identifier: timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = timeZone
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = 0
+        components.minute = 0
+        components.second = 0
+
+        return calendar.date(from: components) ?? Date()
+    }
+}
+
 private struct DailyInsightsResponse: Decodable {
     struct Point: Decodable {
         let date: String
-        let start: Date
-        let end: Date
+        let start: String
+        let end: String
         let totalItems: Int
         let itemsPacked: Int
 
@@ -672,8 +698,8 @@ private struct DailyInsightsResponse: Decodable {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             date = try container.decode(String.self, forKey: .date)
-            start = try container.decode(Date.self, forKey: .start)
-            end = try container.decode(Date.self, forKey: .end)
+            start = try container.decode(String.self, forKey: .start)
+            end = try container.decode(String.self, forKey: .end)
 
             if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
                 totalItems = intValue
@@ -696,8 +722,8 @@ private struct DailyInsightsResponse: Decodable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let points: [Point]
 
     func toDomain() -> DailyInsights {
@@ -710,8 +736,8 @@ private struct DailyInsightsResponse: Decodable {
             points: points.map { point in
                 DailyInsights.Point(
                     label: point.date,
-                    start: point.start,
-                    end: point.end,
+                    start: AnalyticsDateParser.date(from: point.start, timeZoneIdentifier: timeZone),
+                    end: AnalyticsDateParser.date(from: point.end, timeZoneIdentifier: timeZone),
                     totalItems: max(point.totalItems, 0),
                     itemsPacked: max(point.itemsPacked, 0)
                 )
@@ -738,8 +764,8 @@ private struct TopLocationsResponse: Decodable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let locations: [Location]
 
     func toDomain() -> TopLocations {
@@ -779,9 +805,9 @@ private struct PackPeriodComparisonsResponse: Decodable {
     }
 
     struct Snapshot: Decodable {
-        let start: Date
-        let end: Date
-        let comparisonEnd: Date
+        let start: String
+        let end: String
+        let comparisonEnd: String
         let totalItems: Int
 
         private enum CodingKeys: String, CodingKey {
@@ -793,9 +819,9 @@ private struct PackPeriodComparisonsResponse: Decodable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            start = try container.decode(Date.self, forKey: .start)
-            end = try container.decode(Date.self, forKey: .end)
-            comparisonEnd = try container.decode(Date.self, forKey: .comparisonEnd)
+            start = try container.decode(String.self, forKey: .start)
+            end = try container.decode(String.self, forKey: .end)
+            comparisonEnd = try container.decode(String.self, forKey: .comparisonEnd)
 
             if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
                 totalItems = max(intValue, 0)
@@ -809,9 +835,9 @@ private struct PackPeriodComparisonsResponse: Decodable {
 
     struct HistoricalSnapshot: Decodable {
         let index: Int
-        let start: Date
-        let end: Date
-        let comparisonEnd: Date
+        let start: String
+        let end: String
+        let comparisonEnd: String
         let totalItems: Int
 
         private enum CodingKeys: String, CodingKey {
@@ -825,9 +851,9 @@ private struct PackPeriodComparisonsResponse: Decodable {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             index = try container.decode(Int.self, forKey: .index)
-            start = try container.decode(Date.self, forKey: .start)
-            end = try container.decode(Date.self, forKey: .end)
-            comparisonEnd = try container.decode(Date.self, forKey: .comparisonEnd)
+            start = try container.decode(String.self, forKey: .start)
+            end = try container.decode(String.self, forKey: .end)
+            comparisonEnd = try container.decode(String.self, forKey: .comparisonEnd)
 
             if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
                 totalItems = max(intValue, 0)
@@ -859,17 +885,17 @@ private struct PackPeriodComparisonsResponse: Decodable {
                     progressPercentage: period.progressPercentage,
                     comparisonDurationMs: period.comparisonDurationMs,
                     currentPeriod: PackPeriodComparisons.PeriodSnapshot(
-                        start: period.currentPeriod.start,
-                        end: period.currentPeriod.end,
-                        comparisonEnd: period.currentPeriod.comparisonEnd,
+                        start: AnalyticsDateParser.date(from: period.currentPeriod.start, timeZoneIdentifier: timeZone),
+                        end: AnalyticsDateParser.date(from: period.currentPeriod.end, timeZoneIdentifier: timeZone),
+                        comparisonEnd: AnalyticsDateParser.date(from: period.currentPeriod.comparisonEnd, timeZoneIdentifier: timeZone),
                         totalItems: period.currentPeriod.totalItems
                     ),
                     previousPeriods: period.previousPeriods.map { historical in
                         PackPeriodComparisons.HistoricalPeriod(
                             index: historical.index,
-                            start: historical.start,
-                            end: historical.end,
-                            comparisonEnd: historical.comparisonEnd,
+                            start: AnalyticsDateParser.date(from: historical.start, timeZoneIdentifier: timeZone),
+                            end: AnalyticsDateParser.date(from: historical.end, timeZoneIdentifier: timeZone),
+                            comparisonEnd: AnalyticsDateParser.date(from: historical.comparisonEnd, timeZoneIdentifier: timeZone),
                             totalItems: historical.totalItems
                         )
                     },
@@ -985,8 +1011,8 @@ private struct TopSkuStatsResponse: Decodable {
     let generatedAt: Date
     let timeZone: String
     let lookbackDays: Int
-    let rangeStart: Date
-    let rangeEnd: Date
+    let rangeStart: String
+    let rangeEnd: String
     let limit: Int
     let appliedFilters: AppliedFilters
     let skus: [Sku]
@@ -1035,9 +1061,9 @@ private struct TopSkuStatsResponse: Decodable {
 
 private struct DashboardMomentumResponse: Decodable {
     struct WeekWindow: Decodable {
-        let start: Date
-        let end: Date
-        let comparisonEnd: Date
+        let start: String
+        let end: String
+        let comparisonEnd: String
         let progressPercentage: Double?
     }
 
@@ -1313,15 +1339,15 @@ private struct DashboardMomentumResponse: Decodable {
             generatedAt: generatedAt,
             timeZone: timeZone,
             currentWeek: DashboardMomentumSnapshot.WeekWindow(
-                start: currentWeek.start,
-                end: currentWeek.end,
-                comparisonEnd: currentWeek.comparisonEnd,
+                start: AnalyticsDateParser.date(from: currentWeek.start, timeZoneIdentifier: timeZone),
+                end: AnalyticsDateParser.date(from: currentWeek.end, timeZoneIdentifier: timeZone),
+                comparisonEnd: AnalyticsDateParser.date(from: currentWeek.comparisonEnd, timeZoneIdentifier: timeZone),
                 progressPercentage: currentWeek.progressPercentage ?? 100
             ),
             previousWeek: DashboardMomentumSnapshot.WeekWindow(
-                start: previousWeek.start,
-                end: previousWeek.end,
-                comparisonEnd: previousWeek.comparisonEnd,
+                start: AnalyticsDateParser.date(from: previousWeek.start, timeZoneIdentifier: timeZone),
+                end: AnalyticsDateParser.date(from: previousWeek.end, timeZoneIdentifier: timeZone),
+                comparisonEnd: AnalyticsDateParser.date(from: previousWeek.comparisonEnd, timeZoneIdentifier: timeZone),
                 progressPercentage: previousWeek.progressPercentage ?? 100
             ),
             skuMomentum: leaders.sku?.toDomain() ?? .empty(),

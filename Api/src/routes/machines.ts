@@ -4,7 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { isValidTimezone } from '../lib/timezone.js';
+import { AuthContext } from '../types/enums.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
 import {
   ONE_DAY_MS,
   PERIOD_DAY_COUNTS,
@@ -103,7 +105,10 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
   }
 
   const now = new Date();
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
 
   const periodQuery =
     typeof req.query.period === 'string' ? req.query.period.toLowerCase() : undefined;
@@ -162,12 +167,24 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
     getMachineLastStocked(machineId, req.auth.companyId),
   ]);
 
+  const responseRange = formatAppExclusiveRange(
+    { start: periodStart, end: periodEnd },
+    timeZone,
+  );
+  const formattedNow = formatAppDate(now, timeZone);
+  const formattedLastStocked = lastStocked
+    ? {
+        ...lastStocked,
+        stockedAt: formatAppDate(lastStocked.stockedAt, timeZone),
+      }
+    : null;
+
   return res.json({
     generatedAt: new Date().toISOString(),
     timeZone,
     period,
-    rangeStart: periodStart.toISOString(),
-    rangeEnd: now.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: formattedNow,
     lookbackDays: periodDays,
     progress: {
       elapsedSeconds: Math.round(elapsedMs / 1000),
@@ -176,7 +193,7 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
     },
     percentageChange,
     bestSku,
-    lastStocked,
+    lastStocked: formattedLastStocked,
     points,
   });
 });
@@ -404,10 +421,8 @@ async function getMachineLastStocked(machineId: string, companyId: string) {
     return null;
   }
 
-  const stockedAt = (row.scheduledFor ?? new Date()).toISOString();
-
   return {
-    stockedAt,
+    stockedAt: row.scheduledFor ?? new Date(),
     runId: row.runId,
   };
 }

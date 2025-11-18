@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus, RunItemStatus as PrismaRunItemStatus } from '@prisma/client';
-import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus } from '../types/enums.js';
+import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
 import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
@@ -111,7 +111,10 @@ router.get('/today', setLogConfig({ level: 'minimal' }), async (req, res) => {
     });
   }
 
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
   const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 0 });
 
   const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
@@ -137,7 +140,10 @@ router.get('/tomorrow', setLogConfig({ level: 'minimal' }), async (req, res) => 
     });
   }
 
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
   const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 1 });
 
   const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
@@ -530,7 +536,10 @@ router.get('/tomorrow/ready', async (req, res) => {
     });
   }
 
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
   const { start, end } = getTimezoneDayRange({ timeZone, dayOffset: 1 });
 
   const runs = await prisma.run.findMany({

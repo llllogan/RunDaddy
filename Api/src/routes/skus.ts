@@ -5,7 +5,9 @@ import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import { isValidTimezone } from '../lib/timezone.js';
+import { AuthContext } from '../types/enums.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
 import {
   ONE_DAY_MS,
   PERIOD_DAY_COUNTS,
@@ -249,7 +251,10 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
   }
 
   const now = new Date();
-  const timeZone: string = await resolveCompanyTimezone(req.auth!.companyId, timezoneOverride);
+  const persistTimezone = req.auth!.context === AuthContext.APP;
+  const timeZone: string = await resolveCompanyTimezone(req.auth!.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
 
   const sku = await prisma.sKU.findUnique({
     where: { id: skuId },
@@ -351,12 +356,24 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
     machineFilter,
   );
 
+  const responseRange = formatAppExclusiveRange(
+    { start: periodStart, end: periodEnd },
+    timeZone,
+  );
+  const formattedNow = formatAppDate(now, timeZone);
+  const formattedMostRecentPick = mostRecentPick
+    ? {
+        ...mostRecentPick,
+        pickedAt: formatAppDate(mostRecentPick.pickedAt, timeZone),
+      }
+    : null;
+
   return res.json({
     generatedAt: new Date().toISOString(),
     timeZone,
     period,
-    rangeStart: periodStart.toISOString(),
-    rangeEnd: now.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: formattedNow,
     lookbackDays: periodDays,
     progress: {
       elapsedSeconds: Math.round(elapsedMs / 1000),
@@ -366,7 +383,7 @@ router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) =>
     percentageChange,
     bestMachine,
     points,
-    mostRecentPick,
+    mostRecentPick: formattedMostRecentPick,
     filters: {
       locationId: locationFilter,
       machineId: machineFilter,
@@ -424,24 +441,13 @@ async function getMostRecentPick(
     `
   );
 
-  if (result.length === 0) {
+  const [row] = result;
+  if (!row || !row.scheduledFor) {
     return null;
   }
-
-  const row = result[0];
-  if (!row) {
-    return null;
-  }
-
-  const scheduledDate = row.scheduledFor ?? new Date();
-  const pickedAt = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(scheduledDate);
 
   return {
-    pickedAt,
+    pickedAt: row.scheduledFor,
     locationName: row.locationName || 'Unknown',
     runId: row.runId,
   };

@@ -35,7 +35,10 @@ final class SearchService: SearchServicing {
         url.appendPathComponent("search")
         
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
+        ]
         let resolvedURL = components?.url ?? url
         
         var request = URLRequest(url: resolvedURL)
@@ -70,9 +73,11 @@ final class SearchService: SearchServicing {
         url.appendPathComponent("suggestions")
         
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
         if let lookbackDays {
-            components?.queryItems = [URLQueryItem(name: "lookbackDays", value: String(lookbackDays))]
+            queryItems.append(URLQueryItem(name: "lookbackDays", value: String(lookbackDays)))
         }
+        components?.queryItems = queryItems
         let resolvedURL = components?.url ?? url
         
         var request = URLRequest(url: resolvedURL)

@@ -64,7 +64,10 @@ final class LocationsService: LocationsServicing {
         url.appendPathComponent(id)
         url.appendPathComponent("stats")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "period", value: period.rawValue)]
+        components?.queryItems = [
+            URLQueryItem(name: "period", value: period.rawValue),
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
+        ]
         let resolvedURL = components?.url ?? url
 
         var request = URLRequest(url: resolvedURL)

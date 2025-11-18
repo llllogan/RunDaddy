@@ -4,7 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { isValidTimezone } from '../lib/timezone.js';
+import { AuthContext } from '../types/enums.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
 import {
   ONE_DAY_MS,
   PERIOD_DAY_COUNTS,
@@ -110,7 +112,10 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
   }
 
   const now = new Date();
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
 
   const periodQuery =
     typeof req.query.period === 'string' ? req.query.period.toLowerCase() : undefined;
@@ -170,12 +175,24 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     getLocationLastPacked(locationId, req.auth.companyId),
   ]);
 
+  const responseRange = formatAppExclusiveRange(
+    { start: periodStart, end: periodEnd },
+    timeZone,
+  );
+  const formattedNow = formatAppDate(now, timeZone);
+  const formattedLastPacked = lastPacked
+    ? {
+        ...lastPacked,
+        pickedAt: formatAppDate(lastPacked.pickedAt, timeZone),
+      }
+    : null;
+
   return res.json({
     generatedAt: new Date().toISOString(),
     timeZone,
     period,
-    rangeStart: periodStart.toISOString(),
-    rangeEnd: now.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: formattedNow,
     lookbackDays: periodDays,
     progress: {
       elapsedSeconds: Math.round(elapsedMs / 1000),
@@ -183,7 +200,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
       ratio: periodDurationMs > 0 ? Number((elapsedMs / periodDurationMs).toFixed(3)) : 0,
     },
     percentageChange,
-    lastPacked,
+    lastPacked: formattedLastPacked,
     bestMachine,
     bestSku,
     machineSalesShare,
@@ -541,7 +558,7 @@ async function getLocationLastPacked(locationId: string, companyId: string) {
     return null;
   }
   return {
-    pickedAt: row.scheduledFor.toISOString(),
+    pickedAt: row.scheduledFor,
     runId: row.runId,
     machineId: row.machineId,
     machineCode: row.machineCode,

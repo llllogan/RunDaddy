@@ -1,18 +1,40 @@
 import { prisma } from '../../lib/prisma.js';
 import { isValidTimezone } from '../../lib/timezone.js';
 
-export async function resolveCompanyTimezone(companyId: string, override?: string): Promise<string> {
-  if (override) {
-    return override;
+type ResolveCompanyTimezoneOptions = {
+  persistIfMissing?: boolean;
+};
+
+export async function resolveCompanyTimezone(
+  companyId: string,
+  override?: string,
+  options?: ResolveCompanyTimezoneOptions,
+): Promise<string> {
+  const persistIfMissing = options?.persistIfMissing ?? false;
+  const normalizedOverride = override && isValidTimezone(override) ? override : undefined;
+  let companyTimeZone: string | null | undefined;
+
+  // Fetch the company timezone when we need a fallback or we might persist it.
+  if (!normalizedOverride || persistIfMissing) {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timeZone: true },
+    });
+    companyTimeZone = company?.timeZone ?? null;
   }
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { timeZone: true },
-  });
+  if (normalizedOverride) {
+    if (persistIfMissing && !companyTimeZone) {
+      await prisma.company.update({
+        where: { id: companyId },
+        data: { timeZone: normalizedOverride },
+      });
+    }
+    return normalizedOverride;
+  }
 
-  if (company?.timeZone && isValidTimezone(company.timeZone)) {
-    return company.timeZone;
+  if (companyTimeZone && isValidTimezone(companyTimeZone)) {
+    return companyTimeZone;
   }
 
   return 'UTC';

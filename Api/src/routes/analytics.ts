@@ -11,7 +11,9 @@ import {
   convertDateToTimezoneMidnight,
 } from '../lib/timezone.js';
 import type { TimezoneDayRange } from '../lib/timezone.js';
+import { AuthContext } from '../types/enums.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
 
 const LOOKBACK_DEFAULT = 30;
 const LOOKBACK_MIN = 7;
@@ -189,13 +191,17 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
   const points = buildDailySeries(dayRangesWithTomorrow, dailyRows);
   const responseRangeEnd =
     dayRangesWithTomorrow[dayRangesWithTomorrow.length - 1]?.end ?? context.rangeEnd;
+  const responseRange = formatAppExclusiveRange(
+    { start: context.rangeStart, end: responseRangeEnd },
+    context.timeZone,
+  );
 
   res.json({
     generatedAt: new Date().toISOString(),
     timeZone: context.timeZone,
     lookbackDays: context.lookbackDays,
-    rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: responseRangeEnd.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
     points,
   });
 });
@@ -208,13 +214,17 @@ router.get('/locations/top', setLogConfig({ level: 'minimal' }), async (req, res
 
   const rows = await fetchLocationMachineRows(context.companyId, context.rangeStart, context.rangeEnd);
   const locations = buildTopLocations(rows);
+  const responseRange = formatAppExclusiveRange(
+    { start: context.rangeStart, end: context.rangeEnd },
+    context.timeZone,
+  );
 
   res.json({
     generatedAt: new Date().toISOString(),
     timeZone: context.timeZone,
     lookbackDays: context.lookbackDays,
-    rangeStart: context.rangeStart.toISOString(),
-    rangeEnd: context.rangeEnd.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
     locations,
   });
 });
@@ -244,12 +254,14 @@ router.get('/skus/top-picked', setLogConfig({ level: 'minimal' }), async (req, r
     fetchSkuMachineRows(context.companyId, rangeStart, rangeEnd),
   ]);
 
+  const responseRange = formatAppExclusiveRange({ start: rangeStart, end: rangeEnd }, context.timeZone);
+
   res.json({
     generatedAt: new Date().toISOString(),
     timeZone: context.timeZone,
     lookbackDays,
-    rangeStart: rangeStart.toISOString(),
-    rangeEnd: rangeEnd.toISOString(),
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
     limit,
     appliedFilters: {
       locationId: locationFilter,
@@ -459,20 +471,28 @@ router.get('/dashboard', setLogConfig({ level: 'full' }), async (req, res) => {
     skuComparisonSegmentRows,
     skuComparisonTotalsRow,
   );
+  const currentWeekRange = formatAppExclusiveRange(
+    { start: weekWindow.currentStart, end: weekWindow.currentEnd },
+    context.timeZone,
+  );
+  const previousWeekRange = formatAppExclusiveRange(
+    { start: weekWindow.previousStart, end: weekWindow.previousEnd },
+    context.timeZone,
+  );
 
   res.json({
     generatedAt: new Date().toISOString(),
     timeZone: context.timeZone,
     currentWeek: {
-      start: weekWindow.currentStart.toISOString(),
-      end: weekWindow.currentEnd.toISOString(),
-      comparisonEnd: weekWindow.currentComparisonEnd.toISOString(),
+      start: currentWeekRange.start,
+      end: currentWeekRange.end,
+      comparisonEnd: formatAppDate(weekWindow.currentComparisonEnd, context.timeZone),
       progressPercentage: Number((weekWindow.progressFraction * 100).toFixed(2)),
     },
     previousWeek: {
-      start: weekWindow.previousStart.toISOString(),
-      end: weekWindow.previousEnd.toISOString(),
-      comparisonEnd: weekWindow.previousComparisonEnd.toISOString(),
+      start: previousWeekRange.start,
+      end: previousWeekRange.end,
+      comparisonEnd: formatAppDate(weekWindow.previousComparisonEnd, context.timeZone),
     },
     leaders: {
       sku: buildMomentumLeaderResponse(skuLeaderRows, mapSkuMomentumLeader),
@@ -584,7 +604,10 @@ async function buildTimezoneContext(req: Request, res: Response): Promise<Timezo
   }
 
   const now = new Date();
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride);
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
 
   return {
     companyId: req.auth.companyId,
@@ -968,17 +991,10 @@ function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
   }
 
   return dayRanges.map((range) => {
-    // Create a date that will display as the local date when interpreted in the client's timezone
-    const parts = range.label.split('-').map(Number);
-    const year = parts[0] ?? 0;
-    const month = (parts[1] ?? 1) - 1; // Convert to 0-based month
-    const day = parts[2] ?? 1;
-    const baseDate = new Date(year, month, day, 0, 0, 0, 0);
-    
     return {
       date: range.label,
-      start: baseDate.toISOString(),
-      end: baseDate.toISOString(),
+      start: range.label,
+      end: range.label,
       totalItems: totalsByLabel.get(range.label) ?? 0,
       itemsPacked: packedByLabel.get(range.label) ?? 0,
     };
@@ -1123,11 +1139,15 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
     [1, 2, 3].map(async (index) => {
       const window = getPeriodWindow(period, context.timeZone, context.now, index);
       const totalItems = await sumPackedItems(context.companyId, window.start, window.end);
+      const range = formatAppExclusiveRange(
+        { start: window.start, end: window.end },
+        context.timeZone,
+      );
       return {
         index,
-        start: window.start.toISOString(),
-        end: window.end.toISOString(),
-        comparisonEnd: window.end.toISOString(),
+        start: range.start,
+        end: range.end,
+        comparisonEnd: range.end,
         totalItems,
       };
     }),
@@ -1148,14 +1168,19 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
       ? Number((((currentTotal - previousAverageRaw) / previousAverageRaw) * 100).toFixed(2))
       : null;
 
+  const currentRange = formatAppExclusiveRange(
+    { start: currentWindow.start, end: currentWindow.end },
+    context.timeZone,
+  );
+
   return {
     period,
     progressPercentage: Number((progressFraction * 100).toFixed(2)),
     comparisonDurationMs: durationMs,
     currentPeriod: {
-      start: currentWindow.start.toISOString(),
-      end: currentWindow.end.toISOString(),
-      comparisonEnd: currentComparisonEnd.toISOString(),
+      start: currentRange.start,
+      end: currentRange.end,
+      comparisonEnd: currentRange.end,
       totalItems: currentTotal,
     },
     previousPeriods,
