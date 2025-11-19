@@ -543,12 +543,28 @@ fileprivate struct CurrentCommandView: View {
                 .padding(.leading, 8)
             Text(chocolateBoxSummary.isEmpty ? "None for this machine" : chocolateBoxSummary)
                 .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+    
+    private var wideChocolateBoxCard: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Chocolate Box")
+                .foregroundStyle(.secondary)
+                .font(.caption2.bold())
+                .padding(.leading, 8)
+            Text(chocolateBoxSummary.isEmpty ? "None for this machine" : chocolateBoxSummary)
+                .font(.headline)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
+
 
     private var cheeseButton: some View {
         Button {
@@ -606,8 +622,8 @@ fileprivate struct CurrentCommandView: View {
             case .stacked:
                 VStack(spacing: 12) {
                     progressCard
-                    detailCard
                     countCard
+                    detailCard
                     chocolateBoxCard
                     actionsView
                 }
@@ -615,7 +631,7 @@ fileprivate struct CurrentCommandView: View {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
                         cheeseButton
-                        chocolateBoxCard
+                        wideChocolateBoxCard
                         addChocolateBoxButton
                     }
                     .frame(maxWidth: 260)
