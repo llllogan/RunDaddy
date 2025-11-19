@@ -423,20 +423,15 @@ async function getMostRecentPick(
   }>>(
     Prisma.sql`
       SELECT 
-        r.scheduledFor,
-        loc.name AS locationName,
-        r.id AS runId
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      JOIN Run r ON r.id = pe.runId
-      WHERE ci.skuId = ${skuId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.companyId = ${companyId}
+        scheduledFor,
+        location_name AS locationName,
+        runId
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND scheduledFor IS NOT NULL
+        AND companyId = ${companyId}
         ${machineFilters}
-      ORDER BY r.scheduledFor DESC
+      ORDER BY scheduledFor DESC
       LIMIT 1
     `
   );
@@ -505,24 +500,20 @@ async function buildSkuChartPoints(
   const rows = await prisma.$queryRaw<Array<ChartRow>>(
     Prisma.sql`
       SELECT 
-        DATE_FORMAT(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
-        mach.id AS machineId,
-        mach.code AS machineCode,
-        mach.description AS machineName,
-        SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE ci.skuId = ${skuId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${chartStart}
-        AND r.scheduledFor < ${dataEnd}
-        AND r.companyId = ${companyId}
+        DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
+        machine_id AS machineId,
+        machine_code AS machineCode,
+        machine_description AS machineName,
+        SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${chartStart}
+        AND scheduledFor < ${dataEnd}
+        AND companyId = ${companyId}
         ${machineFilters}
-      GROUP BY date, mach.id, mach.code, mach.description
-      ORDER BY date ASC, mach.code ASC
+      GROUP BY date, machine_id, machine_code, machine_description
+      ORDER BY date ASC, machine_code ASC
     `,
   );
 
@@ -597,18 +588,15 @@ async function fetchSkuLocationOptions(skuId: string, companyId: string) {
   return prisma.$queryRaw<Array<SkuLocationOptionRow>>(
     Prisma.sql`
       SELECT 
-        loc.id AS locationId,
-        loc.name AS locationName,
-        COUNT(DISTINCT mach.id) AS machineCount
-      FROM Machine mach
-      JOIN Coil coil ON coil.machineId = mach.id
-      JOIN CoilItem ci ON ci.coilId = coil.id
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      WHERE ci.skuId = ${skuId}
-        AND mach.companyId = ${companyId}
-        AND loc.id IS NOT NULL
-      GROUP BY loc.id, loc.name
-      ORDER BY loc.name ASC
+        location_id AS locationId,
+        location_name AS locationName,
+        COUNT(DISTINCT machine_id) AS machineCount
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND companyId = ${companyId}
+        AND location_id IS NOT NULL
+      GROUP BY location_id, location_name
+      ORDER BY location_name ASC
     `,
   );
 }
@@ -616,21 +604,18 @@ async function fetchSkuLocationOptions(skuId: string, companyId: string) {
 async function fetchSkuMachineOptions(skuId: string, companyId: string) {
   return prisma.$queryRaw<Array<SkuMachineOptionRow>>(
     Prisma.sql`
-      SELECT
-        mach.id AS machineId,
-        mach.code AS machineCode,
-        mach.description AS machineDescription,
-        loc.id AS locationId,
-        loc.name AS locationName,
-        COUNT(ci.id) AS placementCount
-      FROM Machine mach
-      JOIN Coil coil ON coil.machineId = mach.id
-      JOIN CoilItem ci ON ci.coilId = coil.id
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      WHERE ci.skuId = ${skuId}
-        AND mach.companyId = ${companyId}
-      GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
-      ORDER BY mach.code ASC
+      SELECT 
+        machine_id AS machineId,
+        machine_code AS machineCode,
+        machine_description AS machineDescription,
+        location_id AS locationId,
+        location_name AS locationName,
+        COUNT(*) AS placementCount
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND companyId = ${companyId}
+      GROUP BY machine_id, machine_code, machine_description, location_id, location_name
+      ORDER BY machine_code ASC
     `,
   );
 }
@@ -647,17 +632,13 @@ async function getSkuTotalPicks(
 
   const result = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
     Prisma.sql`
-      SELECT SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE ci.skuId = ${skuId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${startDate}
-        AND r.scheduledFor < ${endDate}
-        AND r.companyId = ${companyId}
+      SELECT SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${startDate}
+        AND scheduledFor < ${endDate}
+        AND companyId = ${companyId}
         ${machineFilters}
     `,
   );
@@ -682,21 +663,16 @@ async function getSkuBestMachine(
   }>>(
     Prisma.sql`
       SELECT 
-        mach.id AS machineId,
-        mach.code AS machineCode,
-        mach.description AS machineName,
-        loc.name AS locationName,
-        SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      JOIN Run r ON r.id = pe.runId
-      WHERE ci.skuId = ${skuId}
-        AND r.companyId = ${companyId}
+        machine_id AS machineId,
+        machine_code AS machineCode,
+        machine_description AS machineName,
+        location_name AS locationName,
+        SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND companyId = ${companyId}
         ${machineFilters}
-      GROUP BY mach.id, mach.code, mach.description, loc.name
+      GROUP BY machine_id, machine_code, machine_description, location_name
       ORDER BY totalPicked DESC
       LIMIT 1
     `,
@@ -718,13 +694,13 @@ async function getSkuBestMachine(
 
 function buildMachineFilterSql(locationFilter: string | null, machineFilter: string | null) {
   if (locationFilter && machineFilter) {
-    return Prisma.sql`AND mach.locationId = ${locationFilter} AND mach.id = ${machineFilter}`;
+    return Prisma.sql`AND location_id = ${locationFilter} AND machine_id = ${machineFilter}`;
   }
   if (locationFilter) {
-    return Prisma.sql`AND mach.locationId = ${locationFilter}`;
+    return Prisma.sql`AND location_id = ${locationFilter}`;
   }
   if (machineFilter) {
-    return Prisma.sql`AND mach.id = ${machineFilter}`;
+    return Prisma.sql`AND machine_id = ${machineFilter}`;
   }
   return Prisma.sql``;
 }

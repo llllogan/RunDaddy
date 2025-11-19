@@ -701,14 +701,13 @@ async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone:
           SUM(items_packed) AS items_packed
         FROM (
           SELECT
-            DATE_FORMAT(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS converted_date,
-            pe.count AS total_items,
-            CASE WHEN pe.status = 'PICKED' THEN pe.count ELSE 0 END AS items_packed
-          FROM PickEntry pe
-          JOIN Run r ON r.id = pe.runId
-          WHERE r.companyId = ${companyId}
-            AND CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}) >= DATE_SUB(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
-            AND CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}) < DATE_ADD(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL 2 DAY)
+            DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS converted_date,
+            count AS total_items,
+            CASE WHEN status = 'PICKED' THEN count ELSE 0 END AS items_packed
+          FROM v_pick_entry_details
+          WHERE companyId = ${companyId}
+            AND CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}) >= DATE_SUB(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
+            AND CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}) < DATE_ADD(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL 2 DAY)
         ) AS converted_data
         GROUP BY converted_date
       ) AS daily_totals
@@ -722,23 +721,18 @@ async function fetchLocationMachineRows(companyId: string, rangeStart: Date, ran
     Prisma.sql`
       WITH machine_totals AS (
         SELECT
-          loc.id AS location_id,
-          loc.name AS location_name,
-          mach.id AS machine_id,
-          mach.code AS machine_code,
-          mach.description AS machine_description,
-          SUM(pe.count) AS total_items
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        JOIN Location loc ON loc.id = mach.locationId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor >= ${rangeStart}
-          AND r.scheduledFor < ${rangeEnd}
-        GROUP BY loc.id, loc.name, mach.id, mach.code
-        HAVING SUM(pe.count) > 0
+          location_id,
+          location_name,
+          machine_id,
+          machine_code,
+          machine_description,
+          SUM(count) AS total_items
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor >= ${rangeStart}
+          AND scheduledFor < ${rangeEnd}
+        GROUP BY location_id, location_name, machine_id, machine_code
+        HAVING SUM(count) > 0
       ),
       location_totals AS (
         SELECT
@@ -778,32 +772,26 @@ async function fetchTopSkuRows(
   locationId: string | null,
   machineId: string | null,
 ) {
-  const locationFilter = locationId ? Prisma.sql`AND loc.id = ${locationId}` : Prisma.sql``;
-  const machineFilter = machineId ? Prisma.sql`AND mach.id = ${machineId}` : Prisma.sql``;
+  const locationFilter = locationId ? Prisma.sql`AND location_id = ${locationId}` : Prisma.sql``;
+  const machineFilter = machineId ? Prisma.sql`AND machine_id = ${machineId}` : Prisma.sql``;
 
   return prisma.$queryRaw<TopSkuRow[]>(
     Prisma.sql`
       SELECT
-        sku.id AS sku_id,
-        sku.code AS sku_code,
-        sku.name AS sku_name,
-        sku.type AS sku_type,
-        SUM(pe.count) AS total_picked
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN SKU sku ON sku.id = ci.skuId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      WHERE r.companyId = ${companyId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${rangeStart}
-        AND r.scheduledFor < ${rangeEnd}
+        sku_id,
+        sku_code,
+        sku_name,
+        sku_type,
+        SUM(count) AS total_picked
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
         ${locationFilter}
         ${machineFilter}
-      GROUP BY sku.id, sku.code, sku.name, sku.type
-      HAVING SUM(pe.count) > 0
+      GROUP BY sku_id, sku_code, sku_name, sku_type
+      HAVING SUM(count) > 0
       ORDER BY total_picked DESC
       LIMIT ${Prisma.raw(String(limit))}
     `,
@@ -815,20 +803,15 @@ async function fetchSkuLocationRows(companyId: string, rangeStart: Date, rangeEn
     Prisma.sql`
       WITH location_totals AS (
         SELECT
-          loc.id AS location_id,
-          SUM(pe.count) AS total_items
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        LEFT JOIN Location loc ON loc.id = mach.locationId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${rangeStart}
-          AND r.scheduledFor < ${rangeEnd}
-          AND loc.id IS NOT NULL
-        GROUP BY loc.id
+          location_id,
+          SUM(count) AS total_items
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${rangeStart}
+          AND scheduledFor < ${rangeEnd}
+          AND location_id IS NOT NULL
+        GROUP BY location_id
       )
       SELECT
         loc.id AS location_id,
@@ -847,18 +830,14 @@ async function fetchSkuMachineRows(companyId: string, rangeStart: Date, rangeEnd
     Prisma.sql`
       WITH machine_totals AS (
         SELECT
-          mach.id AS machine_id,
-          SUM(pe.count) AS total_items
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${rangeStart}
-          AND r.scheduledFor < ${rangeEnd}
-        GROUP BY mach.id
+          machine_id,
+          SUM(count) AS total_items
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${rangeStart}
+          AND scheduledFor < ${rangeEnd}
+        GROUP BY machine_id
       )
       SELECT
         mach.id AS machine_id,
@@ -885,24 +864,19 @@ async function fetchTopPackedLocations(
   return prisma.$queryRaw<SearchSuggestionLocationRow[]>(
     Prisma.sql`
       SELECT
-        loc.id AS location_id,
-        loc.name AS location_name,
-        loc.address AS address,
-        SUM(pe.count) AS total_packed
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Location loc ON loc.id = mach.locationId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY loc.id, loc.name, loc.address
-      HAVING SUM(pe.count) > 0
-      ORDER BY total_packed DESC, loc.name ASC
+        location_id,
+        location_name,
+        location_address AS address,
+        SUM(count) AS total_packed
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND status = 'PICKED'
+        AND pickedAt IS NOT NULL
+        AND pickedAt >= ${rangeStart}
+        AND pickedAt < ${rangeEnd}
+      GROUP BY location_id, location_name, location_address
+      HAVING SUM(count) > 0
+      ORDER BY total_packed DESC, location_name ASC
       LIMIT ${Prisma.raw(String(limit))}
     `,
   );
@@ -917,26 +891,21 @@ async function fetchTopPackedMachines(
   return prisma.$queryRaw<SearchSuggestionMachineRow[]>(
     Prisma.sql`
       SELECT
-        mach.id AS machine_id,
-        mach.code AS machine_code,
-        mach.description AS machine_description,
-        loc.id AS location_id,
-        loc.name AS location_name,
-        SUM(pe.count) AS total_packed
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      LEFT JOIN Location loc ON loc.id = mach.locationId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
-      HAVING SUM(pe.count) > 0
-      ORDER BY total_packed DESC, mach.code ASC
+        machine_id,
+        machine_code,
+        machine_description,
+        location_id,
+        location_name,
+        SUM(count) AS total_packed
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND status = 'PICKED'
+        AND pickedAt IS NOT NULL
+        AND pickedAt >= ${rangeStart}
+        AND pickedAt < ${rangeEnd}
+      GROUP BY machine_id, machine_code, machine_description, location_id, location_name
+      HAVING SUM(count) > 0
+      ORDER BY total_packed DESC, machine_code ASC
       LIMIT ${Prisma.raw(String(limit))}
     `,
   );
@@ -951,26 +920,21 @@ async function fetchTopPackedSkus(
   return prisma.$queryRaw<SearchSuggestionSkuRow[]>(
     Prisma.sql`
       SELECT
-        sku.id AS sku_id,
-        sku.code AS sku_code,
-        sku.name AS sku_name,
-        sku.type AS sku_type,
-        sku.category AS category,
-        SUM(pe.count) AS total_packed
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN SKU sku ON sku.id = ci.skuId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      WHERE r.companyId = ${companyId}
-        AND pe.status = 'PICKED'
-        AND pe.pickedAt IS NOT NULL
-        AND pe.pickedAt >= ${rangeStart}
-        AND pe.pickedAt < ${rangeEnd}
-      GROUP BY sku.id, sku.code, sku.name, sku.type, sku.category
-      HAVING SUM(pe.count) > 0
-      ORDER BY total_packed DESC, sku.code ASC
+        sku_id,
+        sku_code,
+        sku_name,
+        sku_type,
+        sku_category AS category,
+        SUM(count) AS total_packed
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND status = 'PICKED'
+        AND pickedAt IS NOT NULL
+        AND pickedAt >= ${rangeStart}
+        AND pickedAt < ${rangeEnd}
+      GROUP BY sku_id, sku_code, sku_name, sku_type, sku_category
+      HAVING SUM(count) > 0
+      ORDER BY total_packed DESC, sku_code ASC
       LIMIT ${Prisma.raw(String(limit))}
     `,
   );
@@ -1105,13 +1069,12 @@ function buildSkuSubtitle(name: string | null, type: string | null, category: st
 async function sumPackedItems(companyId: string, rangeStart: Date, rangeEnd: Date): Promise<number> {
   const [row] = await prisma.$queryRaw<{ total_items: bigint | number | string | null }[]>(
     Prisma.sql`
-      SELECT COALESCE(SUM(pe.count), 0) AS total_items
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      WHERE r.companyId = ${companyId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${rangeStart}
-        AND r.scheduledFor < ${rangeEnd}
+      SELECT COALESCE(SUM(count), 0) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
     `,
   );
 
@@ -1349,30 +1312,27 @@ async function fetchDashboardSkuMomentumLeader(
       SELECT *
       FROM (
         SELECT
-          sku.id AS sku_id,
-          sku.code AS sku_code,
-          sku.name AS sku_name,
+          sku_id,
+          sku_code,
+          sku_name,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.currentStart}
-                 AND r.scheduledFor < ${window.currentComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.currentStart}
+                 AND scheduledFor < ${window.currentComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS current_total,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.previousStart}
-                 AND r.scheduledFor < ${window.previousComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.previousStart}
+                 AND scheduledFor < ${window.previousComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS previous_total
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN SKU sku ON sku.id = ci.skuId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${window.previousStart}
-          AND r.scheduledFor < ${window.currentComparisonEnd}
-        GROUP BY sku.id, sku.code, sku.name
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${window.previousStart}
+          AND scheduledFor < ${window.currentComparisonEnd}
+        GROUP BY sku_id, sku_code, sku_name
       ) AS sku_totals
       WHERE current_total > 0 OR previous_total > 0
       ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC
@@ -1401,33 +1361,28 @@ async function fetchDashboardMachineMomentumLeader(
       SELECT *
       FROM (
         SELECT
-          mach.id AS machine_id,
-          mach.code AS machine_code,
-          mach.description AS machine_description,
-          loc.id AS location_id,
-          loc.name AS location_name,
+          machine_id,
+          machine_code,
+          machine_description,
+          location_id,
+          location_name,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.currentStart}
-                 AND r.scheduledFor < ${window.currentComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.currentStart}
+                 AND scheduledFor < ${window.currentComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS current_total,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.previousStart}
-                 AND r.scheduledFor < ${window.previousComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.previousStart}
+                 AND scheduledFor < ${window.previousComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS previous_total
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        LEFT JOIN Location loc ON loc.id = mach.locationId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${window.previousStart}
-          AND r.scheduledFor < ${window.currentComparisonEnd}
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${window.previousStart}
+          AND scheduledFor < ${window.currentComparisonEnd}
         GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
       ) AS machine_totals
       WHERE current_total > 0 OR previous_total > 0
@@ -1460,31 +1415,26 @@ async function fetchDashboardLocationMomentumLeader(
       SELECT *
       FROM (
         SELECT
-          loc.id AS location_id,
-          loc.name AS location_name,
+          location_id,
+          location_name,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.currentStart}
-                 AND r.scheduledFor < ${window.currentComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.currentStart}
+                 AND scheduledFor < ${window.currentComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS current_total,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.previousStart}
-                 AND r.scheduledFor < ${window.previousComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.previousStart}
+                 AND scheduledFor < ${window.previousComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS previous_total
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        JOIN Coil coil ON coil.id = ci.coilId
-        JOIN Machine mach ON mach.id = coil.machineId
-        JOIN Location loc ON loc.id = mach.locationId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${window.previousStart}
-          AND r.scheduledFor < ${window.currentComparisonEnd}
-        GROUP BY loc.id, loc.name
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${window.previousStart}
+          AND scheduledFor < ${window.currentComparisonEnd}
+        GROUP BY location_id, location_name
       ) AS location_totals
       WHERE (current_total > 0 OR previous_total > 0) AND location_id IS NOT NULL
       ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC
@@ -1505,28 +1455,26 @@ async function fetchDashboardSkuComparisonSegments(
       SELECT *
       FROM (
         SELECT
-          ci.skuId AS sku_id,
+          sku_id,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.currentStart}
-                 AND r.scheduledFor < ${window.currentComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.currentStart}
+                 AND scheduledFor < ${window.currentComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS current_total,
           SUM(CASE 
-                WHEN r.scheduledFor >= ${window.previousStart}
-                 AND r.scheduledFor < ${window.previousComparisonEnd}
-                THEN pe.count
+                WHEN scheduledFor >= ${window.previousStart}
+                 AND scheduledFor < ${window.previousComparisonEnd}
+                THEN count
                 ELSE 0
               END) AS previous_total
-        FROM PickEntry pe
-        JOIN Run r ON r.id = pe.runId
-        JOIN CoilItem ci ON ci.id = pe.coilItemId
-        WHERE r.companyId = ${companyId}
-          AND r.scheduledFor IS NOT NULL
-          AND r.scheduledFor >= ${window.previousStart}
-          AND r.scheduledFor < ${window.currentComparisonEnd}
-          AND ci.skuId IS NOT NULL
-        GROUP BY ci.skuId
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${window.previousStart}
+          AND scheduledFor < ${window.currentComparisonEnd}
+          AND sku_id IS NOT NULL
+        GROUP BY sku_id
       ) AS sku_totals
       WHERE current_total > 0 OR previous_total > 0
       ORDER BY (current_total + previous_total) DESC, current_total DESC, sku_id ASC
@@ -1543,23 +1491,22 @@ async function fetchDashboardSkuComparisonTotals(
     Prisma.sql`
       SELECT
         SUM(CASE 
-              WHEN r.scheduledFor >= ${window.currentStart}
-               AND r.scheduledFor < ${window.currentComparisonEnd}
-              THEN pe.count
+              WHEN scheduledFor >= ${window.currentStart}
+               AND scheduledFor < ${window.currentComparisonEnd}
+              THEN count
               ELSE 0
             END) AS current_total,
         SUM(CASE 
-              WHEN r.scheduledFor >= ${window.previousStart}
-               AND r.scheduledFor < ${window.previousComparisonEnd}
-              THEN pe.count
+              WHEN scheduledFor >= ${window.previousStart}
+               AND scheduledFor < ${window.previousComparisonEnd}
+              THEN count
               ELSE 0
             END) AS previous_total
-      FROM PickEntry pe
-      JOIN Run r ON r.id = pe.runId
-      WHERE r.companyId = ${companyId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${window.previousStart}
-        AND r.scheduledFor < ${window.currentComparisonEnd}
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${window.previousStart}
+        AND scheduledFor < ${window.currentComparisonEnd}
     `,
   );
   return rows[0] ?? null;

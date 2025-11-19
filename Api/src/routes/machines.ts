@@ -231,24 +231,19 @@ async function buildMachineChartPoints(
   const rows = await prisma.$queryRaw<Array<MachineChartRow>>(
     Prisma.sql`
       SELECT 
-        DATE_FORMAT(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
-        sku.id AS skuId,
-        sku.code AS skuCode,
-        sku.name AS skuName,
-        SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN SKU sku ON sku.id = ci.skuId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE mach.id = ${machineId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${chartStart}
-        AND r.scheduledFor < ${dataEnd}
-        AND r.companyId = ${companyId}
-      GROUP BY date, sku.id, sku.code, sku.name
-      ORDER BY date ASC, sku.name ASC
+        DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS date,
+        sku_id AS skuId,
+        sku_code AS skuCode,
+        sku_name AS skuName,
+        SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE machine_id = ${machineId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${chartStart}
+        AND scheduledFor < ${dataEnd}
+        AND companyId = ${companyId}
+      GROUP BY date, sku_id, sku_code, sku_name
+      ORDER BY date ASC, sku_name ASC
     `,
   );
 
@@ -327,17 +322,13 @@ async function getMachineTotalPicks(
 ) {
   const result = await prisma.$queryRaw<Array<{ totalPicked: bigint }>>(
     Prisma.sql`
-      SELECT SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE mach.id = ${machineId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${startDate}
-        AND r.scheduledFor < ${endDate}
-        AND r.companyId = ${companyId}
+      SELECT SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE machine_id = ${machineId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${startDate}
+        AND scheduledFor < ${endDate}
+        AND companyId = ${companyId}
     `,
   );
 
@@ -359,23 +350,18 @@ async function getMachineBestSku(
   }>>(
     Prisma.sql`
       SELECT 
-        sku.id AS skuId,
-        sku.code AS skuCode,
-        sku.name AS skuName,
-        sku.type AS skuType,
-        SUM(pe.count) AS totalPicked
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN SKU sku ON sku.id = ci.skuId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE mach.id = ${machineId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.scheduledFor >= ${periodStart}
-        AND r.scheduledFor < ${periodEnd}
-        AND r.companyId = ${companyId}
-      GROUP BY sku.id, sku.code, sku.name
+        sku_id AS skuId,
+        sku_code AS skuCode,
+        sku_name AS skuName,
+        sku_type AS skuType,
+        SUM(count) AS totalPicked
+      FROM v_pick_entry_details
+      WHERE machine_id = ${machineId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${periodStart}
+        AND scheduledFor < ${periodEnd}
+        AND companyId = ${companyId}
+      GROUP BY sku_id, sku_code, sku_name
       ORDER BY totalPicked DESC
       LIMIT 1
     `,
@@ -401,17 +387,13 @@ async function getMachineLastStocked(machineId: string, companyId: string) {
   }>>(
     Prisma.sql`
       SELECT 
-        r.scheduledFor,
-        r.id AS runId
-      FROM PickEntry pe
-      JOIN CoilItem ci ON ci.id = pe.coilItemId
-      JOIN Coil coil ON coil.id = ci.coilId
-      JOIN Machine mach ON mach.id = coil.machineId
-      JOIN Run r ON r.id = pe.runId
-      WHERE mach.id = ${machineId}
-        AND r.scheduledFor IS NOT NULL
-        AND r.companyId = ${companyId}
-      ORDER BY r.scheduledFor DESC
+        scheduledFor,
+        runId
+      FROM v_pick_entry_details
+      WHERE machine_id = ${machineId}
+        AND scheduledFor IS NOT NULL
+        AND companyId = ${companyId}
+      ORDER BY scheduledFor DESC
       LIMIT 1
     `,
   );

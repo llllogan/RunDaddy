@@ -168,6 +168,49 @@ JOIN `Machine` mach ON mach.id = cb.machineId
 JOIN `Run` r ON r.id = cb.runId
 JOIN `Company` c ON c.id = r.companyId;
 
+CREATE OR REPLACE VIEW v_pick_entry_details AS
+SELECT 
+  pe.id as pick_entry_id,
+  pe.runId,
+  pe.coilItemId,
+  pe.count,
+  pe.current,
+  pe.par,
+  pe.need,
+  pe.forecast,
+  pe.total,
+  pe.status,
+  pe.pickedAt,
+  r.scheduledFor,
+  r.companyId,
+  r.status as run_status,
+  r.pickingStartedAt,
+  r.pickingEndedAt,
+  r.createdAt as run_created_at,
+  c.name as company_name,
+  loc.id as location_id,
+  loc.name as location_name,
+  loc.address as location_address,
+  mach.id as machine_id,
+  mach.code as machine_code,
+  mach.description as machine_description,
+  coil.id as coil_id,
+  coil.code as coil_code,
+  ci.skuId as sku_id,
+  sku.code as sku_code,
+  sku.name as sku_name,
+  sku.type as sku_type,
+  sku.category as sku_category,
+  sku.isCheeseAndCrackers as sku_is_cheese_and_crackers
+FROM PickEntry pe
+JOIN Run r ON r.id = pe.runId
+JOIN Company c ON c.id = r.companyId
+JOIN CoilItem ci ON ci.id = pe.coilItemId
+JOIN Coil coil ON coil.id = ci.coilId
+JOIN Machine mach ON mach.id = coil.machineId
+LEFT JOIN Location loc ON loc.id = mach.locationId
+JOIN SKU sku ON sku.id = ci.skuId;
+
 CREATE OR REPLACE VIEW v_user_refresh_tokens AS
 SELECT
   rt.id        AS refresh_token_id,
