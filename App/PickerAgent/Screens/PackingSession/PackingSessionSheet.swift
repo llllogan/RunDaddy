@@ -14,7 +14,7 @@ struct PackingSessionSheet: View {
     let session: AuthSession
     @StateObject private var viewModel: PackingSessionViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var showingAddChocolateBoxSheet = false
+    @State private var showingAddChocolateBoxAlert = false
     @State private var chocolateBoxNumberInput = ""
     @State private var chocolateBoxErrorMessage: String?
     @State private var isCreatingChocolateBox = false
@@ -45,7 +45,6 @@ struct PackingSessionSheet: View {
                 }
                 
                 ToolbarItemGroup(placement: .bottomBar) {
-                    
                     Button("Skip") {
                         Task {
                             await viewModel.skipCurrent()
@@ -110,28 +109,24 @@ struct PackingSessionSheet: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $showingAddChocolateBoxSheet, onDismiss: {
-            chocolateBoxNumberInput = ""
-            chocolateBoxErrorMessage = nil
-            targetMachineForChocolateBox = nil
-        }) {
-            if let machine = targetMachineForChocolateBox {
-                ChocolateBoxNumberPadSheet(
-                    machineDescription: machine.description,
-                    machineCode: machine.code,
-                    numberText: $chocolateBoxNumberInput,
-                    isSubmitting: isCreatingChocolateBox,
-                    errorMessage: chocolateBoxErrorMessage,
-                    onCancel: {
-                        showingAddChocolateBoxSheet = false
-                        targetMachineForChocolateBox = nil
-                    },
-                    onSave: submitChocolateBoxEntry
-                )
-                .presentationDetents([.fraction(0.35), .medium])
-                .presentationDragIndicator(.visible)
+        .textFieldAlert(
+            isPresented: $showingAddChocolateBoxAlert,
+            text: $chocolateBoxNumberInput,
+            title: "Add Chocolate Box",
+            message: chocolateBoxErrorMessage,
+            confirmTitle: "Create",
+            cancelTitle: "Cancel",
+            keyboardType: .numberPad,
+            onConfirm: {
+                chocolateBoxErrorMessage = nil
+                submitChocolateBoxEntry()
+            },
+            onCancel: {
+                chocolateBoxNumberInput = ""
+                chocolateBoxErrorMessage = nil
+                targetMachineForChocolateBox = nil
             }
-        }
+        )
 
         .onAppear {
             Task {
@@ -311,17 +306,19 @@ struct PackingSessionSheet: View {
         targetMachineForChocolateBox = machine
         chocolateBoxNumberInput = ""
         chocolateBoxErrorMessage = nil
-        showingAddChocolateBoxSheet = true
+        showingAddChocolateBoxAlert = true
     }
     
     private func submitChocolateBoxEntry() {
         guard let machine = targetMachineForChocolateBox else {
             chocolateBoxErrorMessage = "Unable to determine machine for this chocolate box."
+            showingAddChocolateBoxAlert = true
             return
         }
         let trimmedNumber = chocolateBoxNumberInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let number = Int(trimmedNumber), number > 0 else {
             chocolateBoxErrorMessage = "Enter a valid chocolate box number."
+            showingAddChocolateBoxAlert = true
             return
         }
         chocolateBoxErrorMessage = nil
@@ -331,13 +328,15 @@ struct PackingSessionSheet: View {
                 try await viewModel.createChocolateBox(number: number, machineId: machine.id)
                 await MainActor.run {
                     isCreatingChocolateBox = false
-                    showingAddChocolateBoxSheet = false
+                    showingAddChocolateBoxAlert = false
+                    chocolateBoxNumberInput = ""
                     targetMachineForChocolateBox = nil
                 }
             } catch {
                 await MainActor.run {
                     chocolateBoxErrorMessage = error.localizedDescription
                     isCreatingChocolateBox = false
+                    showingAddChocolateBoxAlert = true
                 }
             }
         }
@@ -688,111 +687,154 @@ struct ProgressDonutView: View {
     }
 }
 
-struct ChocolateBoxNumberPadSheet: View {
-    let machineDescription: String?
-    let machineCode: String?
-    @Binding var numberText: String
-    let isSubmitting: Bool
-    let errorMessage: String?
+struct TextFieldAlert: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let title: String
+    let message: String?
+    let confirmTitle: String
+    let cancelTitle: String
+    let keyboardType: UIKeyboardType
+    let onConfirm: () -> Void
     let onCancel: () -> Void
-    let onSave: () -> Void
-    @FocusState private var isNumberFieldFocused: Bool
     
-    private var machineSummary: String {
-        if let description = machineDescription, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if let code = machineCode, !code.isEmpty {
-                return "\(description) • \(code)"
-            }
-            return description
-        }
-        return machineCode ?? "Assigned machine"
-    }
-    
-    private var isFormValid: Bool {
-        guard let value = Int(numberText), value > 0 else { return false }
-        return true
-    }
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Machine")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(machineSummary)
-                            .font(.headline)
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Chocolate box number")
-                            .font(.subheadline.weight(.semibold))
-                        TextField("Enter number", text: $numberText)
-                            .keyboardType(.numberPad)
-                            .focused($isNumberFieldFocused)
-                            .padding(.vertical, 8)
-                            .font(.title2.weight(.medium))
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-                    .onChangeCompat(of: numberText) { newValue in
-                        numberText = newValue.filter { $0.isNumber }
-                    }
-                    
-                    if let errorMessage, !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
+    func makeCoordinator() -> Coordinator {
+        Coordinator { newValue in
+            let filtered = newValue.filter { $0.isNumber }
+            if filtered != newValue {
+                DispatchQueue.main.async {
+                    text = filtered
                 }
-            }
-            .navigationTitle("Add Chocolate Box")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        onCancel()
-                    }
-                    .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        onSave()
-                    } label: {
-                        if isSubmitting {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Add")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .disabled(!isFormValid || isSubmitting)
-                    .buttonStyle(.borderedProminent)
+            } else {
+                DispatchQueue.main.async {
+                    text = newValue
                 }
             }
         }
-        .interactiveDismissDisabled(isSubmitting)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                isNumberFieldFocused = true
+    }
+    
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        if isPresented && context.coordinator.alert == nil {
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            alert.addTextField { field in
+                field.keyboardType = keyboardType
+                field.clearButtonMode = .whileEditing
+                field.text = text
+                field.placeholder = "Enter number"
+                field.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
             }
+            
+            let cancelAction = UIAlertAction(title: cancelTitle, style: .cancel) { _ in
+                text = alert.textFields?.first?.text ?? text
+                isPresented = false
+                context.coordinator.alert = nil
+                onCancel()
+            }
+            
+            let confirmAction = UIAlertAction(title: confirmTitle, style: .default) { _ in
+                text = alert.textFields?.first?.text ?? text
+                isPresented = false
+                context.coordinator.alert = nil
+                onConfirm()
+            }
+            
+            alert.addAction(cancelAction)
+            alert.addAction(confirmAction)
+            
+            uiViewController.present(alert, animated: true)
+            context.coordinator.alert = alert
+        } else if !isPresented, let alert = context.coordinator.alert {
+            alert.dismiss(animated: true)
+            context.coordinator.alert = nil
+        } else if let alert = context.coordinator.alert {
+            if alert.message != message {
+                alert.message = message
+            }
+            if let textField = alert.textFields?.first, textField.text != text {
+                textField.text = text
+            }
+        }
+    }
+    
+    class Coordinator: NSObject {
+        var alert: UIAlertController?
+        private let onTextChange: (String) -> Void
+        
+        init(onTextChange: @escaping (String) -> Void) {
+            self.onTextChange = onTextChange
+        }
+        
+        @objc
+        func textDidChange(_ sender: UITextField) {
+            let current = sender.text ?? ""
+            let filtered = current.filter { $0.isNumber }
+            if filtered != current {
+                sender.text = filtered
+            }
+            onTextChange(filtered)
         }
     }
 }
 
-#Preview("Chocolate Box Number Pad Sheet") {
-    ChocolateBoxNumberPadSheet(
-        machineDescription: "Lobby",
-        machineCode: "A-101",
-        numberText: .constant("12"),
-        isSubmitting: false,
-        errorMessage: "This box already exists",
-        onCancel: {},
-        onSave: {}
-    )
+struct TextFieldAlertModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let title: String
+    let message: String?
+    let confirmTitle: String
+    let cancelTitle: String
+    let keyboardType: UIKeyboardType
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    
+    func body(content: Content) -> some View {
+        content
+            .background(
+                TextFieldAlert(
+                    isPresented: $isPresented,
+                    text: $text,
+                    title: title,
+                    message: message,
+                    confirmTitle: confirmTitle,
+                    cancelTitle: cancelTitle,
+                    keyboardType: keyboardType,
+                    onConfirm: onConfirm,
+                    onCancel: onCancel
+                )
+            )
+    }
+}
+
+extension View {
+    func textFieldAlert(
+        isPresented: Binding<Bool>,
+        text: Binding<String>,
+        title: String,
+        message: String?,
+        confirmTitle: String,
+        cancelTitle: String,
+        keyboardType: UIKeyboardType,
+        onConfirm: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            TextFieldAlertModifier(
+                isPresented: isPresented,
+                text: text,
+                title: title,
+                message: message,
+                confirmTitle: confirmTitle,
+                cancelTitle: cancelTitle,
+                keyboardType: keyboardType,
+                onConfirm: onConfirm,
+                onCancel: onCancel
+            )
+        )
+    }
 }
 
 struct CommandDebugLogger: View {
