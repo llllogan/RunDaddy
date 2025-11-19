@@ -1383,7 +1383,7 @@ async function fetchDashboardMachineMomentumLeader(
           AND scheduledFor IS NOT NULL
           AND scheduledFor >= ${window.previousStart}
           AND scheduledFor < ${window.currentComparisonEnd}
-        GROUP BY mach.id, mach.code, mach.description, loc.id, loc.name
+        GROUP BY machine_id, machine_code, machine_description, location_id, location_name
       ) AS machine_totals
       WHERE current_total > 0 OR previous_total > 0
       ORDER BY (current_total - previous_total) ${orderDirection}, current_total DESC

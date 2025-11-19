@@ -257,10 +257,35 @@ private extension RunDetailView {
         _ = await viewModel.deletePickEntries(for: section.id)
     }
 
+    private func chocolateBoxDisplay(for section: RunLocationSection) -> String? {
+        let targetLocationId = section.location?.id ?? RunLocationSection.unassignedIdentifier
+
+        let matchingBoxes = viewModel.chocolateBoxes.filter { box in
+            guard let locationId = box.machine?.location?.id else {
+                return targetLocationId == RunLocationSection.unassignedIdentifier
+            }
+            return locationId == targetLocationId
+        }
+
+        guard !matchingBoxes.isEmpty else {
+            return nil
+        }
+
+        let numbers = matchingBoxes.map(\.number).sorted()
+        let display = numbers.prefix(3).map(String.init).joined(separator: ", ")
+
+        if numbers.count > 3 {
+            return "\(display)..."
+        }
+
+        return display
+    }
+
     @ViewBuilder
     private func locationRow(for section: RunLocationSection) -> some View {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
+        let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
 
         Group {
             if let locationDetail = viewModel.locationDetail(for: section.id) {
@@ -276,11 +301,11 @@ private extension RunDetailView {
                         }
                     )
                 } label: {
-                    LocationSummaryRow(section: section, isProcessing: isDeleting)
+                    LocationSummaryRow(section: section, chocolateBoxLabel: chocolateBoxesLabel, isProcessing: isDeleting)
                 }
                 .disabled(isDeleting)
             } else {
-                LocationSummaryRow(section: section, isProcessing: isDeleting)
+                LocationSummaryRow(section: section, chocolateBoxLabel: chocolateBoxesLabel, isProcessing: isDeleting)
             }
         }
         .opacity(isDeleting ? 0.45 : 1)
@@ -305,6 +330,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
+    var chocolateBoxLabel: String? = nil
     var isProcessing = false
 
     var body: some View {
@@ -326,6 +352,17 @@ private struct LocationSummaryRow: View {
                     InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
                 } else {
                     InfoChip(title: nil, date: nil, text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green, icon: nil)
+                }
+
+                if let chocolateBoxLabel {
+                    InfoChip(
+                        title: nil,
+                        date: nil,
+                        text: chocolateBoxLabel,
+                        colour: Color.brown.opacity(0.15),
+                        foregroundColour: Color.brown,
+                        icon: "shippingbox"
+                    )
                 }
             }
             .accessibilityElement(children: .combine)
