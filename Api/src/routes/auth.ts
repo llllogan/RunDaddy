@@ -673,6 +673,7 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
     id: membership.company.id,
     name: membership.company.name,
     role: membership.role,
+    timeZone: membership.company.timeZone ?? null,
   }));
 
   const platformAdmin = memberships.some(
@@ -721,15 +722,16 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
   let currentCompany = null;
   const auth = req.auth; // Store to avoid repeated optional chaining
   if (auth && auth.companyId) {
-    const currentMembership = memberships.find(m => m.companyId === auth.companyId);
-    if (currentMembership) {
-      currentCompany = {
-        id: currentMembership.company.id,
-        name: currentMembership.company.name,
-        role: currentMembership.role,
-      };
+      const currentMembership = memberships.find(m => m.companyId === auth.companyId);
+      if (currentMembership) {
+        currentCompany = {
+          id: currentMembership.company.id,
+          name: currentMembership.company.name,
+          role: currentMembership.role,
+          timeZone: currentMembership.company.timeZone ?? null,
+        };
+      }
     }
-  }
 
   // Use the first membership's user data (should be consistent across all memberships)
   const user = memberships[0]?.user;

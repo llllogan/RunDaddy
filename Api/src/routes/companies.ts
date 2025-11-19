@@ -9,6 +9,7 @@ import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
 import { AuthContext } from '../types/enums.js';
 import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
+import { isValidTimezone } from '../lib/timezone.js';
 
 const router = Router();
 
@@ -328,6 +329,53 @@ router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level:
   } catch (error) {
     console.error('Error removing member:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const { companyId } = req.params;
+  const { timeZone } = req.body ?? {};
+
+  if (!companyId) {
+    return res.status(400).json({ error: 'companyId is required' });
+  }
+
+  if (!timeZone || typeof timeZone !== 'string' || !isValidTimezone(timeZone)) {
+    return res.status(400).json({ error: 'Invalid timezone' });
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      userId: req.auth!.userId,
+      companyId,
+      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+    },
+    include: {
+      company: true,
+    },
+  });
+
+  if (!membership) {
+    return res.status(403).json({ error: 'Not authorized to update this company' });
+  }
+
+  try {
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: { timeZone },
+    });
+
+    return res.json({
+      company: {
+        id: updated.id,
+        name: updated.name,
+        role: membership.role,
+        timeZone: updated.timeZone ?? null,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating company timezone:', error);
+    return res.status(500).json({ error: 'Unable to update company timezone' });
   }
 });
 

@@ -157,7 +157,7 @@ struct ProfileView: View {
                 }
 
                 // Navigation preference section
-                Section {
+                Section("Settings") {
                     Menu {
                         ForEach(DirectionsApp.allCases) { app in
                             Button {
@@ -170,22 +170,40 @@ struct ProfileView: View {
                         }
                     } label: {
                         HStack {
-                            Text("Directions App")
+                            Text("Navigation App")
+                                .foregroundStyle(.primary)
                             Spacer()
                             Text(preferredDirectionsApp.displayName)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
                         }
                     }
-                } header: {
-                    Text("Navigation")
-                } footer: {
-                    Text("Choose which app launches when opening addresses from a run.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
+                    
+                    if let company = viewModel.currentCompany {
+                        NavigationLink {
+                            CompanyTimezonePickerView(
+                                company: company,
+                                selectedIdentifier: viewModel.companyTimezoneIdentifier,
+                                onSelect: { identifier in
+                                    viewModel.updateTimezone(for: company.id, to: identifier)
+                                }
+                            )
+                        } label: {
+                            HStack {
+                                Text("Company Timezone")
+                                Spacer()
+                                Text(viewModel.companyTimezoneDisplayName)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                 }
                 
                 // Company Actions Section
                 if viewModel.currentCompany != nil {
-                    Section("Company Actions") {
+                    Section {
                         if viewModel.canGenerateInvites {
                             Button(action: {
                                 showInviteGenerator = true
@@ -221,7 +239,7 @@ struct ProfileView: View {
                 }
                 
                 // Settings Section
-                Section {
+                Section("Danger Zone") {
                     if viewModel.currentCompany != nil {
                         Button(action: {
                             showLeaveCompanyConfirmation = true

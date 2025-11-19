@@ -64,6 +64,7 @@ struct CompanyInfo: Codable, Equatable {
     let id: String
     let name: String
     let role: String
+    let timeZone: String?
 }
 
 struct AuthSession: Equatable {

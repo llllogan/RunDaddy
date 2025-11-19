@@ -19,9 +19,11 @@ class ProfileViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLeavingCompany = false
     @Published var isSwitchingCompany = false
+    @Published var companyTimezoneIdentifier: String = TimeZone.current.identifier
     
     let authService: AuthServicing
     private let inviteCodesService: InviteCodesServicing
+    private let companyService = CompanyService()
     private var cancellables = Set<AnyCancellable>()
     
     init(authService: AuthServicing, inviteCodesService: InviteCodesServicing) {
@@ -48,6 +50,7 @@ class ProfileViewModel: ObservableObject {
 
                     currentCompany = profile.currentCompany
                     companies = profile.companies
+                    companyTimezoneIdentifier = profile.currentCompany?.timeZone ?? TimeZone.current.identifier
                 }
             } catch {
                 await MainActor.run {
@@ -90,11 +93,13 @@ class ProfileViewModel: ObservableObject {
                 currentCompany = CompanyInfo(
                     id: updatedMembership.companyId,
                     name: updatedMembership.company?.name ?? "Company",
-                    role: updatedMembership.role.rawValue
+                    role: updatedMembership.role.rawValue,
+                    timeZone: updatedMembership.company?.timeZone
                 )
             } else {
                 currentCompany = nil
             }
+            companyTimezoneIdentifier = currentCompany?.timeZone ?? TimeZone.current.identifier
             
             // Reload user info to reflect the change
             loadUserInfo()
@@ -148,5 +153,47 @@ class ProfileViewModel: ObservableObject {
         }
 
         return false
+    }
+
+    var companyTimezoneDisplayName: String {
+        if let timezone = TimeZone(identifier: companyTimezoneIdentifier) {
+            return timezone.localizedName(for: .standard, locale: .current)
+                ?? timezone.localizedName(for: .generic, locale: .current)
+                ?? timezone.identifier
+        }
+        return companyTimezoneIdentifier
+    }
+
+    func updateTimezone(for companyId: String, to identifier: String) {
+        Task {
+            do {
+                guard let credentials = authService.loadStoredCredentials() else {
+                    throw AuthError.unauthorized
+                }
+                let updatedCompany = try await companyService.updateTimezone(
+                    companyId: companyId,
+                    timezoneIdentifier: identifier,
+                    credentials: credentials
+                )
+                await MainActor.run {
+                    companyTimezoneIdentifier = updatedCompany.timeZone ?? TimeZone.current.identifier
+                    currentCompany = updatedCompany
+                    companies = companies.map { company in
+                        guard company.id == updatedCompany.id else { return company }
+                        return updatedCompany
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    if let authError = error as? AuthError {
+                        errorMessage = authError.localizedDescription
+                    } else if let companyError = error as? CompanyServiceError {
+                        errorMessage = companyError.localizedDescription
+                    } else {
+                        errorMessage = "Failed to update timezone: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
 }
