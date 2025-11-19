@@ -274,3 +274,12 @@ model InviteCode {
   @@index([expiresAt])
   @@index([createdBy])
 }
+
+model TierConsts {
+  id              String  @id @default(cuid())
+  name            String
+  maxOwners       Int
+  maxAdmins       Int
+  maxPickers      Int
+  canBreakDownRun Boolean @default(false)
+}
