@@ -157,7 +157,7 @@ struct ProfileView: View {
                 }
 
                 // Navigation preference section
-                Section("Settings") {
+                Section(header: Text("Settings"), footer: Text("Runs and analytics will be generated in this timezone for the company.")) {
                     Menu {
                         ForEach(DirectionsApp.allCases) { app in
                             Button {
@@ -170,6 +170,8 @@ struct ProfileView: View {
                         }
                     } label: {
                         HStack {
+                            Image(systemName: "map")
+                                .foregroundStyle(.cyan)
                             Text("Navigation App")
                                 .foregroundStyle(.primary)
                             Spacer()
@@ -191,7 +193,9 @@ struct ProfileView: View {
                             )
                         } label: {
                             HStack {
-                                Text("Company Timezone")
+                                Image(systemName: "globe.badge.clock")
+                                    .foregroundStyle(.purple)
+                                Text("Timezone")
                                 Spacer()
                                 Text(viewModel.companyTimezoneDisplayName)
                                     .foregroundStyle(.secondary)
