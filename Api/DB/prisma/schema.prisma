@@ -172,7 +172,6 @@ model SKU {
 
 model Run {
   id               String     @id @default(cuid())
-  pickerId         String?
   runnerId         String?
   companyId        String
   status           RunStatus  @default(CREATED)
@@ -181,7 +180,6 @@ model Run {
   scheduledFor     DateTime?
   createdAt        DateTime   @default(now())
 
-  picker         User?         @relation("RunPicker", fields: [pickerId], references: [id], onDelete: SetNull)
   runner         User?         @relation("RunRunner", fields: [runnerId], references: [id], onDelete: SetNull)
   company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   pickEntries    PickEntry[]
@@ -189,7 +187,6 @@ model Run {
   locationOrders RunLocationOrder[]
   packingSessions PackingSession[]
 
-  @@index([pickerId])
   @@index([runnerId])
   @@index([companyId])
   @@index([companyId, scheduledFor])

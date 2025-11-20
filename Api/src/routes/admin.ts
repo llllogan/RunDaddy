@@ -105,9 +105,6 @@ router.get(
           orderBy: { scheduledFor: 'desc' },
           take: 5,
           include: {
-            picker: {
-              select: { id: true, firstName: true, lastName: true },
-            },
             runner: {
               select: { id: true, firstName: true, lastName: true },
             },
@@ -157,9 +154,6 @@ router.get(
         id: run.id,
         status: run.status,
         scheduledFor: run.scheduledFor,
-        picker: run.picker
-          ? { id: run.picker.id, name: `${run.picker.firstName} ${run.picker.lastName}` }
-          : null,
         runner: run.runner
           ? { id: run.runner.id, name: `${run.runner.firstName} ${run.runner.lastName}` }
           : null,

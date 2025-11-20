@@ -24,7 +24,8 @@ protocol RunsServicing {
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
-    func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
+    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession
+    func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
     func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder]
 }
 
@@ -96,7 +97,6 @@ struct RunSummary: Identifiable, Equatable {
     let createdAt: Date
     let locationCount: Int
     let chocolateBoxes: [ChocolateBox]
-    let picker: Participant?
     let runner: Participant?
 
     var statusDisplay: String {
@@ -236,7 +236,6 @@ struct RunDetail: Equatable {
     let pickingStartedAt: Date?
     let pickingEndedAt: Date?
     let createdAt: Date
-    let picker: RunParticipant?
     let runner: RunParticipant?
     let locations: [Location]
     let machines: [Machine]
@@ -251,6 +250,16 @@ struct RunDetail: Equatable {
     var pendingPickItems: [PickItem] {
         pickItems.filter { !$0.isPicked }
     }
+}
+
+struct PackingSession: Equatable, Decodable {
+    let id: String
+    let runId: String
+    let userId: String
+    let startedAt: Date
+    let finishedAt: Date?
+    let status: String
+    let assignedPickEntries: Int?
 }
 
 final class RunsService: RunsServicing {
@@ -358,7 +367,7 @@ final class RunsService: RunsServicing {
                 throw AuthError.unauthorized
             }
             if httpResponse.statusCode == 404 {
-                throw RunsServiceError.runNotFound
+                throw RunsServiceError.packingSessionNotFound
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
@@ -812,13 +821,53 @@ final class RunsService: RunsServicing {
         }
     }
     
-    func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
+    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("packing-sessions")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(PackingSession.self, from: data)
+        return payload
+    }
+    
+    func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("runs")
         url.appendPathComponent(runId)
         url.appendPathComponent("audio-commands")
 
-        var request = URLRequest(url: url)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var queryItems = components?.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "packingSessionId", value: packingSessionId))
+        components?.queryItems = queryItems
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
@@ -934,9 +983,7 @@ private struct RunResponse: Decodable {
     let createdAt: Date
     let locationCount: Int?
     let chocolateBoxes: [ChocolateBox]
-    let pickerId: String?
     let runnerId: String?
-    let picker: Participant?
     let runner: Participant?
 
     private enum CodingKeys: String, CodingKey {
@@ -948,9 +995,7 @@ private struct RunResponse: Decodable {
         case createdAt
         case locationCount
         case chocolateBoxes
-        case pickerId
         case runnerId
-        case picker
         case runner
     }
 
@@ -990,7 +1035,6 @@ private struct RunResponse: Decodable {
                     }
                 )
             },
-            picker: resolvedParticipant(from: picker, fallbackID: pickerId),
             runner: resolvedParticipant(from: runner, fallbackID: runnerId)
         )
     }
@@ -1156,7 +1200,6 @@ private struct RunDetailResponse: Decodable {
     let pickingStartedAt: Date?
     let pickingEndedAt: Date?
     let createdAt: Date
-    let picker: Participant?
     let runner: Participant?
     let locations: [Location]
     let machines: [Machine]
@@ -1173,7 +1216,6 @@ private struct RunDetailResponse: Decodable {
             pickingStartedAt: pickingStartedAt,
             pickingEndedAt: pickingEndedAt,
             createdAt: createdAt,
-            picker: picker?.toParticipant(),
             runner: runner?.toParticipant(),
             locations: locations.map { $0.toLocation() },
             machines: machines.map { $0.toMachine() },
@@ -1222,6 +1264,7 @@ enum RunsServiceError: LocalizedError {
     case insufficientPermissions
     case roleAlreadyAssigned
     case chocolateBoxNumberExists
+    case packingSessionNotFound
     case invalidLocationOrder
 
     var errorDescription: String? {
@@ -1235,11 +1278,13 @@ enum RunsServiceError: LocalizedError {
         case .pickItemNotFound:
             return "We couldn't find that pick entry. It may have already been removed."
         case .insufficientPermissions:
-            return "You don't have permission to assign this role."
+            return "You don't have permission to perform this action."
         case .roleAlreadyAssigned:
             return "This role is already assigned to another user."
         case .chocolateBoxNumberExists:
             return "This chocolate box number already exists for this run."
+        case .packingSessionNotFound:
+            return "We couldn't find that packing session for this run. Please try starting again."
         case .invalidLocationOrder:
             return "We couldn't determine which locations to reorder. Please try again."
         }

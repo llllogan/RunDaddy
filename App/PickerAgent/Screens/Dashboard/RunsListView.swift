@@ -71,7 +71,6 @@ struct RunsListView: View {
             createdAt: Date(),
             locationCount: 3,
             chocolateBoxes: [],
-            picker: nil,
             runner: nil
         )
     }

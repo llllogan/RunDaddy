@@ -3,7 +3,6 @@ import { RunItemStatus, RunStatus, UserRole } from '../../types/enums.js';
 import { prisma } from '../../lib/prisma.js';
 
 export const createRunSchema = z.object({
-  pickerId: z.string().cuid().optional(),
   runnerId: z.string().cuid().optional(),
   status: z.nativeEnum(RunStatus).optional(),
   pickingStartedAt: z.coerce.date().optional(),
@@ -34,7 +33,7 @@ export const updateChocolateBoxSchema = z.object({
 
 export const runAssignmentSchema = z.object({
   userId: z.string().cuid().optional(),
-  role: z.enum(['PICKER', 'RUNNER']),
+  role: z.enum(['RUNNER']),
 });
 
 export const ensureMembership = async (companyId: string, userId: string | undefined | null) => {
@@ -59,7 +58,6 @@ export const ensureRun = async (companyId: string, runId: string) => {
   const run = await prisma.run.findUnique({
     where: { id: runId },
     include: {
-      picker: true,
       runner: true,
       pickEntries: {
         include: {

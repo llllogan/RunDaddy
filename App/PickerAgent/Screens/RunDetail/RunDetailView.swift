@@ -10,6 +10,8 @@ import SwiftUI
 struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingPackingSession = false
+    @State private var packingSessionId: String?
+    @State private var isCreatingPackingSession = false
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
     @State private var isResettingRunPickStatuses = false
@@ -35,11 +37,6 @@ struct RunDetailView: View {
                         RunOverviewBento(
                             summary: overview,
                             viewModel: viewModel,
-                            assignAction: { role in
-                                Task {
-                                    await viewModel.assignUser(to: role)
-                                }
-                            },
                             pendingItemsTap: {
                                 showingPendingEntries = true
                             }
@@ -139,17 +136,29 @@ struct RunDetailView: View {
             
             ToolbarItem(placement: .bottomBar) {
                 Button("Start Packing", systemImage: "play") {
-                    showingPackingSession = true
+                    Task {
+                        await startPackingSession()
+                    }
                 }
                 .labelStyle(.titleOnly)
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                .disabled(isCreatingPackingSession)
                 .fullScreenCover(isPresented: $showingPackingSession, onDismiss: {
+                    packingSessionId = nil
                     Task {
                         await viewModel.load(force: true)
                     }
                 }) {
-                    PackingSessionSheet(runId: viewModel.detail?.id ?? "", session: viewModel.session)
+                    if let packingSessionId {
+                        PackingSessionSheet(
+                            runId: viewModel.detail?.id ?? viewModel.runId,
+                            packingSessionId: packingSessionId,
+                            session: viewModel.session
+                        )
+                    } else {
+                        ProgressView("Starting packing session...")
+                    }
                 }
             }
         }
@@ -225,6 +234,27 @@ private extension RunDetailView {
                 return
             }
             openURL(fallbackURL)
+        }
+    }
+    
+    @MainActor
+    func startPackingSession() async {
+        guard !isCreatingPackingSession else { return }
+        isCreatingPackingSession = true
+        defer { isCreatingPackingSession = false }
+
+        do {
+            let packingSession = try await viewModel.startPackingSession()
+            packingSessionId = packingSession.id
+            showingPackingSession = true
+        } catch {
+            if let authError = error as? AuthError {
+                viewModel.errorMessage = authError.localizedDescription
+            } else if let runError = error as? RunsServiceError {
+                viewModel.errorMessage = runError.localizedDescription
+            } else {
+                viewModel.errorMessage = "We couldn't start a packing session. Please try again."
+            }
         }
     }
 

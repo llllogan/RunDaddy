@@ -862,12 +862,10 @@ async function syncRunLocations(runId: string, locationIds: string[]) {
 
 async function ensureRunWithLocations({
   companyId,
-  pickerId,
   scheduledFor,
   locationIds,
 }: {
   companyId: string;
-  pickerId?: string | null;
   scheduledFor: Date;
   locationIds: string[];
 }) {
@@ -882,15 +880,8 @@ async function ensureRunWithLocations({
   });
 
   if (existing) {
-    let run = existing;
-    if (pickerId !== undefined && existing.pickerId !== pickerId) {
-      run = await prisma.run.update({
-        where: { id: existing.id },
-        data: { pickerId: toNullable(pickerId) },
-      });
-    }
-    await syncRunLocations(run.id, locationIds);
-    return run;
+    await syncRunLocations(existing.id, locationIds);
+    return existing;
   }
 
   const locationOrders =
@@ -906,7 +897,6 @@ async function ensureRunWithLocations({
   return prisma.run.create({
     data: {
       companyId,
-      pickerId: toNullable(pickerId),
       status: RunStatus.CREATED,
       scheduledFor,
       ...(locationOrders ? { locationOrders } : {}),
@@ -1026,7 +1016,6 @@ async function seedAppleTesting() {
 
   const run = await ensureRunWithLocations({
     companyId: company.id,
-    pickerId: user.id,
     scheduledFor: scheduleForDay(0),
     locationIds: runLocationIds,
   });
@@ -1070,7 +1059,6 @@ async function seedCompanyData() {
 
     const todayRun = await ensureRunWithLocations({
       companyId: company.id,
-      pickerId: owner.id,
       scheduledFor: scheduleForDay(0, 8),
       locationIds: todayLocations.map((detail) => detail.location.id),
     });
@@ -1078,7 +1066,6 @@ async function seedCompanyData() {
 
     const tomorrowRun = await ensureRunWithLocations({
       companyId: company.id,
-      pickerId: owner.id,
       scheduledFor: scheduleForDay(1, 10),
       locationIds: tomorrowLocations.map((detail) => detail.location.id),
     });
@@ -1143,7 +1130,6 @@ async function seedTrendScenarioCompany() {
 
   const lastWeekRun = await ensureRunWithLocations({
     companyId: company.id,
-    pickerId: owner.id,
     scheduledFor: scheduleForDay(-7, 9),
     locationIds,
   });
@@ -1154,7 +1140,6 @@ async function seedTrendScenarioCompany() {
 
   const thisWeekRun = await ensureRunWithLocations({
     companyId: company.id,
-    pickerId: owner.id,
     scheduledFor: scheduleForDay(0, 10),
     locationIds,
   });

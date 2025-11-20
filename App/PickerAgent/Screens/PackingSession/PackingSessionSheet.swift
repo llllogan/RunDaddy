@@ -11,6 +11,7 @@ import UIKit
 
 struct PackingSessionSheet: View {
     let runId: String
+    let packingSessionId: String
     let session: AuthSession
     @StateObject private var viewModel: PackingSessionViewModel
     @Environment(\.dismiss) private var dismiss
@@ -20,10 +21,11 @@ struct PackingSessionSheet: View {
     @State private var isCreatingChocolateBox = false
     @State private var targetMachineForChocolateBox: RunDetail.Machine?
     
-    init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
+    init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         self.runId = runId
+        self.packingSessionId = packingSessionId
         self.session = session
-        _viewModel = StateObject(wrappedValue: PackingSessionViewModel(runId: runId, session: session, service: service))
+        _viewModel = StateObject(wrappedValue: PackingSessionViewModel(runId: runId, packingSessionId: packingSessionId, session: session, service: service))
     }
     
     var body: some View {
@@ -912,5 +914,5 @@ private extension View {
     )
     let session = AuthSession(credentials: credentials, profile: profile)
     
-    return PackingSessionSheet(runId: "run-12345", session: session, service: PreviewRunsService())
+    return PackingSessionSheet(runId: "run-12345", packingSessionId: "preview-packing-session", session: session, service: PreviewRunsService())
 }

@@ -22,6 +22,7 @@ struct MachineCompletionInfo: Equatable, Identifiable {
 @MainActor
 class PackingSessionViewModel: NSObject, ObservableObject {
     let runId: String
+    let packingSessionId: String
     let session: AuthSession
     let service: RunsServicing
     
@@ -144,8 +145,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         return runDetail.pickItems.first { $0.id == pickEntryId }
     }
     
-    init(runId: String, session: AuthSession, service: RunsServicing) {
+    init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing) {
         self.runId = runId
+        self.packingSessionId = packingSessionId
         self.session = session
         self.service = service
         super.init()
@@ -160,7 +162,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         announcedMachineIdentifiers.removeAll()
         
         do {
-            async let audioCommandsTask = service.fetchAudioCommands(for: runId, credentials: session.credentials)
+            async let audioCommandsTask = service.fetchAudioCommands(for: runId, packingSessionId: packingSessionId, credentials: session.credentials)
             async let runDetailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
             async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
             

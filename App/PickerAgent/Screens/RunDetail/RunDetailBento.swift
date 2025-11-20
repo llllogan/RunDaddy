@@ -10,7 +10,6 @@ import SwiftUI
 struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
-    let assignAction: (String) -> Void
     let pendingItemsTap: () -> Void
 
     private var items: [BentoItem] {
@@ -167,61 +166,7 @@ struct RunOverviewBento: View {
                       onTap: pendingItemsTap,
                       showsChevron: true)
         )
-
-        if let picker = summary.pickerName, !picker.isEmpty {
-            cards.append(
-                BentoItem(title: "Picker",
-                          value: "",
-                          symbolName: "person.crop.circle",
-                          symbolTint: .blue,
-                          allowsMultilineValue: false,
-                          customContent: AnyView(
-                            Menu {
-                                ForEach(viewModel.companyUsers) { user in
-                                    Button(user.displayName) {
-                                        HapticsService.shared.userAssigned()
-                                        Task {
-                                            await viewModel.assignUser(userId: user.id, to: "PICKER")
-                                        }
-                                    }
-                                }
-                                Divider()
-                                Button("Unassign") {
-                                    HapticsService.shared.userUnassigned()
-                                    Task {
-                                        await viewModel.unassignUser(from: "PICKER")
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text(picker)
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                        .lineLimit(1)
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.subheadline.weight(.medium))
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .multilineTextAlignment(.leading)
-                            }
-                            .tint(.primary)
-                          )
-                         )
-            )
-        } else {
-            cards.append(
-                BentoItem(title: "Picker",
-                          value: "",
-                          symbolName: "person.crop.circle.badge.questionmark",
-                          symbolTint: .blue,
-                          allowsMultilineValue: false,
-                           customContent: AnyView(
-                             PickerAssignButtons(viewModel: viewModel)
-                           )
-                         )
-            )
-        }
-
+        
         return cards
     }
 
@@ -258,49 +203,6 @@ struct RunnerAssignButtons: View {
                         HapticsService.shared.userAssigned()
                         Task {
                             await viewModel.assignUser(userId: user.id, to: "RUNNER")
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                .tint(.primary)
-                .labelStyle(.iconOnly)
-                .padding()
-                .background(Color(.systemGray5))
-                .clipShape(Circle())
-                .buttonStyle(.plain)
-            }
-            
-            Spacer()
-        }
-    }
-}
-
-struct PickerAssignButtons: View {
-    let viewModel: RunDetailViewModel
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            Button("Assign me") {
-                HapticsService.shared.userAssigned()
-                Task { @MainActor in
-                    await viewModel.assignUser(to: "PICKER")
-                }
-            }
-            .lineLimit(1)
-            .font(.subheadline)
-            .padding(.horizontal, 8)
-            .frame(minHeight: 40)
-            .background(Color(.systemGray5))
-            .clipShape(Capsule())
-            .buttonStyle(.plain)
-            
-            Menu {
-                ForEach(viewModel.companyUsers) { user in
-                    Button(user.displayName) {
-                        HapticsService.shared.userAssigned()
-                        Task {
-                            await viewModel.assignUser(userId: user.id, to: "PICKER")
                         }
                     }
                 }

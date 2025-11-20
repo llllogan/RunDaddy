@@ -84,7 +84,6 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     where,
     orderBy: { createdAt: 'desc' },
     include: {
-      picker: true,
       runner: true,
     },
   });
@@ -152,6 +151,66 @@ router.get('/tomorrow', setLogConfig({ level: 'minimal' }), async (req, res) => 
 });
 
 // Get audio commands for a run's packing session
+router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to start a packing session' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const membership = await ensureMembership(req.auth.companyId, req.auth.userId);
+  if (!membership) {
+    return res.status(403).json({ error: 'Membership required to start a packing session' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const session = await tx.packingSession.create({
+        data: {
+          runId: run.id,
+          userId: membership.userId,
+        },
+      });
+
+      const assignmentResult = await tx.pickEntry.updateMany({
+        where: {
+          runId: run.id,
+          packingSessionId: null,
+        },
+        data: {
+          packingSessionId: session.id,
+        },
+      });
+
+      return { session, assignmentResult };
+    });
+
+    return res.status(201).json({
+      id: result.session.id,
+      runId: result.session.runId,
+      userId: result.session.userId,
+      startedAt: result.session.startedAt,
+      finishedAt: result.session.finishedAt,
+      status: result.session.status,
+      assignedPickEntries: result.assignmentResult.count,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to start packing session' });
+  }
+});
+
 router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -165,6 +224,20 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
   if (!req.auth.companyId) {
     return res.status(403).json({ error: 'Company membership required to access runs' });
   }
+
+  const { packingSessionId } = req.query;
+  if (!packingSessionId || typeof packingSessionId !== 'string') {
+    return res.status(400).json({ error: 'packingSessionId is required' });
+  }
+
+  const packingSession = await prisma.packingSession.findUnique({
+    where: { id: packingSessionId },
+  });
+
+  if (!packingSession || packingSession.runId !== runId) {
+    return res.status(404).json({ error: 'Packing session not found for this run' });
+  }
+  const sessionId = packingSession.id;
 
   const run = await ensureRun(req.auth.companyId, runId);
   if (!run) {
@@ -181,6 +254,7 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
   const pickEntries = await prisma.pickEntry.findMany({
     where: {
       runId: runId,
+      packingSessionId: sessionId,
       status: 'PENDING',
       count: { gt: 0 }
     },
@@ -450,9 +524,6 @@ router.get('/all', async (req, res) => {
         picking_started_at,
         picking_ended_at,
         run_created_at,
-        picker_id,
-        picker_first_name,
-        picker_last_name,
         runner_id,
         runner_first_name,
         runner_last_name,
@@ -506,11 +577,6 @@ router.get('/all', async (req, res) => {
     createdAt: row.run_created_at,
     locationCount: Number(row.location_count ?? 0),
     chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
-    picker: row.picker_id ? {
-      id: row.picker_id,
-      firstName: row.picker_first_name,
-      lastName: row.picker_last_name,
-    } : null,
     runner: row.runner_id ? {
       id: row.runner_id,
       firstName: row.runner_first_name,
@@ -553,7 +619,6 @@ router.get('/tomorrow/ready', async (req, res) => {
     },
     orderBy: { scheduledFor: 'asc' },
     include: {
-      picker: true,
       runner: true,
     },
   });
@@ -664,7 +729,7 @@ router.put('/:runId/location-order', setLogConfig({ level: 'full' }), async (req
   return res.json({ locationOrders: serializedOrders });
 });
 
-// Assigns or unassigns a picker or runner to a run.
+// Assigns or unassigns a runner to a run.
 router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -704,10 +769,9 @@ router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req
 
     // For self-assignment, check if the role is already taken
     if (isSelfAssignment && !isManager) {
-      const isPickerTaken = parsed.data.role === 'PICKER' && run.pickerId != null && run.pickerId !== req.auth.userId;
-      const isRunnerTaken = parsed.data.role === 'RUNNER' && run.runnerId != null && run.runnerId !== req.auth.userId;
-      if (isPickerTaken || isRunnerTaken) {
-        return res.status(409).json({ error: 'Role is already assigned to another user' });
+      const isRunnerTaken = run.runnerId != null && run.runnerId !== req.auth.userId;
+      if (isRunnerTaken) {
+        return res.status(409).json({ error: 'Runner role is already assigned to another user' });
       }
     }
   } 
@@ -719,15 +783,12 @@ router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req
   // }
 
   const userId = parsed.data.userId && parsed.data.userId.trim() !== "" ? parsed.data.userId : null;
-  const updateData = parsed.data.role === 'PICKER'
-    ? { pickerId: userId }
-    : { runnerId: userId };
+  const updateData = { runnerId: userId };
 
   const updatedRun = await prisma.run.update({
     where: { id: run.id },
     data: updateData,
     include: {
-      picker: true,
       runner: true,
     },
   });
@@ -782,7 +843,6 @@ router.patch('/:runId/status', async (req, res) => {
     where: { id: run.id },
     data: updateData,
     include: {
-      picker: true,
       runner: true,
     },
   });
@@ -1321,11 +1381,6 @@ type RunDetailPayload = {
   pickingStartedAt: Date | null;
   pickingEndedAt: Date | null;
   createdAt: Date;
-  picker: null | {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-  };
   runner: null | {
     id: string;
     firstName: string | null;
@@ -1498,13 +1553,6 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     pickingStartedAt: run.pickingStartedAt,
     pickingEndedAt: run.pickingEndedAt,
     createdAt: run.createdAt,
-    picker: run.picker
-      ? {
-          id: run.picker.id,
-          firstName: run.picker.firstName,
-          lastName: run.picker.lastName,
-        }
-      : null,
     runner: run.runner
       ? {
           id: run.runner.id,
@@ -1593,9 +1641,6 @@ type RunDailyLocationRow = {
   picking_started_at: Date | null;
   picking_ended_at: Date | null;
   run_created_at: Date;
-  picker_id: string | null;
-  picker_first_name: string | null;
-  picker_last_name: string | null;
   runner_id: string | null;
   runner_first_name: string | null;
   runner_last_name: string | null;
@@ -1610,7 +1655,6 @@ type RunDailyResponse = {
   pickingStartedAt: Date | null;
   pickingEndedAt: Date | null;
   createdAt: Date;
-  pickerId: string | null;
   runnerId: string | null;
   locationCount: number;
   chocolateBoxes: Array<{
@@ -1632,11 +1676,6 @@ type RunDailyResponse = {
       } | null;
     } | null;
   }>;
-  picker: null | {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-  };
   runner: null | {
     id: string;
     firstName: string | null;
@@ -1662,9 +1701,6 @@ async function fetchScheduledRuns(companyId: string, range: TimeRange): Promise<
         picking_started_at,
         picking_ended_at,
         run_created_at,
-        picker_id,
-        picker_first_name,
-        picker_last_name,
         runner_id,
         runner_first_name,
         runner_last_name,
@@ -1717,11 +1753,9 @@ async function fetchScheduledRuns(companyId: string, range: TimeRange): Promise<
     pickingStartedAt: row.picking_started_at,
     pickingEndedAt: row.picking_ended_at,
     createdAt: row.run_created_at,
-    pickerId: row.picker_id,
     runnerId: row.runner_id,
     locationCount: Number(row.location_count ?? 0),
     chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
-    picker: buildParticipant(row.picker_id, row.picker_first_name, row.picker_last_name),
     runner: buildParticipant(row.runner_id, row.runner_first_name, row.runner_last_name),
   }));
 }
@@ -1730,7 +1764,7 @@ function buildParticipant(
   id: string | null,
   firstName: string | null,
   lastName: string | null,
-): RunDailyResponse['picker'] {
+): RunDailyResponse['runner'] {
   if (!id) {
     return null;
   }

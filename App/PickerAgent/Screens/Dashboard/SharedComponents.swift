@@ -136,7 +136,7 @@ struct RunRow: View {
             return false
         }
 
-        return run.runner?.id == currentUserId || run.picker?.id == currentUserId
+        return run.runner?.id == currentUserId
     }
 
     private var statusBackgroundColor: Color {

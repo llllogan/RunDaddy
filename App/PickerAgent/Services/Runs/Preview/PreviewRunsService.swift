@@ -69,7 +69,6 @@ struct PreviewRunsService: RunsServicing {
             pickingStartedAt: Date().addingTimeInterval(-1800),
             pickingEndedAt: nil,
             createdAt: Date().addingTimeInterval(-7200),
-            picker: RunParticipant(id: "picker-1", firstName: "Jordan", lastName: "Smith"),
             runner: nil,
             locations: [downtown, uptown],
             machines: [machineA, machineB, machineC],
@@ -153,7 +152,19 @@ struct PreviewRunsService: RunsServicing {
         // Preview does nothing
     }
     
-    func fetchAudioCommands(for runId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
+    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession {
+        return PackingSession(
+            id: "preview-packing-session",
+            runId: runId,
+            userId: credentials.userID,
+            startedAt: Date(),
+            finishedAt: nil,
+            status: "STARTED",
+            assignedPickEntries: 3
+        )
+    }
+    
+    func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
         // Return sample audio commands for preview with location ordering
         let locationCommand1 = AudioCommandsResponse.AudioCommand(
             id: "location-1",
@@ -355,11 +366,6 @@ extension RunSummary {
                 RunSummary.ChocolateBox(id: "box-1", number: 1, machine: nil),
                 RunSummary.ChocolateBox(id: "box-2", number: 3, machine: nil)
             ],
-            picker: RunSummary.Participant(
-                id: "picker-1",
-                firstName: "Jordan",
-                lastName: "Smith"
-            ),
             runner: nil
         )
     }
@@ -378,11 +384,6 @@ extension RunSummary {
                 RunSummary.ChocolateBox(id: "box-4", number: 7, machine: nil),
                 RunSummary.ChocolateBox(id: "box-5", number: 12, machine: nil)
             ],
-            picker: RunSummary.Participant(
-                id: "picker-2",
-                firstName: "Riley",
-                lastName: "Chen"
-            ),
             runner: RunSummary.Participant(
                 id: "runner-1",
                 firstName: "Morgan",
@@ -403,11 +404,6 @@ extension RunSummary {
             chocolateBoxes: [
                 RunSummary.ChocolateBox(id: "box-6", number: 5, machine: nil)
             ],
-            picker: RunSummary.Participant(
-                id: "picker-3",
-                firstName: "Cameron",
-                lastName: "Diaz"
-            ),
             runner: RunSummary.Participant(
                 id: "runner-2",
                 firstName: "Alex",
