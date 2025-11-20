@@ -20,6 +20,12 @@ enum RunItemStatus {
   SKIPPED
 }
 
+enum PackingSessionStatus {
+  STARTED
+  FINISHED
+  ABANDONED
+}
+
 enum UserRole {
   GOD
   ADMIN
@@ -51,6 +57,7 @@ model User {
   defaultMembership Membership? @relation("UserDefaultMembership", fields: [defaultMembershipId], references: [id])
   createdInvites InviteCode[] @relation("InviteCreator")
   usedInvites    InviteCode[] @relation("InviteUsedBy")
+  packingSessions PackingSession[]
 }
 
 model Membership {
@@ -180,6 +187,7 @@ model Run {
   pickEntries    PickEntry[]
   chocolateBoxes ChocolateBox[]
   locationOrders RunLocationOrder[]
+  packingSessions PackingSession[]
 
   @@index([pickerId])
   @@index([runnerId])
@@ -206,6 +214,7 @@ model PickEntry {
   id         String        @id @default(cuid())
   runId      String
   coilItemId String
+  packingSessionId String?
   count      Int
   current    Int?
   par        Int?
@@ -217,12 +226,29 @@ model PickEntry {
 
   run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
   coilItem CoilItem @relation(fields: [coilItemId], references: [id], onDelete: Cascade)
+  packingSession PackingSession? @relation(fields: [packingSessionId], references: [id], onDelete: SetNull)
 
   @@unique([runId, coilItemId])
   @@index([runId])
   @@index([coilItemId])
+  @@index([packingSessionId])
 }
 
+model PackingSession {
+  id          String                @id @default(cuid())
+  runId       String
+  userId      String
+  startedAt   DateTime              @default(now())
+  finishedAt  DateTime?
+  status      PackingSessionStatus  @default(STARTED)
+
+  run         Run                   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pickEntries PickEntry[]
+
+  @@index([runId])
+  @@index([userId])
+}
 
 model ChocolateBox {
   id        String @id @default(cuid())
