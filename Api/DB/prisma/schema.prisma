@@ -51,7 +51,6 @@ model User {
   defaultMembershipId String?  @unique
 
   memberships  Membership[]
-  runsAsPicker Run[]       @relation("RunPicker")
   runsAsRunner Run[]       @relation("RunRunner")
   tokens       RefreshToken[]
   defaultMembership Membership? @relation("UserDefaultMembership", fields: [defaultMembershipId], references: [id])

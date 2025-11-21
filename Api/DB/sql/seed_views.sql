@@ -62,15 +62,11 @@ SELECT
   r.pickingStartedAt  AS picking_started_at,
   r.pickingEndedAt    AS picking_ended_at,
   r.createdAt         AS run_created_at,
-  picker.id           AS picker_id,
-  picker.firstName    AS picker_first_name,
-  picker.lastName     AS picker_last_name,
   runner.id           AS runner_id,
   runner.firstName    AS runner_first_name,
   runner.lastName     AS runner_last_name
 FROM `Run` r
 JOIN `Company` c ON c.id = r.companyId
-LEFT JOIN `User` picker ON picker.id = r.pickerId
 LEFT JOIN `User` runner ON runner.id = r.runnerId;
 
 CREATE OR REPLACE VIEW v_run_daily_locations AS
@@ -84,9 +80,6 @@ SELECT
   rov.picking_started_at,
   rov.picking_ended_at,
   rov.run_created_at,
-  rov.picker_id,
-  rov.picker_first_name,
-  rov.picker_last_name,
   rov.runner_id,
   rov.runner_first_name,
   rov.runner_last_name,
@@ -121,9 +114,6 @@ GROUP BY
   rov.picking_started_at,
   rov.picking_ended_at,
   rov.run_created_at,
-  rov.picker_id,
-  rov.picker_first_name,
-  rov.picker_last_name,
   rov.runner_id,
   rov.runner_first_name,
   rov.runner_last_name;

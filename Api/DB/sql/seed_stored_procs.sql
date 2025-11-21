@@ -153,12 +153,7 @@ BEGIN
 
   SET v_effective_user_id = NULLIF(p_user_id, '');
 
-  IF v_role = 'PICKER' THEN
-    UPDATE `Run`
-    SET pickerId = v_effective_user_id
-    WHERE id = p_run_id
-      AND companyId = p_company_id;
-  ELSEIF v_role = 'RUNNER' THEN
+  IF v_role = 'RUNNER' THEN
     UPDATE `Run`
     SET runnerId = v_effective_user_id
     WHERE id = p_run_id
@@ -169,9 +164,6 @@ BEGIN
     r.id               AS run_id,
     r.companyId        AS company_id,
     r.status           AS run_status,
-    r.pickerId         AS picker_id,
-    picker.firstName   AS picker_first_name,
-    picker.lastName    AS picker_last_name,
     r.runnerId         AS runner_id,
     runner.firstName   AS runner_first_name,
     runner.lastName    AS runner_last_name,
@@ -180,7 +172,6 @@ BEGIN
     r.scheduledFor     AS scheduled_for,
     r.createdAt        AS run_created_at
   FROM `Run` r
-  LEFT JOIN `User` picker ON picker.id = r.pickerId
   LEFT JOIN `User` runner ON runner.id = r.runnerId
   WHERE r.id = p_run_id
     AND r.companyId = p_company_id;
@@ -194,7 +185,6 @@ BEGIN
   IF p_status IS NULL OR p_status = '' THEN
     SELECT
       id,
-      pickerId,
       runnerId,
       companyId,
       status,
@@ -208,7 +198,6 @@ BEGIN
   ELSE
     SELECT
       id,
-      pickerId,
       runnerId,
       companyId,
       status,
