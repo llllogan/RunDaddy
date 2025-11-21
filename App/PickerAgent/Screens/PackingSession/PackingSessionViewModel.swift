@@ -375,16 +375,19 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private func contextStartIndex(forPendingItemAt index: Int) -> Int {
         guard index < audioCommands.count else { return audioCommands.count - 1 }
         let target = audioCommands[index]
+        var nearestMachineIndex: Int?
+
         for idx in stride(from: index - 1, through: 0, by: -1) {
             let command = audioCommands[idx]
-            if command.type == "machine", command.machineId == target.machineId {
-                return idx
-            }
             if command.type == "location", command.locationId == target.locationId {
                 return idx
             }
+            if command.type == "machine", command.machineId == target.machineId, nearestMachineIndex == nil {
+                nearestMachineIndex = idx
+            }
         }
-        return index
+
+        return nearestMachineIndex ?? index
     }
     
     private func hasPendingItemsForMachine(id: String?, after index: Int) -> Bool {

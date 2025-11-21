@@ -1,3 +1,6 @@
+// taylor.kent+seed@rundaddy.test
+// SeedDataPass!123
+
 import { RunItemStatus, RunStatus, UserRole } from '@prisma/client';
 import type { Location, MachineType, SKU } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
@@ -31,12 +34,12 @@ const DEFAULT_MACHINE_TYPE_NAME =
   })();
 
 const SKU_SEED_DATA = [
-  { code: 'SKU-PBAR-ALM', name: 'Almond Protein Bar', type: 'snack', category: 'Protein Bars' },
-  { code: 'SKU-CHIPS-SEA', name: 'Sea Salt Chips', type: 'snack', category: 'Chips' },
-  { code: 'SKU-COFF-COLD', name: 'Nitro Cold Brew', type: 'beverage', category: 'Coffee' },
-  { code: 'SKU-JUICE-CIT', name: 'Citrus Sparkling Juice', type: 'beverage', category: 'Juice' },
-  { code: 'SKU-ENERGY-MIX', name: 'Energy Trail Mix', type: 'snack', category: 'Trail Mix' },
-  { code: 'SKU-TEA-HERBAL', name: 'Iced Herbal Tea', type: 'beverage', category: 'Tea' },
+  { code: 'SKU-PBAR-ALM', name: 'Protein Bar', type: 'Almond', category: 'confection' },
+  { code: 'SKU-CHIPS-SEA', name: 'Chips', type: 'Sea Salt', category: 'confection' },
+  { code: 'SKU-COFF-COLD', name: 'Cold Brew', type: 'Can', category: 'beverage' },
+  { code: 'SKU-JUICE-CIT', name: 'Sparkling Juice', type: 'Bottle', category: 'beverage' },
+  { code: 'SKU-ENERGY-MIX', name: 'Trail Mix', type: 'Original', category: 'confection' },
+  { code: 'SKU-TEA-HERBAL', name: 'Herbal Tea', type: 'Unsweetened', category: 'beverage' },
 ];
 
 type CoilSeedConfig = {

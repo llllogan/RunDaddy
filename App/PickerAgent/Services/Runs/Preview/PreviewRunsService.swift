@@ -179,7 +179,7 @@ struct PreviewRunsService: RunsServicing {
     func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession {
         AbandonedPackingSession(
             id: packingSessionId,
-            status: "ABANDONED",
+            status: "FINISHED",
             finishedAt: Date(),
             clearedPickEntries: 2
         )

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { Prisma, RunItemStatus as PrismaRunItemStatus } from '@prisma/client';
+import { Prisma, RunItemStatus as PrismaRunItemStatus, PackingSessionStatus as PrismaPackingSessionStatus } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus } from '@prisma/client';
 import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
 import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
@@ -291,10 +291,10 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const abandonedSession = await tx.packingSession.update({
+      const endedSession = await tx.packingSession.update({
         where: { id: packingSessionId },
         data: {
-          status: 'ABANDONED',
+          status: PrismaPackingSessionStatus.FINISHED,
           finishedAt: new Date(),
         },
       });
@@ -310,13 +310,13 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
         },
       });
 
-      return { abandonedSession, clearedPickEntries };
+      return { endedSession, clearedPickEntries };
     });
 
     return res.json({
-      id: result.abandonedSession.id,
-      status: result.abandonedSession.status,
-      finishedAt: result.abandonedSession.finishedAt,
+      id: result.endedSession.id,
+      status: result.endedSession.status,
+      finishedAt: result.endedSession.finishedAt,
       clearedPickEntries: result.clearedPickEntries.count,
     });
   } catch (error) {
@@ -760,7 +760,7 @@ router.get('/:runId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   return res.json(payload);
 });
 
-router.put('/:runId/location-order', setLogConfig({ level: 'full' }), async (req, res) => {
+router.put('/:runId/location-order', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

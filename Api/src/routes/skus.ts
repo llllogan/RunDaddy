@@ -229,7 +229,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
 });
 
 // Get SKU statistics
-router.get('/:skuId/stats', setLogConfig({ level: 'full' }), async (req, res) => {
+router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
