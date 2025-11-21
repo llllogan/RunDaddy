@@ -91,12 +91,12 @@ struct RunLocationDetail: Equatable {
 final class RunDetailViewModel: ObservableObject {
     @Published private(set) var detail: RunDetail?
     @Published private(set) var isLoading = false
-    @Published private(set) var errorMessage: String?
-  @Published private(set) var locationSections: [RunLocationSection] = []
-  @Published private(set) var companyUsers: [CompanyUser] = []
-  @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
-  @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
-  @Published var showingChocolateBoxesSheet = false
+    @Published var errorMessage: String?
+    @Published private(set) var locationSections: [RunLocationSection] = []
+    @Published private(set) var companyUsers: [CompanyUser] = []
+    @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
+    @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
+    @Published var showingChocolateBoxesSheet = false
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
