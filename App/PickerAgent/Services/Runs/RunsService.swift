@@ -25,6 +25,7 @@ protocol RunsServicing {
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
     func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession
+    func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession
     func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
     func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder]
 }
@@ -260,6 +261,13 @@ struct PackingSession: Equatable, Decodable {
     let finishedAt: Date?
     let status: String
     let assignedPickEntries: Int?
+}
+
+struct AbandonedPackingSession: Equatable, Decodable {
+    let id: String
+    let status: String
+    let finishedAt: Date?
+    let clearedPickEntries: Int
 }
 
 final class RunsService: RunsServicing {
@@ -852,6 +860,42 @@ final class RunsService: RunsServicing {
         }
 
         let payload = try decoder.decode(PackingSession.self, from: data)
+        return payload
+    }
+    
+    func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("packing-sessions")
+        url.appendPathComponent(packingSessionId)
+        url.appendPathComponent("abandon")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.packingSessionNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(AbandonedPackingSession.self, from: data)
         return payload
     }
     

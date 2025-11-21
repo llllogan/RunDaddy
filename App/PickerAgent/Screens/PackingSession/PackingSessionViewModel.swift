@@ -42,6 +42,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published private(set) var runDetail: RunDetail?
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
     @Published var machineCompletionInfo: MachineCompletionInfo?
+    @Published var isStoppingSession = false
     
     private let synthesizer = AVSpeechSynthesizer()
     private let silentLoop = SilentLoopPlayer()
@@ -258,7 +259,31 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         await speakCurrentCommand()
     }
     
-    func stopSession() {
+    func stopSession() async -> Bool {
+        stopAudio()
+        if isStoppingSession {
+            return false
+        }
+
+        isStoppingSession = true
+        defer { isStoppingSession = false }
+
+        do {
+            _ = try await service.abandonPackingSession(
+                runId: runId,
+                packingSessionId: packingSessionId,
+                credentials: session.credentials
+            )
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            audioCommands = []
+            currentIndex = 0
+            return false
+        }
+    }
+    
+    private func stopAudio() {
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
         silentLoop.stop()

@@ -40,9 +40,14 @@ struct PackingSessionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Stop Packing", systemImage: "stop.fill") {
-                        viewModel.stopSession()
-                        dismiss()
+                        Task {
+                            let didStop = await viewModel.stopSession()
+                            if didStop {
+                                dismiss()
+                            }
+                        }
                     }
+                    .disabled(viewModel.isStoppingSession)
                     .tint(.red)
                 }
                 
@@ -77,8 +82,10 @@ struct PackingSessionSheet: View {
                     Button {
                         Task {
                             if viewModel.isSessionComplete {
-                                viewModel.stopSession()
-                                dismiss()
+                                let didStop = await viewModel.stopSession()
+                                if didStop {
+                                    dismiss()
+                                }
                             } else {
                                 await viewModel.goForward()
                             }
@@ -87,7 +94,7 @@ struct PackingSessionSheet: View {
                         Image(systemName: viewModel.isSessionComplete ? "checkmark.circle.fill" : "forward.fill")
                     }
                     .tint(viewModel.isSessionComplete ? .green : .blue)
-                    .disabled(viewModel.isSpeaking)
+                    .disabled(viewModel.isSpeaking || viewModel.isStoppingSession)
                 }
                 
             }
@@ -136,7 +143,9 @@ struct PackingSessionSheet: View {
             }
         }
         .onDisappear {
-            viewModel.stopSession()
+            Task {
+                _ = await viewModel.stopSession()
+            }
         }
     }
 

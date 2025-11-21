@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
-import type { RunStatus as PrismaRunStatus, RunItemStatus as PrismaRunItemStatus } from '@prisma/client';
+import { Prisma, RunItemStatus as PrismaRunItemStatus } from '@prisma/client';
+import type { RunStatus as PrismaRunStatus } from '@prisma/client';
 import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
 import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
@@ -208,6 +208,73 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to start packing session' });
+  }
+});
+
+router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId, packingSessionId } = req.params;
+  if (!runId || !packingSessionId) {
+    return res.status(400).json({ error: 'Run ID and packingSessionId are required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to stop a packing session' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const membership = await ensureMembership(req.auth.companyId, req.auth.userId);
+  if (!membership) {
+    return res.status(403).json({ error: 'Membership required to stop a packing session' });
+  }
+
+  const packingSession = await prisma.packingSession.findUnique({
+    where: { id: packingSessionId },
+  });
+
+  if (!packingSession || packingSession.runId !== runId) {
+    return res.status(404).json({ error: 'Packing session not found for this run' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const abandonedSession = await tx.packingSession.update({
+        where: { id: packingSessionId },
+        data: {
+          status: 'ABANDONED',
+          finishedAt: new Date(),
+        },
+      });
+
+      const clearedPickEntries = await tx.pickEntry.updateMany({
+        where: {
+          runId: run.id,
+          packingSessionId: packingSessionId,
+          status: { not: PrismaRunItemStatus.PICKED },
+        },
+        data: {
+          packingSessionId: null,
+        },
+      });
+
+      return { abandonedSession, clearedPickEntries };
+    });
+
+    return res.json({
+      id: result.abandonedSession.id,
+      status: result.abandonedSession.status,
+      finishedAt: result.abandonedSession.finishedAt,
+      clearedPickEntries: result.clearedPickEntries.count,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to stop packing session' });
   }
 });
 
