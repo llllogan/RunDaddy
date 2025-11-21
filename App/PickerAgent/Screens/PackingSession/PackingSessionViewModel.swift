@@ -221,7 +221,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             return
         }
         
-        await advanceToNextCommand()
+        await advanceToNextPlayableCommand()
     }
     
     func goBack() async {
@@ -255,7 +255,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             return
         }
         
-        await advanceToNextCommand()
+        await advanceToNextPlayableCommand()
     }
     
     func repeatCurrent() async {
@@ -307,6 +307,16 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     private func speakCurrentCommand() async {
+        guard !audioCommands.isEmpty else { return }
+        
+        // Skip over already-completed item commands so we don't re-read packed items
+        if let nextIndex = nextPlayableIndex(startingAt: currentIndex) {
+            currentIndex = nextIndex
+        } else {
+            completeSession()
+            return
+        }
+        
         guard let command = currentCommand else { return }
         
         let utterance = AVSpeechUtterance(string: command.audioCommand)
@@ -377,36 +387,70 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         return index
     }
     
+    private func hasPendingItemsForMachine(id: String?, after index: Int) -> Bool {
+        guard index + 1 < audioCommands.count else { return false }
+        for idx in (index + 1)..<audioCommands.count {
+            let command = audioCommands[idx]
+            guard command.type == "item" else { continue }
+            if let machineId = id, let candidateId = command.machineId, candidateId != machineId {
+                continue
+            }
+            if !command.pickEntryIds.allSatisfy(completedItems.contains) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    private func hasPendingItemsForLocation(id: String?, after index: Int) -> Bool {
+        guard index + 1 < audioCommands.count else { return false }
+        for idx in (index + 1)..<audioCommands.count {
+            let command = audioCommands[idx]
+            guard command.type == "item" else { continue }
+            if let locationId = id, let candidateId = command.locationId, candidateId != locationId {
+                continue
+            }
+            if !command.pickEntryIds.allSatisfy(completedItems.contains) {
+                return true
+            }
+        }
+        return false
+    }
+    
     private func nextPlayableIndex(startingAt index: Int) -> Int? {
         var idx = index
         while idx < audioCommands.count {
             let command = audioCommands[idx]
-            if command.type == "item", command.pickEntryIds.allSatisfy(completedItems.contains) {
-                idx += 1
-                continue
+            
+            if command.type == "item" {
+                if command.pickEntryIds.allSatisfy(completedItems.contains) {
+                    idx += 1
+                    continue
+                }
+                return idx
             }
+            
+            if command.type == "machine" {
+                if hasPendingItemsForMachine(id: command.machineId, after: idx) {
+                    return idx
+                } else {
+                    idx += 1
+                    continue
+                }
+            }
+            
+            if command.type == "location" {
+                if hasPendingItemsForLocation(id: command.locationId, after: idx) {
+                    return idx
+                } else {
+                    idx += 1
+                    continue
+                }
+            }
+            
             return idx
         }
         return nil
-    }
-
-        let targetItem = commands[pendingItemIndex]
-        var resumeIndex = pendingItemIndex
-
-        // Try to resume from the relevant machine command first, then location
-        for idx in stride(from: pendingItemIndex - 1, through: 0, by: -1) {
-            let command = commands[idx]
-            if command.type == "machine", let machineId = command.machineId, machineId == targetItem.machineId {
-                resumeIndex = idx
-                break
-            }
-            if command.type == "location", command.locationId == targetItem.locationId {
-                resumeIndex = idx
-                break
-            }
-        }
-
-        return (resumeIndex, true)
     }
     
     private func completeSession() {
@@ -458,9 +502,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
     }
     
-    private func advanceToNextCommand() async {
-        if canGoForward {
-            currentIndex += 1
+    private func advanceToNextPlayableCommand() async {
+        if let nextIndex = nextPlayableIndex(startingAt: currentIndex + 1) {
+            currentIndex = nextIndex
             updateNowPlayingInfo()
             await speakCurrentCommand()
         } else {
@@ -472,7 +516,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private func acknowledgeMachineCompletionIfNeeded() async -> Bool {
         guard let _ = machineCompletionInfo else { return false }
         machineCompletionInfo = nil
-        await advanceToNextCommand()
+        await advanceToNextPlayableCommand()
         return true
     }
     
