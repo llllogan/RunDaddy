@@ -20,6 +20,7 @@ struct PackingSessionSheet: View {
     @State private var chocolateBoxErrorMessage: String?
     @State private var isCreatingChocolateBox = false
     @State private var targetMachineForChocolateBox: RunDetail.Machine?
+    @State private var abandonOnDisappear = true
     
     init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         self.runId = runId
@@ -38,17 +39,27 @@ struct PackingSessionSheet: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Stop Packing", systemImage: "stop.fill") {
                         Task {
                             let didStop = await viewModel.stopSession()
                             if didStop {
+                                abandonOnDisappear = false
                                 dismiss()
                             }
                         }
                     }
                     .disabled(viewModel.isStoppingSession)
                     .tint(.red)
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Pause", systemImage: "pause.fill") {
+                        abandonOnDisappear = false
+                        viewModel.pauseSession()
+                        dismiss()
+                    }
+                    .tint(.blue)
                 }
                 
                 ToolbarItemGroup(placement: .bottomBar) {
@@ -84,6 +95,7 @@ struct PackingSessionSheet: View {
                             if viewModel.isSessionComplete {
                                 let didStop = await viewModel.stopSession()
                                 if didStop {
+                                    abandonOnDisappear = false
                                     dismiss()
                                 }
                             } else {
@@ -143,8 +155,12 @@ struct PackingSessionSheet: View {
             }
         }
         .onDisappear {
-            Task {
-                _ = await viewModel.stopSession()
+            if abandonOnDisappear {
+                Task {
+                    _ = await viewModel.stopSession()
+                }
+            } else {
+                viewModel.pauseSession()
             }
         }
     }

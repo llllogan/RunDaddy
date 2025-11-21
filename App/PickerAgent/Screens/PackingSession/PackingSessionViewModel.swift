@@ -283,6 +283,10 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
     }
     
+    func pauseSession() {
+        stopAudio()
+    }
+    
     private func stopAudio() {
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
