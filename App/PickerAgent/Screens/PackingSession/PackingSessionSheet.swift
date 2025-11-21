@@ -10,9 +10,17 @@ import AVFoundation
 import UIKit
 
 struct PackingSessionSheet: View {
+    private enum SessionEndAction {
+        case none
+        case abandon
+        case pause
+    }
+
     let runId: String
     let packingSessionId: String
     let session: AuthSession
+    let onAbandon: (() -> Void)?
+    let onPause: (() -> Void)?
     @StateObject private var viewModel: PackingSessionViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddChocolateBoxAlert = false
@@ -21,11 +29,14 @@ struct PackingSessionSheet: View {
     @State private var isCreatingChocolateBox = false
     @State private var targetMachineForChocolateBox: RunDetail.Machine?
     @State private var abandonOnDisappear = true
+    @State private var lastEndAction: SessionEndAction = .none
     
-    init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing = RunsService()) {
+    init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing = RunsService(), onAbandon: (() -> Void)? = nil, onPause: (() -> Void)? = nil) {
         self.runId = runId
         self.packingSessionId = packingSessionId
         self.session = session
+        self.onAbandon = onAbandon
+        self.onPause = onPause
         _viewModel = StateObject(wrappedValue: PackingSessionViewModel(runId: runId, packingSessionId: packingSessionId, session: session, service: service))
     }
     
@@ -45,6 +56,8 @@ struct PackingSessionSheet: View {
                             let didStop = await viewModel.stopSession()
                             if didStop {
                                 abandonOnDisappear = false
+                                lastEndAction = .abandon
+                                onAbandon?()
                                 dismiss()
                             }
                         }
@@ -56,7 +69,9 @@ struct PackingSessionSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Pause", systemImage: "pause.fill") {
                         abandonOnDisappear = false
+                        lastEndAction = .pause
                         viewModel.pauseSession()
+                        onPause?()
                         dismiss()
                     }
                     .tint(.blue)
@@ -96,6 +111,8 @@ struct PackingSessionSheet: View {
                                 let didStop = await viewModel.stopSession()
                                 if didStop {
                                     abandonOnDisappear = false
+                                    lastEndAction = .abandon
+                                    onAbandon?()
                                     dismiss()
                                 }
                             } else {
@@ -150,17 +167,31 @@ struct PackingSessionSheet: View {
         )
 
         .onAppear {
+            abandonOnDisappear = true
+            lastEndAction = .none
             Task {
                 await viewModel.loadAudioCommands()
             }
         }
         .onDisappear {
-            if abandonOnDisappear {
-                Task {
-                    _ = await viewModel.stopSession()
+            switch lastEndAction {
+            case .abandon:
+                break
+            case .pause:
+                // Already paused via explicit action
+                break
+            case .none:
+                if abandonOnDisappear {
+                    Task {
+                        let didStop = await viewModel.stopSession()
+                        if didStop {
+                            onAbandon?()
+                        }
+                    }
+                } else {
+                    viewModel.pauseSession()
+                    onPause?()
                 }
-            } else {
-                viewModel.pauseSession()
             }
         }
     }
@@ -280,8 +311,8 @@ struct PackingSessionSheet: View {
             guard !items.isEmpty else {
                 return PackingInstructionProgress(title: "Machine Progress", value: 0)
             }
-            let index = items.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index) / Double(items.count)
+            let completedCount = items.filter { isItemCommandCompleted($0) }.count
+            let progress = Double(completedCount) / Double(items.count)
             return PackingInstructionProgress(title: "Machine Progress", value: min(max(progress, 0), 1))
         case "machine":
             let identifier = locationIdentifier(for: command)
@@ -289,16 +320,16 @@ struct PackingSessionSheet: View {
             guard !machines.isEmpty else {
                 return PackingInstructionProgress(title: "Location Progress", value: 0)
             }
-            let index = machines.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index) / Double(machines.count)
+            let completedMachines = machines.filter { isMachineCompleted($0) }.count
+            let progress = Double(completedMachines) / Double(machines.count)
             return PackingInstructionProgress(title: "Location Progress", value: min(max(progress, 0), 1))
         case "location":
             let locations = viewModel.audioCommands.filter { $0.type == "location" }
             guard !locations.isEmpty else {
                 return PackingInstructionProgress(title: "Run Progress", value: 0)
             }
-            let index = locations.firstIndex(where: { $0.id == command.id }) ?? 0
-            let progress = Double(index) / Double(locations.count)
+            let completedLocations = locations.filter { isLocationCompleted($0) }.count
+            let progress = Double(completedLocations) / Double(locations.count)
             return PackingInstructionProgress(title: "Run Progress", value: min(max(progress, 0), 1))
         default:
             return PackingInstructionProgress(title: "Progress", value: viewModel.progress)
@@ -326,6 +357,25 @@ struct PackingSessionSheet: View {
             return code
         }
         return "__unknown-machine-\(command.id)__"
+    }
+
+    private func isItemCommandCompleted(_ command: AudioCommandsResponse.AudioCommand) -> Bool {
+        guard command.type == "item" else { return false }
+        return command.pickEntryIds.allSatisfy(viewModel.completedItems.contains)
+    }
+
+    private func isMachineCompleted(_ command: AudioCommandsResponse.AudioCommand) -> Bool {
+        let identifier = machineIdentifier(for: command)
+        let items = viewModel.audioCommands.filter { $0.type == "item" && machineIdentifier(for: $0) == identifier }
+        guard !items.isEmpty else { return false }
+        return items.allSatisfy { isItemCommandCompleted($0) }
+    }
+
+    private func isLocationCompleted(_ command: AudioCommandsResponse.AudioCommand) -> Bool {
+        let identifier = locationIdentifier(for: command)
+        let machines = viewModel.audioCommands.filter { $0.type == "machine" && locationIdentifier(for: $0) == identifier }
+        guard !machines.isEmpty else { return false }
+        return machines.allSatisfy { isMachineCompleted($0) }
     }
 
     private func beginAddChocolateBoxFlow() {

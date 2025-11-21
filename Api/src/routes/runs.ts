@@ -211,6 +211,52 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
   }
 });
 
+router.get('/:runId/packing-sessions/active', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to access packing sessions' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const membership = await ensureMembership(req.auth.companyId, req.auth.userId);
+  if (!membership) {
+    return res.status(403).json({ error: 'Membership required to access packing sessions' });
+  }
+
+  const session = await prisma.packingSession.findFirst({
+    where: {
+      runId: run.id,
+      userId: membership.userId,
+      status: 'STARTED',
+    },
+  });
+
+  if (!session) {
+    return res.status(404).json({ error: 'No active packing session found' });
+  }
+
+  return res.json({
+    id: session.id,
+    runId: session.runId,
+    userId: session.userId,
+    startedAt: session.startedAt,
+    finishedAt: session.finishedAt,
+    status: session.status,
+  });
+});
+
 router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -317,12 +363,11 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
     locationOrderMap.set(key, order.position);
   });
 
-  // Get pick entries that need to be packed, ordered by location, then machine, then coil (largest to smallest)
+  // Get pick entries for this packing session (including already packed), ordered by location, then machine, then coil (largest to smallest)
   const pickEntries = await prisma.pickEntry.findMany({
     where: {
       runId: runId,
       packingSessionId: sessionId,
-      status: 'PENDING',
       count: { gt: 0 }
     },
     include: {

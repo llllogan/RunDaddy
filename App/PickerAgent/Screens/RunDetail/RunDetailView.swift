@@ -81,9 +81,11 @@ struct RunDetailView: View {
         }
         .task {
             await viewModel.load()
+            await viewModel.loadActivePackingSession()
         }
         .refreshable {
             await viewModel.load(force: true)
+            await viewModel.loadActivePackingSession()
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -135,9 +137,15 @@ struct RunDetailView: View {
             }
             
             ToolbarItem(placement: .bottomBar) {
-                Button("Start Packing", systemImage: "play") {
+                let hasActiveSession = viewModel.activePackingSessionId != nil
+                Button(hasActiveSession ? "Resume Packing" : "Start Packing", systemImage: hasActiveSession ? "playpause" : "play") {
                     Task {
-                        await startPackingSession()
+                        if let activeId = viewModel.activePackingSessionId {
+                            packingSessionId = activeId
+                            showingPackingSession = true
+                        } else {
+                            await startPackingSession()
+                        }
                     }
                 }
                 .labelStyle(.titleOnly)
@@ -148,13 +156,22 @@ struct RunDetailView: View {
                     packingSessionId = nil
                     Task {
                         await viewModel.load(force: true)
+                        await viewModel.loadActivePackingSession()
                     }
                 }) {
-                    if let packingSessionId {
+                    let resolvedPackingSessionId = packingSessionId ?? viewModel.activePackingSessionId
+                    if let resolvedPackingSessionId {
                         PackingSessionSheet(
                             runId: viewModel.detail?.id ?? viewModel.runId,
-                            packingSessionId: packingSessionId,
-                            session: viewModel.session
+                            packingSessionId: resolvedPackingSessionId,
+                            session: viewModel.session,
+                            onAbandon: {
+                                viewModel.activePackingSessionId = nil
+                            },
+                            onPause: {
+                                viewModel.activePackingSessionId = resolvedPackingSessionId
+                                packingSessionId = resolvedPackingSessionId
+                            }
                         )
                     } else {
                         ProgressView("Starting packing session...")

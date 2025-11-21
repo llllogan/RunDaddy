@@ -174,16 +174,25 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             audioCommands = response.audioCommands
             runDetail = detail
             chocolateBoxes = boxes.sorted { $0.number < $1.number }
-            currentIndex = 0
-            completedItems.removeAll()
-            isSessionComplete = false
-            
+            completedItems = Set(detail.pickItems.filter { $0.isPicked }.map { $0.id })
+            if let pendingIndex = firstPendingItemIndex() {
+                currentIndex = contextStartIndex(forPendingItemAt: pendingIndex)
+                isSessionComplete = false
+            } else {
+                currentIndex = audioCommands.count
+                isSessionComplete = true
+            }
+
             if response.hasItems {
                 configureAudioSessionIfNeeded()
                 setupRemoteCommandCenter()
                 silentLoop.start()
                 updateNowPlayingInfo()
-                await speakCurrentCommand()
+                if isSessionComplete {
+                    completeSession()
+                } else {
+                    await speakCurrentCommand()
+                }
             } else {
                 errorMessage = "No items to pack in this run"
             }
@@ -344,6 +353,60 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         } catch {
             print("Failed to mark items as skipped: \(error)")
         }
+    }
+
+    private func firstPendingItemIndex() -> Int? {
+        audioCommands.firstIndex { command in
+            guard command.type == "item" else { return false }
+            return !command.pickEntryIds.allSatisfy(completedItems.contains)
+        }
+    }
+    
+    private func contextStartIndex(forPendingItemAt index: Int) -> Int {
+        guard index < audioCommands.count else { return audioCommands.count - 1 }
+        let target = audioCommands[index]
+        for idx in stride(from: index - 1, through: 0, by: -1) {
+            let command = audioCommands[idx]
+            if command.type == "machine", command.machineId == target.machineId {
+                return idx
+            }
+            if command.type == "location", command.locationId == target.locationId {
+                return idx
+            }
+        }
+        return index
+    }
+    
+    private func nextPlayableIndex(startingAt index: Int) -> Int? {
+        var idx = index
+        while idx < audioCommands.count {
+            let command = audioCommands[idx]
+            if command.type == "item", command.pickEntryIds.allSatisfy(completedItems.contains) {
+                idx += 1
+                continue
+            }
+            return idx
+        }
+        return nil
+    }
+
+        let targetItem = commands[pendingItemIndex]
+        var resumeIndex = pendingItemIndex
+
+        // Try to resume from the relevant machine command first, then location
+        for idx in stride(from: pendingItemIndex - 1, through: 0, by: -1) {
+            let command = commands[idx]
+            if command.type == "machine", let machineId = command.machineId, machineId == targetItem.machineId {
+                resumeIndex = idx
+                break
+            }
+            if command.type == "location", command.locationId == targetItem.locationId {
+                resumeIndex = idx
+                break
+            }
+        }
+
+        return (resumeIndex, true)
     }
     
     private func completeSession() {

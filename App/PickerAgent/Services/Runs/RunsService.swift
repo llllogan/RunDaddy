@@ -25,6 +25,7 @@ protocol RunsServicing {
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
     func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession
+    func fetchActivePackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession?
     func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession
     func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse
     func updateLocationOrder(for runId: String, orderedLocationIds: [String?], credentials: AuthCredentials) async throws -> [RunDetail.LocationOrder]
@@ -327,6 +328,7 @@ final class RunsService: RunsServicing {
         url.appendPathComponent("all")
 
         var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
@@ -855,6 +857,47 @@ final class RunsService: RunsServicing {
             }
             if httpResponse.statusCode == 404 {
                 throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(PackingSession.self, from: data)
+        return payload
+    }
+    
+    func fetchActivePackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession? {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("packing-sessions")
+        url.appendPathComponent("active")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 404 {
+            return nil
+        }
+        
+        if httpResponse.statusCode == 304 {
+            // No change; let caller decide how to handle
+            return nil
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }

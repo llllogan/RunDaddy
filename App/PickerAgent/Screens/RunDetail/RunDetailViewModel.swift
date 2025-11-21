@@ -97,6 +97,7 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
     @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
     @Published var showingChocolateBoxesSheet = false
+    @Published var activePackingSessionId: String?
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -207,7 +208,20 @@ final class RunDetailViewModel: ObservableObject {
     }
     
     func startPackingSession() async throws -> PackingSession {
-        return try await service.createPackingSession(for: runId, credentials: session.credentials)
+        let session = try await service.createPackingSession(for: runId, credentials: session.credentials)
+        activePackingSessionId = session.id
+        return session
+    }
+
+    func loadActivePackingSession() async {
+        let current = activePackingSessionId
+        do {
+            let session = try await service.fetchActivePackingSession(for: runId, credentials: session.credentials)
+            activePackingSessionId = session?.id
+        } catch {
+            // Keep whatever was previously known on errors; caller can still start a new session explicitly
+            activePackingSessionId = current
+        }
     }
 
     var overview: RunOverviewSummary? {

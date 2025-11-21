@@ -164,6 +164,18 @@ struct PreviewRunsService: RunsServicing {
         )
     }
     
+    func fetchActivePackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession? {
+        PackingSession(
+            id: "preview-packing-session",
+            runId: runId,
+            userId: credentials.userID,
+            startedAt: Date().addingTimeInterval(-600),
+            finishedAt: nil,
+            status: "STARTED",
+            assignedPickEntries: 3
+        )
+    }
+    
     func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession {
         AbandonedPackingSession(
             id: packingSessionId,
