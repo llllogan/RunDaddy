@@ -49,6 +49,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private var audioSessionConfigured = false
     private var remoteCommandCenterConfigured = false
     private var announcedMachineIdentifiers: Set<String> = []
+    private var hasSyncedFinishedSession = false
+    private var isFinishingSessionRemotely = false
     
     var currentCommand: AudioCommandsResponse.AudioCommand? {
         guard currentIndex >= 0 && currentIndex < audioCommands.count else { return nil }
@@ -277,6 +279,15 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         isStoppingSession = true
         defer { isStoppingSession = false }
 
+        if isSessionComplete || hasSyncedFinishedSession {
+            let didFinish = await sendFinishSessionRequestIfNeeded()
+            if !didFinish {
+                audioCommands = []
+                currentIndex = 0
+            }
+            return didFinish
+        }
+
         do {
             _ = try await service.abandonPackingSession(
                 runId: runId,
@@ -294,6 +305,42 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     
     func pauseSession() {
         stopAudio()
+    }
+    
+    private func finishSessionRemotelyIfNeeded() {
+        Task { [weak self] in
+            _ = await self?.sendFinishSessionRequestIfNeeded()
+        }
+    }
+    
+    @discardableResult
+    private func sendFinishSessionRequestIfNeeded() async -> Bool {
+        if hasSyncedFinishedSession {
+            return true
+        }
+
+        if isFinishingSessionRemotely {
+            while isFinishingSessionRemotely && !hasSyncedFinishedSession {
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            return hasSyncedFinishedSession
+        }
+        
+        isFinishingSessionRemotely = true
+        defer { isFinishingSessionRemotely = false }
+        
+        do {
+            _ = try await service.finishPackingSession(
+                runId: runId,
+                packingSessionId: packingSessionId,
+                credentials: session.credentials
+            )
+            hasSyncedFinishedSession = true
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
     
     private func stopAudio() {
@@ -459,6 +506,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private func completeSession() {
         isSessionComplete = true
         currentIndex = audioCommands.count
+        finishSessionRemotelyIfNeeded()
         
         updateNowPlayingInfoForCompletion()
         

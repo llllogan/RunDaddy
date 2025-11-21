@@ -185,6 +185,15 @@ struct PreviewRunsService: RunsServicing {
         )
     }
     
+    func finishPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> FinishedPackingSession {
+        FinishedPackingSession(
+            id: packingSessionId,
+            status: "FINISHED",
+            finishedAt: Date(),
+            clearedPickEntries: 0
+        )
+    }
+    
     func fetchAudioCommands(for runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AudioCommandsResponse {
         // Return sample audio commands for preview with location ordering
         let locationCommand1 = AudioCommandsResponse.AudioCommand(

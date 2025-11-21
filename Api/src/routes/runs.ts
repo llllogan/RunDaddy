@@ -291,7 +291,74 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const endedSession = await tx.packingSession.update({
+      const abandonedSession = await tx.packingSession.update({
+        where: { id: packingSessionId },
+        data: {
+          status: PrismaPackingSessionStatus.ABANDONED,
+          finishedAt: new Date(),
+        },
+      });
+
+      const clearedPickEntries = await tx.pickEntry.updateMany({
+        where: {
+          runId: run.id,
+          packingSessionId: packingSessionId,
+          status: { not: PrismaRunItemStatus.PICKED },
+        },
+        data: {
+          packingSessionId: null,
+        },
+      });
+
+      return { abandonedSession, clearedPickEntries };
+    });
+
+    return res.json({
+      id: result.abandonedSession.id,
+      status: result.abandonedSession.status,
+      finishedAt: result.abandonedSession.finishedAt,
+      clearedPickEntries: result.clearedPickEntries.count,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to stop packing session' });
+  }
+});
+
+router.post('/:runId/packing-sessions/:packingSessionId/finish', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId, packingSessionId } = req.params;
+  if (!runId || !packingSessionId) {
+    return res.status(400).json({ error: 'Run ID and packingSessionId are required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to finish a packing session' });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const membership = await ensureMembership(req.auth.companyId, req.auth.userId);
+  if (!membership) {
+    return res.status(403).json({ error: 'Membership required to finish a packing session' });
+  }
+
+  const packingSession = await prisma.packingSession.findUnique({
+    where: { id: packingSessionId },
+  });
+
+  if (!packingSession || packingSession.runId !== runId) {
+    return res.status(404).json({ error: 'Packing session not found for this run' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const finishedSession = await tx.packingSession.update({
         where: { id: packingSessionId },
         data: {
           status: PrismaPackingSessionStatus.FINISHED,
@@ -310,17 +377,17 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
         },
       });
 
-      return { endedSession, clearedPickEntries };
+      return { finishedSession, clearedPickEntries };
     });
 
     return res.json({
-      id: result.endedSession.id,
-      status: result.endedSession.status,
-      finishedAt: result.endedSession.finishedAt,
+      id: result.finishedSession.id,
+      status: result.finishedSession.status,
+      finishedAt: result.finishedSession.finishedAt,
       clearedPickEntries: result.clearedPickEntries.count,
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to stop packing session' });
+    return res.status(500).json({ error: 'Failed to finish packing session' });
   }
 });
 
