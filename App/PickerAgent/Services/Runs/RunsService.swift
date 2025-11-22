@@ -203,9 +203,17 @@ struct RunDetail: Equatable {
         let sku: Sku?
         let machine: Machine?
         let location: Location?
+        let packingSessionId: String?
 
         var isPicked: Bool {
             status == "PICKED"
+        }
+
+        var isInPackingSession: Bool {
+            guard let packedId = packingSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                return false
+            }
+            return !packedId.isEmpty
         }
         
         func countForPointer(_ pointer: String) -> Int? {
@@ -1283,6 +1291,7 @@ private struct RunDetailResponse: Decodable {
         let sku: Sku?
         let machine: Machine?
         let location: Location?
+        let packingSessionId: String?
 
         func toPickItem() -> RunDetail.PickItem {
             let coilDomain = coil.toCoil()
@@ -1299,7 +1308,8 @@ private struct RunDetailResponse: Decodable {
                 coilItem: coilItem.toCoilItem(with: coilDomain),
                 sku: sku?.toSku(),
                 machine: machine?.toMachine(),
-                location: location?.toLocation()
+                location: location?.toLocation(),
+                packingSessionId: packingSessionId
             )
         }
     }

@@ -48,9 +48,9 @@ struct PreviewRunsService: RunsServicing {
         let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", isCheeseAndCrackers: false, countNeededPointer: "par")
         let skuCheese = RunDetail.Sku(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Snack", isCheeseAndCrackers: true, countNeededPointer: "current")
 
-        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown)
-        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown)
-        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, current: 11, par: 15, need: 9, forecast: 10, total: 18, status: "PICKED", pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown)
+        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
+        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
+        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, current: 11, par: 15, need: 9, forecast: 10, total: 18, status: "PICKED", pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown, packingSessionId: nil)
 
         let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
         let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)

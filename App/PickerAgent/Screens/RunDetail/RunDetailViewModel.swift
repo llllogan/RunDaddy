@@ -107,6 +107,11 @@ final class RunDetailViewModel: ObservableObject {
     let service: RunsServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
+    var pendingUnassignedPickItems: [RunDetail.PickItem] {
+        guard let detail else { return [] }
+        return detail.pickItems.filter { $0.status == "PENDING" && !$0.isInPackingSession }
+    }
+
     init(runId: String, session: AuthSession, service: RunsServicing) {
         self.runId = runId
         self.session = session

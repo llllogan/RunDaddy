@@ -41,6 +41,7 @@ struct LocationDetailView: View {
     
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
+    @State private var packingSessionLockedPickItem: RunDetail.PickItem?
     @State private var locationNavigationTarget: LocationDetailSearchNavigation?
     @State private var machineNavigationTarget: LocationDetailMachineNavigation?
 
@@ -173,15 +174,21 @@ struct LocationDetailView: View {
                         .padding(.vertical, 4)
                 } else {
                     ForEach(filteredPickItems, id: \.id) { pickItem in
+                        let isUpdatingPick = updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? "")
+                        let isPackingSessionLocked = pickItem.isInPackingSession
                         PickEntryRow(
                             pickItem: pickItem,
                             onToggle: {
                                 Task {
                                     await togglePickStatus(pickItem)
                                 }
+                            },
+                            isToggleDisabled: isPackingSessionLocked,
+                            onDisabledToggle: {
+                                packingSessionLockedPickItem = pickItem
                             }
                         )
-                        .disabled(updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? ""))
+                        .disabled(isUpdatingPick)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
                                 Task {
@@ -237,6 +244,15 @@ struct LocationDetailView: View {
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .alert(item: $packingSessionLockedPickItem) { _ in
+            Alert(
+                title: Text("Already Packing"),
+                message: Text("This item is already being packed in a packing session."),
+                dismissButton: .default(Text("OK")) {
+                    packingSessionLockedPickItem = nil
+                }
+            )
         }
         .alert(item: $pickItemPendingDeletion) { pickItem in
             Alert(
@@ -564,11 +580,21 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
+    var isToggleDisabled: Bool = false
+    var onDisabledToggle: (() -> Void)?
 
-    init(pickItem: RunDetail.PickItem, onToggle: @escaping () -> Void, showsLocation: Bool = false) {
+    init(
+        pickItem: RunDetail.PickItem,
+        onToggle: @escaping () -> Void,
+        showsLocation: Bool = false,
+        isToggleDisabled: Bool = false,
+        onDisabledToggle: (() -> Void)? = nil
+    ) {
         self.pickItem = pickItem
         self.onToggle = onToggle
         self.showsLocation = showsLocation
+        self.isToggleDisabled = isToggleDisabled
+        self.onDisabledToggle = onDisabledToggle
     }
 
     private var locationLabel: String? {
@@ -589,7 +615,13 @@ struct PickEntryRow: View {
     
     var body: some View {
         HStack {
-            Button(action: onToggle) {
+            Button {
+                if isToggleDisabled {
+                    onDisabledToggle?()
+                    return
+                }
+                onToggle()
+            } label: {
                 ZStack {
                     Circle()
                         .stroke(pickItem.isPicked ? Color.green : Color.gray, lineWidth: 2)
@@ -603,6 +635,7 @@ struct PickEntryRow: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .opacity(isToggleDisabled ? 0.5 : 1.0)
             
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -677,8 +710,8 @@ private extension PickEntryRow {
 
     let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false, countNeededPointer: "total")
 
-    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location)
-    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location)
+    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
+    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
 
     let section = RunLocationSection(
         id: location.id,

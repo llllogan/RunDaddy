@@ -586,18 +586,6 @@ async function getSkuByCode(code: string) {
   return sku;
 }
 
-const startOfDay = (date: Date) => {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-};
-
-const endOfDay = (date: Date) => {
-  const copy = startOfDay(date);
-  copy.setDate(copy.getDate() + 1);
-  return copy;
-};
-
 const scheduleForDay = (daysFromToday: number, hour = 9) => {
   const date = new Date();
   date.setHours(hour, 0, 0, 0);
@@ -872,21 +860,6 @@ async function ensureRunWithLocations({
   scheduledFor: Date;
   locationIds: string[];
 }) {
-  const existing = await prisma.run.findFirst({
-    where: {
-      companyId,
-      scheduledFor: {
-        gte: startOfDay(scheduledFor),
-        lt: endOfDay(scheduledFor),
-      },
-    },
-  });
-
-  if (existing) {
-    await syncRunLocations(existing.id, locationIds);
-    return existing;
-  }
-
   const locationOrders =
     locationIds.length > 0
       ? {

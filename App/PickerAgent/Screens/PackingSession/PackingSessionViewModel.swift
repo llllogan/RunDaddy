@@ -281,7 +281,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
 
         if isSessionComplete || hasSyncedFinishedSession {
             let didFinish = await sendFinishSessionRequestIfNeeded()
-            if !didFinish {
+            if didFinish {
+                await refreshRunDetail()
+            } else {
                 audioCommands = []
                 currentIndex = 0
             }
@@ -294,6 +296,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
                 packingSessionId: packingSessionId,
                 credentials: session.credentials
             )
+            await refreshRunDetail()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -336,6 +339,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
                 credentials: session.credentials
             )
             hasSyncedFinishedSession = true
+            await refreshRunDetail()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -550,6 +554,19 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         if let voice = preferredVoice {
             utterance.voice = voice
+        }
+    }
+
+    private func refreshRunDetail() async {
+        do {
+            let detail = try await service.fetchRunDetail(withId: runId, credentials: session.credentials)
+            await MainActor.run {
+                runDetail = detail
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     
@@ -867,7 +884,7 @@ extension PackingSessionViewModel: AVSpeechSynthesizerDelegate {
             updatePlaybackState()
         }
     }
-    
+
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
             isSpeaking = false

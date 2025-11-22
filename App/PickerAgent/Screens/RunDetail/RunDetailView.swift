@@ -260,6 +260,11 @@ private extension RunDetailView {
         isCreatingPackingSession = true
         defer { isCreatingPackingSession = false }
 
+        guard !viewModel.pendingUnassignedPickItems.isEmpty else {
+            viewModel.errorMessage = "No pending pick entries are available to start a packing session."
+            return
+        }
+
         do {
             let packingSession = try await viewModel.startPackingSession()
             packingSessionId = packingSession.id
