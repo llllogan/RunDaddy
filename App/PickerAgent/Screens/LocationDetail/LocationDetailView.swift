@@ -41,7 +41,6 @@ struct LocationDetailView: View {
     
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
-    @State private var packingSessionLockedPickItem: RunDetail.PickItem?
     @State private var locationNavigationTarget: LocationDetailSearchNavigation?
     @State private var machineNavigationTarget: LocationDetailMachineNavigation?
 
@@ -175,17 +174,12 @@ struct LocationDetailView: View {
                 } else {
                     ForEach(filteredPickItems, id: \.id) { pickItem in
                         let isUpdatingPick = updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? "")
-                        let isPackingSessionLocked = pickItem.isInPackingSession
                         PickEntryRow(
                             pickItem: pickItem,
                             onToggle: {
                                 Task {
                                     await togglePickStatus(pickItem)
                                 }
-                            },
-                            isToggleDisabled: isPackingSessionLocked,
-                            onDisabledToggle: {
-                                packingSessionLockedPickItem = pickItem
                             }
                         )
                         .disabled(isUpdatingPick)
@@ -245,15 +239,7 @@ struct LocationDetailView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-        .alert(item: $packingSessionLockedPickItem) { _ in
-            Alert(
-                title: Text("Already Packing"),
-                message: Text("This item is already being packed in a packing session."),
-                dismissButton: .default(Text("OK")) {
-                    packingSessionLockedPickItem = nil
-                }
-            )
-        }
+
         .alert(item: $pickItemPendingDeletion) { pickItem in
             Alert(
                 title: Text("Are you sure?"),
@@ -580,21 +566,15 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
-    var isToggleDisabled: Bool = false
-    var onDisabledToggle: (() -> Void)?
 
     init(
         pickItem: RunDetail.PickItem,
         onToggle: @escaping () -> Void,
-        showsLocation: Bool = false,
-        isToggleDisabled: Bool = false,
-        onDisabledToggle: (() -> Void)? = nil
+        showsLocation: Bool = false
     ) {
         self.pickItem = pickItem
         self.onToggle = onToggle
         self.showsLocation = showsLocation
-        self.isToggleDisabled = isToggleDisabled
-        self.onDisabledToggle = onDisabledToggle
     }
 
     private var locationLabel: String? {
@@ -616,10 +596,6 @@ struct PickEntryRow: View {
     var body: some View {
         HStack {
             Button {
-                if isToggleDisabled {
-                    onDisabledToggle?()
-                    return
-                }
                 onToggle()
             } label: {
                 ZStack {
@@ -635,7 +611,6 @@ struct PickEntryRow: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
-            .opacity(isToggleDisabled ? 0.5 : 1.0)
             
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {

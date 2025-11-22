@@ -205,12 +205,7 @@ struct RunDetail: Equatable {
         let location: Location?
         let packingSessionId: String?
 
-        var isInPackingSession: Bool {
-            guard let packedId = packingSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                return false
-            }
-            return !packedId.isEmpty
-        }
+
         
         func countForPointer(_ pointer: String) -> Int? {
             switch pointer.lowercased() {
