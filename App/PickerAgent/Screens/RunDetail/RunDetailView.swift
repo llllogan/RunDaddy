@@ -793,13 +793,13 @@ struct PendingPickEntriesView: View {
 
     private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
         updatingPickIds.insert(pickItem.id)
-        let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
+        let newIsPicked = !pickItem.isPicked
 
         do {
             try await service.updatePickItemStatuses(
                 runId: runId,
                 pickIds: [pickItem.id],
-                status: newStatus,
+                isPicked: newIsPicked,
                 credentials: session.credentials
             )
             await viewModel.load(force: true)

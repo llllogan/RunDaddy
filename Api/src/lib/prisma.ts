@@ -8,7 +8,8 @@ declare global {
 export const prisma =
   globalThis.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'production' ? ['warn', 'error'] : ['query', 'info', 'warn', 'error'],
+    // Keep verbose Prisma logs out of local dev server output; warnings/errors are enough
+    log: ['warn', 'error'],
   });
 
 if (process.env.NODE_ENV !== 'production') {

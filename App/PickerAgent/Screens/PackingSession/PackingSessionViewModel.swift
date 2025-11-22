@@ -163,6 +163,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         errorMessage = nil
         machineCompletionInfo = nil
         announcedMachineIdentifiers.removeAll()
+        isSessionComplete = false
+        currentIndex = 0
         
         do {
             async let audioCommandsTask = service.fetchAudioCommands(for: runId, packingSessionId: packingSessionId, credentials: session.credentials)
@@ -174,15 +176,27 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             let boxes = try await chocolateBoxesTask
             
             audioCommands = response.audioCommands
+            let sessionPickIds = Set(response.audioCommands.filter { $0.type == "item" }.flatMap { $0.pickEntryIds })
             runDetail = detail
             chocolateBoxes = boxes.sorted { $0.number < $1.number }
-            completedItems = Set(detail.pickItems.filter { $0.isPicked }.map { $0.id })
-            if let pendingIndex = firstPendingItemIndex() {
-                currentIndex = contextStartIndex(forPendingItemAt: pendingIndex)
-                isSessionComplete = false
+            completedItems = Set(
+                detail.pickItems
+                    .filter { $0.isPicked && sessionPickIds.contains($0.id) }
+                    .map { $0.id }
+            )
+
+            if response.hasItems {
+                if let pendingIndex = firstPendingItemIndex() {
+                    currentIndex = contextStartIndex(forPendingItemAt: pendingIndex)
+                    isSessionComplete = false
+                } else {
+                    currentIndex = audioCommands.count
+                    isSessionComplete = true
+                }
             } else {
-                currentIndex = audioCommands.count
-                isSessionComplete = true
+                // No items are assigned to this session; abandon to unlock picks
+                await handleSessionLoadFailure("No items to pack in this run.")
+                return
             }
 
             if response.hasItems {
@@ -196,10 +210,10 @@ class PackingSessionViewModel: NSObject, ObservableObject {
                     await speakCurrentCommand()
                 }
             } else {
-                errorMessage = "No items to pack in this run"
+                await handleSessionLoadFailure("No items to pack in this run.")
             }
         } catch {
-            errorMessage = error.localizedDescription
+            await handleSessionLoadFailure(error.localizedDescription)
         }
         
         isLoading = false
@@ -391,7 +405,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             try await service.updatePickItemStatuses(
                 runId: runId,
                 pickIds: ids,
-                status: "PICKED",
+                isPicked: true,
                 credentials: session.credentials
             )
             ids.forEach { completedItems.insert($0) }
@@ -408,7 +422,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             try await service.updatePickItemStatuses(
                 runId: runId,
                 pickIds: ids,
-                status: "SKIPPED",
+                isPicked: false,
                 credentials: session.credentials
             )
         } catch {
@@ -625,9 +639,15 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
-            print("Failed to deactivate audio session: \(error)")
+        print("Failed to deactivate audio session: \(error)")
         }
         audioSessionConfigured = false
+    }
+
+    private func handleSessionLoadFailure(_ message: String) async {
+        errorMessage = message
+        _ = await stopSession()
+        isLoading = false
     }
     
     private func setupRemoteCommandCenter() {

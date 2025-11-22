@@ -7,14 +7,6 @@ export const RunStatus = {
 
 export type RunStatus = typeof RunStatus[keyof typeof RunStatus];
 
-export const RunItemStatus = {
-  PENDING: 'PENDING',
-  PICKED: 'PICKED',
-  SKIPPED: 'SKIPPED',
-} as const;
-
-export type RunItemStatus = typeof RunItemStatus[keyof typeof RunItemStatus];
-
 export const UserRole = {
   GOD: 'GOD',
   ADMIN: 'ADMIN',
@@ -33,8 +25,4 @@ export type AuthContext = typeof AuthContext[keyof typeof AuthContext];
 
 export const isRunStatus = (value: unknown): value is RunStatus => {
   return typeof value === 'string' && (Object.values(RunStatus) as string[]).includes(value);
-};
-
-export const isRunItemStatus = (value: unknown): value is RunItemStatus => {
-  return typeof value === 'string' && (Object.values(RunItemStatus) as string[]).includes(value);
 };

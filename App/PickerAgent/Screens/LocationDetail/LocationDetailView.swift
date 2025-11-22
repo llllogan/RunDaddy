@@ -314,13 +314,13 @@ struct LocationDetailView: View {
     private func togglePickStatus(_ pickItem: RunDetail.PickItem) async {
         updatingPickIds.insert(pickItem.id)
         
-        let newStatus = pickItem.isPicked ? "PENDING" : "PICKED"
+        let newIsPicked = !pickItem.isPicked
         
         do {
             try await service.updatePickItemStatuses(
                 runId: runId,
                 pickIds: [pickItem.id],
-                status: newStatus,
+                isPicked: newIsPicked,
                 credentials: session.credentials
             )
             await onPickStatusChanged()
@@ -710,8 +710,8 @@ private extension PickEntryRow {
 
     let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false, countNeededPointer: "total")
 
-    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, status: "PICKED", pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
-    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, status: "PENDING", pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
+    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
+    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
 
     let section = RunLocationSection(
         id: location.id,

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { Prisma, RunItemStatus as PrismaRunItemStatus, PackingSessionStatus as PrismaPackingSessionStatus } from '@prisma/client';
+import { Prisma, PackingSessionStatus as PrismaPackingSessionStatus } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus } from '@prisma/client';
-import { RunItemStatus, RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
-import type { RunStatus as RunStatusValue, RunItemStatus as RunItemStatusValue } from '../types/enums.js';
+import { RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
+import type { RunStatus as RunStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -188,6 +188,7 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
         where: {
           runId: run.id,
           packingSessionId: null,
+          isPicked: false,
         },
         data: {
           packingSessionId: session.id,
@@ -303,7 +304,6 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
         where: {
           runId: run.id,
           packingSessionId: packingSessionId,
-          status: { not: PrismaRunItemStatus.PICKED },
         },
         data: {
           packingSessionId: null,
@@ -370,7 +370,6 @@ router.post('/:runId/packing-sessions/:packingSessionId/finish', setLogConfig({ 
         where: {
           runId: run.id,
           packingSessionId: packingSessionId,
-          status: { not: PrismaRunItemStatus.PICKED },
         },
         data: {
           packingSessionId: null,
@@ -1032,7 +1031,7 @@ router.patch('/:runId/status', async (req, res) => {
   });
 });
 
-// Bulk update pick entries status (PICKED/PENDING/SKIPPED)
+// Bulk update pick entries picked flag
 router.patch('/:runId/picks/status', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -1047,7 +1046,7 @@ router.patch('/:runId/picks/status', async (req, res) => {
     return res.status(400).json({ error: 'Run ID is required' });
   }
 
-  const { pickIds, status } = req.body;
+  const { pickIds, isPicked } = req.body;
 
   if (!Array.isArray(pickIds)) {
     return res.status(400).json({ error: 'Pick IDs array is required' });
@@ -1060,8 +1059,8 @@ router.patch('/:runId/picks/status', async (req, res) => {
     return res.status(400).json({ error: 'Pick IDs array is required' });
   }
 
-  if (!status || !['PICKED', 'PENDING', 'SKIPPED'].includes(status)) {
-    return res.status(400).json({ error: 'Status must be PICKED, PENDING, or SKIPPED' });
+  if (typeof isPicked !== 'boolean') {
+    return res.status(400).json({ error: 'isPicked must be a boolean' });
   }
 
   const run = await ensureRun(req.auth.companyId, runId);
@@ -1070,8 +1069,8 @@ router.patch('/:runId/picks/status', async (req, res) => {
   }
 
   const updateData: Prisma.PickEntryUpdateManyMutationInput = {
-    status,
-    pickedAt: status === 'PICKED' ? new Date() : null
+    isPicked,
+    pickedAt: isPicked ? new Date() : null,
   };
 
   const updatedPickEntries = await prisma.pickEntry.updateMany({
@@ -1086,7 +1085,8 @@ router.patch('/:runId/picks/status', async (req, res) => {
     return res.status(404).json({ error: 'No pick entries were updated' });
   }
 
-  if (status === 'PICKED' && !run.pickingStartedAt) {
+  // If picks were marked as picked for the first time on this run, set pickingStartedAt
+  if (isPicked && !run.pickingStartedAt) {
     await prisma.run.update({
       where: { id: run.id },
       data: { 
@@ -1098,7 +1098,6 @@ router.patch('/:runId/picks/status', async (req, res) => {
 
   return res.json({
     updatedCount: updatedPickEntries.count,
-    status: status
   });
 });
 
@@ -1530,7 +1529,12 @@ type MachinePayload = {
 type PickItemPayload = {
   id: string;
   count: number;
-  status: RunItemStatusValue;
+  current: number | null;
+  par: number | null;
+  need: number | null;
+  forecast: number | null;
+  total: number | null;
+  isPicked: boolean;
   pickedAt: Date | null;
   coilItem: {
     id: string;
@@ -1571,7 +1575,12 @@ type RunDetailPayload = {
   pickEntries: Array<{
     id: string;
     count: number;
-    status: RunItemStatusValue;
+    current: number | null;
+    par: number | null;
+    need: number | null;
+    forecast: number | null;
+    total: number | null;
+    isPicked: boolean;
     pickedAt: Date | null;
     coilItem: {
       id: string;
@@ -1683,7 +1692,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       need: entry.need,
       forecast: entry.forecast,
       total: entry.total,
-      status: entry.status as RunItemStatusValue,
+      isPicked: !!entry.isPicked,
       pickedAt: entry.pickedAt,
       coilItem: {
         id: entry.coilItem.id,
@@ -1774,7 +1783,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
         need: entry.need,
         forecast: entry.forecast,
         total: entry.total,
-        status: entry.status as RunItemStatusValue,
+        isPicked: !!entry.isPicked,
         pickedAt: entry.pickedAt,
         coilItem: {
           id: entry.coilItem.id,

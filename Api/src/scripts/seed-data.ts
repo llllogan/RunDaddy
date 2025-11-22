@@ -1,7 +1,7 @@
 // taylor.kent+seed@rundaddy.test
 // SeedDataPass!123
 
-import { RunItemStatus, RunStatus, UserRole } from '@prisma/client';
+import { RunStatus, UserRole } from '@prisma/client';
 import type { Location, MachineType, SKU } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword } from '../lib/password.js';
@@ -900,7 +900,7 @@ async function ensurePickEntries(runId: string, coilItems: CoilItemSeedInfo[]) {
         need,
         forecast: total,
         total,
-        status: RunItemStatus.PENDING,
+        isPicked: false,
       };
     }),
   });
@@ -955,7 +955,7 @@ async function seedPickEntriesWithConfig(runId: string, entries: PickEntrySeed[]
         count: entry.need,
         forecast: total,
         total,
-        status: RunItemStatus.PENDING,
+        isPicked: false,
       };
     }),
   });

@@ -109,7 +109,7 @@ final class RunDetailViewModel: ObservableObject {
 
     var pendingUnassignedPickItems: [RunDetail.PickItem] {
         guard let detail else { return [] }
-        return detail.pickItems.filter { $0.status == "PENDING" && !$0.isInPackingSession }
+        return detail.pickItems.filter { !$0.isPicked && !$0.isInPackingSession }
     }
 
     init(runId: String, session: AuthSession, service: RunsServicing) {
@@ -378,7 +378,7 @@ final class RunDetailViewModel: ObservableObject {
             try await service.updatePickItemStatuses(
                 runId: targetRunId,
                 pickIds: pickedItems.map { $0.id },
-                status: "PENDING",
+                isPicked: false,
                 credentials: session.credentials
             )
             await load(force: true)

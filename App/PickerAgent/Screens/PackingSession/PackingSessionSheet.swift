@@ -199,7 +199,41 @@ struct PackingSessionSheet: View {
     @ViewBuilder
     private func content(for layout: PackingSessionInstructionLayout) -> some View {
         VStack(spacing: 16) {
-            if viewModel.isSessionComplete {
+            if viewModel.isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Loading packing session...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Theme.packingSessionBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.orange)
+                    Text("Error")
+                        .font(.headline.weight(.semibold))
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") {
+                        Task {
+                            await viewModel.loadAudioCommands()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Theme.packingSessionBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            } else if viewModel.isSessionComplete {
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 56))
@@ -249,40 +283,6 @@ struct PackingSessionSheet: View {
                         }
                     } : nil
                 )
-            } else if viewModel.isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text("Loading packing session...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Theme.packingSessionBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            } else if let errorMessage = viewModel.errorMessage {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.orange)
-                    Text("Error")
-                        .font(.headline.weight(.semibold))
-                    Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task {
-                            await viewModel.loadAudioCommands()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Theme.packingSessionBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

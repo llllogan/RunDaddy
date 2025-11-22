@@ -13,7 +13,7 @@ protocol RunsServicing {
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
-    func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws
+    func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
@@ -197,17 +197,13 @@ struct RunDetail: Equatable {
         let need: Int?
         let forecast: Int?
         let total: Int?
-        let status: String
+        let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
         let sku: Sku?
         let machine: Machine?
         let location: Location?
         let packingSessionId: String?
-
-        var isPicked: Bool {
-            status == "PICKED"
-        }
 
         var isInPackingSession: Bool {
             guard let packedId = packingSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
@@ -467,7 +463,7 @@ final class RunsService: RunsServicing {
         return payload.map { $0.toCompanyUser() }
     }
     
-    func updatePickItemStatuses(runId: String, pickIds: [String], status: String, credentials: AuthCredentials) async throws {
+    func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws {
         let normalizedPickIds = Array(Set(pickIds.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
         guard !normalizedPickIds.isEmpty else { return }
 
@@ -485,7 +481,7 @@ final class RunsService: RunsServicing {
 
         let body: [String: Any] = [
             "pickIds": normalizedPickIds,
-            "status": status
+            "isPicked": isPicked
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -1284,7 +1280,7 @@ private struct RunDetailResponse: Decodable {
         let need: Int?
         let forecast: Int?
         let total: Int?
-        let status: String
+        let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
         let coil: Coil
@@ -1303,7 +1299,7 @@ private struct RunDetailResponse: Decodable {
                 need: need,
                 forecast: forecast,
                 total: total,
-                status: status,
+                isPicked: isPicked,
                 pickedAt: pickedAt,
                 coilItem: coilItem.toCoilItem(with: coilDomain),
                 sku: sku?.toSku(),

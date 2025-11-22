@@ -14,12 +14,6 @@ enum RunStatus {
   READY
 }
 
-enum RunItemStatus {
-  PENDING
-  PICKED
-  SKIPPED
-}
-
 enum PackingSessionStatus {
   STARTED
   FINISHED
@@ -217,7 +211,7 @@ model PickEntry {
   need       Int?
   forecast   Int?
   total      Int?
-  status     RunItemStatus @default(PENDING)
+  isPicked   Boolean @default(false)
   pickedAt   DateTime?
 
   run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)

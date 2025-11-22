@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RunItemStatus, RunStatus, UserRole } from '../../types/enums.js';
+import { RunStatus, UserRole } from '../../types/enums.js';
 import { prisma } from '../../lib/prisma.js';
 
 export const createRunSchema = z.object({
@@ -15,7 +15,7 @@ export const updateRunSchema = createRunSchema.partial();
 export const createPickEntrySchema = z.object({
   coilItemId: z.string().cuid(),
   count: z.number().int().min(0),
-  status: z.nativeEnum(RunItemStatus).optional(),
+  isPicked: z.boolean().optional(),
   pickedAt: z.coerce.date().optional(),
 });
 
