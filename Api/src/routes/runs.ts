@@ -187,8 +187,17 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
       const assignmentResult = await tx.pickEntry.updateMany({
         where: {
           runId: run.id,
-          packingSessionId: null,
           isPicked: false,
+          OR: [
+            { packingSessionId: null },
+            {
+              packingSession: {
+                status: {
+                  in: [PrismaPackingSessionStatus.FINISHED, PrismaPackingSessionStatus.ABANDONED],
+                },
+              },
+            },
+          ],
         },
         data: {
           packingSessionId: session.id,
@@ -302,7 +311,6 @@ router.post('/:runId/packing-sessions/:packingSessionId/abandon', setLogConfig({
 
       const clearedPickEntries = await tx.pickEntry.updateMany({
         where: {
-          runId: run.id,
           packingSessionId: packingSessionId,
         },
         data: {
@@ -368,7 +376,6 @@ router.post('/:runId/packing-sessions/:packingSessionId/finish', setLogConfig({ 
 
       const clearedPickEntries = await tx.pickEntry.updateMany({
         where: {
-          runId: run.id,
           packingSessionId: packingSessionId,
         },
         data: {
@@ -390,7 +397,7 @@ router.post('/:runId/packing-sessions/:packingSessionId/finish', setLogConfig({ 
   }
 });
 
-router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/:runId/audio-commands', setLogConfig({ level: 'full' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
