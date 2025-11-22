@@ -18,6 +18,21 @@ struct RunDetailView: View {
     @State private var confirmingRunReset = false
     @State private var locationPendingDeletion: RunLocationSection?
     @State private var deletingLocationIDs: Set<String> = []
+    
+    // Check if run is 100% complete
+    private var isRunComplete: Bool {
+        guard let detail = viewModel.detail else { return false }
+        let totalCoils = detail.pickItems.count
+        guard totalCoils > 0 else { return false }
+        
+        let packedCoils = detail.pickItems.reduce(into: 0) { partialResult, item in
+            if item.isPicked {
+                partialResult += 1
+            }
+        }
+        
+        return packedCoils >= totalCoils
+    }
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
@@ -82,10 +97,20 @@ struct RunDetailView: View {
         .task {
             await viewModel.load()
             await viewModel.loadActivePackingSession()
+            
+            // Check if run is 100% complete and update status to READY
+            if isRunComplete && viewModel.detail?.status != "READY" {
+                await viewModel.updateRunStatus(to: "READY")
+            }
         }
         .refreshable {
             await viewModel.load(force: true)
             await viewModel.loadActivePackingSession()
+            
+            // Check if run is 100% complete and update status to READY
+            if isRunComplete && viewModel.detail?.status != "READY" {
+                await viewModel.updateRunStatus(to: "READY")
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -138,6 +163,22 @@ struct RunDetailView: View {
             
             ToolbarItem(placement: .bottomBar) {
                 let hasActiveSession = viewModel.activePackingSessionId != nil
+                
+                // Check if run is 100% complete
+                let isRunComplete = {
+                    guard let detail = viewModel.detail else { return false }
+                    let totalCoils = detail.pickItems.count
+                    guard totalCoils > 0 else { return false }
+                    
+                    let packedCoils = detail.pickItems.reduce(into: 0) { partialResult, item in
+                        if item.isPicked {
+                            partialResult += 1
+                        }
+                    }
+                    
+                    return packedCoils >= totalCoils
+                }()
+                
                 Button(hasActiveSession ? "Resume Packing" : "Start Packing", systemImage: hasActiveSession ? "playpause" : "play") {
                     Task {
                         if let activeId = viewModel.activePackingSessionId {
@@ -151,7 +192,7 @@ struct RunDetailView: View {
                 .labelStyle(.titleOnly)
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                .disabled(isCreatingPackingSession)
+                .disabled(isCreatingPackingSession || isRunComplete)
                 .fullScreenCover(isPresented: $showingPackingSession, onDismiss: {
                     packingSessionId = nil
                     Task {
@@ -259,6 +300,12 @@ private extension RunDetailView {
         guard !isCreatingPackingSession else { return }
         isCreatingPackingSession = true
         defer { isCreatingPackingSession = false }
+
+        // Check if run is already 100% complete
+        if isRunComplete {
+            viewModel.errorMessage = "This run is already complete and cannot start a new packing session."
+            return
+        }
 
         guard !viewModel.pendingUnassignedPickItems.isEmpty else {
             viewModel.errorMessage = "No pending pick entries are available to start a packing session."

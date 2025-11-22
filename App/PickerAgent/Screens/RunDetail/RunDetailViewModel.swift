@@ -256,6 +256,20 @@ final class RunDetailViewModel: ObservableObject {
     var pendingPickItems: [RunDetail.PickItem] {
         detail?.pendingPickItems ?? []
     }
+    
+    var isRunComplete: Bool {
+        guard let detail = detail else { return false }
+        let totalCoils = detail.pickItems.count
+        guard totalCoils > 0 else { return false }
+        
+        let packedCoils = detail.pickItems.reduce(into: 0) { partialResult, item in
+            if item.isPicked {
+                partialResult += 1
+            }
+        }
+        
+        return packedCoils >= totalCoils
+    }
 
     func locationDetail(for sectionID: String) -> RunLocationDetail? {
         guard let context = locationContextsByID[sectionID] else {
@@ -397,7 +411,7 @@ final class RunDetailViewModel: ObservableObject {
         }
     }
     
-  func updateRunStatus(to status: String) async {
+    func updateRunStatus(to status: String) async {
         guard let runId = detail?.id else { return }
         isLoading = true
         errorMessage = nil
@@ -417,6 +431,24 @@ final class RunDetailViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+    
+    func updateRunStatusToReadyIfComplete() async {
+        guard let runId = detail?.id else { return }
+        
+        // Check if run is 100% complete
+        let totalCoils = detail?.pickItems.count ?? 0
+        guard totalCoils > 0 else { return }
+        
+        let packedCoils = detail?.pickItems.reduce(into: 0) { partialResult, item in
+            if item.isPicked {
+                partialResult += 1
+            }
+        } ?? 0
+        
+        if packedCoils >= totalCoils && detail?.status != "READY" {
+            await updateRunStatus(to: "READY")
+        }
     }
 
     func saveLocationOrder(with orderedLocationIds: [String?]) async throws {

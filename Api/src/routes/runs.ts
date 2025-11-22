@@ -1543,6 +1543,7 @@ type PickItemPayload = {
   total: number | null;
   isPicked: boolean;
   pickedAt: Date | null;
+  packingSessionId: string | null;
   coilItem: {
     id: string;
     par: number;
@@ -1701,6 +1702,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       total: entry.total,
       isPicked: !!entry.isPicked,
       pickedAt: entry.pickedAt,
+      packingSessionId: entry.packingSessionId,
       coilItem: {
         id: entry.coilItem.id,
         par: entry.coilItem.par,
@@ -1717,7 +1719,6 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             name: entry.coilItem.sku.name,
             type: entry.coilItem.sku.type,
             isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
-            countNeededPointer: (entry.coilItem.sku as any).countNeededPointer,
           }
         : null,
       machine: serializedMachine,
@@ -1792,6 +1793,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
         total: entry.total,
         isPicked: !!entry.isPicked,
         pickedAt: entry.pickedAt,
+        packingSessionId: entry.packingSessionId,
         coilItem: {
           id: entry.coilItem.id,
           par: entry.coilItem.par,
