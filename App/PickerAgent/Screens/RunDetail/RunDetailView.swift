@@ -366,7 +366,7 @@ private extension RunDetailView {
             Button(role: .destructive) {
                 locationPendingDeletion = section
             } label: {
-                Label("Delete Picks", systemImage: "trash")
+                Label("Delete Location", systemImage: "trash")
             }
             .disabled(isDeleting || pickCount == 0)
         }

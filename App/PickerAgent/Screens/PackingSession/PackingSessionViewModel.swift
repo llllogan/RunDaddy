@@ -752,8 +752,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
                 isCheeseAndCrackers: newCheeseStatus,
                 credentials: session.credentials
             )
-            // Reload audio commands to reflect the change
-            await loadAudioCommands()
+            await refreshRunDetail()
         } catch {
             print("Failed to update SKU cheese status: \(error)")
         }
