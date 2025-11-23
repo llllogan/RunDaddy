@@ -31,6 +31,7 @@ struct DashboardView: View {
     @State private var isLoadingSuggestions = false
     @State private var suggestionsErrorMessage: String?
     @State private var searchDisplayState: SearchDisplayState = .dashboard
+    @State private var notifications: [InAppNotification] = []
     private let searchService = SearchService()
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var skuMomentumNavigationTarget: DashboardMomentumSkuNavigation?
@@ -212,6 +213,24 @@ struct DashboardView: View {
         .onDisappear {
             searchDebounceTask?.cancel()
         }
+        .onChange(of: viewModel.errorMessage) { _ in
+            refreshNotifications()
+        }
+        .onChange(of: momentumViewModel.errorMessage) { _ in
+            refreshNotifications()
+        }
+        .onChange(of: suggestionsErrorMessage) { _ in
+            refreshNotifications()
+        }
+        .onAppear {
+            refreshNotifications()
+        }
+        .inAppNotifications(notifications) { notification in
+            if notification.isDismissable && notification.message == suggestionsErrorMessage {
+                suggestionsErrorMessage = nil
+            }
+            notifications.removeAll(where: { $0.id == notification.id })
+        }
     }
 
     @ViewBuilder
@@ -242,8 +261,8 @@ struct DashboardView: View {
                     Text("Loading suggestions…")
                         .foregroundStyle(.secondary)
                 }
-            } else if let message = suggestionsErrorMessage {
-                Text(message)
+            } else if suggestionsErrorMessage != nil {
+                Text("Suggestions are unavailable right now.")
                     .foregroundStyle(.secondary)
             } else if suggestions.isEmpty {
                 Text("No suggestions are available yet.")
@@ -263,12 +282,6 @@ struct DashboardView: View {
 
     @ViewBuilder
     private func dashboardSections() -> some View {
-        if let message = viewModel.errorMessage {
-            Section {
-                ErrorStateRow(message: message)
-            }
-        }
-
         if !viewModel.todayRuns.isEmpty
             || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
         {
@@ -366,8 +379,8 @@ struct DashboardView: View {
                         .listRowBackground(Color.clear)
                 } else if momentumViewModel.isLoading {
                     LoadingStateRow()
-                } else if let message = momentumViewModel.errorMessage {
-                    ErrorStateRow(message: message)
+                } else if momentumViewModel.errorMessage != nil {
+                    EmptyStateRow(message: "Insights are unavailable right now.")
                 } else {
                     EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
                 }
@@ -396,6 +409,41 @@ struct DashboardView: View {
 
     private func handleAnalyticsTap() {
         analyticsNavigationTarget = DashboardMomentumAnalyticsNavigation()
+    }
+
+    private func refreshNotifications() {
+        var items: [InAppNotification] = []
+
+        if let message = viewModel.errorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .error,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = momentumViewModel.errorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .warning,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = suggestionsErrorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .info
+                )
+            )
+        }
+
+        notifications = items
     }
 
     private func resetSearchState() {

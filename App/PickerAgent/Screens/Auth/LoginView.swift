@@ -16,6 +16,7 @@ struct LoginView: View {
     @State private var phone = ""
     @State private var isShowingSignup = false
     @FocusState private var focusedField: Field?
+    @State private var notifications: [InAppNotification] = []
 
     private enum Field {
         case email
@@ -62,40 +63,25 @@ struct LoginView: View {
                 }
             }
         }
+        .onAppear {
+            refreshNotifications()
+        }
+        .onChange(of: authViewModel.phase) { _ in
+            refreshNotifications()
+        }
+        .onChange(of: authViewModel.errorMessage) { _ in
+            refreshNotifications()
+        }
+        .inAppNotifications(notifications) { notification in
+            notifications.removeAll(where: { $0.id == notification.id })
+            if authViewModel.errorMessage == notification.message {
+                authViewModel.errorMessage = nil
+            }
+        }
     }
 
     private var scrollableContent: some View {
         VStack(spacing: 24) {
-            // Status message
-            if case let .login(message) = authViewModel.phase, let message {
-                HStack {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundStyle(.blue)
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            // Error message
-            if let errorMessage = authViewModel.errorMessage {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.red)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.red.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
             // Input fields
             VStack(spacing: 16) {
                 if isShowingSignup {
@@ -313,6 +299,31 @@ extension LoginView {
         firstName = ""
         lastName = ""
         phone = ""
+    }
+
+    private func refreshNotifications() {
+        var items: [InAppNotification] = []
+
+        if case let .login(message) = authViewModel.phase, let message {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .info,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let errorMessage = authViewModel.errorMessage {
+            items.append(
+                InAppNotification(
+                    message: errorMessage,
+                    style: .error
+                )
+            )
+        }
+
+        notifications = items
     }
 }
 
