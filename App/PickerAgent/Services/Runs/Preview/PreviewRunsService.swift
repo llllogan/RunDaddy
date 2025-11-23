@@ -44,9 +44,9 @@ struct PreviewRunsService: RunsServicing {
         let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
         let coilItemC = RunDetail.CoilItem(id: "coil-item-3", par: 12, coil: coilC)
 
-        let skuSnack = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false, countNeededPointer: "total")
-        let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", isCheeseAndCrackers: false, countNeededPointer: "par")
-        let skuCheese = RunDetail.Sku(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Snack", isCheeseAndCrackers: true, countNeededPointer: "current")
+        let skuSnack = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", category: "Snacks", isCheeseAndCrackers: false, countNeededPointer: "total")
+        let skuDrink = RunDetail.Sku(id: "sku-2", code: "SKU-002", name: "Sparkling Water", type: "Beverage", category: "Drinks", isCheeseAndCrackers: false, countNeededPointer: "par")
+        let skuCheese = RunDetail.Sku(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Snack", category: "Snacks", isCheeseAndCrackers: true, countNeededPointer: "current")
 
         let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
         let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
@@ -152,7 +152,7 @@ struct PreviewRunsService: RunsServicing {
         // Preview does nothing
     }
     
-    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession {
+    func createPackingSession(for runId: String, categories: [String?]?, credentials: AuthCredentials) async throws -> PackingSession {
         return PackingSession(
             id: "preview-packing-session",
             runId: runId,

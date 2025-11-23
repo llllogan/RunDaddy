@@ -61,6 +61,10 @@ const updateLocationOrderSchema = z.object({
     .min(1, 'At least one location is required to save an order.'),
 });
 
+const startPackingSessionSchema = z.object({
+  categories: z.array(z.string().trim().min(1).nullable()).optional(),
+});
+
 router.use(authenticate);
 
 // Lists runs for the current company, optionally filtered by status.
@@ -175,6 +179,24 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
     return res.status(403).json({ error: 'Membership required to start a packing session' });
   }
 
+  const parsedBody = startPackingSessionSchema.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsedBody.error.flatten() });
+  }
+
+  const normalizedCategories =
+    parsedBody.data.categories?.reduce<Array<string | null>>((acc, category) => {
+      const trimmed = category?.trim() ?? '';
+      const value = trimmed.length ? trimmed : null;
+      if (!acc.includes(value)) {
+        acc.push(value);
+      }
+      return acc;
+    }, []) ?? null;
+
+  const includeUncategorized = normalizedCategories?.includes(null) ?? false;
+  const categoryValues = normalizedCategories?.filter((value): value is string => Boolean(value)) ?? [];
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const session = await tx.packingSession.create({
@@ -184,21 +206,50 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
         },
       });
 
-      const assignmentResult = await tx.pickEntry.updateMany({
-        where: {
-          runId: run.id,
-          isPicked: false,
-          OR: [
-            { packingSessionId: null },
-            {
-              packingSession: {
-                status: {
-                  in: [PrismaPackingSessionStatus.FINISHED, PrismaPackingSessionStatus.ABANDONED],
-                },
+      const baseWhere: Prisma.PickEntryWhereInput = {
+        runId: run.id,
+        isPicked: false,
+        OR: [
+          { packingSessionId: null },
+          {
+            packingSession: {
+              status: {
+                in: [PrismaPackingSessionStatus.FINISHED, PrismaPackingSessionStatus.ABANDONED],
               },
             },
-          ],
-        },
+          },
+        ],
+      };
+
+      const categoryFilters: Prisma.PickEntryWhereInput[] = [];
+      if (categoryValues.length > 0) {
+        categoryFilters.push({
+          coilItem: {
+            sku: {
+              category: {
+                in: categoryValues,
+              },
+            },
+          },
+        });
+      }
+
+      if (includeUncategorized) {
+        categoryFilters.push({
+          coilItem: {
+            sku: {
+              category: null,
+            },
+          },
+        });
+      }
+
+      if (categoryFilters.length > 0) {
+        baseWhere.AND = [...(baseWhere.AND ?? []), { OR: categoryFilters }];
+      }
+
+      const assignmentResult = await tx.pickEntry.updateMany({
+        where: baseWhere,
         data: {
           packingSessionId: session.id,
         },
@@ -1558,6 +1609,7 @@ type PickItemPayload = {
     code: string;
     name: string;
     type: string;
+    category: string | null;
     isCheeseAndCrackers: boolean;
   };
   machine: MachinePayload | null;
@@ -1718,6 +1770,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             code: entry.coilItem.sku.code,
             name: entry.coilItem.sku.name,
             type: entry.coilItem.sku.type,
+            category: entry.coilItem.sku.category,
             isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
           }
         : null,

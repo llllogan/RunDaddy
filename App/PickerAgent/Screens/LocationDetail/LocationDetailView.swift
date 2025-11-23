@@ -683,7 +683,7 @@ private extension PickEntryRow {
     let coilItemA = RunDetail.CoilItem(id: "coil-item-1", par: 12, coil: coilA)
     let coilItemB = RunDetail.CoilItem(id: "coil-item-2", par: 8, coil: coilB)
 
-    let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", isCheeseAndCrackers: false, countNeededPointer: "total")
+    let sku = RunDetail.Sku(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Snack", category: "Snacks", isCheeseAndCrackers: false, countNeededPointer: "total")
 
     let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
     let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)

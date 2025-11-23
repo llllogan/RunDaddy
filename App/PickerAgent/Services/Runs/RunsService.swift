@@ -24,7 +24,7 @@ protocol RunsServicing {
     func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
-    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession
+    func createPackingSession(for runId: String, categories: [String?]?, credentials: AuthCredentials) async throws -> PackingSession
     func fetchActivePackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession?
     func abandonPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> AbandonedPackingSession
     func finishPackingSession(runId: String, packingSessionId: String, credentials: AuthCredentials) async throws -> FinishedPackingSession
@@ -173,6 +173,7 @@ struct RunDetail: Equatable {
         let code: String
         let name: String
         let type: String
+        let category: String?
         let isCheeseAndCrackers: Bool
         let countNeededPointer: String?
     }
@@ -267,6 +268,10 @@ struct PackingSession: Equatable, Decodable {
     let finishedAt: Date?
     let status: String
     let assignedPickEntries: Int?
+}
+
+private struct PackingSessionStartRequest: Encodable {
+    let categories: [String?]?
 }
 
 struct AbandonedPackingSession: Equatable, Decodable {
@@ -843,7 +848,7 @@ final class RunsService: RunsServicing {
         }
     }
     
-    func createPackingSession(for runId: String, credentials: AuthCredentials) async throws -> PackingSession {
+    func createPackingSession(for runId: String, categories: [String?]?, credentials: AuthCredentials) async throws -> PackingSession {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("runs")
         url.appendPathComponent(runId)
@@ -853,6 +858,11 @@ final class RunsService: RunsServicing {
         request.httpMethod = "POST"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        if categories != nil {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let payload = PackingSessionStartRequest(categories: categories)
+            request.httpBody = try JSONEncoder().encode(payload)
+        }
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -1245,11 +1255,20 @@ private struct RunDetailResponse: Decodable {
         let code: String
         let name: String
         let type: String
+        let category: String?
         let isCheeseAndCrackers: Bool
         let countNeededPointer: String?
 
         func toSku() -> RunDetail.Sku {
-            RunDetail.Sku(id: id, code: code, name: name, type: type, isCheeseAndCrackers: isCheeseAndCrackers, countNeededPointer: countNeededPointer)
+            RunDetail.Sku(
+                id: id,
+                code: code,
+                name: name,
+                type: type,
+                category: category,
+                isCheeseAndCrackers: isCheeseAndCrackers,
+                countNeededPointer: countNeededPointer
+            )
         }
     }
 

@@ -212,8 +212,8 @@ final class RunDetailViewModel: ObservableObject {
         }
     }
     
-    func startPackingSession() async throws -> PackingSession {
-        let session = try await service.createPackingSession(for: runId, credentials: session.credentials)
+    func startPackingSession(categories: [String?]?) async throws -> PackingSession {
+        let session = try await service.createPackingSession(for: runId, categories: categories, credentials: session.credentials)
         activePackingSessionId = session.id
         return session
     }

@@ -12,6 +12,8 @@ struct RunDetailView: View {
     @State private var showingPackingSession = false
     @State private var packingSessionId: String?
     @State private var isCreatingPackingSession = false
+    @State private var showingCategorySheet = false
+    @State private var selectedCategoryIds: Set<String> = []
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
     @State private var isResettingRunPickStatuses = false
@@ -113,7 +115,7 @@ struct RunDetailView: View {
             }
         }
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 if isResettingRunPickStatuses {
                     ProgressView()
                         .progressViewStyle(.circular)
@@ -180,13 +182,12 @@ struct RunDetailView: View {
                 }()
                 
                 Button(hasActiveSession ? "Resume Packing" : "Start Packing", systemImage: hasActiveSession ? "playpause" : "play") {
-                    Task {
-                        if let activeId = viewModel.activePackingSessionId {
-                            packingSessionId = activeId
-                            showingPackingSession = true
-                        } else {
-                            await startPackingSession()
-                        }
+                    if let activeId = viewModel.activePackingSessionId {
+                        packingSessionId = activeId
+                        showingPackingSession = true
+                    } else {
+                        selectedCategoryIds = Set(categoryOptions.map(\.id))
+                        showingCategorySheet = true
                     }
                 }
                 .labelStyle(.titleOnly)
@@ -219,6 +220,25 @@ struct RunDetailView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingCategorySheet) {
+            PackingCategorySelectionSheet(
+                categories: categoryOptions,
+                selectedCategoryIds: $selectedCategoryIds,
+                isStarting: isCreatingPackingSession,
+                onCancel: {
+                    showingCategorySheet = false
+                },
+                onStart: {
+                    Task {
+                        let payload = payloadCategories(from: selectedCategoryIds)
+                        await startPackingSession(selectedCategories: payload)
+                    }
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+            .interactiveDismissDisabled(isCreatingPackingSession)
         }
         .sheet(isPresented: $showingLocationOrderSheet) {
             ReorderLocationsSheet(
@@ -259,12 +279,114 @@ private extension RunDetailView {
     var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
+    
+    var categoryOptions: [SkuCategoryOption] {
+        var options: [SkuCategoryOption] = []
+        var seen = Set<String>()
+        let pendingItems = viewModel.pendingUnassignedPickItems
+        
+        guard !pendingItems.isEmpty else { return [] }
+        
+        for pickItem in pendingItems {
+            let rawCategory = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedCategory = (rawCategory?.isEmpty ?? true) ? nil : rawCategory
+            let key = normalizedCategory?.lowercased() ?? uncategorizedCategoryKey
+            
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            
+            let label = normalizedCategory ?? "Uncategorized"
+            options.append(SkuCategoryOption(id: key, value: normalizedCategory, label: label))
+        }
+        
+        return options.sorted { first, second in
+            first.label.localizedCaseInsensitiveCompare(second.label) == .orderedAscending
+        }
+    }
+    
+    var uncategorizedCategoryKey: String {
+        "_uncategorized_category"
+    }
 
     var canResetRunPickStatuses: Bool {
         guard let pickItems = viewModel.detail?.pickItems else {
             return false
         }
         return pickItems.contains(where: { $0.isPicked })
+    }
+    
+    func payloadCategories(from selection: Set<String>) -> [String?]? {
+        guard !selection.isEmpty else { return nil }
+        
+        let lookup = Dictionary(uniqueKeysWithValues: categoryOptions.map { ($0.id, $0.value) })
+        var includeUncategorized = false
+        var normalized = Set<String>()
+        
+        selection.forEach { id in
+            if id == uncategorizedCategoryKey {
+                includeUncategorized = true
+                return
+            }
+            guard let rawValue = lookup[id] else { return }
+            let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty {
+                normalized.insert(trimmed)
+            } else {
+                includeUncategorized = true
+            }
+        }
+        
+        var payload = normalized.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }.map { Optional($0) }
+        if includeUncategorized {
+            payload.append(nil)
+        }
+        return payload
+    }
+    
+    func pendingItems(for categories: [String?]?) -> [RunDetail.PickItem] {
+        let categoryKeys = normalizedCategoryKeys(from: categories)
+        guard !categoryKeys.isEmpty else {
+            return viewModel.pendingUnassignedPickItems
+        }
+        
+        return viewModel.pendingUnassignedPickItems.filter { item in
+            let key = normalizedCategoryKey(for: item.sku?.category)
+            return categoryKeys.contains(key)
+        }
+    }
+    
+    private func normalizedCategoryKeys(from categories: [String?]?) -> Set<String> {
+        guard let categories, !categories.isEmpty else { return [] }
+
+        return Set(categories.map { normalizedCategoryKey(for: $0) })
+    }
+    
+    private func normalizedCategoryKey(for category: String?) -> String {
+        let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return uncategorizedCategoryKey }
+        return trimmed.lowercased()
+    }
+    
+    func normalizedCategoriesPayload(from categories: [String?]?) -> [String?]? {
+        guard let categories, !categories.isEmpty else { return nil }
+        
+        var includeUncategorized = false
+        var normalized = Set<String>()
+        
+        categories.forEach { category in
+            let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty {
+                normalized.insert(trimmed)
+            } else {
+                includeUncategorized = true
+            }
+        }
+        
+        var payload = normalized.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }.map { Optional($0) }
+        if includeUncategorized {
+            payload.append(nil)
+        }
+        return payload
     }
 
     var locationMenuOptions: [LocationMenuOption] {
@@ -296,7 +418,7 @@ private extension RunDetailView {
     }
     
     @MainActor
-    func startPackingSession() async {
+    func startPackingSession(selectedCategories: [String?]? = nil) async {
         guard !isCreatingPackingSession else { return }
         isCreatingPackingSession = true
         defer { isCreatingPackingSession = false }
@@ -307,14 +429,23 @@ private extension RunDetailView {
             return
         }
 
-        guard !viewModel.pendingUnassignedPickItems.isEmpty else {
-            viewModel.errorMessage = "No pending pick entries are available to start a packing session."
+        let normalizedCategories = normalizedCategoriesPayload(from: selectedCategories)
+        let pendingItems = pendingItems(for: normalizedCategories)
+        
+        guard !pendingItems.isEmpty else {
+            if normalizedCategories == nil {
+                viewModel.errorMessage = "No pending pick entries are available to start a packing session."
+                return
+            }
+            
+            viewModel.errorMessage = "No pending pick entries are available in the selected categories."
             return
         }
 
         do {
-            let packingSession = try await viewModel.startPackingSession()
+            let packingSession = try await viewModel.startPackingSession(categories: normalizedCategories)
             packingSessionId = packingSession.id
+            showingCategorySheet = false
             showingPackingSession = true
         } catch {
             if let authError = error as? AuthError {
@@ -420,6 +551,12 @@ private extension RunDetailView {
     }
 }
 
+private struct SkuCategoryOption: Identifiable, Hashable {
+    let id: String
+    let value: String?
+    let label: String
+}
+
 private struct LocationMenuOption: Identifiable, Equatable {
     let id: String
     let title: String
@@ -502,6 +639,99 @@ private struct ErrorRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct PackingCategorySelectionSheet: View {
+    let categories: [SkuCategoryOption]
+    @Binding var selectedCategoryIds: Set<String>
+    let isStarting: Bool
+    let onCancel: () -> Void
+    let onStart: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if categories.isEmpty {
+                        Text("No SKU categories found for this run.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        ForEach(categories) { category in
+                            CategorySelectionRow(
+                                category: category,
+                                isSelected: selectedCategoryIds.contains(category.id),
+                                onToggle: {
+                                    toggle(category)
+                                }
+                            )
+                        }
+                    }
+                } header: {
+                    Text("Choose Categories")
+                } footer: {
+                    Text("Only picks in the selected categories will be added to this packing session.")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Start Packing")
+            .navigationBarTitleDisplayMode(.inline)
+            .disabled(isStarting)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                    .disabled(isStarting)
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Start") {
+                        onStart()
+                    }
+                    .disabled(isStarting || (!categories.isEmpty && selectedCategoryIds.isEmpty))
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+    }
+    
+    private func toggle(_ category: SkuCategoryOption) {
+        if selectedCategoryIds.contains(category.id) {
+            selectedCategoryIds.remove(category.id)
+        } else {
+            selectedCategoryIds.insert(category.id)
+        }
+    }
+}
+
+private struct CategorySelectionRow: View {
+    let category: SkuCategoryOption
+    let isSelected: Bool
+    let onToggle: () -> Void
+    
+    var body: some View {
+        Button(action: onToggle) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(category.label)
+                        .font(.headline)
+                        .foregroundStyle(Color(.label))
+                    
+                    Text("Include this category")
+                        .font(.caption)
+                        .foregroundStyle(Color(.secondaryLabel))
+                }
+                
+                Spacer()
+                
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .green : .secondary)
+                    .font(.title2)
+            }
+        }
     }
 }
 
