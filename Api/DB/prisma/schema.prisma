@@ -74,12 +74,16 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   timeZone  String?
+  tierId    String
 
   memberships    Membership[]
   runs           Run[]
   locations      Location[]
   machines       Machine[]
   inviteCodes    InviteCode[]
+  tier           TierConsts @relation(fields: [tierId], references: [id], onDelete: Restrict)
+
+  @@index([tierId])
 }
 
 model MachineType {
@@ -298,4 +302,6 @@ model TierConsts {
   maxAdmins       Int
   maxPickers      Int
   canBreakDownRun Boolean @default(false)
+
+  companies Company[]
 }

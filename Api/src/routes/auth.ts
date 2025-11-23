@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
+import { DEFAULT_COMPANY_TIER_ID } from '../config/tiers.js';
 import {
   registerSchema,
   signupSchema,
@@ -105,7 +106,9 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
 
   const passwordHash = await hashPassword(userPassword);
 
-  const company = await prisma.company.create({ data: { name: companyName } });
+  const company = await prisma.company.create({
+    data: { name: companyName, tierId: DEFAULT_COMPANY_TIER_ID },
+  });
   const user = await prisma.user.create({
     data: {
       email: userEmail,

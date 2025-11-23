@@ -1,5 +1,31 @@
-// taylor.kent+seed@rundaddy.test
-// SeedDataPass!123
+/*
+Seed Overview
+
+Companies
++-------------------------------+---------------+--------------------------------------+---------------------+
+| Company                       | Tier          | Owner Email                          | Time Zone           |
++-------------------------------+---------------+--------------------------------------+---------------------+
+| Apple                         | Enterprise 10 | appstore-testing@apple.com           | America/Los_Angeles |
+| Metro Snacks Co.              | Business      | taylor.kent+seed@rundaddy.test       | America/Los_Angeles |
+| River City Logistics          | Business      | jordan.blake+seed@rundaddy.test      | America/Denver      |
+| Pulse Logistics Collective    | Individual    | morgan.hart+seed@rundaddy.test       | America/Chicago     |
+| Picker Agent Admin            | Enterprise 10 | admin@pickeragent.app                | UTC                 |
++-------------------------------+---------------+--------------------------------------+---------------------+
+
+Users
++----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
+| Name                       | Email                             | Password               | Memberships                                               |
++----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
+| App Store Testing Account  | appstore-testing@apple.com        | AppleTestingOnly!123*  | Apple (OWNER)                                             |
+| Taylor Kent                | taylor.kent+seed@rundaddy.test    | SeedDataPass!123*      | Metro Snacks Co. (OWNER); River City Logistics (PICKER)   |
+| Jordan Blake               | jordan.blake+seed@rundaddy.test   | SeedDataPass!123*      | River City Logistics (OWNER)                              |
+| Morgan Hart                | morgan.hart+seed@rundaddy.test    | SeedDataPass!123*      | Pulse Logistics Collective (OWNER)                        |
+| Casey Nguyen               | casey.nguyen+seed@rundaddy.test   | SeedDataPass!123*      | None                                                      |
+| Skyler Lopez               | skyler.lopez+seed@rundaddy.test   | SeedDataPass!123*      | None                                                      |
+| Platform Admin             | admin@pickeragent.app             | AdminPortalPass!123*   | Picker Agent Admin (GOD)                                  |
++----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
+* Passwords overrideable via APP_STORE_TEST_PASSWORD, SEED_USER_PASSWORD, or PLATFORM_ADMIN_PASSWORD.
+*/
 
 import { RunStatus, UserRole } from '@prisma/client';
 import type { Location, MachineType, SKU } from '@prisma/client';
@@ -15,10 +41,13 @@ import {
   PLATFORM_ADMIN_TIME_ZONE,
   PLATFORM_ADMIN_PASSWORD,
 } from '../config/platform-admin.js';
+import { TIER_IDS, TIER_SEED_DATA } from '../config/tiers.js';
 
 const APP_STORE_COMPANY_NAME = 'Apple';
 const APP_STORE_TEST_EMAIL = process.env.APP_STORE_TEST_EMAIL ?? 'appstore-testing@apple.com';
 const APP_STORE_TEST_PASSWORD = process.env.APP_STORE_TEST_PASSWORD ?? 'AppleTestingOnly!123';
+const APP_STORE_TIME_ZONE = 'America/Los_Angeles';
+const APP_STORE_TIER_ID = TIER_IDS.ENTERPRISE_10;
 const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!123';
 const MIN_RUN_LOCATIONS = 4;
 
@@ -69,6 +98,7 @@ type LocationSeedResult = {
 type CompanySeedConfig = {
   name: string;
   timeZone: string;
+  tierId: string;
   owner: {
     firstName: string;
     lastName: string;
@@ -189,6 +219,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   {
     name: 'Metro Snacks Co.',
     timeZone: 'America/Los_Angeles',
+    tierId: TIER_IDS.BUSINESS,
     owner: {
       firstName: 'Taylor',
       lastName: 'Kent',
@@ -305,6 +336,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   {
     name: 'River City Logistics',
     timeZone: 'America/Denver',
+    tierId: TIER_IDS.BUSINESS,
     owner: {
       firstName: 'Jordan',
       lastName: 'Blake',
@@ -423,6 +455,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
 const TREND_SCENARIO_COMPANY = {
   name: 'Pulse Logistics Collective',
   timeZone: 'America/Chicago',
+  tierId: TIER_IDS.INDIVIDUAL,
   owner: {
     firstName: 'Morgan',
     lastName: 'Hart',
@@ -571,6 +604,30 @@ async function seedSkus() {
   }
 }
 
+async function seedTierConsts() {
+  console.log('Seeding tier constraints...');
+  for (const tier of TIER_SEED_DATA) {
+    await prisma.tierConsts.upsert({
+      where: { id: tier.id },
+      update: {
+        name: tier.name,
+        maxOwners: tier.maxOwners,
+        maxAdmins: tier.maxAdmins,
+        maxPickers: tier.maxPickers,
+        canBreakDownRun: tier.canBreakDownRun,
+      },
+      create: {
+        id: tier.id,
+        name: tier.name,
+        maxOwners: tier.maxOwners,
+        maxAdmins: tier.maxAdmins,
+        maxPickers: tier.maxPickers,
+        canBreakDownRun: tier.canBreakDownRun,
+      },
+    });
+  }
+}
+
 async function getSkuByCode(code: string) {
   const cached = skuCache.get(code);
   if (cached) {
@@ -597,20 +654,31 @@ async function hashUserPassword(password: string) {
   return hashPassword(password);
 }
 
-async function ensureCompany(name: string, timeZone?: string | null) {
+async function ensureCompany(name: string, tierId: string, timeZone?: string | null) {
   const existing = await prisma.company.findFirst({ where: { name } });
   if (existing) {
-    if (timeZone && existing.timeZone !== timeZone) {
+    const data: { timeZone?: string | null; tierId?: string } = {};
+
+    if (timeZone !== undefined && existing.timeZone !== timeZone) {
+      data.timeZone = toNullable(timeZone);
+    }
+
+    if (existing.tierId !== tierId) {
+      data.tierId = tierId;
+    }
+
+    if (Object.keys(data).length > 0) {
       return prisma.company.update({
         where: { id: existing.id },
-        data: { timeZone: toNullable(timeZone) },
+        data,
       });
     }
+
     return existing;
   }
 
   return prisma.company.create({
-    data: { name, timeZone: toNullable(timeZone) },
+    data: { name, tierId, timeZone: toNullable(timeZone) },
   });
 }
 
@@ -963,7 +1031,7 @@ async function seedPickEntriesWithConfig(runId: string, entries: PickEntrySeed[]
 
 async function seedAppleTesting() {
   console.log('Creating Apple testing workspace...');
-  const company = await ensureCompany(APP_STORE_COMPANY_NAME);
+  const company = await ensureCompany(APP_STORE_COMPANY_NAME, APP_STORE_TIER_ID, APP_STORE_TIME_ZONE);
 
   const user = await upsertUser({
     email: APP_STORE_TEST_EMAIL,
@@ -1008,7 +1076,7 @@ async function seedCompanyData() {
   const seeded = [];
 
   for (const config of COMPANY_SEED_CONFIG) {
-    const company = await ensureCompany(config.name, config.timeZone);
+    const company = await ensureCompany(config.name, config.tierId, config.timeZone);
     const owner = await upsertUser({
       email: config.owner.email,
       firstName: config.owner.firstName,
@@ -1085,7 +1153,11 @@ function toPickEntrySeeds(
 
 async function seedTrendScenarioCompany() {
   console.log('Creating trend comparison company...');
-  const company = await ensureCompany(TREND_SCENARIO_COMPANY.name, TREND_SCENARIO_COMPANY.timeZone);
+  const company = await ensureCompany(
+    TREND_SCENARIO_COMPANY.name,
+    TREND_SCENARIO_COMPANY.tierId,
+    TREND_SCENARIO_COMPANY.timeZone,
+  );
   const owner = await upsertUser({
     email: TREND_SCENARIO_COMPANY.owner.email,
     firstName: TREND_SCENARIO_COMPANY.owner.firstName,
@@ -1146,11 +1218,13 @@ async function seedPlatformAdminWorkspace() {
     update: {
       name: PLATFORM_ADMIN_COMPANY_NAME,
       timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
+      tierId: TIER_IDS.ENTERPRISE_10,
     },
     create: {
       id: PLATFORM_ADMIN_COMPANY_ID,
       name: PLATFORM_ADMIN_COMPANY_NAME,
       timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
+      tierId: TIER_IDS.ENTERPRISE_10,
     },
   });
 
@@ -1175,6 +1249,7 @@ async function seedPlatformAdminWorkspace() {
 async function main() {
   await seedMachineTypes();
   await seedSkus();
+  await seedTierConsts();
   await seedAppleTesting();
   await seedCompanyData();
   await seedTrendScenarioCompany();
