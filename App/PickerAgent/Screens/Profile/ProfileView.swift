@@ -297,8 +297,8 @@ struct ProfileView: View {
                     )
                 }
             }
-            .sheet(isPresented: $showJoinCompany) {
-                JoinCompanyView {
+            .fullScreenCover(isPresented: $showJoinCompany) {
+                JoinCompanyScannerView {
                     Task {
                         await authViewModel.refreshSessionFromStoredCredentials()
                         viewModel.loadUserInfo()

@@ -14,6 +14,7 @@ struct JoinCompanyView: View {
     )
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false
+    @State private var scannerResumeToken = UUID()
     @State private var hasNotifiedJoinSuccess = false
     
     var onCompanyJoined: (() -> Void)? = nil
@@ -78,6 +79,7 @@ struct JoinCompanyView: View {
                         
                         // QR Scanner Button
                         Button(action: {
+                            scannerResumeToken = UUID()
                             showScanner = true
                         }) {
                             HStack {
@@ -134,7 +136,7 @@ struct JoinCompanyView: View {
                     Text(errorMessage)
                 }
             }
-            .sheet(isPresented: $showScanner) {
+            .fullScreenCover(isPresented: $showScanner) {
                 QRScannerView(
                     onCodeFound: { code in
                         showScanner = false
@@ -142,8 +144,10 @@ struct JoinCompanyView: View {
                     },
                     onCancel: {
                         showScanner = false
-                    }
+                    },
+                    resumeToken: scannerResumeToken
                 )
+                .ignoresSafeArea()
             }
             .onChange(of: viewModel.joinedMembership) { _, membership in
                 if membership != nil {

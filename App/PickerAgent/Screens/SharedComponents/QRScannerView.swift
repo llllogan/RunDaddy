@@ -11,6 +11,7 @@ import AVFoundation
 struct QRScannerView: UIViewControllerRepresentable {
     let onCodeFound: (String) -> Void
     let onCancel: () -> Void
+    var resumeToken: UUID = UUID()
     
     func makeUIViewController(context: Context) -> QRScannerViewController {
         let scanner = QRScannerViewController()
@@ -20,7 +21,7 @@ struct QRScannerView: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {
-        // No updates needed
+        uiViewController.resumeScanningIfNeeded(token: resumeToken)
     }
 }
 
@@ -30,6 +31,7 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
     
     private var captureSession: AVCaptureSession!
     private var previewLayer: AVCaptureVideoPreviewLayer!
+    private var lastResumeToken: UUID?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -119,7 +121,7 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
         view.addSubview(instructionLabel)
         
         NSLayoutConstraint.activate([
-            instructionLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -40),
+            instructionLabel.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -40),
             instructionLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             instructionLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             instructionLabel.heightAnchor.constraint(equalToConstant: 44)
@@ -127,6 +129,7 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
     }
     
     private func startScanning() {
+        guard captureSession != nil else { return }
         if !captureSession.isRunning {
             DispatchQueue.global(qos: .userInitiated).async {
                 self.captureSession.startRunning()
@@ -174,6 +177,12 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.layer.bounds
+    }
+
+    func resumeScanningIfNeeded(token: UUID) {
+        guard token != lastResumeToken else { return }
+        lastResumeToken = token
+        startScanning()
     }
 }
 

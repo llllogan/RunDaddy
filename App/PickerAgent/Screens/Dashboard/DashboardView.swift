@@ -140,18 +140,14 @@ struct DashboardView: View {
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
         }
-        .sheet(isPresented: $isShowingJoinCompany) {
-            JoinCompanyView {
+        .fullScreenCover(isPresented: $isShowingJoinCompany) {
+            JoinCompanyScannerView {
                 Task {
                     await authViewModel.refreshSessionFromStoredCredentials()
                     await viewModel.loadRuns(force: true)
                     await momentumViewModel.loadSnapshot(force: true)
                 }
             }
-            .presentationDetents([.large])
-            .presentationCornerRadius(28)
-            .presentationDragIndicator(.visible)
-            .presentationCompactAdaptation(.fullScreenCover)
         }
         .onChange(of: session, initial: false) { _, newSession in
             viewModel.updateSession(newSession)
