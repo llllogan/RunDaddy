@@ -47,6 +47,23 @@ struct CompanyTimezonePickerView: View {
 
     var body: some View {
         List {
+            if let currentSelection = displayValue(for: selectedIdentifier) {
+                Section("Current Selection") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(currentSelection.displayName)
+                                .foregroundStyle(.primary)
+                            Text(currentSelection.identifier)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+
             Section {
                 Button {
                     select(TimeZone.current.identifier)
@@ -103,6 +120,14 @@ struct CompanyTimezonePickerView: View {
 
     private func isSelected(_ identifier: String) -> Bool {
         identifier == selectedIdentifier
+    }
+
+    private func displayValue(for identifier: String) -> CompanyTimezoneOption? {
+        guard let timezone = TimeZone(identifier: identifier) else { return nil }
+        let localizedName = timezone.localizedName(for: .standard, locale: .current)
+            ?? timezone.localizedName(for: .generic, locale: .current)
+        let displayName = localizedName?.isEmpty == false ? localizedName! : identifier
+        return CompanyTimezoneOption(identifier: identifier, displayName: displayName)
     }
 }
 
