@@ -16,6 +16,7 @@ struct InviteCodeGeneratorView: View {
     
     let companyId: String
     let companyName: String
+    let roleCapacities: [InviteRoleCapacity]
     
     var body: some View {
         NavigationView {
@@ -65,26 +66,32 @@ struct InviteCodeGeneratorView: View {
                                     .font(.headline)
                                     .fontWeight(.medium)
                                 
-                                ForEach(UserRole.inviteAssignableRoles, id: \.self) { role in
+                                ForEach(roleCapacities) { capacity in
+                                    let isSelected = viewModel.selectedRole == capacity.role
+                                    let isExhausted = capacity.remaining <= 0
+
                                     Button(action: {
-                                        viewModel.selectedRole = role
+                                        guard !isExhausted else { return }
+                                        viewModel.selectedRole = capacity.role
                                     }) {
                                         HStack {
-                                            Text(role.displayName)
-                                            Spacer()
-                                            if viewModel.selectedRole == role {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(.blue)
-                                            } else {
-                                                Image(systemName: "circle")
-                                                    .foregroundColor(.gray)
+                                            VStack(alignment: .leading) {
+                                                Text(capacity.role.displayName)
+                                                    .foregroundStyle(isExhausted ? Color.gray : Color.primary)
+                                                Text("\(capacity.remaining) remaining (\(capacity.used)/\(capacity.max) used)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
                                             }
+                                            Spacer()
+                                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                                .foregroundColor(isSelected ? .blue : .gray)
                                         }
                                         .padding()
                                         .background(Color.gray.opacity(0.1))
                                         .cornerRadius(8)
                                     }
                                     .buttonStyle(PlainButtonStyle())
+                                    .disabled(isExhausted || viewModel.isGenerating)
                                 }
                             }
                             
@@ -101,11 +108,18 @@ struct InviteCodeGeneratorView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(viewModel.selectedRole == nil ? Color.gray : Color.blue)
+                                .background(generateDisabled ? Color.gray : Color.blue)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
-                            .disabled(viewModel.selectedRole == nil || viewModel.isGenerating)
+                            .disabled(generateDisabled)
+
+                            if allCapacitiesExhausted {
+                                Text("Your current plan is at capacity for new members.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                         .padding()
                     }
@@ -142,13 +156,31 @@ struct InviteCodeGeneratorView: View {
         .onAppear {
             // Check if user has permission to generate codes
             viewModel.checkPermissions(companyId: companyId)
+            if viewModel.selectedRole == nil {
+                viewModel.selectedRole = roleCapacities.first(where: { $0.remaining > 0 })?.role
+            }
         }
+    }
+
+    private var generateDisabled: Bool {
+        guard let selected = viewModel.selectedRole else { return true }
+        guard let capacity = roleCapacities.first(where: { $0.role == selected }) else { return true }
+        return viewModel.isGenerating || capacity.remaining <= 0
+    }
+
+    private var allCapacitiesExhausted: Bool {
+        roleCapacities.allSatisfy { $0.remaining <= 0 }
     }
 }
 
 #Preview {
     InviteCodeGeneratorView(
         companyId: "company-123",
-        companyName: "Test Company"
+        companyName: "Test Company",
+        roleCapacities: [
+            InviteRoleCapacity(role: .owner, used: 1, max: 1),
+            InviteRoleCapacity(role: .admin, used: 0, max: 1),
+            InviteRoleCapacity(role: .picker, used: 2, max: 3)
+        ]
     )
 }

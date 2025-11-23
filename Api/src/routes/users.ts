@@ -8,6 +8,7 @@ import { hashPassword } from '../lib/password.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import { createUserSchema, updateUserSchema, userLookupSchema } from './helpers/users.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
+import { getCompanyTierWithCounts, remainingCapacityForRole } from './helpers/company-tier.js';
 
 const router = Router();
 
@@ -206,6 +207,19 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
   }
 
+  const tierInfo = await getCompanyTierWithCounts(req.auth.companyId);
+  if (!tierInfo) {
+    return res.status(404).json({ error: 'Company not found' });
+  }
+
+  const capacity = remainingCapacityForRole(tierInfo.tier, tierInfo.membershipCounts, role);
+  if (!capacity.allowed) {
+    return res.status(409).json({
+      error: 'Plan limit reached',
+      detail: `${role} slots are full for this plan.`,
+    });
+  }
+
   const existingUser = await prisma.user.findUnique({ where: { email } });
 
   if (existingUser) {
@@ -328,6 +342,21 @@ router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) =>
     req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID
   ) {
     return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
+  }
+
+  if (parsed.data.role && parsed.data.role !== membership.role) {
+    const tierInfo = await getCompanyTierWithCounts(req.auth.companyId);
+    if (!tierInfo) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const capacity = remainingCapacityForRole(tierInfo.tier, tierInfo.membershipCounts, parsed.data.role);
+    if (!capacity.allowed) {
+      return res.status(409).json({
+        error: 'Plan limit reached',
+        detail: `${parsed.data.role} slots are full for this plan.`,
+      });
+    }
   }
 
   const userUpdates: Record<string, unknown> = {};

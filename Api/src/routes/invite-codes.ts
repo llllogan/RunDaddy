@@ -4,9 +4,10 @@ import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
-import { AuthContext } from '../types/enums.js';
+import { AuthContext, UserRole } from '../types/enums.js';
 import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
+import { getCompanyTierWithCounts, remainingCapacityForRole } from './helpers/company-tier.js';
 
 const router = Router();
 
@@ -35,6 +36,24 @@ router.post('/use', authenticate, setLogConfig({ level: 'minimal' }), async (req
 
     if (!inviteCode) {
       return res.status(400).json({ error: 'Invalid or expired invite code' });
+    }
+
+    const tierInfo = await getCompanyTierWithCounts(inviteCode.companyId);
+    if (!tierInfo) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const capacity = remainingCapacityForRole(
+      tierInfo.tier,
+      tierInfo.membershipCounts,
+      inviteCode.role as UserRole,
+    );
+
+    if (!capacity.allowed) {
+      return res.status(409).json({
+        error: 'Plan limit reached',
+        detail: `${inviteCode.role} slots are full for this plan.`,
+      });
     }
 
     // Check if user is already a member of this company

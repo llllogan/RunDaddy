@@ -1,7 +1,42 @@
 import Foundation
 
+struct CompanyFeatures: Equatable, Decodable {
+    struct Tier: Equatable, Decodable {
+        let id: String
+        let name: String
+        let maxOwners: Int
+        let maxAdmins: Int
+        let maxPickers: Int
+        let canBreakDownRun: Bool
+    }
+
+    struct FeatureFlags: Equatable, Decodable {
+        let canBreakDownRun: Bool
+    }
+
+    struct MembershipCounts: Equatable, Decodable {
+        let owners: Int
+        let admins: Int
+        let pickers: Int
+        let total: Int
+    }
+
+    struct RemainingCapacity: Equatable, Decodable {
+        let owners: Int
+        let admins: Int
+        let pickers: Int
+    }
+
+    let companyId: String
+    let tier: Tier
+    let features: FeatureFlags
+    let membershipCounts: MembershipCounts
+    let remainingCapacity: RemainingCapacity
+}
+
 protocol CompanyServicing {
     func updateTimezone(companyId: String, timezoneIdentifier: String, credentials: AuthCredentials) async throws -> CompanyInfo
+    func fetchFeatures(companyId: String, credentials: AuthCredentials) async throws -> CompanyFeatures
 }
 
 enum CompanyServiceError: LocalizedError {
@@ -39,6 +74,37 @@ final class CompanyService: CompanyServicing {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder
+    }
+
+    func fetchFeatures(companyId: String, credentials: AuthCredentials) async throws -> CompanyFeatures {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("companies")
+        url.appendPathComponent(companyId)
+        url.appendPathComponent("features")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CompanyServiceError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200..<300:
+            return try decoder.decode(CompanyFeatures.self, from: data)
+        case 401:
+            throw CompanyServiceError.unauthorized
+        case 403:
+            throw CompanyServiceError.forbidden
+        case 404:
+            throw CompanyServiceError.notFound
+        default:
+            throw CompanyServiceError.serverError(code: httpResponse.statusCode)
+        }
     }
 
     func updateTimezone(companyId: String, timezoneIdentifier: String, credentials: AuthCredentials) async throws -> CompanyInfo {

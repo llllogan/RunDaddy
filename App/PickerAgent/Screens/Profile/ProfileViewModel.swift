@@ -16,6 +16,8 @@ class ProfileViewModel: ObservableObject {
     @Published var currentCompany: CompanyInfo?
     @Published var companies: [CompanyInfo] = []
     @Published var canGenerateInvites = false
+    @Published var companyFeatures: CompanyFeatures?
+    @Published var inviteRoleCapacities: [InviteRoleCapacity] = []
     @Published var errorMessage: String?
     @Published var isLeavingCompany = false
     @Published var isSwitchingCompany = false
@@ -45,12 +47,21 @@ class ProfileViewModel: ObservableObject {
                     
                     if let roleString = profile.role, let role = UserRole(rawValue: roleString.uppercased()) {
                         userRole = role
-                        canGenerateInvites = (role == .god || role == .admin || role == .owner)
                     }
 
                     currentCompany = profile.currentCompany
                     companies = profile.companies
                     companyTimezoneIdentifier = profile.currentCompany?.timeZone ?? TimeZone.current.identifier
+
+                    if let companyId = profile.currentCompany?.id {
+                        Task {
+                            await self.loadCompanyFeatures(companyId: companyId)
+                        }
+                    } else {
+                        companyFeatures = nil
+                        inviteRoleCapacities = []
+                        canGenerateInvites = false
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -195,5 +206,63 @@ class ProfileViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func loadCompanyFeatures(companyId: String) async {
+        guard let credentials = authService.loadStoredCredentials() else {
+            errorMessage = "Not authenticated"
+            canGenerateInvites = false
+            inviteRoleCapacities = []
+            return
+        }
+
+        do {
+            let features = try await companyService.fetchFeatures(companyId: companyId, credentials: credentials)
+            companyFeatures = features
+            rebuildInvitePermissions()
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let companyError = error as? CompanyServiceError {
+                errorMessage = companyError.localizedDescription
+            } else {
+                errorMessage = "Failed to load company plan details: \(error.localizedDescription)"
+            }
+            companyFeatures = nil
+            inviteRoleCapacities = []
+            rebuildInvitePermissions()
+        }
+    }
+
+    private func rebuildInvitePermissions() {
+        let canManage = (userRole == .god || userRole == .admin || userRole == .owner)
+        guard canManage, let features = companyFeatures else {
+            canGenerateInvites = false
+            inviteRoleCapacities = []
+            return
+        }
+
+        let counts = features.membershipCounts
+        let tier = features.tier
+
+        inviteRoleCapacities = [
+            InviteRoleCapacity(role: .owner, used: counts.owners, max: tier.maxOwners),
+            InviteRoleCapacity(role: .admin, used: counts.admins, max: tier.maxAdmins),
+            InviteRoleCapacity(role: .picker, used: counts.pickers, max: tier.maxPickers)
+        ]
+
+        canGenerateInvites = inviteRoleCapacities.contains { $0.remaining > 0 }
+    }
+}
+
+struct InviteRoleCapacity: Identifiable, Equatable {
+    let role: UserRole
+    let used: Int
+    let max: Int
+
+    var id: UserRole { role }
+
+    var remaining: Int {
+        Swift.max(0, max - used)
     }
 }

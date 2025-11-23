@@ -184,15 +184,24 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
     return res.status(400).json({ error: 'Invalid payload', details: parsedBody.error.flatten() });
   }
 
+  const companyTier = await prisma.company.findUnique({
+    where: { id: run.companyId },
+    select: { tier: { select: { canBreakDownRun: true } } },
+  });
+
+  const canBreakDownRun = companyTier?.tier.canBreakDownRun ?? false;
+
   const normalizedCategories =
-    parsedBody.data.categories?.reduce<Array<string | null>>((acc, category) => {
-      const trimmed = category?.trim() ?? '';
-      const value = trimmed.length ? trimmed : null;
-      if (!acc.includes(value)) {
-        acc.push(value);
-      }
-      return acc;
-    }, []) ?? null;
+    canBreakDownRun && parsedBody.data.categories
+      ? parsedBody.data.categories.reduce<Array<string | null>>((acc, category) => {
+          const trimmed = category?.trim() ?? '';
+          const value = trimmed.length ? trimmed : null;
+          if (!acc.includes(value)) {
+            acc.push(value);
+          }
+          return acc;
+        }, [])
+      : null;
 
   const includeUncategorized = normalizedCategories?.includes(null) ?? false;
   const categoryValues = normalizedCategories?.filter((value): value is string => Boolean(value)) ?? [];

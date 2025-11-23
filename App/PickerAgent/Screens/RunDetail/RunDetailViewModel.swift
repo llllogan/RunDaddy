@@ -94,6 +94,7 @@ final class RunDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var locationSections: [RunLocationSection] = []
     @Published private(set) var companyUsers: [CompanyUser] = []
+    @Published private(set) var companyFeatures: CompanyFeatures?
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
     @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
     @Published var showingChocolateBoxesSheet = false
@@ -105,6 +106,7 @@ final class RunDetailViewModel: ObservableObject {
     let runId: String
     let session: AuthSession
     let service: RunsServicing
+    private let companyService: CompanyServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
     var pendingUnassignedPickItems: [RunDetail.PickItem] {
@@ -112,10 +114,16 @@ final class RunDetailViewModel: ObservableObject {
         return detail.pickItems.filter { !$0.isPicked }
     }
 
-    init(runId: String, session: AuthSession, service: RunsServicing) {
+    init(
+        runId: String,
+        session: AuthSession,
+        service: RunsServicing,
+        companyService: CompanyServicing = CompanyService()
+    ) {
         self.runId = runId
         self.session = session
         self.service = service
+        self.companyService = companyService
     }
 
     func load(force: Bool = false) async {
@@ -226,6 +234,31 @@ final class RunDetailViewModel: ObservableObject {
         } catch {
             // Keep whatever was previously known on errors; caller can still start a new session explicitly
             activePackingSessionId = current
+        }
+    }
+
+    func resolveCanBreakDownRun() async -> Bool? {
+        if let cached = companyFeatures {
+            return cached.features.canBreakDownRun
+        }
+
+        guard let companyId = detail?.companyId else {
+            return nil
+        }
+
+        do {
+            let features = try await companyService.fetchFeatures(companyId: companyId, credentials: session.credentials)
+            companyFeatures = features
+            return features.features.canBreakDownRun
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let companyError = error as? CompanyServiceError {
+                errorMessage = companyError.localizedDescription
+            } else {
+                errorMessage = "We couldn't check your company plan right now. Please try again."
+            }
+            return nil
         }
     }
 
@@ -434,7 +467,7 @@ final class RunDetailViewModel: ObservableObject {
     }
     
     func updateRunStatusToReadyIfComplete() async {
-        guard let runId = detail?.id else { return }
+        guard detail?.id != nil else { return }
         
         // Check if run is 100% complete
         let totalCoils = detail?.pickItems.count ?? 0

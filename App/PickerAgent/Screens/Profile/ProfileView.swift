@@ -208,14 +208,18 @@ struct ProfileView: View {
                 // Company Actions Section
                 if viewModel.currentCompany != nil {
                     Section {
-                        if viewModel.canGenerateInvites {
+                        let inviteActionAllowed = viewModel.userRole == .god || viewModel.userRole == .admin || viewModel.userRole == .owner
+                        if inviteActionAllowed {
+                            let hasCapacity = viewModel.inviteRoleCapacities.contains { $0.remaining > 0 }
+
                             Button(action: {
                                 showInviteGenerator = true
                             }) {
                                 HStack {
                                     Image(systemName: "qrcode")
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(hasCapacity ? .blue : .gray)
                                     Text("Generate Invite Code")
+                                        .foregroundStyle(hasCapacity ? .primary : .secondary)
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.caption)
@@ -223,6 +227,7 @@ struct ProfileView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .disabled(!hasCapacity)
                         }
                         
                         Button(action: {
@@ -304,7 +309,8 @@ struct ProfileView: View {
                 if let company = viewModel.currentCompany {
                     InviteCodeGeneratorView(
                         companyId: company.id,
-                        companyName: company.name
+                        companyName: company.name,
+                        roleCapacities: viewModel.inviteRoleCapacities
                     )
                 }
             }

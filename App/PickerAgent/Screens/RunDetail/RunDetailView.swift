@@ -14,6 +14,7 @@ struct RunDetailView: View {
     @State private var isCreatingPackingSession = false
     @State private var showingCategorySheet = false
     @State private var selectedCategoryIds: Set<String> = []
+    @State private var isCheckingCompanyTier = false
     @State private var showingLocationOrderSheet = false
     @State private var showingPendingEntries = false
     @State private var isResettingRunPickStatuses = false
@@ -38,6 +39,7 @@ struct RunDetailView: View {
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
+    @MainActor
     init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
     }
@@ -186,14 +188,15 @@ struct RunDetailView: View {
                         packingSessionId = activeId
                         showingPackingSession = true
                     } else {
-                        selectedCategoryIds = Set(categoryOptions.map(\.id))
-                        showingCategorySheet = true
+                        Task {
+                            await handleStartPackingTapped()
+                        }
                     }
                 }
                 .labelStyle(.titleOnly)
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                .disabled(isCreatingPackingSession || isRunComplete)
+                .disabled(isCreatingPackingSession || isRunComplete || isCheckingCompanyTier)
                 .fullScreenCover(isPresented: $showingPackingSession, onDismiss: {
                     packingSessionId = nil
                     Task {
@@ -313,6 +316,25 @@ private extension RunDetailView {
             return false
         }
         return pickItems.contains(where: { $0.isPicked })
+    }
+
+    @MainActor
+    func handleStartPackingTapped() async {
+        guard !isCreatingPackingSession, !isCheckingCompanyTier else { return }
+        isCheckingCompanyTier = true
+        defer { isCheckingCompanyTier = false }
+
+        guard let canBreakDownRun = await viewModel.resolveCanBreakDownRun() else {
+            return
+        }
+
+        if canBreakDownRun {
+            selectedCategoryIds = Set(categoryOptions.map(\.id))
+            showingCategorySheet = true
+            return
+        }
+
+        await startPackingSession(selectedCategories: nil)
     }
     
     func payloadCategories(from selection: Set<String>) -> [String?]? {

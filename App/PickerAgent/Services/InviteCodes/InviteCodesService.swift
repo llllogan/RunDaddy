@@ -162,12 +162,16 @@ final class InviteCodesService: InviteCodesServicing {
             throw InviteCodesServiceError.invalidResponse
         }
 
-        guard (200..<300).contains(httpResponse.statusCode) else {
+        if !(200..<300).contains(httpResponse.statusCode) {
             if httpResponse.statusCode == 401 {
                 throw AuthError.unauthorized
             }
             if httpResponse.statusCode == 403 {
                 throw InviteCodesServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 409 {
+                let reason = InviteCodesService.parseErrorMessage(from: data)
+                throw InviteCodesServiceError.planLimitReached(reason: reason)
             }
             throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
         }
@@ -196,12 +200,16 @@ final class InviteCodesService: InviteCodesServicing {
             throw InviteCodesServiceError.invalidResponse
         }
 
-        guard (200..<300).contains(httpResponse.statusCode) else {
+        if !(200..<300).contains(httpResponse.statusCode) {
             if httpResponse.statusCode == 401 {
                 throw AuthError.unauthorized
             }
             if httpResponse.statusCode == 400 {
                 throw InviteCodesServiceError.invalidOrExpiredCode
+            }
+            if httpResponse.statusCode == 409 {
+                let reason = InviteCodesService.parseErrorMessage(from: data)
+                throw InviteCodesServiceError.planLimitReached(reason: reason)
             }
             throw InviteCodesServiceError.serverError(code: httpResponse.statusCode)
         }
@@ -393,6 +401,7 @@ enum InviteCodesServiceError: LocalizedError {
     case insufficientPermissions
     case invalidOrExpiredCode
     case companyNotFound
+    case planLimitReached(reason: String?)
 
     var errorDescription: String? {
         switch self {
@@ -406,6 +415,24 @@ enum InviteCodesServiceError: LocalizedError {
             return "This invite code is invalid or has expired."
         case .companyNotFound:
             return "Company not found or you're not a member."
+        case let .planLimitReached(reason):
+            return reason ?? "Your plan is at capacity for this role."
         }
+    }
+}
+
+private extension InviteCodesService {
+    static func parseErrorMessage(from data: Data) -> String? {
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+        else { return nil }
+
+        if let detail = json["detail"] as? String {
+            return detail
+        }
+        if let error = json["error"] as? String {
+            return error
+        }
+        return nil
     }
 }

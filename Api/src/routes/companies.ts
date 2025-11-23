@@ -6,12 +6,68 @@ import { authorize } from './helpers/authorization.js';
 import { randomBytes } from 'crypto';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
-import { AuthContext } from '../types/enums.js';
+import { AuthContext, UserRole } from '../types/enums.js';
 import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 import { isValidTimezone } from '../lib/timezone.js';
+import { getCompanyTierWithCounts, remainingCapacityForRole } from './helpers/company-tier.js';
 
 const router = Router();
+
+router.get('/:companyId/features', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { companyId } = req.params;
+  if (!companyId) {
+    return res.status(400).json({ error: 'Company ID is required' });
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_companyId: {
+        userId: req.auth.userId!,
+        companyId,
+      },
+    },
+  });
+
+  if (!membership) {
+    return res
+      .status(403)
+      .json({ error: 'Membership required to access company features' });
+  }
+
+  const tierInfo = await getCompanyTierWithCounts(companyId);
+
+  if (!tierInfo) {
+    return res.status(404).json({ error: 'Company not found' });
+  }
+
+  const { company, tier, membershipCounts } = tierInfo;
+
+  return res.json({
+    companyId: company.id,
+    tier: {
+      id: tier.id,
+      name: tier.name,
+      maxOwners: tier.maxOwners,
+      maxAdmins: tier.maxAdmins,
+      maxPickers: tier.maxPickers,
+      canBreakDownRun: tier.canBreakDownRun,
+    },
+    features: {
+      canBreakDownRun: tier.canBreakDownRun,
+    },
+    membershipCounts,
+    remainingCapacity: {
+      owners: Math.max(tier.maxOwners - membershipCounts.owners, 0),
+      admins: Math.max(tier.maxAdmins - membershipCounts.admins, 0),
+      pickers: Math.max(tier.maxPickers - membershipCounts.pickers, 0),
+    },
+  });
+});
 
 // Generate invite code for a company
 router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
@@ -24,7 +80,9 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       return res.status(400).json({ error: 'Role is required' });
     }
 
-    if (role === 'GOD' && companyId !== PLATFORM_ADMIN_COMPANY_ID) {
+    const normalizedRole = (role as string).toUpperCase() as UserRole;
+
+    if (normalizedRole === UserRole.GOD && companyId !== PLATFORM_ADMIN_COMPANY_ID) {
       return res.status(403).json({ error: 'Only the platform admin workspace can create GOD invites' });
     }
 
@@ -41,6 +99,19 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       return res.status(403).json({ error: 'Not authorized to create invites for this company' });
     }
 
+    const tierInfo = await getCompanyTierWithCounts(companyId!);
+    if (!tierInfo) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const capacity = remainingCapacityForRole(tierInfo.tier, tierInfo.membershipCounts, normalizedRole);
+    if (!capacity.allowed) {
+      return res.status(409).json({
+        error: 'Plan limit reached',
+        detail: `${normalizedRole} slots are full for this plan.`,
+      });
+    }
+
     // Generate unique code
     const code = randomBytes(32).toString('hex').toUpperCase();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
@@ -49,7 +120,7 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       data: {
         code,
         companyId: companyId!,
-        role,
+        role: normalizedRole,
         createdBy: userId,
         expiresAt
       },
