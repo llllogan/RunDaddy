@@ -53,13 +53,13 @@ private extension InAppNotification.Style {
     var background: Color {
         switch self {
         case .info:
-            return Color.blue.opacity(0.12)
+            return Color(red: 0.90, green: 0.95, blue: 1.0)
         case .success:
-            return Color.green.opacity(0.14)
+            return Color(red: 0.90, green: 0.98, blue: 0.92)
         case .warning:
-            return Color.orange.opacity(0.14)
+            return Color(red: 1.0, green: 0.95, blue: 0.90)
         case .error:
-            return Color.red.opacity(0.14)
+            return Color(red: 1.0, green: 0.93, blue: 0.93)
         }
     }
 
@@ -140,16 +140,18 @@ private struct InAppNotificationStack: View {
 extension View {
     func inAppNotifications(
         _ notifications: [InAppNotification],
+        topPadding: CGFloat = 64,
         onDismiss: ((InAppNotification) -> Void)? = nil
     ) -> some View {
-        safeAreaInset(edge: .top, spacing: 0) {
+        overlay(alignment: .topLeading) {
             if !notifications.isEmpty {
                 InAppNotificationStack(
                     notifications: notifications,
                     onDismiss: onDismiss
                 )
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, topPadding)
+                .ignoresSafeArea(edges: .top)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: notifications)
