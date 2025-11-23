@@ -703,7 +703,7 @@ async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone:
           SELECT
             DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS converted_date,
             count AS total_items,
-            CASE WHEN status = 'PICKED' THEN count ELSE 0 END AS items_packed
+            CASE WHEN is_picked THEN count ELSE 0 END AS items_packed
           FROM v_pick_entry_details
           WHERE companyId = ${companyId}
             AND CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}) >= DATE_SUB(CONVERT_TZ(CURRENT_TIMESTAMP(), 'UTC', ${timeZone}), INTERVAL ${Prisma.raw(String(trailingDays))} DAY)
@@ -870,7 +870,7 @@ async function fetchTopPackedLocations(
         SUM(count) AS total_packed
       FROM v_pick_entry_details
       WHERE companyId = ${companyId}
-        AND status = 'PICKED'
+        AND is_picked
         AND pickedAt IS NOT NULL
         AND pickedAt >= ${rangeStart}
         AND pickedAt < ${rangeEnd}
@@ -899,7 +899,7 @@ async function fetchTopPackedMachines(
         SUM(count) AS total_packed
       FROM v_pick_entry_details
       WHERE companyId = ${companyId}
-        AND status = 'PICKED'
+        AND is_picked
         AND pickedAt IS NOT NULL
         AND pickedAt >= ${rangeStart}
         AND pickedAt < ${rangeEnd}
@@ -928,7 +928,7 @@ async function fetchTopPackedSkus(
         SUM(count) AS total_packed
       FROM v_pick_entry_details
       WHERE companyId = ${companyId}
-        AND status = 'PICKED'
+        AND is_picked
         AND pickedAt IS NOT NULL
         AND pickedAt >= ${rangeStart}
         AND pickedAt < ${rangeEnd}
