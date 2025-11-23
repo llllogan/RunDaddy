@@ -18,9 +18,11 @@ struct DashboardView: View {
     let session: AuthSession
     let logoutAction: () -> Void
 
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @StateObject private var viewModel: DashboardViewModel
     @StateObject private var momentumViewModel: DashboardMomentumViewModel
     @State private var isShowingProfile = false
+    @State private var isShowingJoinCompany = false
     @State private var searchText = ""
     @State private var searchResults: [SearchResult] = []
     @State private var suggestions: [SearchResult] = []
@@ -37,8 +39,11 @@ struct DashboardView: View {
     @State private var analyticsNavigationTarget: DashboardMomentumAnalyticsNavigation?
 
     private var hasCompany: Bool {
-        // User has company if they have company memberships
-        viewModel.currentUserProfile?.hasCompany ?? false
+        viewModel.currentUserProfile?.hasCompany ?? true
+    }
+
+    private var shouldShowNoCompanyState: Bool {
+        viewModel.currentUserProfile?.hasCompany == false
     }
 
     private var isPickerUser: Bool {
@@ -52,7 +57,7 @@ struct DashboardView: View {
     }
 
     private var shouldShowInsights: Bool {
-        hasCompany && !isPickerUser
+        viewModel.currentUserProfile?.hasCompany == true && !isPickerUser
     }
 
     private var navigationSubtitleText: String {
@@ -75,80 +80,41 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                switch searchDisplayState {
-                case .results:
-                    searchResultsSection()
-                case .suggestions:
-                    suggestionsSection()
-                case .dashboard:
-                    dashboardSections()
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
-            .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
-            .searchable(
-                text: $searchText,
-                isPresented: $isSearchPresented,
-                prompt: "Search locations, machines, SKUs..."
-            )
-            .onSubmit(of: .search) {
-                performSearch()
-            }
-            .onChange(of: searchText) { _, newValue in
-                if newValue.isEmpty {
-                    searchResults = []
-                    searchDisplayState = isSearchPresented ? .suggestions : .dashboard
-                    searchDebounceTask?.cancel()
-                } else {
-                    scheduleDebouncedSearch(for: newValue)
-                }
-            }
-            .onChange(of: isSearchPresented) { _, isPresented in
-                if isPresented {
-                    searchResults = []
-                    searchDisplayState = .suggestions
-                    loadSuggestionsIfNeeded()
-                } else {
-                    searchDisplayState = .dashboard
-                    isSearching = false
-                    searchText = ""
-                    searchDebounceTask?.cancel()
-                }
-            }
-            .onDisappear {
-                searchDebounceTask?.cancel()
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                            isShowingProfile = true
+            Group {
+                if hasCompany {
+                    dashboardList
+                        .searchable(
+                            text: $searchText,
+                            isPresented: $isSearchPresented,
+                            prompt: "Search locations, machines, SKUs..."
+                        )
+                        .onSubmit(of: .search) {
+                            performSearch()
                         }
-                    } label: {
-                        Label("Profile", systemImage: "person.fill")
-                    }
+                        .onChange(of: searchText) { _, newValue in
+                            if newValue.isEmpty {
+                                searchResults = []
+                                searchDisplayState = isSearchPresented ? .suggestions : .dashboard
+                                searchDebounceTask?.cancel()
+                            } else {
+                                scheduleDebouncedSearch(for: newValue)
+                            }
+                        }
+                        .onChange(of: isSearchPresented) { _, isPresented in
+                            if isPresented {
+                                searchResults = []
+                                searchDisplayState = .suggestions
+                                loadSuggestionsIfNeeded()
+                            } else {
+                                searchDisplayState = .dashboard
+                                isSearching = false
+                                searchText = ""
+                                searchDebounceTask?.cancel()
+                            }
+                        }
+                } else {
+                    dashboardList
                 }
-            }
-            .overlay {
-                if isSearching {
-                    ProgressView("Searching...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemBackground))
-                }
-            }
-            .navigationDestination(item: $skuMomentumNavigationTarget) { target in
-                SkuDetailView(skuId: target.id, session: session)
-            }
-            .navigationDestination(item: $machineMomentumNavigationTarget) { target in
-                MachineDetailView(machineId: target.id, session: session)
-            }
-            .navigationDestination(item: $locationMomentumNavigationTarget) { target in
-                SearchLocationDetailView(locationId: target.id, session: session)
-            }
-            .navigationDestination(item: $analyticsNavigationTarget) { _ in
-                AnalyticsView(session: session)
             }
         }
         .task {
@@ -174,6 +140,19 @@ struct DashboardView: View {
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
         }
+        .sheet(isPresented: $isShowingJoinCompany) {
+            JoinCompanyView {
+                Task {
+                    await authViewModel.refreshSessionFromStoredCredentials()
+                    await viewModel.loadRuns(force: true)
+                    await momentumViewModel.loadSnapshot(force: true)
+                }
+            }
+            .presentationDetents([.large])
+            .presentationCornerRadius(28)
+            .presentationDragIndicator(.visible)
+            .presentationCompactAdaptation(.fullScreenCover)
+        }
         .onChange(of: session, initial: false) { _, newSession in
             viewModel.updateSession(newSession)
             momentumViewModel.updateSession(newSession)
@@ -182,7 +161,61 @@ struct DashboardView: View {
                 await momentumViewModel.loadSnapshot(force: true)
             }
         }
+        .onChange(of: hasCompany, initial: false) { _, newValue in
+            if !newValue {
+                resetSearchState()
+            }
+        }
 
+    }
+
+    private var dashboardList: some View {
+        List {
+            switch searchDisplayState {
+            case .results:
+                searchResultsSection()
+            case .suggestions:
+                suggestionsSection()
+            case .dashboard:
+                dashboardSections()
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
+        .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        isShowingProfile = true
+                    }
+                } label: {
+                    Label("Profile", systemImage: "person.fill")
+                }
+            }
+        }
+        .overlay {
+            if isSearching {
+                ProgressView("Searching...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemBackground))
+            }
+        }
+        .navigationDestination(item: $skuMomentumNavigationTarget) { target in
+            SkuDetailView(skuId: target.id, session: session)
+        }
+        .navigationDestination(item: $machineMomentumNavigationTarget) { target in
+            MachineDetailView(machineId: target.id, session: session)
+        }
+        .navigationDestination(item: $locationMomentumNavigationTarget) { target in
+            SearchLocationDetailView(locationId: target.id, session: session)
+        }
+        .navigationDestination(item: $analyticsNavigationTarget) { _ in
+            AnalyticsView(session: session)
+        }
+        .onDisappear {
+            searchDebounceTask?.cancel()
+        }
     }
 
     @ViewBuilder
@@ -299,16 +332,22 @@ struct DashboardView: View {
             }
         }
 
-        Section("All Runs") {
-            NavigationLink {
-                AllRunsView(session: session)
-            } label: {
-                HStack {
-                    Text("View All Runs")
-                        .foregroundStyle(.primary)
-                }
+        if shouldShowNoCompanyState {
+            NoCompanyMembershipSection {
+                handleJoinCompanyTap()
             }
-            .buttonStyle(.plain)
+        } else if hasCompany {
+            Section("All Runs") {
+                NavigationLink {
+                    AllRunsView(session: session)
+                } label: {
+                    HStack {
+                        Text("View All Runs")
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
         }
 
         if shouldShowInsights {
@@ -340,6 +379,10 @@ struct DashboardView: View {
         }
     }
 
+    private func handleJoinCompanyTap() {
+        isShowingJoinCompany = true
+    }
+
     private func handleMomentumSkuTap(_ leader: DashboardMomentumSnapshot.SkuLeader) {
         guard !leader.skuId.isEmpty else { return }
         skuMomentumNavigationTarget = DashboardMomentumSkuNavigation(id: leader.skuId)
@@ -357,6 +400,19 @@ struct DashboardView: View {
 
     private func handleAnalyticsTap() {
         analyticsNavigationTarget = DashboardMomentumAnalyticsNavigation()
+    }
+
+    private func resetSearchState() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
+        searchText = ""
+        searchResults = []
+        suggestions = []
+        suggestionsErrorMessage = nil
+        isSearchPresented = false
+        isSearching = false
+        isLoadingSuggestions = false
+        searchDisplayState = .dashboard
     }
 
     private func scheduleDebouncedSearch(for text: String) {
