@@ -315,13 +315,9 @@ struct DashboardMomentumSnapshot: Equatable {
                 let skuId: String
                 let currentTotal: Int
                 let previousTotal: Int
-                let isOther: Bool
 
                 var id: String {
-                    if !skuId.isEmpty {
-                        return skuId
-                    }
-                    return isOther ? "other" : "segment-unknown"
+                    skuId.isEmpty ? "segment-unknown" : skuId
                 }
             }
 
@@ -1079,13 +1075,11 @@ private struct DashboardMomentumResponse: Decodable {
                 let skuId: String
                 let currentTotal: Int
                 let previousTotal: Int
-                let isOther: Bool
 
                 private enum CodingKeys: String, CodingKey {
                     case skuId
                     case currentTotal
                     case previousTotal
-                    case isOther
                 }
 
                 init(from decoder: Decoder) throws {
@@ -1093,15 +1087,13 @@ private struct DashboardMomentumResponse: Decodable {
                     skuId = try container.decode(String.self, forKey: .skuId)
                     currentTotal = DashboardMomentumResponse.decodeCount(from: container, key: .currentTotal)
                     previousTotal = DashboardMomentumResponse.decodeCount(from: container, key: .previousTotal)
-                    isOther = try container.decodeIfPresent(Bool.self, forKey: .isOther) ?? false
                 }
 
                 func toDomain() -> DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison.Segment {
                     DashboardMomentumSnapshot.AnalyticsSummary.SkuComparison.Segment(
                         skuId: skuId,
                         currentTotal: currentTotal,
-                        previousTotal: previousTotal,
-                        isOther: isOther
+                        previousTotal: previousTotal
                     )
                 }
             }

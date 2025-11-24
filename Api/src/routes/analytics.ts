@@ -30,7 +30,7 @@ const MONTHS_IN_YEAR = 12;
 const QUARTERS_IN_YEAR = 4;
 const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
 const SEARCH_SUGGESTION_LIMIT = 2;
-const DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT = 4;
+const DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT = 1000;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -160,7 +160,6 @@ type DashboardAnalyticsSkuComparisonSegment = {
   skuId: string;
   currentTotal: number;
   previousTotal: number;
-  isOther: boolean;
 };
 
 type MomentumDirection = 'up' | 'down';
@@ -462,7 +461,6 @@ router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) =>
     fetchDashboardSkuComparisonSegments(
       context.companyId,
       weekWindow,
-      DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT,
     ),
     fetchDashboardSkuComparisonTotals(context.companyId, weekWindow),
   ]);
@@ -1447,9 +1445,7 @@ async function fetchDashboardLocationMomentumLeader(
 async function fetchDashboardSkuComparisonSegments(
   companyId: string,
   window: DashboardWeekWindow,
-  limit: number = DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT,
 ) {
-  const safeLimit = Math.max(1, limit);
   return prisma.$queryRaw<DashboardSkuComparisonRow[]>(
     Prisma.sql`
       SELECT *
@@ -1478,7 +1474,6 @@ async function fetchDashboardSkuComparisonSegments(
       ) AS sku_totals
       WHERE current_total > 0 OR previous_total > 0
       ORDER BY (current_total + previous_total) DESC, current_total DESC, sku_id ASC
-      LIMIT ${safeLimit}
     `,
   );
 }
@@ -1575,24 +1570,9 @@ function buildDashboardSkuComparison(
   totalsRow: DashboardSkuTotalsRow | null,
 ): DashboardAnalyticsSkuComparison | null {
   const totals = mapDashboardSkuTotals(totalsRow);
-  const mappedSegments = segmentRows
+  const segments = segmentRows
     .map(mapDashboardSkuComparisonSegment)
     .filter((segment) => segment.currentTotal > 0 || segment.previousTotal > 0);
-
-  let segments: DashboardAnalyticsSkuComparisonSegment[] = [...mappedSegments];
-  const displayedCurrent = segments.reduce((sum, segment) => sum + segment.currentTotal, 0);
-  const displayedPrevious = segments.reduce((sum, segment) => sum + segment.previousTotal, 0);
-  const remainingCurrent = Math.max(totals.currentWeek - displayedCurrent, 0);
-  const remainingPrevious = Math.max(totals.previousWeek - displayedPrevious, 0);
-
-  if (remainingCurrent > 0 || remainingPrevious > 0) {
-    segments = segments.concat({
-      skuId: 'other',
-      currentTotal: remainingCurrent,
-      previousTotal: remainingPrevious,
-      isOther: true,
-    });
-  }
 
   if (segments.length === 0) {
     return null;
@@ -1614,7 +1594,6 @@ function mapDashboardSkuComparisonSegment(
     skuId,
     currentTotal,
     previousTotal,
-    isOther: false,
   } satisfies DashboardAnalyticsSkuComparisonSegment;
 }
 
