@@ -137,13 +137,13 @@ private struct AnalyticsComparisonChart: View {
                     AxisValueLabel {
                         if let label = value.as(String.self) {
                             Text(label)
-                                .font(.footnote.weight(.semibold))
+                                .font(.caption.weight(.light))
                         }
                     }
                 }
             }
             .chartYScale(domain: 0...maxChartValue)
-            .frame(height: 160)
+            .frame(height: 170)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Pick entry comparison")
@@ -175,11 +175,7 @@ private struct MachineTouchesLineChart: View {
         return max(Double(maxTotal), 1)
     }
 
-    private static let axisFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter
-    }()
+    private static let isoCalendar = Calendar(identifier: .iso8601)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -227,8 +223,8 @@ private struct MachineTouchesLineChart: View {
                     AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(Self.axisFormatter.string(from: date))
-                                    .font(.caption2.weight(.semibold))
+                                Text(Self.weekLabel(for: date))
+                                    .font(.caption2.weight(.light))
                             }
                         }
                     }
@@ -238,5 +234,10 @@ private struct MachineTouchesLineChart: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static func weekLabel(for date: Date) -> String {
+        let weekNumber = isoCalendar.component(.weekOfYear, from: date)
+        return "W\(weekNumber)"
     }
 }
