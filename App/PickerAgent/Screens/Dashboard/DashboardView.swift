@@ -116,10 +116,12 @@ struct DashboardView: View {
         .task {
             await viewModel.loadRuns()
             await momentumViewModel.loadSnapshot()
+            await momentumViewModel.loadPickEntryBreakdown()
         }
         .refreshable {
             await viewModel.loadRuns(force: true)
             await momentumViewModel.loadSnapshot(force: true)
+            await momentumViewModel.loadPickEntryBreakdown(force: true)
         }
         .sheet(isPresented: $isShowingProfile) {
             ProfileView(
@@ -151,6 +153,7 @@ struct DashboardView: View {
             Task {
                 await viewModel.loadRuns(force: true)
                 await momentumViewModel.loadSnapshot(force: true)
+                await momentumViewModel.loadPickEntryBreakdown(force: true)
             }
         }
         .onChange(of: hasCompany, initial: false) { _, newValue in
@@ -348,6 +351,7 @@ struct DashboardView: View {
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
+                        pickEntryBreakdown: momentumViewModel.pickEntryBreakdown,
                         onAnalyticsTap: nil
                     )
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -398,6 +402,16 @@ struct DashboardView: View {
         }
 
         if let message = momentumViewModel.errorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .warning,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = momentumViewModel.breakdownError {
             items.append(
                 InAppNotification(
                     message: message,

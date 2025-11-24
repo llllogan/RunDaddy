@@ -10,6 +10,7 @@ import Charts
 
 struct DashboardMomentumBentoView: View {
     let snapshot: DashboardMomentumSnapshot
+    let pickEntryBreakdown: PickEntryBreakdown?
     let onAnalyticsTap: (() -> Void)?
 
     var body: some View {
@@ -53,17 +54,19 @@ struct DashboardMomentumBentoView: View {
     private var analyticsItem: BentoItem {
         let hasAction = onAnalyticsTap != nil
         let chartContent: AnyView?
-        if let comparison = snapshot.analytics.skuComparison {
-            chartContent = AnyView(
-                AnalyticsComparisonChart(comparison: comparison)
-            )
+        let headline = breakdownLookbackText
+
+        if let breakdown = pickEntryBreakdown, let chart = dashboardPickEntryChart(from: breakdown) {
+            chartContent = AnyView(chart)
+        } else if let comparison = snapshot.analytics.skuComparison {
+            chartContent = AnyView(AnalyticsComparisonChart(comparison: comparison))
         } else {
             chartContent = nil
         }
 
         return BentoItem(
-            title: "Total Picks",
-            value: "",
+            title: "Pick Entries",
+            value: headline,
             symbolName: "tag",
             symbolTint: .cyan,
             allowsMultilineValue: true,
@@ -159,6 +162,106 @@ private struct AnalyticsComparisonChart: View {
             return max(segment.previousTotal, 0)
         case .current:
             return max(segment.currentTotal, 0)
+        }
+    }
+}
+
+private extension DashboardMomentumBentoView {
+    var breakdownLookbackText: String {
+        guard let breakdown = pickEntryBreakdown else {
+            return ""
+        }
+        let dayCount = breakdown.points.count
+        if dayCount <= 0 {
+            return ""
+        }
+        return dayCount == 1 ? "Last 1 day" : "Last \(dayCount) days"
+    }
+
+    private struct WeekKey: Hashable {
+        let year: Int
+        let week: Int
+    }
+
+    private struct WeekBucket: Identifiable {
+        let id = UUID()
+        let label: String
+        let segments: [PickEntryBreakdown.Segment]
+    }
+
+    private func dashboardPickEntryChart(from breakdown: PickEntryBreakdown) -> AnyView? {
+        let buckets = buildWeekBuckets(from: breakdown)
+        guard !buckets.isEmpty else { return nil }
+
+        let chart = VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(buckets) { bucket in
+                    ForEach(bucket.segments) { segment in
+                        if segment.totalItems > 0 {
+                            BarMark(
+                                x: .value("Week", bucket.label),
+                                y: .value("Pick Entries", segment.totalItems)
+                            )
+                            .foregroundStyle(by: .value("SKU", segment.displayLabel))
+                            .cornerRadius(6, style: .continuous)
+                        }
+                    }
+                }
+            }
+            .chartLegend(.hidden)
+            .chartYAxis(.hidden)
+            .chartXAxis {
+                AxisMarks(values: buckets.map { $0.label }) { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label)
+                                .font(.caption.weight(.light))
+                        }
+                    }
+                }
+            }
+            .frame(height: 170)
+        }
+
+        return AnyView(chart)
+    }
+
+    private func buildWeekBuckets(from breakdown: PickEntryBreakdown) -> [WeekBucket] {
+        let calendar = Calendar(identifier: .iso8601)
+        var totalsByWeek: [WeekKey: [String: PickEntryBreakdown.Segment]] = [:]
+        for point in breakdown.points {
+            let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: point.start)
+            guard let year = components.yearForWeekOfYear, let week = components.weekOfYear else {
+                continue
+            }
+            let key = WeekKey(year: year, week: week)
+            var segments = totalsByWeek[key] ?? [:]
+            for segment in point.skus {
+                let existing = segments[segment.skuId]
+                let mergedTotal = (existing?.totalItems ?? 0) + segment.totalItems
+                segments[segment.skuId] = PickEntryBreakdown.Segment(
+                    skuId: segment.skuId,
+                    skuCode: segment.skuCode,
+                    skuName: segment.skuName,
+                    totalItems: mergedTotal
+                )
+            }
+            totalsByWeek[key] = segments
+        }
+
+        let orderedKeys = totalsByWeek.keys.sorted { lhs, rhs in
+            if lhs.year == rhs.year {
+                return lhs.week < rhs.week
+            }
+            return lhs.year < rhs.year
+        }
+        let latestKeys = Array(orderedKeys.suffix(2))
+
+        return latestKeys.enumerated().map { index, key in
+            let label = index == latestKeys.count - 1 ? "This Week" : "Last Week"
+            let weekSegments = totalsByWeek[key].map { Array($0.values) } ?? []
+            let segments = weekSegments.sorted { $0.totalItems > $1.totalItems }
+            return WeekBucket(label: label, segments: segments)
         }
     }
 }

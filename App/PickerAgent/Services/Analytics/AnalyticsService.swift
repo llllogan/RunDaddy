@@ -22,6 +22,11 @@ protocol AnalyticsServicing {
         lookbackDays: Int,
         credentials: AuthCredentials
     ) async throws -> [DashboardMomentumSnapshot.MachineSlice]
+    func fetchPickEntryBreakdown(
+        aggregation: PickEntryBreakdown.Aggregation,
+        periods: Int,
+        credentials: AuthCredentials
+    ) async throws -> PickEntryBreakdown
 }
 
 struct DailyInsights: Equatable {
@@ -292,6 +297,81 @@ struct DashboardMomentumSnapshot: Equatable {
     let analytics: AnalyticsSummary
 }
 
+struct PickEntryBreakdown: Equatable {
+    enum Aggregation: String, Codable, CaseIterable, Identifiable {
+        case week
+        case month
+        case quarter
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .week: return "Week"
+            case .month: return "Month"
+            case .quarter: return "Quarter"
+            }
+        }
+
+        var baseDays: Int {
+            switch self {
+            case .week: return 7
+            case .month: return 30
+            case .quarter: return 90
+            }
+        }
+
+        var defaultPeriods: Int {
+            switch self {
+            case .week: return 4
+            case .month: return 2
+            case .quarter: return 1
+            }
+        }
+    }
+
+    struct Segment: Identifiable, Equatable {
+        let skuId: String
+        let skuCode: String
+        let skuName: String
+        let totalItems: Int
+
+        var id: String { skuId }
+
+        var displayLabel: String {
+            let trimmedName = skuName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty {
+                return trimmedName
+            }
+            let trimmedCode = skuCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedCode.isEmpty ? "SKU" : trimmedCode
+        }
+    }
+
+    struct Point: Identifiable, Equatable {
+        var id: Date { start }
+        let label: String
+        let start: Date
+        let end: Date
+        let totalItems: Int
+        let skus: [Segment]
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let aggregation: Aggregation
+    let periods: Int
+    let lookbackDays: Int
+    let rangeStart: String
+    let rangeEnd: String
+    let skuLimit: Int
+    let points: [Point]
+
+    var isEmpty: Bool {
+        points.allSatisfy { $0.totalItems == 0 }
+    }
+}
+
 enum AnalyticsServiceError: LocalizedError {
     case invalidResponse
     case serverError(code: Int)
@@ -499,6 +579,53 @@ final class AnalyticsService: AnalyticsServicing {
 
         do {
             let payload = try decoder.decode(TopSkuStatsResponse.self, from: data)
+            return payload.toDomain()
+        } catch {
+            throw AnalyticsServiceError.unableToDecode
+        }
+    }
+
+    func fetchPickEntryBreakdown(
+        aggregation: PickEntryBreakdown.Aggregation,
+        periods: Int,
+        credentials: AuthCredentials
+    ) async throws -> PickEntryBreakdown {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("analytics")
+        url.appendPathComponent("pick-entries")
+        url.appendPathComponent("sku-breakdown")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
+            URLQueryItem(name: "aggregation", value: aggregation.rawValue),
+            URLQueryItem(name: "periods", value: String(max(1, periods)))
+        ]
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AnalyticsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw AnalyticsServiceError.noCompanyAccess
+            }
+            throw AnalyticsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        do {
+            let payload = try decoder.decode(PickEntrySkuBreakdownResponse.self, from: data)
             return payload.toDomain()
         } catch {
             throw AnalyticsServiceError.unableToDecode
@@ -998,6 +1125,109 @@ private struct TopSkuStatsResponse: Decodable {
                     locationId: machine.locationId,
                     locationName: machine.locationName,
                     totalItems: machine.totalItems
+                )
+            }
+        )
+    }
+}
+
+private struct PickEntrySkuBreakdownResponse: Decodable {
+    struct SkuSegment: Decodable {
+        let skuId: String
+        let skuCode: String
+        let skuName: String
+        let totalItems: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case skuId
+            case skuCode
+            case skuName
+            case totalItems
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            skuId = try container.decode(String.self, forKey: .skuId)
+            skuCode = try container.decode(String.self, forKey: .skuCode)
+            skuName = try container.decode(String.self, forKey: .skuName)
+
+            if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
+                totalItems = max(intValue, 0)
+            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
+                totalItems = max(Int(doubleValue.rounded()), 0)
+            } else {
+                totalItems = 0
+            }
+        }
+    }
+
+    struct Point: Decodable {
+        let date: String
+        let start: String
+        let end: String
+        let totalItems: Int
+        let skus: [SkuSegment]
+
+        private enum CodingKeys: String, CodingKey {
+            case date
+            case start
+            case end
+            case totalItems
+            case skus
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            date = try container.decode(String.self, forKey: .date)
+            start = try container.decode(String.self, forKey: .start)
+            end = try container.decode(String.self, forKey: .end)
+
+            if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
+                totalItems = max(intValue, 0)
+            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
+                totalItems = max(Int(doubleValue.rounded()), 0)
+            } else {
+                totalItems = 0
+            }
+
+            skus = (try? container.decode([SkuSegment].self, forKey: .skus)) ?? []
+        }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let aggregation: PickEntryBreakdown.Aggregation
+    let periods: Int
+    let lookbackDays: Int
+    let rangeStart: String
+    let rangeEnd: String
+    let skuLimit: Int
+    let points: [Point]
+
+    func toDomain() -> PickEntryBreakdown {
+        PickEntryBreakdown(
+            generatedAt: generatedAt,
+            timeZone: timeZone,
+            aggregation: aggregation,
+            periods: max(periods, 1),
+            lookbackDays: lookbackDays,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            skuLimit: skuLimit,
+            points: points.map { point in
+                PickEntryBreakdown.Point(
+                    label: point.date,
+                    start: AnalyticsDateParser.date(from: point.start, timeZoneIdentifier: timeZone),
+                    end: AnalyticsDateParser.date(from: point.end, timeZoneIdentifier: timeZone),
+                    totalItems: max(point.totalItems, 0),
+                    skus: point.skus.map { segment in
+                        PickEntryBreakdown.Segment(
+                            skuId: segment.skuId,
+                            skuCode: segment.skuCode,
+                            skuName: segment.skuName,
+                            totalItems: max(segment.totalItems, 0)
+                        )
+                    }
                 )
             }
         )

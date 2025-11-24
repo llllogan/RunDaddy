@@ -25,6 +25,10 @@ struct AnalyticsView: View {
                     DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
+                Section("Picks") {
+                    SkuBreakdownChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
                 Section("Packing Pace") {
                     PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

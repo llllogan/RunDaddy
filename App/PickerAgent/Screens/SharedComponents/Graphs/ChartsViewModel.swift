@@ -23,6 +23,11 @@ class ChartsViewModel: ObservableObject {
     @Published var isLoadingTopSkus = false
     @Published var topSkusError: String?
     @Published var topSkuLookbackDays = 365
+    @Published var skuBreakdownPoints: [PickEntryBreakdown.Point] = []
+    @Published var isLoadingSkuBreakdown = false
+    @Published var skuBreakdownError: String?
+    @Published var skuBreakdownAggregation: PickEntryBreakdown.Aggregation = .week
+    @Published var skuBreakdownPeriods: Int = PickEntryBreakdown.Aggregation.week.defaultPeriods
     @Published var packPeriodComparisons: [PackPeriodComparisons.PeriodComparison] = []
     @Published var isLoadingPeriodComparisons = false
     @Published var packPeriodComparisonsError: String?
@@ -54,7 +59,11 @@ class ChartsViewModel: ObservableObject {
         async let topSkusTask: Void = loadTopSkus(locationId: lastTopSkuLocationId, machineId: lastTopSkuMachineId)
         async let comparisonsTask: Void = loadPeriodComparisons()
         async let machineTotalsTask: Void = loadMachinePickTotals()
-        _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask, machineTotalsTask)
+        async let skuBreakdownTask: Void = loadSkuBreakdown(
+            aggregation: skuBreakdownAggregation,
+            periods: skuBreakdownPeriods
+        )
+        _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask, machineTotalsTask, skuBreakdownTask)
     }
 
     func loadDailyInsights() async {
@@ -161,6 +170,55 @@ class ChartsViewModel: ObservableObject {
 
     func refreshTopSkus() async {
         await loadTopSkus(locationId: lastTopSkuLocationId, machineId: lastTopSkuMachineId)
+    }
+
+    func loadSkuBreakdown(
+        aggregation: PickEntryBreakdown.Aggregation? = nil,
+        periods: Int? = nil
+    ) async {
+        if isLoadingSkuBreakdown && aggregation == nil && periods == nil {
+            return
+        }
+
+        let targetAggregation = aggregation ?? skuBreakdownAggregation
+        let targetPeriods = periods ?? skuBreakdownPeriods
+
+        isLoadingSkuBreakdown = true
+        skuBreakdownError = nil
+
+        do {
+            let response = try await analyticsService.fetchPickEntryBreakdown(
+                aggregation: targetAggregation,
+                periods: targetPeriods,
+                credentials: session.credentials
+            )
+            skuBreakdownAggregation = response.aggregation
+            skuBreakdownPeriods = response.periods
+            skuBreakdownPoints = response.points
+        } catch let authError as AuthError {
+            skuBreakdownError = authError.localizedDescription
+            skuBreakdownPoints = []
+        } catch let analyticsError as AnalyticsServiceError {
+            skuBreakdownError = analyticsError.localizedDescription
+            skuBreakdownPoints = []
+        } catch {
+            skuBreakdownError = "We couldn't load SKU breakdown data right now."
+            skuBreakdownPoints = []
+        }
+
+        isLoadingSkuBreakdown = false
+    }
+
+    func refreshSkuBreakdown() async {
+        await loadSkuBreakdown(aggregation: skuBreakdownAggregation, periods: skuBreakdownPeriods)
+    }
+
+    func updateSkuBreakdownAggregation(_ aggregation: PickEntryBreakdown.Aggregation) {
+        skuBreakdownAggregation = aggregation
+        skuBreakdownPeriods = aggregation.defaultPeriods
+        Task {
+            await loadSkuBreakdown(aggregation: aggregation, periods: skuBreakdownPeriods)
+        }
     }
 
     func loadPeriodComparisons() async {

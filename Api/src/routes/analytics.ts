@@ -33,6 +33,12 @@ const QUARTERS_IN_YEAR = 4;
 const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
 const SEARCH_SUGGESTION_LIMIT = 2;
 const DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT = 1000;
+const PICK_ENTRY_SKU_SEGMENT_LIMIT = 8;
+const PICK_ENTRY_AGGREGATIONS = ['week', 'month', 'quarter'] as const;
+const PICK_ENTRY_DEFAULT_PERIODS = 4;
+const PICK_ENTRY_PERIOD_MIN = 1;
+const PICK_ENTRY_PERIOD_MAX = 12;
+const PICK_ENTRY_LOOKBACK_MAX = 180;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -48,6 +54,19 @@ type DailyRow = {
   day_label: string | Date | null;
   total_items: bigint | number | string | null;
   items_packed: bigint | number | string | null;
+};
+
+type DailySkuRow = {
+  day_label: string | Date | null;
+  sku_id: string | null;
+  sku_code: string | null;
+  sku_name: string | null;
+  total_items: bigint | number | string | null;
+};
+
+type DailyTotalRow = {
+  day_label: string | Date | null;
+  total_items: bigint | number | string | null;
 };
 
 type LocationMachineRow = {
@@ -216,6 +235,42 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
     lookbackDays: context.lookbackDays,
     rangeStart: responseRange.start,
     rangeEnd: responseRange.end,
+    points,
+  });
+});
+
+router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildAggregatedLookbackContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const [dailyTotals, dailySkuRows] = await Promise.all([
+    fetchDailyTotalRows(context.companyId, context.rangeStart, context.rangeEnd, context.timeZone),
+    fetchDailySkuRows(
+      context.companyId,
+      context.rangeStart,
+      context.rangeEnd,
+      context.timeZone,
+      PICK_ENTRY_SKU_SEGMENT_LIMIT,
+    ),
+  ]);
+
+  const points = buildSkuBreakdownSeries(context.dayRanges, dailyTotals, dailySkuRows);
+  const responseRange = formatAppExclusiveRange(
+    { start: context.rangeStart, end: context.rangeEnd },
+    context.timeZone,
+  );
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    aggregation: context.aggregation,
+    periods: context.periods,
+    lookbackDays: context.lookbackDays,
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
+    skuLimit: PICK_ENTRY_SKU_SEGMENT_LIMIT,
     points,
   });
 });
@@ -574,6 +629,20 @@ type TimezoneContext = {
   now: Date;
 };
 
+type PickEntryAggregation = (typeof PICK_ENTRY_AGGREGATIONS)[number];
+
+type AggregatedLookbackContext = {
+  companyId: string;
+  timeZone: string;
+  now: Date;
+  aggregation: PickEntryAggregation;
+  periods: number;
+  lookbackDays: number;
+  dayRanges: TimezoneDayRange[];
+  rangeStart: Date;
+  rangeEnd: Date;
+};
+
 type PeriodType = (typeof PERIOD_TYPES)[number];
 
 type PeriodWindow = {
@@ -671,6 +740,78 @@ async function buildTimezoneContext(req: Request, res: Response): Promise<Timezo
   };
 }
 
+async function buildAggregatedLookbackContext(
+  req: Request,
+  res: Response,
+): Promise<AggregatedLookbackContext | null> {
+  const timezoneContext = await buildTimezoneContext(req, res);
+  if (!timezoneContext) {
+    return null;
+  }
+
+  const aggregation = parsePickEntryAggregation(req.query.aggregation);
+  const periods = parseAggregationPeriods(req.query.periods);
+  const lookbackDays = getAggregationLookbackDays(aggregation, periods);
+  const dayRanges = buildDayRanges(timezoneContext.timeZone, lookbackDays, timezoneContext.now);
+
+  if (dayRanges.length === 0) {
+    res.status(400).json({ error: 'Unable to construct aggregation window' });
+    return null;
+  }
+
+  return {
+    ...timezoneContext,
+    aggregation,
+    periods,
+    lookbackDays,
+    dayRanges,
+    rangeStart: dayRanges[0]!.start,
+    rangeEnd: dayRanges[dayRanges.length - 1]!.end,
+  };
+}
+
+function parsePickEntryAggregation(value: unknown): PickEntryAggregation {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if ((PICK_ENTRY_AGGREGATIONS as readonly string[]).includes(normalized)) {
+      return normalized as PickEntryAggregation;
+    }
+  }
+  return 'week';
+}
+
+function getAggregationBaseDays(aggregation: PickEntryAggregation): number {
+  switch (aggregation) {
+    case 'week':
+      return 7;
+    case 'month':
+      return 30;
+    case 'quarter':
+      return 90;
+    default:
+      return LOOKBACK_DEFAULT;
+  }
+}
+
+function parseAggregationPeriods(value: unknown): number {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, PICK_ENTRY_PERIOD_MIN, PICK_ENTRY_PERIOD_MAX);
+    }
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clamp(Math.trunc(value), PICK_ENTRY_PERIOD_MIN, PICK_ENTRY_PERIOD_MAX);
+  }
+  return PICK_ENTRY_DEFAULT_PERIODS;
+}
+
+function getAggregationLookbackDays(aggregation: PickEntryAggregation, periods: number): number {
+  const baseDays = getAggregationBaseDays(aggregation);
+  const raw = baseDays * Math.max(periods, 1);
+  return clamp(raw, baseDays, PICK_ENTRY_LOOKBACK_MAX);
+}
+
 function parseLookbackDays(value: unknown): number {
   if (typeof value === 'string' && value.trim().length > 0) {
     const parsed = Number.parseInt(value, 10);
@@ -754,6 +895,77 @@ function appendTomorrowRange(
     return dayRanges;
   }
   return [...dayRanges, tomorrowRange];
+}
+
+async function fetchDailyTotalRows(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  timeZone: string,
+) {
+  return prisma.$queryRaw<DailyTotalRow[]>(
+    Prisma.sql`
+      SELECT
+        DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS day_label,
+        SUM(count) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+      GROUP BY day_label
+      ORDER BY day_label ASC
+    `,
+  );
+}
+
+async function fetchDailySkuRows(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  timeZone: string,
+  limit: number,
+) {
+  const segmentLimit = clamp(limit, 1, DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT);
+
+  return prisma.$queryRaw<DailySkuRow[]>(
+    Prisma.sql`
+      WITH daily_sku_totals AS (
+        SELECT
+          DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS day_label,
+          COALESCE(sku_id, 'unknown-sku') AS sku_id,
+          COALESCE(sku_code, 'Unknown SKU') AS sku_code,
+          COALESCE(sku_name, sku_code, 'Unknown SKU') AS sku_name,
+          SUM(count) AS total_items
+        FROM v_pick_entry_details
+        WHERE companyId = ${companyId}
+          AND scheduledFor IS NOT NULL
+          AND scheduledFor >= ${rangeStart}
+          AND scheduledFor < ${rangeEnd}
+        GROUP BY day_label, sku_id, sku_code, sku_name
+      ),
+      ranked_skus AS (
+        SELECT
+          sku_id,
+          sku_code,
+          sku_name,
+          SUM(total_items) AS total_items
+        FROM daily_sku_totals
+        GROUP BY sku_id, sku_code, sku_name
+        ORDER BY total_items DESC
+        LIMIT ${Prisma.raw(String(segmentLimit))}
+      )
+      SELECT
+        dst.day_label,
+        dst.sku_id,
+        dst.sku_code,
+        dst.sku_name,
+        dst.total_items
+      FROM daily_sku_totals dst
+      JOIN ranked_skus rs ON rs.sku_id = dst.sku_id
+      ORDER BY dst.day_label ASC, dst.total_items DESC
+    `,
+  );
 }
 
 async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone: string) {
@@ -1050,6 +1262,74 @@ function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
       end: range.label,
       totalItems: totalsByLabel.get(range.label) ?? 0,
       itemsPacked: packedByLabel.get(range.label) ?? 0,
+    };
+  });
+}
+
+function buildSkuBreakdownSeries(
+  dayRanges: TimezoneDayRange[],
+  totalRows: DailyTotalRow[],
+  skuRows: DailySkuRow[],
+) {
+  const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
+  const totalsByLabel = new Map<string, number>();
+  const skusByLabel = new Map<
+    string,
+    Array<{
+      skuId: string;
+      skuCode: string;
+      skuName: string;
+      totalItems: number;
+    }>
+  >();
+
+  for (const row of totalRows) {
+    const normalizedLabel = normalizeDayLabel(row.day_label, targetTimeZone);
+    if (!normalizedLabel) {
+      continue;
+    }
+    totalsByLabel.set(normalizedLabel, Math.max(toNumber(row.total_items), 0));
+  }
+
+  for (const row of skuRows) {
+    const normalizedLabel = normalizeDayLabel(row.day_label, targetTimeZone);
+    if (!normalizedLabel) {
+      continue;
+    }
+    const skuId = (row.sku_id ?? 'unknown-sku').trim() || 'unknown-sku';
+    const skuCode = row.sku_code ?? 'SKU';
+    const skuName = (row.sku_name ?? skuCode ?? 'SKU').trim() || skuCode || 'SKU';
+    const totalItems = Math.max(toNumber(row.total_items), 0);
+    if (totalItems <= 0) {
+      continue;
+    }
+    const segment = { skuId, skuCode, skuName, totalItems };
+    const existing = skusByLabel.get(normalizedLabel) ?? [];
+    existing.push(segment);
+    skusByLabel.set(normalizedLabel, existing);
+  }
+
+  return dayRanges.map((range) => {
+    const totalItems = totalsByLabel.get(range.label) ?? 0;
+    const daySkus = (skusByLabel.get(range.label) ?? []).sort(
+      (a, b) => b.totalItems - a.totalItems,
+    );
+    const segmentTotal = daySkus.reduce((sum, entry) => sum + entry.totalItems, 0);
+    const otherItems = Math.max(totalItems - segmentTotal, 0);
+    const normalizedSkus =
+      otherItems > 0
+        ? [
+            ...daySkus,
+            { skuId: 'other', skuCode: 'Other', skuName: 'Other', totalItems: otherItems },
+          ]
+        : daySkus;
+
+    return {
+      date: range.label,
+      start: range.label,
+      end: range.label,
+      totalItems,
+      skus: normalizedSkus,
     };
   });
 }
