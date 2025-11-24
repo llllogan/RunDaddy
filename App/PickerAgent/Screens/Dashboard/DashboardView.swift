@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Charts
 
 private enum SearchDisplayState {
     case dashboard
@@ -34,9 +33,6 @@ struct DashboardView: View {
     @State private var notifications: [InAppNotification] = []
     private let searchService = SearchService()
     @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var skuMomentumNavigationTarget: DashboardMomentumSkuNavigation?
-    @State private var machineMomentumNavigationTarget: DashboardMomentumMachineNavigation?
-    @State private var locationMomentumNavigationTarget: DashboardMomentumLocationNavigation?
     @State private var analyticsNavigationTarget: DashboardMomentumAnalyticsNavigation?
 
     private var hasCompany: Bool {
@@ -198,15 +194,6 @@ struct DashboardView: View {
                     .background(Color(.systemBackground))
             }
         }
-        .navigationDestination(item: $skuMomentumNavigationTarget) { target in
-            SkuDetailView(skuId: target.id, session: session)
-        }
-        .navigationDestination(item: $machineMomentumNavigationTarget) { target in
-            MachineDetailView(machineId: target.id, session: session)
-        }
-        .navigationDestination(item: $locationMomentumNavigationTarget) { target in
-            SearchLocationDetailView(locationId: target.id, session: session)
-        }
         .navigationDestination(item: $analyticsNavigationTarget) { _ in
             AnalyticsView(session: session)
         }
@@ -360,19 +347,10 @@ struct DashboardView: View {
         }
 
         if shouldShowInsights {
-            Section("Biggest Changes week on week") {
+            Section("Analytics") {
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
-                        onSkuTap: { leader in
-                            handleMomentumSkuTap(leader)
-                        },
-                        onMachineTap: { leader in
-                            handleMomentumMachineTap(leader)
-                        },
-                        onLocationTap: { leader in
-                            handleMomentumLocationTap(leader)
-                        },
                         onAnalyticsTap: handleAnalyticsTap
                     )
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -390,21 +368,6 @@ struct DashboardView: View {
 
     private func handleJoinCompanyTap() {
         isShowingJoinCompany = true
-    }
-
-    private func handleMomentumSkuTap(_ leader: DashboardMomentumSnapshot.SkuLeader) {
-        guard !leader.skuId.isEmpty else { return }
-        skuMomentumNavigationTarget = DashboardMomentumSkuNavigation(id: leader.skuId)
-    }
-
-    private func handleMomentumMachineTap(_ leader: DashboardMomentumSnapshot.MachineLeader) {
-        guard !leader.machineId.isEmpty else { return }
-        machineMomentumNavigationTarget = DashboardMomentumMachineNavigation(id: leader.machineId)
-    }
-
-    private func handleMomentumLocationTap(_ leader: DashboardMomentumSnapshot.LocationLeader) {
-        guard !leader.locationId.isEmpty else { return }
-        locationMomentumNavigationTarget = DashboardMomentumLocationNavigation(id: leader.locationId)
     }
 
     private func handleAnalyticsTap() {
@@ -639,18 +602,6 @@ private struct SearchResultRow: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
-}
-
-private struct DashboardMomentumSkuNavigation: Identifiable, Hashable {
-    let id: String
-}
-
-private struct DashboardMomentumMachineNavigation: Identifiable, Hashable {
-    let id: String
-}
-
-private struct DashboardMomentumLocationNavigation: Identifiable, Hashable {
-    let id: String
 }
 
 private struct DashboardMomentumAnalyticsNavigation: Identifiable, Hashable {
