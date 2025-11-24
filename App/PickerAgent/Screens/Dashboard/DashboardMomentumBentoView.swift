@@ -24,7 +24,6 @@ struct DashboardMomentumBentoView: View {
         return BentoItem(
             title: "Machine Reach",
             value: machineTouchHeadline(for: orderedPoints),
-            subtitle: orderedPoints.isEmpty ? "No machine activity yet" : "Machines touched per week",
             symbolName: "waveform.path.ecg.rectangle",
             symbolTint: hasData ? .blue : .gray,
             allowsMultilineValue: true,
@@ -64,8 +63,7 @@ struct DashboardMomentumBentoView: View {
 
         return BentoItem(
             title: "Analytics",
-            value: chartContent == nil ? "See more data" : "",
-            subtitle: chartContent == nil ? nil : "See more data",
+            value: "",
             symbolName: "chart.bar.xaxis",
             symbolTint: .indigo,
             allowsMultilineValue: true,

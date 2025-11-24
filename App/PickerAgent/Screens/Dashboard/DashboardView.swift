@@ -348,10 +348,20 @@ struct DashboardView: View {
 
         if shouldShowInsights {
             Section("Analytics") {
+                Button {
+                    handleAnalyticsTap()
+                } label: {
+                    HStack {
+                        Text("View Analytics")
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
-                        onAnalyticsTap: handleAnalyticsTap
+                        onAnalyticsTap: nil
                     )
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         .listRowBackground(Color.clear)
