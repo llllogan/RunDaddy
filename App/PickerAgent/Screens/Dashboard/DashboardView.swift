@@ -345,22 +345,6 @@ struct DashboardView: View {
 
         if shouldShowInsights {
             Section("Analytics") {
-                NavigationLink {
-                    AnalyticsView(session: session)
-                } label: {
-                    HStack {
-                        Text("View More Details")
-                            .foregroundStyle(.primary)
-                    }
-                }
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .padding(.vertical, 16)
-                .padding(.horizontal, 18)
-                .background(Color(.systemBackground))
-                .clipShape(Capsule())
-
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
@@ -375,6 +359,23 @@ struct DashboardView: View {
                 } else {
                     EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
                 }
+                
+                
+                    NavigationLink {
+                        AnalyticsView(session: session)
+                    } label: {
+                        HStack {
+                            Text("View More Information")
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .padding(.vertical, 16)
+                    .padding(.horizontal, 18)
+                    .background(Color(.systemBackground))
+                    .clipShape(Capsule())
             }
         }
     }
