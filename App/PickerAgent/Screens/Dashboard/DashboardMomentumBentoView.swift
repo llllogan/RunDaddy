@@ -22,10 +22,10 @@ struct DashboardMomentumBentoView: View {
         let chartContent = MachineTouchesLineChart(points: orderedPoints)
 
         return BentoItem(
-            title: "Machine Reach",
+            title: "Total Machines",
             value: machineTouchHeadline(for: orderedPoints),
-            symbolName: "waveform.path.ecg.rectangle",
-            symbolTint: hasData ? .blue : .gray,
+            symbolName: "building.2",
+            symbolTint: hasData ? .purple : .gray,
             allowsMultilineValue: true,
             customContent: AnyView(chartContent)
         )
@@ -62,10 +62,10 @@ struct DashboardMomentumBentoView: View {
         }
 
         return BentoItem(
-            title: "Analytics",
+            title: "Total Picks",
             value: "",
-            symbolName: "chart.bar.xaxis",
-            symbolTint: .indigo,
+            symbolName: "tag",
+            symbolTint: .cyan,
             allowsMultilineValue: true,
             onTap: onAnalyticsTap,
             showsChevron: hasAction,
@@ -143,7 +143,7 @@ private struct AnalyticsComparisonChart: View {
                 }
             }
             .chartYScale(domain: 0...maxChartValue)
-            .frame(height: 100)
+            .frame(height: 160)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Pick entry comparison")
@@ -197,8 +197,8 @@ private struct MachineTouchesLineChart: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                .blue.opacity(0.24),
-                                .blue.opacity(0.05)
+                                .purple.opacity(0.24),
+                                .purple.opacity(0.05)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -210,18 +210,18 @@ private struct MachineTouchesLineChart: View {
                         y: .value("Machines", point.totalMachines)
                     )
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.purple)
                     .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
 
                     PointMark(
                         x: .value("Week", point.weekStart),
                         y: .value("Machines", point.totalMachines)
                     )
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.purple)
                 }
                 .chartLegend(.hidden)
                 .chartYAxis {
-                    AxisMarks(position: .leading)
+                    AxisMarks(position: .trailing)
                 }
                 .chartXAxis {
                     AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in

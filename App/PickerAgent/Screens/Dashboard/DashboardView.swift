@@ -33,7 +33,6 @@ struct DashboardView: View {
     @State private var notifications: [InAppNotification] = []
     private let searchService = SearchService()
     @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var analyticsNavigationTarget: DashboardMomentumAnalyticsNavigation?
 
     private var hasCompany: Bool {
         viewModel.currentUserProfile?.hasCompany ?? true
@@ -176,6 +175,7 @@ struct DashboardView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
         .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -193,9 +193,6 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(.systemBackground))
             }
-        }
-        .navigationDestination(item: $analyticsNavigationTarget) { _ in
-            AnalyticsView(session: session)
         }
         .onDisappear {
             searchDebounceTask?.cancel()
@@ -333,12 +330,12 @@ struct DashboardView: View {
                 handleJoinCompanyTap()
             }
         } else if hasCompany {
-            Section("All Runs") {
+            Section("History") {
                 NavigationLink {
                     AllRunsView(session: session)
                 } label: {
                     HStack {
-                        Text("View All Runs")
+                        Text("View all Runs")
                             .foregroundStyle(.primary)
                     }
                 }
@@ -348,23 +345,29 @@ struct DashboardView: View {
 
         if shouldShowInsights {
             Section("Analytics") {
-                Button {
-                    handleAnalyticsTap()
+                NavigationLink {
+                    AnalyticsView(session: session)
                 } label: {
                     HStack {
-                        Text("View Analytics")
+                        Text("View More Details")
                             .foregroundStyle(.primary)
                     }
                 }
-                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 18)
+                .background(Color(.systemBackground))
+                .clipShape(Capsule())
 
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
                         onAnalyticsTap: nil
                     )
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                        .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
                 } else if momentumViewModel.isLoading {
                     LoadingStateRow()
                 } else if momentumViewModel.errorMessage != nil {
@@ -378,10 +381,6 @@ struct DashboardView: View {
 
     private func handleJoinCompanyTap() {
         isShowingJoinCompany = true
-    }
-
-    private func handleAnalyticsTap() {
-        analyticsNavigationTarget = DashboardMomentumAnalyticsNavigation()
     }
 
     private func refreshNotifications() {
@@ -612,8 +611,4 @@ private struct SearchResultRow: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
-}
-
-private struct DashboardMomentumAnalyticsNavigation: Identifiable, Hashable {
-    let id = UUID()
 }
