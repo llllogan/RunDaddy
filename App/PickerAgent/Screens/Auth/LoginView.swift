@@ -66,10 +66,10 @@ struct LoginView: View {
         .onAppear {
             refreshNotifications()
         }
-        .onChange(of: authViewModel.phase) { _ in
+        .onChange(of: authViewModel.phase) { _, _ in
             refreshNotifications()
         }
-        .onChange(of: authViewModel.errorMessage) { _ in
+        .onChange(of: authViewModel.errorMessage) { _, _ in
             refreshNotifications()
         }
         .inAppNotifications(notifications) { notification in

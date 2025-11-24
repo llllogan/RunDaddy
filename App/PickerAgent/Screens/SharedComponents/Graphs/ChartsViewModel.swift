@@ -26,6 +26,9 @@ class ChartsViewModel: ObservableObject {
     @Published var packPeriodComparisons: [PackPeriodComparisons.PeriodComparison] = []
     @Published var isLoadingPeriodComparisons = false
     @Published var packPeriodComparisonsError: String?
+    @Published var machinePickTotals: [DashboardMomentumSnapshot.MachineSlice] = []
+    @Published var isLoadingMachinePickTotals = false
+    @Published var machinePickTotalsError: String?
 
     private var session: AuthSession
     private let analyticsService: AnalyticsServicing
@@ -50,7 +53,8 @@ class ChartsViewModel: ObservableObject {
         async let topLocationsTask: Void = loadTopLocations()
         async let topSkusTask: Void = loadTopSkus(locationId: lastTopSkuLocationId, machineId: lastTopSkuMachineId)
         async let comparisonsTask: Void = loadPeriodComparisons()
-        _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask)
+        async let machineTotalsTask: Void = loadMachinePickTotals()
+        _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask, machineTotalsTask)
     }
 
     func loadDailyInsights() async {
@@ -184,5 +188,37 @@ class ChartsViewModel: ObservableObject {
 
     func refreshPeriodComparisons() async {
         await loadPeriodComparisons()
+    }
+
+    func loadMachinePickTotals() async {
+        if isLoadingMachinePickTotals {
+            return
+        }
+
+        isLoadingMachinePickTotals = true
+        machinePickTotalsError = nil
+
+        do {
+            let totals = try await analyticsService.fetchMachinePickTotals(
+                lookbackDays: 14,
+                credentials: session.credentials
+            )
+            machinePickTotals = totals
+        } catch let authError as AuthError {
+            machinePickTotalsError = authError.localizedDescription
+            machinePickTotals = []
+        } catch let analyticsError as AnalyticsServiceError {
+            machinePickTotalsError = analyticsError.localizedDescription
+            machinePickTotals = []
+        } catch {
+            machinePickTotalsError = "We couldn't load machine totals right now."
+            machinePickTotals = []
+        }
+
+        isLoadingMachinePickTotals = false
+    }
+
+    func refreshMachinePickTotals() async {
+        await loadMachinePickTotals()
     }
 }

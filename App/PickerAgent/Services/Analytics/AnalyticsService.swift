@@ -18,6 +18,10 @@ protocol AnalyticsServicing {
         credentials: AuthCredentials
     ) async throws -> TopSkuStats
     func fetchDashboardMomentum(credentials: AuthCredentials) async throws -> DashboardMomentumSnapshot
+    func fetchMachinePickTotals(
+        lookbackDays: Int,
+        credentials: AuthCredentials
+    ) async throws -> [DashboardMomentumSnapshot.MachineSlice]
 }
 
 struct DailyInsights: Equatable {
@@ -233,6 +237,18 @@ struct DashboardMomentumSnapshot: Equatable {
         }
     }
 
+    struct MachineTouchPoint: Equatable, Identifiable {
+        let weekStart: Date
+        let weekEnd: Date
+        let totalMachines: Int
+
+        var id: Date { weekStart }
+
+        var weekLabel: String {
+            weekStart.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+
     struct AnalyticsSummary: Equatable {
         struct SkuComparison: Equatable {
             struct Totals: Equatable {
@@ -272,6 +288,7 @@ struct DashboardMomentumSnapshot: Equatable {
     let generatedAt: Date
     let timeZone: String
     let machinePickTotals: [MachineSlice]
+    let machineTouches: [MachineTouchPoint]
     let analytics: AnalyticsSummary
 }
 
@@ -528,7 +545,7 @@ final class AnalyticsService: AnalyticsServicing {
         }
     }
 
-    private func fetchMachinePickTotals(
+    func fetchMachinePickTotals(
         lookbackDays: Int,
         credentials: AuthCredentials
     ) async throws -> [DashboardMomentumSnapshot.MachineSlice] {
@@ -1030,6 +1047,26 @@ private struct MachinePickTotalsResponse: Decodable {
 }
 
 private struct DashboardMomentumResponse: Decodable {
+    struct MachineTouchPoint: Decodable {
+        let weekStart: String
+        let weekEnd: String
+        let totalMachines: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case weekStart
+            case weekEnd
+            case totalMachines
+        }
+
+        func toDomain(timeZone: String) -> DashboardMomentumSnapshot.MachineTouchPoint {
+            DashboardMomentumSnapshot.MachineTouchPoint(
+                weekStart: AnalyticsDateParser.date(from: weekStart, timeZoneIdentifier: timeZone),
+                weekEnd: AnalyticsDateParser.date(from: weekEnd, timeZoneIdentifier: timeZone),
+                totalMachines: max(totalMachines, 0)
+            )
+        }
+    }
+
     struct AnalyticsSummary: Decodable {
         struct SkuComparison: Decodable {
             struct Segment: Decodable {
@@ -1090,12 +1127,15 @@ private struct DashboardMomentumResponse: Decodable {
     let generatedAt: Date
     let timeZone: String
     let analytics: AnalyticsSummary?
+    let machineTouches: [MachineTouchPoint]?
 
     func toDomain(machineSlices: [DashboardMomentumSnapshot.MachineSlice]) -> DashboardMomentumSnapshot {
-        DashboardMomentumSnapshot(
+        let touches = machineTouches?.map { $0.toDomain(timeZone: timeZone) } ?? []
+        return DashboardMomentumSnapshot(
             generatedAt: generatedAt,
             timeZone: timeZone,
             machinePickTotals: machineSlices,
+            machineTouches: touches,
             analytics: analytics?.toDomain() ?? .empty
         )
     }

@@ -40,8 +40,9 @@ struct RunDetailView: View {
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
     @MainActor
-    init(runId: String, session: AuthSession, service: RunsServicing = RunsService()) {
-        _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: service))
+    init(runId: String, session: AuthSession, service: RunsServicing? = nil) {
+        let resolvedService = service ?? RunsService()
+        _viewModel = StateObject(wrappedValue: RunDetailViewModel(runId: runId, session: session, service: resolvedService))
     }
 
     var body: some View {

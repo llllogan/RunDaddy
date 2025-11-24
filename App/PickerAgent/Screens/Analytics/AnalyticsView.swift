@@ -29,6 +29,10 @@ struct AnalyticsView: View {
                     PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
+                Section("Machine Distribution") {
+                    MachineDistributionChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
                 Section("Top Locations") {
                     TopLocationsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

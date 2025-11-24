@@ -118,12 +118,12 @@ final class RunDetailViewModel: ObservableObject {
         runId: String,
         session: AuthSession,
         service: RunsServicing,
-        companyService: CompanyServicing = CompanyService()
+        companyService: CompanyServicing? = nil
     ) {
         self.runId = runId
         self.session = session
         self.service = service
-        self.companyService = companyService
+        self.companyService = companyService ?? CompanyService()
     }
 
     func load(force: Bool = false) async {

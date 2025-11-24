@@ -25,6 +25,7 @@ const TOP_SKU_LIMIT_DEFAULT = 6;
 const TOP_SKU_LIMIT_MIN = 3;
 const TOP_SKU_LIMIT_MAX = 12;
 const MACHINE_PICK_LOOKBACK_DEFAULT = 14;
+const DASHBOARD_MACHINE_TOUCH_WEEKS = 6;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const WEEK_IN_MS = 7 * DAY_IN_MS;
 const MONTHS_IN_YEAR = 12;
@@ -168,6 +169,12 @@ type DashboardAnalyticsSkuComparisonSegment = {
   skuId: string;
   currentTotal: number;
   previousTotal: number;
+};
+
+type DashboardMachineTouchPoint = {
+  weekStart: string;
+  weekEnd: string;
+  totalMachines: number;
 };
 
 type MomentumDirection = 'up' | 'down';
@@ -496,6 +503,7 @@ router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) =>
     locationLeaderRows,
     skuComparisonSegmentRows,
     skuComparisonTotalsRow,
+    machineTouches,
   ] = await Promise.all([
     fetchDashboardSkuMomentumRows(context.companyId, weekWindow),
     fetchDashboardMachineMomentumRows(context.companyId, weekWindow),
@@ -505,6 +513,12 @@ router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) =>
       weekWindow,
     ),
     fetchDashboardSkuComparisonTotals(context.companyId, weekWindow),
+    buildDashboardMachineTouchSeries(
+      context.companyId,
+      context.timeZone,
+      context.now,
+      DASHBOARD_MACHINE_TOUCH_WEEKS,
+    ),
   ]);
 
   const analyticsSummary = buildDashboardAnalyticsSummary(
@@ -540,6 +554,7 @@ router.get('/dashboard', setLogConfig({ level: 'minimal' }), async (req, res) =>
       location: buildMomentumLeaderResponse(locationLeaderRows, mapLocationMomentumLeader),
     },
     analytics: analyticsSummary,
+    machineTouches,
   });
 });
 
@@ -1365,6 +1380,57 @@ function buildDashboardWeekWindow(timeZone: string, reference: Date): DashboardW
     progressFraction: WEEK_IN_MS === 0 ? 0 : comparisonDurationMs / WEEK_IN_MS,
     comparisonDurationMs,
   };
+}
+
+async function countMachinesTouched(
+  companyId: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+): Promise<number> {
+  const [row] = await prisma.$queryRaw<{ total_machines: bigint | number | string | null }[]>(
+    Prisma.sql`
+      SELECT COUNT(DISTINCT machine_id) AS total_machines
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND machine_id IS NOT NULL
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+    `,
+  );
+
+  return Math.max(toNumber(row?.total_machines ?? 0), 0);
+}
+
+async function buildDashboardMachineTouchSeries(
+  companyId: string,
+  timeZone: string,
+  reference: Date,
+  weekCount: number,
+): Promise<DashboardMachineTouchPoint[]> {
+  const totalWeeks = Math.max(weekCount, 1);
+  const currentWeekStart = getIsoWeekStart(timeZone, reference);
+  const weekWindows = Array.from({ length: totalWeeks }, (_, index) => {
+    const offset = totalWeeks - 1 - index;
+    const start = new Date(currentWeekStart.getTime() - offset * WEEK_IN_MS);
+    return {
+      start,
+      end: new Date(start.getTime() + WEEK_IN_MS),
+    };
+  });
+
+  const totals = await Promise.all(
+    weekWindows.map((window) => countMachinesTouched(companyId, window.start, window.end)),
+  );
+
+  return weekWindows.map((window, index) => {
+    const range = formatAppExclusiveRange({ start: window.start, end: window.end }, timeZone);
+    return {
+      weekStart: range.start,
+      weekEnd: range.end,
+      totalMachines: totals[index],
+    };
+  });
 }
 
 async function fetchDashboardSkuMomentumRows(companyId: string, window: DashboardWeekWindow) {

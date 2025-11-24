@@ -13,27 +13,42 @@ struct DashboardMomentumBentoView: View {
     let onAnalyticsTap: (() -> Void)?
 
     var body: some View {
-        StaggeredBentoGrid(items: [machineItem, analyticsItem], columnCount: 2)
+        StaggeredBentoGrid(items: [machineTouchesItem, analyticsItem], columnCount: 2)
     }
 
-    private var machineItem: BentoItem {
-        let hasData = snapshot.machinePickTotals.isEmpty == false
-        let chartContent = MachineDonutChart(slices: snapshot.machinePickTotals)
+    private var machineTouchesItem: BentoItem {
+        let orderedPoints = snapshot.machineTouches.sorted { $0.weekStart < $1.weekStart }
+        let hasData = orderedPoints.contains { $0.totalMachines > 0 }
+        let chartContent = MachineTouchesLineChart(points: orderedPoints)
 
         return BentoItem(
-            title: "Machines",
-            value: hasData ? machineTotalDisplay : "No data yet",
-            subtitle: "Last 2 weeks",
-            symbolName: "gearshape.2",
-            symbolTint: hasData ? .purple : .gray,
+            title: "Machine Reach",
+            value: machineTouchHeadline(for: orderedPoints),
+            subtitle: orderedPoints.isEmpty ? "No machine activity yet" : "Machines touched per week",
+            symbolName: "waveform.path.ecg.rectangle",
+            symbolTint: hasData ? .blue : .gray,
             allowsMultilineValue: true,
             customContent: AnyView(chartContent)
         )
     }
 
-    private var machineTotalDisplay: String {
-        let total = snapshot.machinePickTotals.reduce(0) { $0 + $1.totalPicks }
-        return total == 1 ? "1 pick entry" : "\(total) pick entries"
+    private func machineTouchHeadline(for points: [DashboardMomentumSnapshot.MachineTouchPoint]) -> String {
+        guard let latest = points.last else {
+            return "No machines yet"
+        }
+
+        let machineNoun = latest.totalMachines == 1 ? "machine" : "machines"
+
+        guard let previous = points.dropLast().last else {
+            return "\(latest.totalMachines) \(machineNoun)"
+        }
+
+        let delta = latest.totalMachines - previous.totalMachines
+        let sign = delta > 0 ? "+" : ""
+        if delta == 0 {
+            return "\(latest.totalMachines) \(machineNoun) (no change)"
+        }
+        return "\(latest.totalMachines) \(machineNoun) (\(sign)\(delta) vs prior)"
     }
 
     private var analyticsItem: BentoItem {
@@ -150,63 +165,80 @@ private struct AnalyticsComparisonChart: View {
     }
 }
 
-private struct MachineDonutChart: View {
-    let slices: [DashboardMomentumSnapshot.MachineSlice]
+private struct MachineTouchesLineChart: View {
+    let points: [DashboardMomentumSnapshot.MachineTouchPoint]
 
-    private var totalPicks: Int {
-        slices.reduce(0) { $0 + $1.totalPicks }
+    private var orderedPoints: [DashboardMomentumSnapshot.MachineTouchPoint] {
+        points.sorted { $0.weekStart < $1.weekStart }
     }
 
-    private var orderedSlices: [DashboardMomentumSnapshot.MachineSlice] {
-        slices.sorted { $0.totalPicks > $1.totalPicks }
+    private var maxValue: Double {
+        let maxTotal = orderedPoints.map(\.totalMachines).max() ?? 0
+        return max(Double(maxTotal), 1)
     }
 
-    private var topMachines: [DashboardMomentumSnapshot.MachineSlice] {
-        Array(orderedSlices.prefix(3))
-    }
+    private static let axisFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if slices.isEmpty {
-                Text("No picks recorded in the last 2 weeks.")
+            if orderedPoints.isEmpty {
+                Text("Machine activity will appear once picks start landing each week.")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Chart(orderedSlices) { slice in
-                    SectorMark(
-                        angle: .value("Pick Entries", slice.totalPicks)
+                Chart(orderedPoints) { point in
+                    AreaMark(
+                        x: .value("Week", point.weekStart),
+                        y: .value("Machines", point.totalMachines)
                     )
-                    .foregroundStyle(by: .value("Machine", slice.displayName))
-                    .cornerRadius(4)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                .blue.opacity(0.24),
+                                .blue.opacity(0.05)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    LineMark(
+                        x: .value("Week", point.weekStart),
+                        y: .value("Machines", point.totalMachines)
+                    )
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(.blue)
+                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
+
+                    PointMark(
+                        x: .value("Week", point.weekStart),
+                        y: .value("Machines", point.totalMachines)
+                    )
+                    .foregroundStyle(.blue)
                 }
                 .chartLegend(.hidden)
-                .frame(height: 180)
-
-                if topMachines.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(topMachines.enumerated()), id: \.element.id) { index, slice in
-                            HStack {
-                                Text("\(index + 1). \(slice.displayName)")
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                Spacer()
-                                Text(percentageText(for: slice))
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+                .chartXAxis {
+                    AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel {
+                                Text(Self.axisFormatter.string(from: date))
+                                    .font(.caption2.weight(.semibold))
                             }
                         }
                     }
                 }
+                .chartYScale(domain: 0...maxValue)
+                .frame(height: 170)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func percentageText(for slice: DashboardMomentumSnapshot.MachineSlice) -> String {
-        guard totalPicks > 0 else { return "0%" }
-        let percentage = Double(slice.totalPicks) / Double(totalPicks) * 100
-        return "\(Int((percentage).rounded()))%"
     }
 }

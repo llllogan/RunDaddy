@@ -200,13 +200,13 @@ struct DashboardView: View {
         .onDisappear {
             searchDebounceTask?.cancel()
         }
-        .onChange(of: viewModel.errorMessage) { _ in
+        .onChange(of: viewModel.errorMessage) { _, _ in
             refreshNotifications()
         }
-        .onChange(of: momentumViewModel.errorMessage) { _ in
+        .onChange(of: momentumViewModel.errorMessage) { _, _ in
             refreshNotifications()
         }
-        .onChange(of: suggestionsErrorMessage) { _ in
+        .onChange(of: suggestionsErrorMessage) { _, _ in
             refreshNotifications()
         }
         .onAppear {
