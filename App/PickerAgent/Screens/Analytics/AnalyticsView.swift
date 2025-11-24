@@ -21,10 +21,6 @@ struct AnalyticsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Total Items vs Packed") {
-                    DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                }
                 Section("Picks") {
                     SkuBreakdownChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -33,10 +29,10 @@ struct AnalyticsView: View {
                     PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
-                Section("Machine Distribution") {
-                    MachineDistributionChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                }
+//                Section("Machine Distribution") {
+//                    MachineDistributionChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+//                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+//                }
                 Section("Top Locations") {
                     TopLocationsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -44,6 +40,10 @@ struct AnalyticsView: View {
                 }
                 Section("Top SKUs") {
                     TopSkusChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
+                Section("Total Items vs Packed") {
+                    DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
             }
