@@ -24,6 +24,7 @@ const TOP_SKU_LOOKBACK_MAX = 365;
 const TOP_SKU_LIMIT_DEFAULT = 6;
 const TOP_SKU_LIMIT_MIN = 3;
 const TOP_SKU_LIMIT_MAX = 12;
+const MACHINE_PICK_LOOKBACK_DEFAULT = 14;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const WEEK_IN_MS = 7 * DAY_IN_MS;
 const MONTHS_IN_YEAR = 12;
@@ -140,6 +141,13 @@ type DashboardSkuComparisonRow = {
 type DashboardSkuTotalsRow = {
   current_total: bigint | number | string | null;
   previous_total: bigint | number | string | null;
+};
+
+type MachinePickTotalRow = {
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_description: string | null;
+  total_items: bigint | number | string | null;
 };
 
 type DashboardAnalyticsSummary = {
@@ -290,6 +298,40 @@ router.get('/skus/top-picked', setLogConfig({ level: 'minimal' }), async (req, r
         machineDescription: row.machine_description ?? row.machine_code ?? 'Machine',
         locationId: row.location_id,
         locationName: row.location_name ?? undefined,
+        totalItems: Math.max(toNumber(row.total_items), 0),
+      })),
+  });
+});
+
+router.get('/machines/pick-totals', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const lookbackDays = parseMachinePickLookbackDays(req.query.lookbackDays);
+  const { rangeStart, rangeEnd } = buildTopSkuRange(context.timeZone, context.now, lookbackDays);
+
+  const machineRows = await fetchMachinePickTotals(
+    context.companyId,
+    rangeStart,
+    rangeEnd,
+  );
+
+  const responseRange = formatAppExclusiveRange({ start: rangeStart, end: rangeEnd }, context.timeZone);
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    lookbackDays,
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
+    machines: machineRows
+      .filter((row) => row.machine_id)
+      .map((row) => ({
+        machineId: row.machine_id!,
+        machineCode: row.machine_code ?? 'Machine',
+        machineDescription: row.machine_description ?? row.machine_code ?? 'Machine',
         totalItems: Math.max(toNumber(row.total_items), 0),
       })),
   });
@@ -640,6 +682,19 @@ function parseTopSkuLookbackDays(value: unknown): number {
   return TOP_SKU_LOOKBACK_DEFAULT;
 }
 
+function parseMachinePickLookbackDays(value: unknown): number {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, LOOKBACK_MIN, LOOKBACK_MAX);
+    }
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clamp(Math.trunc(value), LOOKBACK_MIN, LOOKBACK_MAX);
+  }
+  return MACHINE_PICK_LOOKBACK_DEFAULT;
+}
+
 function parseTopSkuLimit(value: unknown): number {
   if (typeof value === 'string' && value.trim().length > 0) {
     const parsed = Number.parseInt(value, 10);
@@ -849,6 +904,27 @@ async function fetchSkuMachineRows(companyId: string, rangeStart: Date, rangeEnd
       LEFT JOIN Location loc ON loc.id = mach.locationId
       WHERE mach.companyId = ${companyId}
       ORDER BY mach.code ASC
+    `,
+  );
+}
+
+async function fetchMachinePickTotals(companyId: string, rangeStart: Date, rangeEnd: Date) {
+  return prisma.$queryRaw<MachinePickTotalRow[]>(
+    Prisma.sql`
+      SELECT
+        machine_id,
+        machine_code,
+        machine_description,
+        SUM(count) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND machine_id IS NOT NULL
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+      GROUP BY machine_id, machine_code, machine_description
+      HAVING SUM(count) > 0
+      ORDER BY total_items DESC, machine_code ASC
     `,
   );
 }

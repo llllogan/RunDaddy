@@ -220,6 +220,19 @@ struct PackPeriodComparisons: Equatable {
 }
 
 struct DashboardMomentumSnapshot: Equatable {
+    struct MachineSlice: Equatable, Identifiable {
+        let machineId: String
+        let name: String
+        let totalPicks: Int
+
+        var id: String { machineId }
+
+        var displayName: String {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "Machine" : trimmed
+        }
+    }
+
     struct AnalyticsSummary: Equatable {
         struct SkuComparison: Equatable {
             struct Totals: Equatable {
@@ -258,6 +271,7 @@ struct DashboardMomentumSnapshot: Equatable {
 
     let generatedAt: Date
     let timeZone: String
+    let machinePickTotals: [MachineSlice]
     let analytics: AnalyticsSummary
 }
 
@@ -266,6 +280,7 @@ enum AnalyticsServiceError: LocalizedError {
     case serverError(code: Int)
     case unableToDecode
     case noCompanyAccess
+    case missingCredentials
 
     var errorDescription: String? {
         switch self {
@@ -277,6 +292,8 @@ enum AnalyticsServiceError: LocalizedError {
             return "Received analytics data in an unexpected format."
         case .noCompanyAccess:
             return "Join or select a company to unlock insights."
+        case .missingCredentials:
+            return "We couldn't find your credentials. Please sign in again."
         }
     }
 }
@@ -485,6 +502,7 @@ final class AnalyticsService: AnalyticsServicing {
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
 
+        async let machineSlices = fetchMachinePickTotals(lookbackDays: 14, credentials: credentials)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -503,11 +521,64 @@ final class AnalyticsService: AnalyticsServicing {
 
         do {
             let payload = try decoder.decode(DashboardMomentumResponse.self, from: data)
-            return payload.toDomain()
+            let machines = (try? await machineSlices) ?? []
+            return payload.toDomain(machineSlices: machines)
         } catch {
             throw AnalyticsServiceError.unableToDecode
         }
     }
+
+    private func fetchMachinePickTotals(
+        lookbackDays: Int,
+        credentials: AuthCredentials
+    ) async throws -> [DashboardMomentumSnapshot.MachineSlice] {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("analytics")
+        url.appendPathComponent("machines")
+        url.appendPathComponent("pick-totals")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
+            URLQueryItem(name: "lookbackDays", value: String(lookbackDays))
+        ]
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AnalyticsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw AnalyticsServiceError.noCompanyAccess
+            }
+            throw AnalyticsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        do {
+            let payload = try decoder.decode(MachinePickTotalsResponse.self, from: data)
+            return payload.machines.map { machine in
+                DashboardMomentumSnapshot.MachineSlice(
+                    machineId: machine.machineId,
+                    name: machine.displayName,
+                    totalPicks: machine.totalItems
+                )
+            }
+        } catch {
+            throw AnalyticsServiceError.unableToDecode
+        }
+    }
+
 }
 
 private enum AnalyticsDateParser {
@@ -916,6 +987,48 @@ private struct TopSkuStatsResponse: Decodable {
     }
 }
 
+private struct MachinePickTotalsResponse: Decodable {
+    struct Machine: Decodable {
+        let machineId: String
+        let machineCode: String
+        let machineDescription: String
+        let totalItems: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case machineId
+            case machineCode
+            case machineDescription
+            case totalItems
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            machineId = try container.decode(String.self, forKey: .machineId)
+            machineCode = try container.decode(String.self, forKey: .machineCode)
+            machineDescription = try container.decode(String.self, forKey: .machineDescription)
+
+            if let value = try? container.decode(Int.self, forKey: .totalItems) {
+                totalItems = max(value, 0)
+            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
+                totalItems = max(Int(doubleValue.rounded()), 0)
+            } else {
+                totalItems = 0
+            }
+        }
+
+        var displayName: String {
+            let trimmed = machineDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+            let trimmedCode = machineCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedCode.isEmpty ? "Machine" : trimmedCode
+        }
+    }
+
+    let machines: [Machine]
+}
+
 private struct DashboardMomentumResponse: Decodable {
     struct AnalyticsSummary: Decodable {
         struct SkuComparison: Decodable {
@@ -978,10 +1091,11 @@ private struct DashboardMomentumResponse: Decodable {
     let timeZone: String
     let analytics: AnalyticsSummary?
 
-    func toDomain() -> DashboardMomentumSnapshot {
+    func toDomain(machineSlices: [DashboardMomentumSnapshot.MachineSlice]) -> DashboardMomentumSnapshot {
         DashboardMomentumSnapshot(
             generatedAt: generatedAt,
             timeZone: timeZone,
+            machinePickTotals: machineSlices,
             analytics: analytics?.toDomain() ?? .empty
         )
     }
