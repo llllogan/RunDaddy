@@ -4,13 +4,13 @@ Seed Overview
 Companies
 +-------------------------------+---------------+--------------------------------------+---------------------+
 | Company                       | Tier          | Owner Email                          | Time Zone           |
-+-------------------------------+---------------+--------------------------------------+---------------------+
-| Apple                         | Enterprise 10 | appstore-testing@apple.com           | America/Los_Angeles |
-| Metro Snacks Co.              | Business      | taylor.kent+seed@rundaddy.test       | America/Los_Angeles |
-| River City Logistics          | Business      | jordan.blake+seed@rundaddy.test      | America/Denver      |
-| Pulse Logistics Collective    | Individual    | morgan.hart+seed@rundaddy.test       | America/Chicago     |
-| Picker Agent Admin            | Enterprise 10 | admin@pickeragent.app                | UTC                 |
-+-------------------------------+---------------+--------------------------------------+---------------------+
++-------------------------------+---------------+--------------------------------------+------------------------+
+| Apple                         | Enterprise 10 | appstore-testing@apple.com           | Australia/Brisbane    |
+| Metro Snacks Co.              | Business      | taylor.kent+seed@rundaddy.test       | Australia/Brisbane    |
+| River City Logistics          | Business      | jordan.blake+seed@rundaddy.test      | Australia/Brisbane    |
+| Pulse Logistics Collective    | Individual    | morgan.hart+seed@rundaddy.test       | Australia/Brisbane    |
+| Picker Agent Admin            | Enterprise 10 | admin@pickeragent.app                | Australia/Brisbane    |
++-------------------------------+---------------+--------------------------------------+------------------------+
 
 Users
 +----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
@@ -43,10 +43,12 @@ import {
 } from '../config/platform-admin.js';
 import { TIER_IDS, TIER_SEED_DATA } from '../config/tiers.js';
 
+const BRISBANE_TIME_ZONE = 'Australia/Brisbane';
+const BRISBANE_OFFSET_MINUTES = 10 * 60; // Queensland stays on UTC+10 year-round (no DST).
 const APP_STORE_COMPANY_NAME = 'Apple';
 const APP_STORE_TEST_EMAIL = process.env.APP_STORE_TEST_EMAIL ?? 'appstore-testing@apple.com';
 const APP_STORE_TEST_PASSWORD = process.env.APP_STORE_TEST_PASSWORD ?? 'AppleTestingOnly!123';
-const APP_STORE_TIME_ZONE = 'America/Los_Angeles';
+const APP_STORE_TIME_ZONE = BRISBANE_TIME_ZONE;
 const APP_STORE_TIER_ID = TIER_IDS.ENTERPRISE_10;
 const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!123';
 const MIN_RUN_LOCATIONS = 4;
@@ -218,7 +220,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
 const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   {
     name: 'Metro Snacks Co.',
-    timeZone: 'America/Los_Angeles',
+    timeZone: BRISBANE_TIME_ZONE,
     tierId: TIER_IDS.BUSINESS,
     owner: {
       firstName: 'Taylor',
@@ -335,7 +337,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   },
   {
     name: 'River City Logistics',
-    timeZone: 'America/Denver',
+    timeZone: BRISBANE_TIME_ZONE,
     tierId: TIER_IDS.BUSINESS,
     owner: {
       firstName: 'Jordan',
@@ -454,7 +456,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
 
 const TREND_SCENARIO_COMPANY = {
   name: 'Pulse Logistics Collective',
-  timeZone: 'America/Chicago',
+  timeZone: BRISBANE_TIME_ZONE,
   tierId: TIER_IDS.INDIVIDUAL,
   owner: {
     firstName: 'Morgan',
@@ -644,10 +646,21 @@ async function getSkuByCode(code: string) {
 }
 
 const scheduleForDay = (daysFromToday: number, hour = 9) => {
-  const date = new Date();
-  date.setHours(hour, 0, 0, 0);
-  date.setDate(date.getDate() + daysFromToday);
-  return date;
+  const offsetMs = BRISBANE_OFFSET_MINUTES * 60 * 1000;
+  const brisbaneNow = new Date(Date.now() + offsetMs);
+
+  const targetLocal = Date.UTC(
+    brisbaneNow.getUTCFullYear(),
+    brisbaneNow.getUTCMonth(),
+    brisbaneNow.getUTCDate() + daysFromToday,
+    hour,
+    0,
+    0,
+    0,
+  );
+
+  // Convert the Brisbane local wall time back to the actual UTC instant.
+  return new Date(targetLocal - offsetMs);
 };
 
 async function hashUserPassword(password: string) {
