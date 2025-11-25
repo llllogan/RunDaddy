@@ -25,8 +25,6 @@ export type PeriodBucket = {
   endMs: number;
 };
 
-const MONTH_NAME_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>();
-
 export function buildPercentageChange(currentTotal: number, previousTotal: number) {
   if (currentTotal === 0 && previousTotal === 0) {
     return null;
@@ -137,10 +135,14 @@ export function buildChartRange(
     return { start, end };
   }
 
-  return {
-    start: new Date(periodRange.start),
-    end: new Date(periodRange.end),
-  };
+  // For quarter views, include the month prior to the current quarter so charts
+  // always render four months (previous month + current quarter).
+  const chartEnd = new Date(periodRange.end);
+  const priorMonth = new Date(periodRange.start);
+  priorMonth.setUTCMonth(priorMonth.getUTCMonth() - 1);
+  const chartStart = getMonthStart(priorMonth, timeZone);
+
+  return { start: chartStart, end: chartEnd };
 }
 
 export function buildChartBuckets(
@@ -155,7 +157,7 @@ export function buildChartBuckets(
     case 'month':
       return buildWeeklyBuckets(chartStart, chartEnd, timeZone);
     case 'quarter':
-      return buildMonthlyBuckets(chartStart, chartEnd, timeZone);
+      return buildFixedMonthlyBuckets(chartStart, timeZone, 4);
     default:
       return buildDailyBuckets(chartStart, chartEnd, timeZone);
   }
@@ -221,7 +223,22 @@ function buildMonthlyBuckets(start: Date, end: Date, timeZone: string): PeriodBu
     const bucketStart = new Date(cursor);
     const bucketEnd = getNextMonthStart(bucketStart, timeZone);
 
-    buckets.push(createBucket(formatMonthName(bucketStart, timeZone), bucketStart, bucketEnd));
+    buckets.push(createBucket(formatDateInTimezone(bucketStart, timeZone), bucketStart, bucketEnd));
+    cursor = bucketEnd;
+  }
+
+  return buckets;
+}
+
+function buildFixedMonthlyBuckets(start: Date, timeZone: string, months: number): PeriodBucket[] {
+  const buckets: PeriodBucket[] = [];
+  let cursor = getMonthStart(start, timeZone);
+
+  for (let i = 0; i < months; i += 1) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = getNextMonthStart(bucketStart, timeZone);
+
+    buckets.push(createBucket(formatDateInTimezone(bucketStart, timeZone), bucketStart, bucketEnd));
     cursor = bucketEnd;
   }
 
@@ -245,17 +262,6 @@ function getWeekStart(date: Date, timeZone: string): Date {
   const start = new Date(date);
   start.setUTCDate(start.getUTCDate() - offsetFromMonday);
   return start;
-}
-
-function formatMonthName(date: Date, timeZone: string) {
-  const key = `${timeZone}-month`;
-  if (!MONTH_NAME_FORMATTER_CACHE.has(key)) {
-    MONTH_NAME_FORMATTER_CACHE.set(
-      key,
-      new Intl.DateTimeFormat('en-US', { month: 'long', timeZone }),
-    );
-  }
-  return MONTH_NAME_FORMATTER_CACHE.get(key)!.format(date);
 }
 
 function getMonthStart(date: Date, timeZone: string): Date {

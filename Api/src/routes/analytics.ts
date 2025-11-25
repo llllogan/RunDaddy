@@ -239,7 +239,7 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
   });
 });
 
-router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'full' }), async (req, res) => {
+router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildAggregatedLookbackContext(req, res);
   if (!context) {
     return;
