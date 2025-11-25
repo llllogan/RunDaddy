@@ -1393,9 +1393,6 @@ function buildWeekAverages(
     const weekEnd = new Date(weekStart.getTime() + WEEK_IN_MS);
     const weekKey = formatDateInTimezone(weekStart, range.timeZone);
     const totalItems = totalsByLabel.get(range.label) ?? 0;
-    if (totalItems <= 0) {
-      continue;
-    }
 
     if (!weekBuckets.has(weekKey)) {
       weekBuckets.set(weekKey, {
@@ -1409,7 +1406,9 @@ function buildWeekAverages(
 
     const bucket = weekBuckets.get(weekKey)!;
     bucket.dates.push(range.label);
-    bucket.totals.push(totalItems);
+    if (totalItems > 0) {
+      bucket.totals.push(totalItems);
+    }
   }
 
   return Array.from(weekBuckets.values())

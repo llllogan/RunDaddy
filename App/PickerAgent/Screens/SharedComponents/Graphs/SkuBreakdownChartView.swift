@@ -335,8 +335,8 @@ struct PickEntryBarChart: View {
                 xEnd: .value("Week End", overlay.end, unit: .day),
                 y: .value("Weekly Average", overlay.average)
             )
-            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
-            .foregroundStyle(.black)
+            .lineStyle(StrokeStyle(lineWidth: 1.5))
+            .foregroundStyle(Color(.secondaryLabel))
         }
     }
 
