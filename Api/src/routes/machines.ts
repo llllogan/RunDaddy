@@ -3,9 +3,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
-import { isValidTimezone } from '../lib/timezone.js';
+
 import { AuthContext } from '../types/enums.js';
-import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { resolveCompanyTimezone } from './helpers/timezone.js';
 import { formatAppDate, formatAppExclusiveRange, formatAppIsoDate } from './helpers/app-dates.js';
 import {
   ONE_DAY_MS,
@@ -86,12 +86,7 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
     return res.status(403).json({ error: 'User must belong to a company' });
   }
 
-  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
-  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
-    return res.status(400).json({
-      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
-    });
-  }
+
 
   const machine = await prisma.machine.findFirst({
     where: {
@@ -105,10 +100,7 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
   }
 
   const now = new Date();
-  const persistTimezone = req.auth.context === AuthContext.APP;
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
-    persistIfMissing: persistTimezone,
-  });
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId);
 
   const periodQuery =
     typeof req.query.period === 'string' ? req.query.period.toLowerCase() : undefined;

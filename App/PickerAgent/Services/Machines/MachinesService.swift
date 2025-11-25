@@ -65,8 +65,7 @@ final class MachinesService: MachinesServicing {
         url.appendPathComponent("stats")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "period", value: period.rawValue),
-            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
+            URLQueryItem(name: "period", value: period.rawValue)
         ]
         let resolvedURL = components?.url ?? url
 

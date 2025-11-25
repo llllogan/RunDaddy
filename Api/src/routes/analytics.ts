@@ -12,7 +12,7 @@ import {
 } from '../lib/timezone.js';
 import type { TimezoneDayRange } from '../lib/timezone.js';
 import { AuthContext } from '../types/enums.js';
-import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { resolveCompanyTimezone } from './helpers/timezone.js';
 import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
 
 const LOOKBACK_DEFAULT = 30;
@@ -735,19 +735,8 @@ async function buildTimezoneContext(req: Request, res: Response): Promise<Timezo
     return null;
   }
 
-  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
-  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
-    res.status(400).json({
-      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
-    });
-    return null;
-  }
-
   const now = new Date();
-  const persistTimezone = req.auth.context === AuthContext.APP;
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
-    persistIfMissing: persistTimezone,
-  });
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId);
 
   return {
     companyId: req.auth.companyId,

@@ -510,8 +510,7 @@ final class AnalyticsService: AnalyticsServicing {
         url.appendPathComponent("period-comparison")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
-        components?.queryItems = queryItems
+        components?.queryItems = []
         let resolvedURL = components?.url ?? url
 
         var request = URLRequest(url: resolvedURL)
@@ -609,7 +608,6 @@ final class AnalyticsService: AnalyticsServicing {
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
             URLQueryItem(name: "aggregation", value: aggregation.rawValue),
             URLQueryItem(name: "periods", value: String(max(1, periods)))
         ]
@@ -650,7 +648,7 @@ final class AnalyticsService: AnalyticsServicing {
         url.appendPathComponent("dashboard")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        components?.queryItems = []
         let resolvedURL = components?.url ?? url
 
         var request = URLRequest(url: resolvedURL)
@@ -695,7 +693,6 @@ final class AnalyticsService: AnalyticsServicing {
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
             URLQueryItem(name: "lookbackDays", value: String(lookbackDays))
         ]
         let resolvedURL = components?.url ?? url

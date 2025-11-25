@@ -76,8 +76,7 @@ final class SkusService: SkusServicing {
         url.appendPathComponent("stats")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         var queryItems = [
-            URLQueryItem(name: "period", value: period.rawValue),
-            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
+            URLQueryItem(name: "period", value: period.rawValue)
         ]
         if let locationId, !locationId.isEmpty {
             queryItems.append(URLQueryItem(name: "locationId", value: locationId))
