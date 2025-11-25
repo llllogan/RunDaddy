@@ -130,7 +130,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
   const periodDurationMs = periodEnd.getTime() - periodStart.getTime();
   const periodDays = PERIOD_DAY_COUNTS[period];
 
-  const chartRange = buildChartRange(period, periodRange, timeZone);
+  const chartRange = buildChartRange(period, periodRange, timeZone, now);
   const dataEnd = new Date(Math.min(periodRange.end.getTime(), chartRange.end.getTime()));
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
 

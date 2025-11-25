@@ -17,12 +17,48 @@ struct SkuStatsChartView: View {
 
     private var locationOptions: [SkuStatsLocationOption] { stats.locations }
     private var machineOptions: [SkuStatsMachineOption] { stats.machines }
+    private var aggregation: PickEntryBreakdown.Aggregation { selectedPeriod.pickEntryAggregation }
+    private var calendar: Calendar { chartCalendar(for: stats.timeZone) }
 
     private var visibleMachines: [SkuStatsMachineOption] {
         guard let locationId = selectedLocationFilter else {
             return machineOptions
         }
         return machineOptions.filter { $0.locationId == locationId }
+    }
+
+    private var breakdownPoints: [PickEntryBreakdown.Point] {
+        let mappedPoints: [PickEntryBreakdown.Point] = stats.points.compactMap { point in
+            guard let start = parseAnalyticsDay(point.date, timeZoneIdentifier: stats.timeZone) else { return nil }
+            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+            let segments = point.machines.map { machine in
+                PickEntryBreakdown.Segment(
+                    skuId: machine.machineId,
+                    skuCode: machine.machineCode,
+                    skuName: machine.machineName ?? machine.machineCode,
+                    totalItems: machine.count
+                )
+            }
+
+            return PickEntryBreakdown.Point(
+                label: point.date,
+                start: start,
+                end: end,
+                totalItems: point.totalItems,
+                skus: segments
+            )
+        }
+
+        guard aggregation == .week else {
+            return mappedPoints.sorted { $0.start < $1.start }
+        }
+
+        return ensureRollingEightDayWindow(points: mappedPoints, calendar: calendar)
+    }
+
+    private var weekAverages: [PickEntryBreakdown.WeekAverage] {
+        guard aggregation == .week else { return [] }
+        return buildWeekAverages(from: breakdownPoints, calendar: calendar)
     }
 
     private var locationFilterLabel: String {
@@ -43,32 +79,44 @@ struct SkuStatsChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 2) {
-                Text("Totals for the last ")
-                Menu {
-                    ForEach(SkuPeriod.allCases) { period in
-                        Button(action: { selectedPeriod = period }) {
-                            HStack {
-                                Text(period.displayName)
-                                if selectedPeriod == period {
-                                    Image(systemName: "checkmark")
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("Picks per ")
+                    Menu {
+                        ForEach(SkuPeriod.allCases) { period in
+                            Button(action: { selectedPeriod = period }) {
+                                HStack {
+                                    Text(period.displayName)
+                                    if selectedPeriod == period {
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
+                    } label: {
+                        filterChip(label: selectedPeriod.displayName)
                     }
-                } label: {
-                    filterChip(label: selectedPeriod.displayName)
+                    .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
-                Spacer()
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+
+                Text("Showing last \(lookbackText)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .font(.subheadline)
-            .foregroundStyle(.primary)
-            
+
             filterControls
 
             if hasChartData {
-                chartView
+                PickEntryBarChart(
+                    points: breakdownPoints,
+                    aggregation: aggregation,
+                    weekAverages: weekAverages,
+                    timeZoneIdentifier: stats.timeZone,
+                    showLegend: !shouldHideLegend,
+                    maxHeight: 220
+                )
             } else {
                 Text("No data is available for the selected period.")
                     .font(.caption)
@@ -94,12 +142,12 @@ struct SkuStatsChartView: View {
     }
 
     private var hasChartData: Bool {
-        stats.points.contains { !$0.machines.isEmpty }
+        breakdownPoints.contains { !$0.skus.isEmpty }
     }
 
     private var chartMachineCount: Int {
-        let machineIds = stats.points.flatMap { point in
-            point.machines.map(\.machineId)
+        let machineIds = breakdownPoints.flatMap { point in
+            point.skus.map(\.skuId)
         }
         return Set(machineIds).count
     }
@@ -108,39 +156,16 @@ struct SkuStatsChartView: View {
         chartMachineCount > 6
     }
 
-    private var maxYValue: Double {
-        let maxPoint = stats.points.map { Double($0.totalItems) }.max() ?? 1
-        return max(maxPoint, 1) * 1.2
-    }
-
-    private func chartDate(from string: String) -> Date? {
-        Self.inputDateFormatter.date(from: string)
-    }
-
-    private func formatLabel(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
-    }
-
-    private var orderedDayLabels: [String] {
-        stats.points
-            .map(pointLabel(for:))
-            .reducingUnique()
-    }
-
-    private static let inputDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter
-    }()
-
-    private func pointLabel(for point: SkuStatsPoint) -> String {
-        if let date = chartDate(from: point.date) {
-            return formatLabel(for: date)
+    private var lookbackDays: Int {
+        if aggregation == .week {
+            return max(stats.lookbackDays, 8)
         }
-        return point.date
+        return max(stats.lookbackDays, aggregation.baseDays)
+    }
+
+    private var lookbackText: String {
+        let value = max(lookbackDays, breakdownPoints.count)
+        return value == 1 ? "1 day" : "\(value) days"
     }
 
     @ViewBuilder
@@ -193,67 +218,6 @@ struct SkuStatsChartView: View {
     private func applyFilters(locationId: String?, machineId: String?) {
         Task {
             await onFilterChange(locationId, machineId)
-        }
-    }
-
-    @ViewBuilder
-    private var chartView: some View {
-        let chart = Chart {
-            ForEach(stats.points, id: \.date) { point in
-                let dayLabel = pointLabel(for: point)
-                if point.machines.isEmpty {
-                    BarMark(
-                        x: .value("Day", dayLabel),
-                        y: .value("Items", 0)
-                    )
-                    .foregroundStyle(.gray)
-                    .opacity(0.6)
-                } else {
-                    ForEach(point.machines) { machine in
-                        let machineLabel = machine.machineName ?? machine.machineCode
-                        BarMark(
-                            x: .value("Day", dayLabel),
-                            y: .value("Items", machine.count)
-                        )
-                        .foregroundStyle(by: .value("Machine", machineLabel))
-                    }
-                }
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading)
-        }
-        .chartXAxis {
-            AxisMarks(values: orderedDayLabels) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let label = value.as(String.self) {
-                        Text(label)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-            }
-        }
-        .chartYScale(domain: 0...maxYValue)
-        .frame(height: 240)
-
-        if shouldHideLegend {
-            chart
-                .chartLegend(.hidden)
-        } else {
-            chart
-                .chartLegend(position: .top, alignment: .leading)
-        }
-    }
-}
-
-private extension Sequence where Element: Hashable {
-    func reducingUnique() -> [Element] {
-        var seen = Set<Element>()
-        return compactMap { element in
-            let inserted = seen.insert(element).inserted
-            return inserted ? element : nil
         }
     }
 }

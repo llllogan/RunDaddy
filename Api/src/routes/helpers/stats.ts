@@ -97,7 +97,27 @@ export function buildChartRange(
   period: StatsPeriod,
   periodRange: { start: Date; end: Date },
   timeZone: string,
+  reference: Date,
 ) {
+  if (period === 'week') {
+    const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference });
+    const startRange = getTimezoneDayRange({
+      timeZone,
+      dayOffset: -6,
+      reference: todayRange.start,
+    });
+    const tomorrowRange = getTimezoneDayRange({
+      timeZone,
+      dayOffset: 1,
+      reference: todayRange.start,
+    });
+
+    return {
+      start: startRange.start,
+      end: tomorrowRange.end,
+    };
+  }
+
   if (period === 'month') {
     const start = getWeekStart(periodRange.start, timeZone);
     const endWeekStart = getWeekStart(periodRange.end, timeZone);

@@ -375,3 +375,98 @@ struct PickEntryBarChart: View {
         .frame(height: maxHeight)
     }
 }
+
+func chartCalendar(for timeZoneIdentifier: String) -> Calendar {
+    var calendar = Calendar(identifier: .iso8601)
+    calendar.timeZone = TimeZone(identifier: timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)!
+    return calendar
+}
+
+func parseAnalyticsDay(_ dateString: String, timeZoneIdentifier: String) -> Date? {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.timeZone = TimeZone(identifier: timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)!
+    return formatter.date(from: dateString)
+}
+
+func ensureRollingEightDayWindow(
+    points: [PickEntryBreakdown.Point],
+    calendar: Calendar
+) -> [PickEntryBreakdown.Point] {
+    let labelFormatter = DateFormatter()
+    labelFormatter.dateFormat = "yyyy-MM-dd"
+    labelFormatter.timeZone = calendar.timeZone
+
+    let today = calendar.startOfDay(for: Date())
+    var byDay: [Date: PickEntryBreakdown.Point] = [:]
+
+    for point in points {
+        let dayStart = calendar.startOfDay(for: point.start)
+        byDay[dayStart] = point
+    }
+
+    let offsets = (-6...1)
+    let filledPoints: [PickEntryBreakdown.Point] = offsets.compactMap { offset in
+        guard let dayStart = calendar.date(byAdding: .day, value: offset, to: today) else { return nil }
+        if let existing = byDay[dayStart] {
+            // normalize start/end to the anchored day to avoid drift
+            let end = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+            return PickEntryBreakdown.Point(
+                label: existing.label,
+                start: dayStart,
+                end: end,
+                totalItems: existing.totalItems,
+                skus: existing.skus
+            )
+        }
+
+        let end = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        return PickEntryBreakdown.Point(
+            label: labelFormatter.string(from: dayStart),
+            start: dayStart,
+            end: end,
+            totalItems: 0,
+            skus: []
+        )
+    }
+
+    return filledPoints.sorted { $0.start < $1.start }
+}
+
+func buildWeekAverages(
+    from points: [PickEntryBreakdown.Point],
+    calendar: Calendar
+) -> [PickEntryBreakdown.WeekAverage] {
+    var buckets: [Date: [PickEntryBreakdown.Point]] = [:]
+
+    for point in points {
+        let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: point.start)
+        let weekStart = calendar.date(from: comps) ?? point.start
+        buckets[weekStart, default: []].append(point)
+    }
+
+    return buckets.keys.sorted().compactMap { weekStart in
+        guard let bucketPoints = buckets[weekStart] else { return nil }
+        let dates = bucketPoints.map(\.start).sorted()
+        guard let lastDate = dates.last else { return nil }
+        let total = bucketPoints.reduce(0) { $0 + $1.totalItems }
+        let average = bucketPoints.isEmpty ? 0 : Double(total) / Double(bucketPoints.count)
+
+        return PickEntryBreakdown.WeekAverage(
+            weekStart: weekStart,
+            weekEnd: lastDate,
+            dates: dates,
+            average: average
+        )
+    }
+}
+
+extension SkuPeriod {
+    var pickEntryAggregation: PickEntryBreakdown.Aggregation {
+        switch self {
+        case .week: return .week
+        case .month: return .month
+        case .quarter: return .quarter
+        }
+    }
+}
