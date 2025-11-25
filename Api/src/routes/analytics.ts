@@ -239,26 +239,30 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
   });
 });
 
-router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'full' }), async (req, res) => {
   const context = await buildAggregatedLookbackContext(req, res);
   if (!context) {
     return;
   }
 
+  const dayRangesWithTomorrow = appendTomorrowRange(context.dayRanges, context.timeZone, context.now);
+  // Calculate extended range for data fetching to include tomorrow's data when available
+  const extendedRange = dayRangesWithTomorrow[dayRangesWithTomorrow.length - 1];
+  
   const [dailyTotals, dailySkuRows] = await Promise.all([
-    fetchDailyTotalRows(context.companyId, context.rangeStart, context.rangeEnd, context.timeZone),
+    fetchDailyTotalRows(context.companyId, context.rangeStart, extendedRange.end, context.timeZone),
     fetchDailySkuRows(
       context.companyId,
       context.rangeStart,
-      context.rangeEnd,
+      extendedRange.end,
       context.timeZone,
       PICK_ENTRY_SKU_SEGMENT_LIMIT,
     ),
   ]);
 
-  const points = buildSkuBreakdownSeries(context.dayRanges, dailyTotals, dailySkuRows);
+  const points = buildSkuBreakdownSeries(dayRangesWithTomorrow, dailyTotals, dailySkuRows);
   const responseRange = formatAppExclusiveRange(
-    { start: context.rangeStart, end: context.rangeEnd },
+    { start: extendedRange.start, end: extendedRange.end },
     context.timeZone,
   );
 
