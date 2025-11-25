@@ -412,7 +412,7 @@ final class AnalyticsService: AnalyticsServicing {
         url.appendPathComponent("daily-totals")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        var queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        var queryItems = [URLQueryItem]()
         if let lookbackDays, lookbackDays > 0 {
             queryItems.append(URLQueryItem(name: "lookbackDays", value: String(lookbackDays)))
         }
@@ -455,7 +455,7 @@ final class AnalyticsService: AnalyticsServicing {
         url.appendPathComponent("top")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        var queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        var queryItems = [URLQueryItem]()
         if let lookbackDays, lookbackDays > 0 {
             queryItems.append(URLQueryItem(name: "lookbackDays", value: String(lookbackDays)))
         }
@@ -543,7 +543,7 @@ final class AnalyticsService: AnalyticsServicing {
         url.appendPathComponent("top-picked")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        var queryItems = [URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        var queryItems = [URLQueryItem]()
         if let lookbackDays, lookbackDays > 0 {
             queryItems.append(URLQueryItem(name: "lookbackDays", value: String(lookbackDays)))
         }

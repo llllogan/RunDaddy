@@ -14,7 +14,7 @@ class ChartsViewModel: ObservableObject {
     @Published var dailyInsights: [DailyInsights.Point] = []
     @Published var isLoadingInsights = false
     @Published var insightsError: String?
-    @Published var dailyInsightsLookbackDays = 7
+    @Published var dailyInsightsLookbackDays = 8
     @Published var topLocations: [TopLocations.Location] = []
     @Published var isLoadingTopLocations = false
     @Published var topLocationsError: String?
