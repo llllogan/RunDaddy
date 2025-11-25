@@ -6,7 +6,7 @@ import { setLogConfig } from '../middleware/logging.js';
 import { isValidTimezone } from '../lib/timezone.js';
 import { AuthContext } from '../types/enums.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
-import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
+import { formatAppDate, formatAppExclusiveRange, formatAppIsoDate } from './helpers/app-dates.js';
 import {
   ONE_DAY_MS,
   PERIOD_DAY_COUNTS,
@@ -164,7 +164,7 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
   const formattedLastStocked = lastStocked
     ? {
         ...lastStocked,
-        stockedAt: formatAppDate(lastStocked.stockedAt, timeZone),
+        stockedAt: formatAppIsoDate(lastStocked.stockedAt),
       }
     : null;
 

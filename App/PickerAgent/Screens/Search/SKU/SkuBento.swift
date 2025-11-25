@@ -41,7 +41,7 @@ struct SkuInfoBento: View {
         
         if let mostRecentPick = mostRecentPick {
             cards.append(
-                BentoItem(title: "Last Packed",
+                BentoItem(title: lastPackedTitle,
                           value: formatDate(mostRecentPick.pickedAt),
                           symbolName: "clock",
                           symbolTint: .indigo,
@@ -120,18 +120,39 @@ struct SkuInfoBento: View {
     var body: some View {
         StaggeredBentoGrid(items: items, columnCount: 2)
     }
+
+    private var lastPackedTitle: String {
+        guard let pick = mostRecentPick,
+              let date = parseDate(pick.pickedAt) else {
+            return "Last Packed"
+        }
+        return date > Date() ? "Next Packed" : "Last Packed"
+    }
     
     private func formatDate(_ dateString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        
-        guard let date = formatter.date(from: dateString) else {
+        guard let date = parseDate(dateString) else {
             return dateString
         }
-        
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+
+        return SkuInfoBento.dayMonthFormatter.string(from: date)
+    }
+
+    private func parseDate(_ dateString: String) -> Date? {
+        if let date = SkuInfoBento.isoFormatter.date(from: dateString) {
+            return date
+        }
+        return SkuInfoBento.basicIsoFormatter.date(from: dateString)
     }
     
     private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
@@ -173,4 +194,23 @@ struct SkuInfoBento: View {
             return .gray
         }
     }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        formatter.locale = Locale.current
+        return formatter
+    }()
 }

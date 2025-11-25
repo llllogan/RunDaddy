@@ -30,7 +30,7 @@ struct SearchLocationInfoBento: View {
 
         cards.append(
             BentoItem(
-                title: "Last Packed",
+                title: lastPackedTitle,
                 value: lastPackedValue,
                 symbolName: "clock.arrow.circlepath",
                 symbolTint: .indigo,
@@ -161,6 +161,14 @@ struct SearchLocationInfoBento: View {
         return trimmed.isEmpty ? "No address available" : trimmed
     }
 
+    private var lastPackedTitle: String {
+        guard let lastPacked,
+              let date = parseDate(lastPacked.pickedAt) else {
+            return "Last Packed"
+        }
+        return date > Date() ? "Next Packed" : "Last Packed"
+    }
+
     private var lastPackedValue: String {
         guard let lastPacked else { return "No pick history" }
         return formatDate(lastPacked.pickedAt)
@@ -175,14 +183,31 @@ struct SearchLocationInfoBento: View {
     }
 
     private func formatDate(_ isoString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
-        guard let date = formatter.date(from: isoString) else {
+        guard let date = SearchLocationInfoBento.isoFormatter.date(from: isoString) ?? SearchLocationInfoBento.basicIsoFormatter.date(from: isoString) else {
             return isoString
         }
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        return formatRelativeDay(from: date)
+    }
+
+    private func parseDate(_ isoString: String) -> Date? {
+        if let date = SearchLocationInfoBento.isoFormatter.date(from: isoString) {
+            return date
+        }
+        return SearchLocationInfoBento.basicIsoFormatter.date(from: isoString)
+    }
+
+    private func formatRelativeDay(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        return SearchLocationInfoBento.dayMonthFormatter.string(from: date)
     }
 
     private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
@@ -251,4 +276,23 @@ struct SearchLocationInfoBento: View {
         }
         return machine.id
     }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        formatter.locale = Locale.current
+        return formatter
+    }()
 }

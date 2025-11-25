@@ -53,8 +53,12 @@ struct MachineInfoBento: View {
     }
 
     private var lastStockedCard: BentoItem {
-        BentoItem(
-            title: "Last Stocked",
+        let stockedDate = parseDate(stats?.lastStocked?.stockedAt ?? "")
+        let isFuture = (stockedDate ?? Date.distantPast) > Date()
+        let title = isFuture ? "Next Stocked" : "Last Stocked"
+
+        return BentoItem(
+            title: title,
             value: formatStockedDate(stats?.lastStocked?.stockedAt),
             symbolName: "clock.arrow.circlepath",
             symbolTint: .indigo,
@@ -137,13 +141,34 @@ struct MachineInfoBento: View {
         guard let isoDate else {
             return "No data yet"
         }
-        if let date = MachineInfoBento.isoFormatter.date(from: isoDate) {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .none
-            return formatter.string(from: date)
+        if let date = parseDate(isoDate) {
+            return formatRelativeDay(from: date)
         }
         return isoDate
+    }
+
+    private func parseDate(_ string: String) -> Date? {
+        if let date = MachineInfoBento.isoFormatter.date(from: string) {
+            return date
+        }
+        if let date = MachineInfoBento.basicIsoFormatter.date(from: string) {
+            return date
+        }
+        return nil
+    }
+
+    private func formatRelativeDay(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        return MachineInfoBento.dayMonthFormatter.string(from: date)
     }
 
     private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
@@ -189,6 +214,18 @@ struct MachineInfoBento: View {
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
         return formatter
     }()
 }

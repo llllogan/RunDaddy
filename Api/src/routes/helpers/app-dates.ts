@@ -14,6 +14,10 @@ export const formatAppDate = (
   return formatDateInTimezone(coerceToDate(value), timeZone);
 };
 
+export const formatAppIsoDate = (value: Date | string): string => {
+  return coerceToDate(value).toISOString();
+};
+
 export const formatAppNullableDate = (
   value: Date | string | null | undefined,
   timeZone: string,

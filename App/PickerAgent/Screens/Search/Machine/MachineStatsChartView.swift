@@ -93,10 +93,6 @@ struct MachineStatsChartView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.primary)
-
-                Text("Showing last \(lookbackText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             if hasChartData {

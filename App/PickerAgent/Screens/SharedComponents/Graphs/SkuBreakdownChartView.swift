@@ -62,10 +62,6 @@ struct SkuBreakdownChartView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.primary)
-
-                Text("Showing last \(lookbackText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             if viewModel.isLoadingSkuBreakdown && orderedPoints.isEmpty {
