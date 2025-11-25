@@ -12,7 +12,7 @@ import {
   PERIOD_DAY_COUNTS,
   buildChartBuckets,
   buildChartRange,
-  buildPercentageChange,
+  buildAveragePercentageChange,
   buildPeriodRange,
   parseLocalDate,
   type StatsPeriod,
@@ -148,26 +148,15 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
 
   const { points, totalItems, latestPeriodRowEndMs, machineSalesShare } = chartData;
 
-  const coverageReferenceMs = Math.max(now.getTime(), latestPeriodRowEndMs ?? now.getTime());
-  const coverageMs = Math.max(
-    0,
-    Math.min(periodDurationMs, coverageReferenceMs - periodStart.getTime()),
+  const previousPeriodStart = new Date(periodStart.getTime() - periodDurationMs);
+  const previousTotal = await getLocationTotalPicks(
+    locationId,
+    previousPeriodStart,
+    periodStart,
+    req.auth.companyId,
   );
-  const previousWindowEnd = new Date(periodStart);
-  const previousWindowStart = new Date(periodStart.getTime() - coverageMs);
 
-  const previousTotal =
-    coverageMs > 0
-      ? await getLocationTotalPicks(
-          locationId,
-          previousWindowStart,
-          previousWindowEnd,
-          req.auth.companyId,
-        )
-      : 0;
-
-  const percentageChange =
-    coverageMs > 0 ? buildPercentageChange(totalItems, previousTotal) : null;
+  const percentageChange = buildAveragePercentageChange(totalItems, previousTotal, periodDays);
 
   const [bestMachine, bestSku, lastPacked] = await Promise.all([
     getLocationBestMachine(locationId, req.auth.companyId, periodStart, periodEnd),

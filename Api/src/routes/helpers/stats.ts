@@ -50,6 +50,17 @@ export function buildPercentageChange(currentTotal: number, previousTotal: numbe
   };
 }
 
+export function buildAveragePercentageChange(
+  currentTotal: number,
+  previousTotal: number,
+  periodDays: number,
+) {
+  const days = Math.max(periodDays, 1);
+  const currentAverage = currentTotal / days;
+  const previousAverage = previousTotal / days;
+  return buildPercentageChange(currentAverage, previousAverage);
+}
+
 export function buildPeriodRange(period: StatsPeriod, reference: Date, timeZone: string) {
   const todayRange = getTimezoneDayRange({ timeZone, dayOffset: 0, reference });
   const { year, month } = getLocalDateParts(reference, timeZone);
