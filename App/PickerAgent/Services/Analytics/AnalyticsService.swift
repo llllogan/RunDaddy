@@ -375,7 +375,6 @@ struct PickEntryBreakdown: Equatable {
     let lookbackDays: Int
     let rangeStart: String
     let rangeEnd: String
-    let skuLimit: Int
     let points: [Point]
     let weekAverages: [WeekAverage]
 
@@ -1217,7 +1216,6 @@ private struct PickEntrySkuBreakdownResponse: Decodable {
     let lookbackDays: Int
     let rangeStart: String
     let rangeEnd: String
-    let skuLimit: Int
     let points: [Point]
     let weekAverages: [WeekAverage]
 
@@ -1230,7 +1228,6 @@ private struct PickEntrySkuBreakdownResponse: Decodable {
             lookbackDays: lookbackDays,
             rangeStart: rangeStart,
             rangeEnd: rangeEnd,
-            skuLimit: skuLimit,
             points: points.map { point in
                 PickEntryBreakdown.Point(
                     label: point.date,

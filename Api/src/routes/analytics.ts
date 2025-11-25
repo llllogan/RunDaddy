@@ -32,8 +32,8 @@ const MONTHS_IN_YEAR = 12;
 const QUARTERS_IN_YEAR = 4;
 const PERIOD_TYPES = ['week', 'month', 'quarter'] as const;
 const SEARCH_SUGGESTION_LIMIT = 2;
-const DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT = 1000;
-const PICK_ENTRY_SKU_SEGMENT_LIMIT = 8;
+
+
 const PICK_ENTRY_AGGREGATIONS = ['week', 'month', 'quarter'] as const;
 const PICK_ENTRY_DEFAULT_PERIODS = 4;
 const PICK_ENTRY_PERIOD_MIN = 1;
@@ -256,7 +256,6 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), as
       context.rangeStart,
       extendedRange.end,
       context.timeZone,
-      PICK_ENTRY_SKU_SEGMENT_LIMIT,
     ),
   ]);
 
@@ -278,7 +277,6 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), as
     lookbackDays: context.lookbackDays,
     rangeStart: responseRange.start,
     rangeEnd: responseRange.end,
-    skuLimit: PICK_ENTRY_SKU_SEGMENT_LIMIT,
     points,
     weekAverages,
   });
@@ -929,46 +927,22 @@ async function fetchDailySkuRows(
   rangeStart: Date,
   rangeEnd: Date,
   timeZone: string,
-  limit: number,
 ) {
-  const segmentLimit = clamp(limit, 1, DASHBOARD_ANALYTICS_SKU_SEGMENT_LIMIT);
-
   return prisma.$queryRaw<DailySkuRow[]>(
     Prisma.sql`
-      WITH daily_sku_totals AS (
-        SELECT
-          DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS day_label,
-          COALESCE(sku_id, 'unknown-sku') AS sku_id,
-          COALESCE(sku_code, 'Unknown SKU') AS sku_code,
-          COALESCE(sku_name, sku_code, 'Unknown SKU') AS sku_name,
-          SUM(count) AS total_items
-        FROM v_pick_entry_details
-        WHERE companyId = ${companyId}
-          AND scheduledFor IS NOT NULL
-          AND scheduledFor >= ${rangeStart}
-          AND scheduledFor < ${rangeEnd}
-        GROUP BY day_label, sku_id, sku_code, sku_name
-      ),
-      ranked_skus AS (
-        SELECT
-          sku_id,
-          sku_code,
-          sku_name,
-          SUM(total_items) AS total_items
-        FROM daily_sku_totals
-        GROUP BY sku_id, sku_code, sku_name
-        ORDER BY total_items DESC
-        LIMIT ${Prisma.raw(String(segmentLimit))}
-      )
       SELECT
-        dst.day_label,
-        dst.sku_id,
-        dst.sku_code,
-        dst.sku_name,
-        dst.total_items
-      FROM daily_sku_totals dst
-      JOIN ranked_skus rs ON rs.sku_id = dst.sku_id
-      ORDER BY dst.day_label ASC, dst.total_items DESC
+        DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS day_label,
+        COALESCE(sku_id, 'unknown-sku') AS sku_id,
+        COALESCE(sku_code, 'Unknown SKU') AS sku_code,
+        COALESCE(sku_name, sku_code, 'Unknown SKU') AS sku_name,
+        SUM(count) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+      GROUP BY day_label, sku_id, sku_code, sku_name
+      ORDER BY day_label ASC, total_items DESC
     `,
   );
 }
