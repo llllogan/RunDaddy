@@ -348,6 +348,17 @@ struct PickEntryBreakdown: Equatable {
         }
     }
 
+    struct WeekAverage: Identifiable, Equatable {
+        let weekStart: Date
+        let weekEnd: Date
+        let dates: [Date]
+        let average: Double
+
+        var id: String {
+            "\(Int(weekStart.timeIntervalSince1970))"
+        }
+    }
+
     struct Point: Identifiable, Equatable {
         var id: Date { start }
         let label: String
@@ -366,6 +377,7 @@ struct PickEntryBreakdown: Equatable {
     let rangeEnd: String
     let skuLimit: Int
     let points: [Point]
+    let weekAverages: [WeekAverage]
 
     var isEmpty: Bool {
         points.allSatisfy { $0.totalItems == 0 }
@@ -1194,6 +1206,13 @@ private struct PickEntrySkuBreakdownResponse: Decodable {
         }
     }
 
+    struct WeekAverage: Decodable {
+        let weekStart: String
+        let weekEnd: String
+        let dates: [String]
+        let average: Double
+    }
+
     let generatedAt: Date
     let timeZone: String
     let aggregation: PickEntryBreakdown.Aggregation
@@ -1203,6 +1222,7 @@ private struct PickEntrySkuBreakdownResponse: Decodable {
     let rangeEnd: String
     let skuLimit: Int
     let points: [Point]
+    let weekAverages: [WeekAverage]
 
     func toDomain() -> PickEntryBreakdown {
         PickEntryBreakdown(
@@ -1228,6 +1248,14 @@ private struct PickEntrySkuBreakdownResponse: Decodable {
                             totalItems: max(segment.totalItems, 0)
                         )
                     }
+                )
+            },
+            weekAverages: weekAverages.map { week in
+                PickEntryBreakdown.WeekAverage(
+                    weekStart: AnalyticsDateParser.date(from: week.weekStart, timeZoneIdentifier: timeZone),
+                    weekEnd: AnalyticsDateParser.date(from: week.weekEnd, timeZoneIdentifier: timeZone),
+                    dates: week.dates.map { AnalyticsDateParser.date(from: $0, timeZoneIdentifier: timeZone) },
+                    average: max(week.average, 0)
                 )
             }
         )

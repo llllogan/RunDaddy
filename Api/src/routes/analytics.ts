@@ -261,6 +261,10 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'full' }), async
   ]);
 
   const points = buildSkuBreakdownSeries(dayRangesWithTomorrow, dailyTotals, dailySkuRows);
+  const weekAverages =
+    context.aggregation === 'week'
+      ? buildWeekAverages(dayRangesWithTomorrow, points, context.now)
+      : [];
   const responseRange = formatAppExclusiveRange(
     { start: extendedRange.start, end: extendedRange.end },
     context.timeZone,
@@ -276,6 +280,7 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'full' }), async
     rangeEnd: responseRange.end,
     skuLimit: PICK_ENTRY_SKU_SEGMENT_LIMIT,
     points,
+    weekAverages,
   });
 });
 
@@ -652,6 +657,13 @@ type PeriodType = (typeof PERIOD_TYPES)[number];
 type PeriodWindow = {
   start: Date;
   end: Date;
+};
+
+type PickEntryWeekAverage = {
+  weekStart: string;
+  weekEnd: string;
+  dates: string[];
+  average: number;
 };
 
 type PeriodComparison = {
@@ -1270,11 +1282,24 @@ function buildDailySeries(dayRanges: TimezoneDayRange[], rows: DailyRow[]) {
   });
 }
 
+type PickEntryPoint = {
+  date: string;
+  start: string;
+  end: string;
+  totalItems: number;
+  skus: Array<{
+    skuId: string;
+    skuCode: string;
+    skuName: string;
+    totalItems: number;
+  }>;
+};
+
 function buildSkuBreakdownSeries(
   dayRanges: TimezoneDayRange[],
   totalRows: DailyTotalRow[],
   skuRows: DailySkuRow[],
-) {
+): PickEntryPoint[] {
   const targetTimeZone = dayRanges[0]?.timeZone ?? 'UTC';
   const totalsByLabel = new Map<string, number>();
   const skusByLabel = new Map<
@@ -1336,6 +1361,70 @@ function buildSkuBreakdownSeries(
       skus: normalizedSkus,
     };
   });
+}
+
+function buildWeekAverages(
+  dayRanges: TimezoneDayRange[],
+  points: PickEntryPoint[],
+  reference: Date,
+): PickEntryWeekAverage[] {
+  if (dayRanges.length === 0) {
+    return [];
+  }
+
+  const totalsByLabel = new Map<string, number>();
+  for (const point of points) {
+    totalsByLabel.set(point.date, Math.max(point.totalItems, 0));
+  }
+
+  const weekBuckets = new Map<
+    string,
+    {
+      start: Date;
+      end: Date;
+      timeZone: string;
+      dates: string[];
+      totals: number[];
+    }
+  >();
+
+  for (const range of dayRanges) {
+    const weekStart = getIsoWeekStart(range.timeZone, range.start);
+    const weekEnd = new Date(weekStart.getTime() + WEEK_IN_MS);
+    const weekKey = formatDateInTimezone(weekStart, range.timeZone);
+    const totalItems = totalsByLabel.get(range.label) ?? 0;
+    if (totalItems <= 0) {
+      continue;
+    }
+
+    if (!weekBuckets.has(weekKey)) {
+      weekBuckets.set(weekKey, {
+        start: weekStart,
+        end: weekEnd,
+        timeZone: range.timeZone,
+        dates: [],
+        totals: [],
+      });
+    }
+
+    const bucket = weekBuckets.get(weekKey)!;
+    bucket.dates.push(range.label);
+    bucket.totals.push(totalItems);
+  }
+
+  return Array.from(weekBuckets.values())
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .map((bucket) => {
+      const dayCount = bucket.totals.length || 1;
+      const total = bucket.totals.reduce((sum, value) => sum + value, 0);
+      const average = dayCount > 0 ? total / dayCount : 0;
+      return {
+        weekStart: formatDateInTimezone(bucket.start, bucket.timeZone),
+        weekEnd: formatDateInTimezone(new Date(bucket.end.getTime() - DAY_IN_MS), bucket.timeZone),
+        dates: [...bucket.dates].sort(),
+        average: Number(average.toFixed(2)),
+      };
+    });
 }
 
 function normalizeDayLabel(label: string | Date | null, timeZone: string): string | null {

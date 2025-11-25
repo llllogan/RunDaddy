@@ -28,6 +28,8 @@ class ChartsViewModel: ObservableObject {
     @Published var skuBreakdownError: String?
     @Published var skuBreakdownAggregation: PickEntryBreakdown.Aggregation = .week
     @Published var skuBreakdownPeriods: Int = PickEntryBreakdown.Aggregation.week.defaultPeriods
+    @Published var skuBreakdownWeekAverages: [PickEntryBreakdown.WeekAverage] = []
+    @Published var skuBreakdownTimeZone = TimeZone.current.identifier
     @Published var packPeriodComparisons: [PackPeriodComparisons.PeriodComparison] = []
     @Published var isLoadingPeriodComparisons = false
     @Published var packPeriodComparisonsError: String?
@@ -192,18 +194,26 @@ class ChartsViewModel: ObservableObject {
                 periods: targetPeriods,
                 credentials: session.credentials
             )
+            skuBreakdownTimeZone = response.timeZone
             skuBreakdownAggregation = response.aggregation
             skuBreakdownPeriods = response.periods
             skuBreakdownPoints = response.points
+            skuBreakdownWeekAverages = response.weekAverages
         } catch let authError as AuthError {
             skuBreakdownError = authError.localizedDescription
             skuBreakdownPoints = []
+            skuBreakdownWeekAverages = []
+            skuBreakdownTimeZone = TimeZone.current.identifier
         } catch let analyticsError as AnalyticsServiceError {
             skuBreakdownError = analyticsError.localizedDescription
             skuBreakdownPoints = []
+            skuBreakdownWeekAverages = []
+            skuBreakdownTimeZone = TimeZone.current.identifier
         } catch {
             skuBreakdownError = "We couldn't load SKU breakdown data right now."
             skuBreakdownPoints = []
+            skuBreakdownWeekAverages = []
+            skuBreakdownTimeZone = TimeZone.current.identifier
         }
 
         isLoadingSkuBreakdown = false

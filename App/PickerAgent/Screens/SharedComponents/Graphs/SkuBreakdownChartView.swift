@@ -85,6 +85,8 @@ struct SkuBreakdownChartView: View {
                 PickEntryBarChart(
                     points: orderedPoints,
                     aggregation: selectedAggregation,
+                    weekAverages: viewModel.skuBreakdownWeekAverages,
+                    timeZoneIdentifier: viewModel.skuBreakdownTimeZone,
                     showLegend: true,
                     maxHeight: 220
                 )
@@ -111,6 +113,8 @@ struct SkuBreakdownChartView: View {
 struct PickEntryBarChart: View {
     let points: [PickEntryBreakdown.Point]
     let aggregation: PickEntryBreakdown.Aggregation
+    let weekAverages: [PickEntryBreakdown.WeekAverage]
+    let timeZoneIdentifier: String
     var showLegend: Bool = true
     var maxHeight: CGFloat = 200
 
@@ -121,8 +125,37 @@ struct PickEntryBarChart: View {
         let totalItems: Int
     }
 
+    private struct WeekOverlay: Identifiable {
+        let id: String
+        let start: Date
+        let end: Date
+        let average: Double
+    }
+
+    private var analyticsTimeZone: TimeZone {
+        TimeZone(identifier: timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)!
+    }
+
     private var calendar: Calendar {
-        Calendar.current
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = analyticsTimeZone
+        return calendar
+    }
+
+    private var dayFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeZone = analyticsTimeZone
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("d")
+        return formatter
+    }
+
+    private var monthFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeZone = analyticsTimeZone
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
+        return formatter
     }
 
     private var orderedPoints: [PickEntryBreakdown.Point] {
@@ -132,7 +165,7 @@ struct PickEntryBarChart: View {
     private var chartPoints: [ChartPoint] {
         switch aggregation {
         case .week:
-            return Array(orderedPoints.suffix(7)).map { point in
+            return Array(orderedPoints.suffix(8)).map { point in
                 ChartPoint(
                     id: "day-\(point.id.timeIntervalSince1970)",
                     anchorDate: point.start,
@@ -141,15 +174,41 @@ struct PickEntryBarChart: View {
                 )
             }
         case .month:
-            return aggregatePoints(by: .weekOfYear)
+            return aggregatePoints(from: orderedPoints, by: .weekOfYear)
         case .quarter:
-            return aggregatePoints(by: .month)
+            return aggregatePoints(from: orderedPoints, by: .month)
+        }
+    }
+
+    private var weekAverageOverlays: [WeekOverlay] {
+        guard aggregation == .week else { return [] }
+        let visibleDates = Set(chartPoints.map { $0.anchorDate })
+
+        return weekAverages.compactMap { week in
+            let includedDates = week.dates
+                .filter { visibleDates.contains($0) }
+                .sorted()
+
+            guard let firstDate = includedDates.first, let lastDate = includedDates.last else {
+                return nil
+            }
+
+            let endBoundary = lastDate
+
+            return WeekOverlay(
+                id: week.id,
+                start: firstDate,
+                end: endBoundary,
+                average: week.average
+            )
         }
     }
 
     private var maxYValue: Double {
         let maxValue = chartPoints.map { Double($0.totalItems) }.max() ?? 1
-        return max(maxValue * 1.15, 1)
+        let maxOverlay = weekAverageOverlays.map(\.average).max() ?? 0
+        let ceiling = max(maxValue, maxOverlay)
+        return max(ceiling * 1.15, 1)
     }
 
     private var xAxisValues: [Date] {
@@ -157,11 +216,12 @@ struct PickEntryBarChart: View {
     }
 
     private func aggregatePoints(
+        from points: [PickEntryBreakdown.Point],
         by component: Calendar.Component
     ) -> [ChartPoint] {
         var buckets: [Date: [PickEntryBreakdown.Point]] = [:]
 
-        for point in orderedPoints {
+        for point in points {
             let bucketStart = bucketStart(for: point.start, component: component)
             buckets[bucketStart, default: []].append(point)
         }
@@ -226,13 +286,13 @@ struct PickEntryBarChart: View {
     }
 
     private func monthLabel(for date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated))
+        monthFormatter.string(from: date)
     }
 
     private func axisLabel(for date: Date) -> String {
         switch aggregation {
         case .week:
-            return date.formatted(.dateTime.day())
+            return dayFormatter.string(from: date)
         case .month:
             return weekLabel(for: date)
         case .quarter:
@@ -248,24 +308,54 @@ struct PickEntryBarChart: View {
         }
     }
 
-    var body: some View {
-        Chart {
-            ForEach(chartPoints) { point in
-                ForEach(point.skus) { segment in
-                    BarMark(
-                        x: .value("Period", point.anchorDate, unit: xAxisUnit),
-                        y: .value("Pick Entries", segment.totalItems)
-                    )
-                    .foregroundStyle(by: .value("SKU", segment.displayLabel))
-                    .cornerRadius(5, style: .continuous)
-                }
+    @ChartContentBuilder
+    private func barMarks(
+        bars: [ChartPoint],
+        axisUnit: Calendar.Component
+    ) -> some ChartContent {
+        ForEach(bars) { point in
+            ForEach(point.skus) { segment in
+                BarMark(
+                    x: .value("Period", point.anchorDate, unit: axisUnit),
+                    y: .value("Pick Entries", segment.totalItems)
+                )
+                .foregroundStyle(by: .value("SKU", segment.displayLabel))
+                .cornerRadius(5, style: .continuous)
             }
+        }
+    }
+
+    @ChartContentBuilder
+    private func overlayMarks(
+        overlays: [WeekOverlay]
+    ) -> some ChartContent {
+        ForEach(overlays) { overlay in
+            RuleMark(
+                xStart: .value("Week Start", overlay.start, unit: .day),
+                xEnd: .value("Week End", overlay.end, unit: .day),
+                y: .value("Weekly Average", overlay.average)
+            )
+            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
+            .foregroundStyle(.black)
+        }
+    }
+
+    var body: some View {
+        let bars = chartPoints
+        let overlays = weekAverageOverlays
+        let axisValues = xAxisValues
+        let axisUnit = xAxisUnit
+        let yMax = maxYValue
+
+        return Chart {
+            barMarks(bars: bars, axisUnit: axisUnit)
+            overlayMarks(overlays: overlays)
         }
         .chartYAxis {
             AxisMarks(position: .leading)
         }
         .chartXAxis {
-            AxisMarks(values: xAxisValues) { value in
+            AxisMarks(values: axisValues) { value in
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
                         Text(axisLabel(for: date))
@@ -274,7 +364,7 @@ struct PickEntryBarChart: View {
             }
         }
         .chartLegend(showLegend ? .visible : .hidden)
-        .chartYScale(domain: 0...maxYValue)
+        .chartYScale(domain: 0...yMax)
         .frame(height: maxHeight)
     }
 }
