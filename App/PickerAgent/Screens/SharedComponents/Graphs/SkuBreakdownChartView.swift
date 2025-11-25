@@ -142,21 +142,7 @@ struct PickEntryBarChart: View {
         return calendar
     }
 
-    private var dayFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeZone = analyticsTimeZone
-        formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("d")
-        return formatter
-    }
-
-    private var monthFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeZone = analyticsTimeZone
-        formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("MMM")
-        return formatter
-    }
+    private let weekdaySymbols = Calendar.current.shortWeekdaySymbols
 
     private var orderedPoints: [PickEntryBreakdown.Point] {
         points.sorted { $0.start < $1.start }
@@ -285,18 +271,24 @@ struct PickEntryBarChart: View {
         return "W\(weekNumber)"
     }
 
-    private func monthLabel(for date: Date) -> String {
-        monthFormatter.string(from: date)
-    }
-
     private func axisLabel(for date: Date) -> String {
         switch aggregation {
         case .week:
-            return dayFormatter.string(from: date)
+            let weekdayIndex = calendar.component(.weekday, from: date)
+            let index = max(min(weekdayIndex - 1, weekdaySymbols.count - 1), 0)
+            let symbol = weekdaySymbols.indices.contains(index) ? weekdaySymbols[index] : ""
+            return symbol.first.map(String.init) ?? ""
         case .month:
             return weekLabel(for: date)
         case .quarter:
-            return monthLabel(for: date)
+            let comps = calendar.dateComponents([.month], from: date)
+            if let month = comps.month {
+                let index = max(min(month - 1, calendar.shortMonthSymbols.count - 1), 0)
+                if calendar.shortMonthSymbols.indices.contains(index) {
+                    return calendar.shortMonthSymbols[index]
+                }
+            }
+            return ""
         }
     }
 
@@ -337,6 +329,18 @@ struct PickEntryBarChart: View {
             )
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .foregroundStyle(Color(.secondaryLabel))
+
+            PointMark(
+                x: .value("Label Anchor", overlay.start, unit: .day),
+                y: .value("Weekly Average", overlay.average)
+            )
+            .opacity(0)
+            .annotation(position: .top, alignment: .leading) {
+                Text(String(format: "avg %.0f", overlay.average))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(Color(.secondaryLabel))
+                    .padding(.leading, -16)
+            }
         }
     }
 
@@ -358,7 +362,10 @@ struct PickEntryBarChart: View {
             AxisMarks(values: axisValues) { value in
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
-                        Text(axisLabel(for: date))
+                        let label = axisLabel(for: date)
+                        let isToday = calendar.isDateInToday(date)
+                        Text(label)
+                            .foregroundStyle(isToday ? Color.primary : Color.secondary)
                     }
                 }
             }
