@@ -194,7 +194,8 @@ struct ProfileView: View {
                             NavigationLink {
                                 CompanyLocationPickerView(
                                     viewModel: viewModel,
-                                    company: company
+                                    company: company,
+                                    showsCancel: false
                                 )
                             } label: {
                                 HStack {

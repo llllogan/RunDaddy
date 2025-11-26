@@ -813,6 +813,11 @@ private struct ReorderLocationsSheet: View {
     private let etaCache = EtaCache()
     @State private var mapItemCache: [String: MKMapItem] = [:]
     @State private var didHitMapSearchThrottle = false
+    @State private var showingShopEditor = false
+    @StateObject private var companyLocationPickerViewModel = ProfileViewModel(
+        authService: AuthService(),
+        inviteCodesService: InviteCodesService()
+    )
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
@@ -936,17 +941,53 @@ private struct ReorderLocationsSheet: View {
         .task {
             await refreshTravelEstimates()
         }
+        .sheet(isPresented: $showingShopEditor) {
+            if let company = companyForEditor {
+                NavigationStack {
+                    CompanyLocationPickerView(
+                        viewModel: companyLocationPickerViewModel,
+                        company: company,
+                        showsCancel: true
+                    )
+                    .onDisappear {
+                        Task {
+                            await viewModel.load(force: true)
+                            await refreshTravelEstimates()
+                        }
+                    }
+                }
+            } else {
+                Text("Company details unavailable.")
+                    .font(.body)
+                    .padding()
+            }
+        }
     }
 
     private var setupSection: some View {
         Section("Run Setup") {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Shop")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Text(companyLocationLabel)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+            HStack(alignment: .bottom, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Shop")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(companyLocationLabel)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                }
+                Spacer()
+                if canEditShopLocation, companyForEditor != nil {
+                    Button {
+                        prepareShopEditor()
+                        showingShopEditor = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color(.secondaryLabel))
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Edit shop address")
+                }
             }
 
             DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
@@ -964,6 +1005,29 @@ private struct ReorderLocationsSheet: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.vertical, 4)
+    }
+
+    private var canEditShopLocation: Bool {
+        guard let role = viewModel.session.profile.role?.uppercased() else { return false }
+        return role == "OWNER" || role == "ADMIN" || role == "GOD"
+    }
+
+    private var companyForEditor: CompanyInfo? {
+        guard let companyId = viewModel.detail?.companyId else { return nil }
+        let role = viewModel.session.profile.role ?? "PICKER"
+        return CompanyInfo(
+            id: companyId,
+            name: "Company",
+            role: role,
+            location: viewModel.companyLocation,
+            timeZone: nil
+        )
+    }
+
+    private func prepareShopEditor() {
+        guard let company = companyForEditor else { return }
+        companyLocationPickerViewModel.currentCompany = company
+        companyLocationPickerViewModel.companyLocationAddress = viewModel.companyLocation ?? ""
     }
 
     private func persistChanges() async {

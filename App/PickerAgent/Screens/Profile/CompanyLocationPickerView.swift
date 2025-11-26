@@ -5,6 +5,7 @@ import Contacts
 struct CompanyLocationPickerView: View {
     @ObservedObject var viewModel: ProfileViewModel
     let company: CompanyInfo
+    let showsCancel: Bool
 
     @Environment(\.dismiss) private var dismiss
 
@@ -96,9 +97,23 @@ struct CompanyLocationPickerView: View {
         .navigationTitle("Company Location")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if showsCancel {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(viewModel.isUpdatingLocation)
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.isUpdatingLocation {
                     ProgressView()
+                } else {
+                    Button("Save") {
+                        saveAddress(viewModel.companyLocationAddress)
+                    }
+                    .disabled(viewModel.companyLocationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -251,6 +266,6 @@ private struct AddressSearchResult: Identifiable {
     viewModel.companyLocationAddress = viewModel.currentCompany?.location ?? ""
 
     return NavigationStack {
-        CompanyLocationPickerView(viewModel: viewModel, company: viewModel.currentCompany!)
+        CompanyLocationPickerView(viewModel: viewModel, company: viewModel.currentCompany!, showsCancel: true)
     }
 }
