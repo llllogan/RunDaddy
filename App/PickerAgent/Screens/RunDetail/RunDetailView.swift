@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
@@ -803,12 +804,15 @@ private struct ReorderLocationsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draftSections: [RunLocationSection]
     @State private var isSaving = false
+    @State private var isOptimizing = false
     @State private var errorMessage: String?
-    @State private var sectionPendingDeletion: RunLocationSection?
+    @State private var startTime: Date
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
         _draftSections = State(initialValue: sections)
+        let initialStart = viewModel.detail?.scheduledFor ?? viewModel.detail?.createdAt ?? Date()
+        _startTime = State(initialValue: initialStart)
     }
 
     var body: some View {
@@ -826,6 +830,7 @@ private struct ReorderLocationsSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
+                        setupSection
                         Section(footer: footer) {
                             ForEach(draftSections) { section in
                                 VStack(alignment: .leading, spacing: 4) {
@@ -875,15 +880,42 @@ private struct ReorderLocationsSheet: View {
                     }
                     .disabled(isSaving || draftSections.count < 2)
                 }
+
+                ToolbarItem(placement: .bottomBar) {
+                    Button {
+                        Task {
+                            await runOptimisation()
+                        }
+                    } label: {
+                        Label("Optimise", systemImage: "wand.and.stars")
+                    }
+                    .disabled(isSaving || isOptimizing || draftSections.count < 2)
+                }
             }
             .overlay {
-                if isSaving {
-                    ProgressView("Saving")
+                if isSaving || isOptimizing {
+                    ProgressView(isSaving ? "Saving" : "Optimising route...")
                         .padding()
                         .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
+        }
+    }
+
+    private var setupSection: some View {
+        Section("Route Setup") {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Company Location")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text(companyLocationLabel)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+            }
+
+            DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.compact)
         }
     }
 
@@ -925,6 +957,234 @@ private struct ReorderLocationsSheet: View {
             return nil
         }
         return section.id
+    }
+
+    private var companyLocationLabel: String {
+        if let location = viewModel.companyLocation?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty {
+            return location
+        }
+        return "No company location on file"
+    }
+
+    private struct RouteNode: Identifiable, Equatable {
+        let id: String
+        let section: RunLocationSection
+        let address: String
+        let mapItem: MKMapItem
+        let openingMinutes: Int?
+        let closingMinutes: Int?
+        let dwellMinutes: Int?
+    }
+
+    private func runOptimisation() async {
+        guard draftSections.count >= 2 else { return }
+
+        await MainActor.run {
+            isOptimizing = true
+            errorMessage = nil
+        }
+        defer {
+            Task { @MainActor in
+                isOptimizing = false
+            }
+        }
+
+        guard let companyAddress = companyStartAddress else {
+            await MainActor.run {
+                errorMessage = "Add a company address to optimise the route."
+            }
+            return
+        }
+
+        guard let originItem = await mapItem(for: companyAddress) else {
+            await MainActor.run {
+                errorMessage = "We couldn't locate the company address in Maps."
+            }
+            return
+        }
+
+        let (stops, unresolved, unassigned) = await buildRouteNodes()
+        guard !stops.isEmpty else {
+            await MainActor.run {
+                errorMessage = "We couldn't resolve any locations for optimisation."
+            }
+            return
+        }
+
+        let orderedSections = await computeOptimisedSections(origin: originItem, stops: stops)
+
+        await MainActor.run {
+            withAnimation {
+                draftSections = orderedSections + unresolved + unassigned
+            }
+            if orderedSections.isEmpty {
+                errorMessage = "We couldn't create a route between these stops."
+            }
+        }
+    }
+
+    private func computeOptimisedSections(origin: MKMapItem, stops: [RouteNode]) async -> [RunLocationSection] {
+        var currentItem = origin
+        var currentTime = startTime
+        var remaining = stops
+        var ordered: [RunLocationSection] = []
+
+        while !remaining.isEmpty {
+            guard let next = await bestNextStop(from: currentItem, at: currentTime, remaining: remaining, origin: origin) else {
+                break
+            }
+
+            ordered.append(next.node.section)
+            currentItem = next.node.mapItem
+            currentTime = next.finishTime
+            remaining.removeAll { $0.id == next.node.id }
+        }
+
+        return ordered + remaining.map(\.section)
+    }
+
+    private func bestNextStop(
+        from current: MKMapItem,
+        at currentTime: Date,
+        remaining: [RouteNode],
+        origin: MKMapItem
+    ) async -> (node: RouteNode, finishTime: Date)? {
+        var best: (node: RouteNode, finish: Date, score: TimeInterval)?
+
+        for node in remaining {
+            guard let travelTo = await eta(from: current, to: node.mapItem, departure: currentTime) else {
+                continue
+            }
+
+            let arrival = currentTime.addingTimeInterval(travelTo)
+            let startAt = adjustedStartTime(for: node, arrival: arrival)
+            let dwellSeconds = TimeInterval((node.dwellMinutes ?? 5) * 60)
+            let finish = startAt.addingTimeInterval(dwellSeconds)
+
+            guard let returnEta = await eta(from: node.mapItem, to: origin, departure: finish) else {
+                continue
+            }
+
+            let latenessPenalty: TimeInterval
+            if let closing = node.closingMinutes, let closingDate = date(on: startTime, minutes: closing) {
+                latenessPenalty = max(0, finish.timeIntervalSince(closingDate)) * 4
+            } else {
+                latenessPenalty = 0
+            }
+
+            let waitTime = max(0, startAt.timeIntervalSince(arrival))
+            let score = finish.timeIntervalSince(startTime) + (returnEta * 0.75) + waitTime * 0.25 + latenessPenalty
+
+            if let candidate = best {
+                if score < candidate.score {
+                    best = (node, finish, score)
+                }
+            } else {
+                best = (node, finish, score)
+            }
+        }
+
+        guard let best else { return nil }
+        return (best.node, best.finish)
+    }
+
+    private func adjustedStartTime(for node: RouteNode, arrival: Date) -> Date {
+        if let opening = node.openingMinutes, let openingDate = date(on: arrival, minutes: opening) {
+            return max(arrival, openingDate)
+        }
+        return arrival
+    }
+
+    private func date(on base: Date, minutes: Int) -> Date? {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: base)
+        components.hour = minutes / 60
+        components.minute = minutes % 60
+        return Calendar.current.date(from: components)
+    }
+
+    private func eta(from source: MKMapItem, to destination: MKMapItem, departure: Date) async -> TimeInterval? {
+        let request = MKDirections.Request()
+        request.source = source
+        request.destination = destination
+        request.transportType = .automobile
+        request.departureDate = departure
+
+        do {
+            let eta = try await MKDirections(request: request).calculateETA()
+            return eta.expectedTravelTime
+        } catch {
+            return nil
+        }
+    }
+
+    private func buildRouteNodes() async -> ([RouteNode], [RunLocationSection], [RunLocationSection]) {
+        let assigned = draftSections.filter { section in
+            guard let locationId = section.location?.id else { return false }
+            return !locationId.isEmpty
+        }
+
+        let unassigned = draftSections.filter { section in
+            guard let locationId = section.location?.id else { return true }
+            return locationId.isEmpty
+        }
+
+        var resolved: [RouteNode] = []
+        var unresolved: [RunLocationSection] = []
+
+        for section in assigned {
+            guard let node = await routeNode(for: section) else {
+                unresolved.append(section)
+                continue
+            }
+            resolved.append(node)
+        }
+
+        return (resolved, unresolved, unassigned)
+    }
+
+    private func routeNode(for section: RunLocationSection) async -> RouteNode? {
+        guard let location = section.location else {
+            return nil
+        }
+
+        let schedule = viewModel.schedule(for: location.id)
+        let resolvedAddress = schedule?.address ?? location.address ?? section.subtitle
+
+        let address = (resolvedAddress ?? section.title).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else { return nil }
+
+        guard let mapItem = await mapItem(for: address) else {
+            return nil
+        }
+
+        return RouteNode(
+            id: location.id,
+            section: section,
+            address: address,
+            mapItem: mapItem,
+            openingMinutes: schedule?.openingMinutes,
+            closingMinutes: schedule?.closingMinutes,
+            dwellMinutes: schedule?.dwellMinutes
+        )
+    }
+
+    private func mapItem(for address: String) async -> MKMapItem? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = address
+        request.resultTypes = .address
+
+        do {
+            let response = try await MKLocalSearch(request: request).start()
+            return response.mapItems.first
+        } catch {
+            return nil
+        }
+    }
+
+    private var companyStartAddress: String? {
+        let trimmed = viewModel.companyLocation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 }
 

@@ -117,7 +117,7 @@ type CompanySeedConfig = {
 const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   {
     name: 'Apple Park Testing Lab',
-    address: '1 Apple Park Way, Cupertino, CA',
+    address: '180 Ann St, Brisbane City QLD 4000, Australia',
     machines: [
       {
         code: 'APPLE-SNACK-1',
@@ -143,7 +143,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Developer Center West',
-    address: '10500 N Tantau Ave, Cupertino, CA',
+    address: '25 King St, Bowen Hills QLD 4006, Australia',
     machines: [
       {
         code: 'APPLE-DEV-SNACK',
@@ -169,7 +169,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Infinite Loop Labs',
-    address: '1 Infinite Loop, Cupertino, CA',
+    address: '140 Grey St, South Brisbane QLD 4101, Australia',
     machines: [
       {
         code: 'APPLE-INF-SNACK',
@@ -195,7 +195,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Sunnyvale Logistics Hub',
-    address: '1050 Enterprise Way, Sunnyvale, CA',
+    address: '100 Skyring Terrace, Newstead QLD 4006, Australia',
     machines: [
       {
         code: 'APPLE-SUN-SNACK',
@@ -235,7 +235,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     locations: [
       {
         name: 'Metro Warehouse',
-        address: '100 Market St, San Francisco, CA',
+        address: '46 Edward St, Brisbane City QLD 4000, Australia',
         machines: [
           {
             code: 'METRO-WH-01',
@@ -261,7 +261,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Downtown Drop Off',
-        address: '455 Pine St, San Francisco, CA',
+        address: '480 Queen St, Brisbane City QLD 4000, Australia',
         machines: [
           {
             code: 'METRO-DT-01',
@@ -287,7 +287,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Mission Corporate Campus',
-        address: '75 Mission Rock St, San Francisco, CA',
+        address: '200 Montague Rd, West End QLD 4101, Australia',
         machines: [
           {
             code: 'METRO-MIS-01',
@@ -313,7 +313,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Bayview Distribution Hub',
-        address: '890 Cargo Way, San Francisco, CA',
+        address: '63 Skyring Terrace, Newstead QLD 4006, Australia',
         machines: [
           {
             code: 'METRO-BAY-01',
@@ -352,7 +352,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     locations: [
       {
         name: 'River City HQ',
-        address: '200 River Rd, Denver, CO',
+        address: '97 Boundary St, West End QLD 4101, Australia',
         machines: [
           {
             code: 'RIVER-HQ-01',
@@ -378,7 +378,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Aurora Route',
-        address: '15 Main St, Aurora, CO',
+        address: '40 Creek St, Brisbane City QLD 4000, Australia',
         machines: [
           {
             code: 'RIVER-AU-01',
@@ -404,7 +404,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Stapleton Tech Park',
-        address: '3800 Central Park Blvd, Denver, CO',
+        address: '611 Wynnum Rd, Morningside QLD 4170, Australia',
         machines: [
           {
             code: 'RIVER-ST-01',
@@ -430,7 +430,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Boulder Medical Campus',
-        address: '4800 Baseline Rd, Boulder, CO',
+        address: '9 Macrossan St, Brisbane City QLD 4000, Australia',
         machines: [
           {
             code: 'RIVER-BO-01',
@@ -471,7 +471,7 @@ const TREND_SCENARIO_COMPANY = {
   locations: [
     {
       name: 'Pulse Uptown Lab',
-      address: '2121 Uptown Blvd, Chicago, IL',
+      address: '16 Austin St, Newstead QLD 4006, Australia',
       machines: [
         {
           code: 'PULSE-UP-01',
@@ -486,7 +486,7 @@ const TREND_SCENARIO_COMPANY = {
     },
     {
       name: 'Pulse Riverfront Clinic',
-      address: '501 Riverfront Dr, Chicago, IL',
+      address: '12 Cordelia St, South Brisbane QLD 4101, Australia',
       machines: [
         {
           code: 'PULSE-RF-01',

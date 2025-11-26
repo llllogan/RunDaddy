@@ -99,6 +99,8 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
     @Published var showingChocolateBoxesSheet = false
     @Published var activePackingSessionId: String?
+    @Published private(set) var companyLocation: String?
+    @Published private(set) var locationSchedules: [String: LocationSchedule] = [:]
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -107,6 +109,8 @@ final class RunDetailViewModel: ObservableObject {
     let session: AuthSession
     let service: RunsServicing
     private let companyService: CompanyServicing
+    private let authService: AuthServicing
+    private let locationsService: LocationsServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
     var pendingUnassignedPickItems: [RunDetail.PickItem] {
@@ -118,12 +122,16 @@ final class RunDetailViewModel: ObservableObject {
         runId: String,
         session: AuthSession,
         service: RunsServicing,
-        companyService: CompanyServicing? = nil
+        companyService: CompanyServicing? = nil,
+        authService: AuthServicing? = nil,
+        locationsService: LocationsServicing? = nil
     ) {
         self.runId = runId
         self.session = session
         self.service = service
         self.companyService = companyService ?? CompanyService()
+        self.authService = authService ?? AuthService()
+        self.locationsService = locationsService ?? LocationsService()
     }
 
     func load(force: Bool = false) async {
@@ -140,16 +148,20 @@ final class RunDetailViewModel: ObservableObject {
             async let detailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
             async let usersTask = service.fetchCompanyUsers(credentials: session.credentials)
             async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
+            async let companyLocationTask = fetchCompanyLocation()
             
             let detail = try await detailTask
             let users = try await usersTask
             let chocolateBoxes = try await chocolateBoxesTask
+            let resolvedCompanyLocation = await companyLocationTask
             
             self.detail = detail
             self.companyUsers = users
             self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
             self.locationOrders = detail.locationOrders.sorted { $0.position < $1.position }
+            self.companyLocation = resolvedCompanyLocation ?? companyLocation
             rebuildLocationData(from: detail)
+            await refreshLocationSchedules(from: detail.locations)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -163,6 +175,7 @@ final class RunDetailViewModel: ObservableObject {
             locationSections = []
             locationContextsByID = [:]
             locationOrders = []
+            locationSchedules = [:]
         }
 
         isLoading = false
@@ -516,6 +529,13 @@ final class RunDetailViewModel: ObservableObject {
         var pickItems: [RunDetail.PickItem]
     }
 
+    struct LocationSchedule: Equatable {
+        let address: String?
+        let openingMinutes: Int?
+        let closingMinutes: Int?
+        let dwellMinutes: Int?
+    }
+
     private struct LocationContextBuilder {
         var location: RunDetail.Location?
         var machines: [String: RunDetail.Machine] = [:]
@@ -607,5 +627,64 @@ final class RunDetailViewModel: ObservableObject {
 
         locationSections = sortedSections
         locationContextsByID = Dictionary(uniqueKeysWithValues: contexts.map { ($0.0, $0.1) })
+    }
+
+    func schedule(for locationId: String?) -> LocationSchedule? {
+        guard let locationId, !locationId.isEmpty else { return nil }
+        return locationSchedules[locationId]
+    }
+
+    private func refreshLocationSchedules(from locations: [RunDetail.Location]) async {
+        let baseSchedules: [String: LocationSchedule] = Dictionary(uniqueKeysWithValues: locations.map { location in
+            let normalizedAddress = location.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (
+                location.id,
+                LocationSchedule(
+                    address: normalizedAddress?.isEmpty == true ? nil : normalizedAddress,
+                    openingMinutes: location.openingTimeMinutes,
+                    closingMinutes: location.closingTimeMinutes,
+                    dwellMinutes: location.dwellTimeMinutes
+                )
+            )
+        })
+
+        locationSchedules = baseSchedules
+
+        let fetchedSchedules = await fetchLocationDetails(for: locations)
+        if !fetchedSchedules.isEmpty {
+            locationSchedules.merge(fetchedSchedules) { _, new in new }
+        }
+    }
+
+    private func fetchLocationDetails(for locations: [RunDetail.Location]) async -> [String: LocationSchedule] {
+        var result: [String: LocationSchedule] = [:]
+
+        for location in locations {
+            do {
+                let response = try await locationsService.getLocation(id: location.id)
+                let normalizedAddress = response.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+                result[response.id] = LocationSchedule(
+                    address: normalizedAddress?.isEmpty == true ? nil : normalizedAddress,
+                    openingMinutes: response.openingTimeMinutes,
+                    closingMinutes: response.closingTimeMinutes,
+                    dwellMinutes: response.dwellTimeMinutes
+                )
+            } catch {
+                continue
+            }
+        }
+
+        return result
+    }
+
+    private func fetchCompanyLocation() async -> String? {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            let location = profile.currentCompany?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let location, !location.isEmpty else { return nil }
+            return location
+        } catch {
+            return companyLocation
+        }
     }
 }

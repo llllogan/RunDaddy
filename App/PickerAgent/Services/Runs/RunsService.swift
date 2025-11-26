@@ -152,6 +152,25 @@ struct RunDetail: Equatable {
         let id: String
         let name: String?
         let address: String?
+        let openingTimeMinutes: Int?
+        let closingTimeMinutes: Int?
+        let dwellTimeMinutes: Int?
+
+        init(
+            id: String,
+            name: String?,
+            address: String?,
+            openingTimeMinutes: Int? = nil,
+            closingTimeMinutes: Int? = nil,
+            dwellTimeMinutes: Int? = nil
+        ) {
+            self.id = id
+            self.name = name
+            self.address = address
+            self.openingTimeMinutes = openingTimeMinutes
+            self.closingTimeMinutes = closingTimeMinutes
+            self.dwellTimeMinutes = dwellTimeMinutes
+        }
     }
 
     struct MachineTypeDescriptor: Equatable {
@@ -1240,9 +1259,19 @@ private struct RunDetailResponse: Decodable {
         let id: String
         let name: String?
         let address: String?
+        let openingTimeMinutes: Int?
+        let closingTimeMinutes: Int?
+        let dwellTimeMinutes: Int?
 
         func toLocation() -> RunDetail.Location {
-            RunDetail.Location(id: id, name: name, address: address)
+            RunDetail.Location(
+                id: id,
+                name: name,
+                address: address,
+                openingTimeMinutes: openingTimeMinutes,
+                closingTimeMinutes: closingTimeMinutes,
+                dwellTimeMinutes: dwellTimeMinutes
+            )
         }
     }
 
