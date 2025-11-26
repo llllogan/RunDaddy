@@ -257,7 +257,8 @@ struct PickEntryBarChart: View {
 
     @ChartContentBuilder
     private func overlayMarks(
-        overlays: [WeekOverlay]
+        overlays: [WeekOverlay],
+        aggregation: PickEntryBreakdown.Aggregation
     ) -> some ChartContent {
         ForEach(overlays) { overlay in
             RuleMark(
@@ -277,7 +278,7 @@ struct PickEntryBarChart: View {
                 Text(String(format: "avg %.0f", overlay.average))
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(Color(.secondaryLabel))
-                    .padding(.leading, -16)
+                    .padding(.leading, aggregation == .week ? -16 : 0)
             }
         }
     }
@@ -291,7 +292,7 @@ struct PickEntryBarChart: View {
 
         return Chart {
             barMarks(bars: bars, axisUnit: axisUnit)
-            overlayMarks(overlays: overlays)
+            overlayMarks(overlays: overlays, aggregation: aggregation)
         }
         .chartYAxis {
             AxisMarks(position: .leading)
