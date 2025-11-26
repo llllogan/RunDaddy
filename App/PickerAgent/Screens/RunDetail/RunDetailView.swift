@@ -22,6 +22,7 @@ struct RunDetailView: View {
     @State private var confirmingRunReset = false
     @State private var locationPendingDeletion: RunLocationSection?
     @State private var deletingLocationIDs: Set<String> = []
+    @State private var notifications: [InAppNotification] = []
     
     // Check if run is 100% complete
     private var isRunComplete: Bool {
@@ -83,16 +84,13 @@ struct RunDetailView: View {
                     }
                 }
             }
-
-            if let message = viewModel.errorMessage {
-                Section {
-                    ErrorRow(message: message)
-                }
-            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Run Details")
         .navigationBarTitleDisplayMode(.inline)
+        .inAppNotifications(notifications, onDismiss: { notification in
+            notifications.removeAll { $0.id == notification.id }
+        })
         .navigationDestination(isPresented: $showingPendingEntries) {
             PendingPickEntriesView(
                 viewModel: viewModel,
@@ -818,6 +816,7 @@ private struct ReorderLocationsSheet: View {
         authService: AuthService(),
         inviteCodesService: InviteCodesService()
     )
+    @State private var notifications: [InAppNotification] = []
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
@@ -888,13 +887,6 @@ private struct ReorderLocationsSheet: View {
                     .disabled(isSaving)
                 }
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                }
             }
             .navigationTitle("Reorder Locations")
             .navigationBarTitleDisplayMode(.inline)
@@ -941,6 +933,9 @@ private struct ReorderLocationsSheet: View {
         .task {
             await refreshTravelEstimates()
         }
+        .inAppNotifications(notifications, onDismiss: { notification in
+            notifications.removeAll { $0.id == notification.id }
+        })
         .sheet(isPresented: $showingShopEditor) {
             if let company = companyForEditor {
                 NavigationStack {
@@ -962,6 +957,11 @@ private struct ReorderLocationsSheet: View {
                     .padding()
             }
         }
+    }
+
+    private func pushErrorBanner(_ message: String) {
+        let notification = InAppNotification(message: message, style: .error)
+        notifications.append(notification)
     }
 
     private var setupSection: some View {
@@ -1047,7 +1047,7 @@ private struct ReorderLocationsSheet: View {
             try await viewModel.saveLocationOrder(with: orderedLocationIds)
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            pushErrorBanner(error.localizedDescription)
         }
 
         isSaving = false
@@ -1095,7 +1095,7 @@ private struct ReorderLocationsSheet: View {
 
         guard let companyAddress = companyStartAddress else {
             await MainActor.run {
-                errorMessage = "Add a company address to optimise the route."
+                pushErrorBanner("Add a shop address to optimise the route.")
             }
             return
         }
@@ -1103,9 +1103,9 @@ private struct ReorderLocationsSheet: View {
         guard let originItem = await mapItem(for: companyAddress) else {
             await MainActor.run {
                 if didHitMapSearchThrottle {
-                    errorMessage = "Maps lookups are temporarily rate limited. Please try again in a moment."
+                    pushErrorBanner("Maps lookups are temporarily rate limited. Please try again in a moment.")
                 } else {
-                    errorMessage = "We couldn't locate the company address in Maps."
+                    pushErrorBanner("We couldn't locate the shop address in Maps.")
                 }
             }
             return
@@ -1114,7 +1114,7 @@ private struct ReorderLocationsSheet: View {
         let (stops, unresolved, unassigned) = await buildRouteNodes()
         guard !stops.isEmpty else {
             await MainActor.run {
-                errorMessage = "We couldn't resolve any locations for optimisation."
+                pushErrorBanner("We couldn't resolve any locations for optimisation.")
             }
             return
         }
@@ -1126,7 +1126,7 @@ private struct ReorderLocationsSheet: View {
                 draftSections = orderedSections + unresolved + unassigned
             }
             if orderedSections.isEmpty {
-                errorMessage = "We couldn't create a route between these stops."
+                pushErrorBanner("We couldn't create a route between these stops.")
             }
             Task {
                 await refreshTravelEstimates()
@@ -1237,7 +1237,7 @@ private struct ReorderLocationsSheet: View {
     }
 
     private func cacheKey(for item: MKMapItem, fallback: String) -> String {
-        let coordinate: CLLocationCoordinate2D = item.placemark.coordinate
+        let coordinate: CLLocationCoordinate2D = item.location.coordinate
         let hash = "\(coordinate.latitude),\(coordinate.longitude)"
         if hash == "0.0,0.0" {
             return fallback
@@ -1346,7 +1346,7 @@ private struct ReorderLocationsSheet: View {
         guard let companyItem = await mapItem(for: companyAddress) else {
             await MainActor.run {
                 if didHitMapSearchThrottle {
-                    errorMessage = "Maps lookups are temporarily rate limited. Travel times will refresh soon."
+                    pushErrorBanner("Maps lookups are temporarily rate limited. Travel times will refresh soon.")
                 }
                 isCalculatingTravel = false
             }
