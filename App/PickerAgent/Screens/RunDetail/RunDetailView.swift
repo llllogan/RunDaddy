@@ -425,7 +425,6 @@ private extension RunDetailView {
                 query: querySource
             )
         }
-        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     func openLocationInMaps(_ option: LocationMenuOption) {
