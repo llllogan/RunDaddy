@@ -840,19 +840,27 @@ private struct ReorderLocationsSheet: View {
                         Section(footer: footer) {
                             ForEach(Array(draftSections.enumerated()), id: \.1.id) { index, section in
                                 VStack(alignment: .leading, spacing: 4) {
-                                    if let leg = inboundLegs[section.id] {
-                                        travelRow(for: leg, isFirst: index == 0)
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(section.title)
+                                            .font(.body.weight(.semibold))
                                     }
-                                    Text(section.title)
-                                        .font(.body)
-                                        .fontWeight(.semibold)
+
+                                    if let leg = inboundLegs[section.id] {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: "car.fill")
+                                            Text("\(travelDisplay(leg.etaSeconds)) from \(isFirst(index) ? "Shop" : leg.fromLabel)")
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
+
                                     if let subtitle = section.subtitle {
                                         Text(subtitle)
                                             .font(.footnote)
                                             .foregroundStyle(.secondary)
                                     }
                                 }
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 8)
                             }
                             .onMove { indices, newOffset in
                                 draftSections.move(fromOffsets: indices, toOffset: newOffset)
@@ -862,9 +870,9 @@ private struct ReorderLocationsSheet: View {
                             }
                         }
 
-                        Section("Route Travel Time") {
+                        Section("Run Travel Time") {
                             HStack {
-                                Label("Shop → Shop", systemImage: "arrow.clockwise")
+                                Text("Shop → Shop")
                                 Spacer()
                                 Text(travelDisplay(totalTravelSeconds))
                                     .font(.body.weight(.semibold))
@@ -908,7 +916,10 @@ private struct ReorderLocationsSheet: View {
                             await runOptimisation()
                         }
                     } label: {
-                        Label("Optimise", systemImage: "wand.and.stars")
+                        HStack(spacing: 0) {
+                            Image(systemName: "wand.and.stars")
+                            Text("Optimise")
+                        }
                     }
                     .disabled(isSaving || isOptimizing || draftSections.count < 2)
                 }
@@ -928,7 +939,7 @@ private struct ReorderLocationsSheet: View {
     }
 
     private var setupSection: some View {
-        Section("Route Setup") {
+        Section("Run Setup") {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Shop")
                     .font(.footnote)
@@ -949,7 +960,7 @@ private struct ReorderLocationsSheet: View {
     }
 
     private var footer: some View {
-        Text("Drag the handle to control which locations appear first in the run detail and voice prompts.")
+        Text("Locations are in run order, packing announcements will be in reverse order.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.vertical, 4)
@@ -1359,6 +1370,10 @@ private struct ReorderLocationsSheet: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+    }
+
+    private func isFirst(_ index: Int) -> Bool {
+        index == 0
     }
 
     private struct RouteLeg: Identifiable {

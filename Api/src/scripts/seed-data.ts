@@ -117,7 +117,7 @@ type CompanySeedConfig = {
 const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   {
     name: 'Apple Park Testing Lab',
-    address: '180 Ann St, Brisbane City QLD 4000, Australia',
+    address: '43 Esplanade, Golden Beach QLD 4551, Australia', // Sunshine Coast south end
     machines: [
       {
         code: 'APPLE-SNACK-1',
@@ -143,7 +143,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Developer Center West',
-    address: '25 King St, Bowen Hills QLD 4006, Australia',
+    address: '8 Innovation Pkwy, Birtinya QLD 4575, Australia',
     machines: [
       {
         code: 'APPLE-DEV-SNACK',
@@ -169,7 +169,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Infinite Loop Labs',
-    address: '140 Grey St, South Brisbane QLD 4101, Australia',
+    address: '123 Parklands Blvd, Little Mountain QLD 4551, Australia',
     machines: [
       {
         code: 'APPLE-INF-SNACK',
@@ -195,7 +195,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
   },
   {
     name: 'Apple Sunnyvale Logistics Hub',
-    address: '100 Skyring Terrace, Newstead QLD 4006, Australia',
+    address: '1 Metier Linkway, Birtinya QLD 4575, Australia',
     machines: [
       {
         code: 'APPLE-SUN-SNACK',
@@ -235,7 +235,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     locations: [
       {
         name: 'Metro Warehouse',
-        address: '46 Edward St, Brisbane City QLD 4000, Australia',
+        address: '1/112 Dickson Way, Point Lookout QLD 4183, Australia', // North-east island
         machines: [
           {
             code: 'METRO-WH-01',
@@ -261,7 +261,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Downtown Drop Off',
-        address: '480 Queen St, Brisbane City QLD 4000, Australia',
+        address: '1/11-19 Beerburrum St, Dicky Beach QLD 4551, Australia',
         machines: [
           {
             code: 'METRO-DT-01',
@@ -287,7 +287,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Mission Corporate Campus',
-        address: '200 Montague Rd, West End QLD 4101, Australia',
+        address: '99 Gympie Rd, Strathpine QLD 4500, Australia',
         machines: [
           {
             code: 'METRO-MIS-01',
@@ -313,7 +313,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Bayview Distribution Hub',
-        address: '63 Skyring Terrace, Newstead QLD 4006, Australia',
+        address: '15 Anzac Ave, Redcliffe QLD 4020, Australia',
         machines: [
           {
             code: 'METRO-BAY-01',
@@ -352,7 +352,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     locations: [
       {
         name: 'River City HQ',
-        address: '97 Boundary St, West End QLD 4101, Australia',
+        address: '10/2 Capital Pl, Birtinya QLD 4575, Australia',
         machines: [
           {
             code: 'RIVER-HQ-01',
@@ -378,7 +378,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Aurora Route',
-        address: '40 Creek St, Brisbane City QLD 4000, Australia',
+        address: '1852 Logan Rd, Upper Mount Gravatt QLD 4122, Australia', // South towards Logan
         machines: [
           {
             code: 'RIVER-AU-01',
@@ -404,7 +404,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
       },
       {
         name: 'Stapleton Tech Park',
-        address: '611 Wynnum Rd, Morningside QLD 4170, Australia',
+        address: '52 Wembley Rd, Logan Central QLD 4114, Australia',
         machines: [
           {
             code: 'RIVER-ST-01',
