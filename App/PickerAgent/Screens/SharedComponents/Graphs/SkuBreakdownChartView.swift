@@ -23,19 +23,6 @@ struct SkuBreakdownChartView: View {
         viewModel.skuBreakdownPoints.sorted { $0.start < $1.start }
     }
 
-    private var lookbackDays: Int {
-        let candidate = viewModel.skuBreakdownPeriods * selectedAggregation.baseDays
-        if candidate > 0 {
-            return candidate
-        }
-        return max(orderedPoints.count, selectedAggregation.baseDays)
-    }
-
-    private var lookbackText: String {
-        let value = lookbackDays
-        return value == 1 ? "1 day" : "\(value) days"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
@@ -92,7 +79,7 @@ struct SkuBreakdownChartView: View {
         .task {
             await viewModel.loadSkuBreakdown(
                 aggregation: viewModel.skuBreakdownAggregation,
-                periods: viewModel.skuBreakdownPeriods
+                showBars: viewModel.skuBreakdownShowBars
             )
         }
         .onChange(of: viewModel.skuBreakdownAggregation, initial: false) { _, newValue in
@@ -116,7 +103,9 @@ struct PickEntryBarChart: View {
 
     private struct ChartPoint: Identifiable {
         let id: String
+        let label: String
         let anchorDate: Date
+        let end: Date
         let skus: [PickEntryBreakdown.Segment]
         let totalItems: Int
     }
@@ -145,45 +134,68 @@ struct PickEntryBarChart: View {
     }
 
     private var chartPoints: [ChartPoint] {
-        switch aggregation {
-        case .week:
-            return Array(orderedPoints.suffix(8)).map { point in
-                ChartPoint(
-                    id: "day-\(point.id.timeIntervalSince1970)",
-                    anchorDate: point.start,
-                    skus: point.skus,
-                    totalItems: point.totalItems
-                )
-            }
-        case .month:
-            return aggregatePoints(from: orderedPoints, by: .weekOfYear)
-        case .quarter:
-            return aggregatePoints(from: orderedPoints, by: .month)
+        return orderedPoints.map { point in
+            ChartPoint(
+                id: "period-\(point.id.timeIntervalSince1970)",
+                label: point.label,
+                anchorDate: point.start,
+                end: point.end,
+                skus: point.skus,
+                totalItems: point.totalItems
+            )
         }
     }
 
     private var weekAverageOverlays: [WeekOverlay] {
-        guard aggregation == .week else { return [] }
-        let visibleDates = Set(chartPoints.map { $0.anchorDate })
+        if aggregation == .week {
+            let visibleDates = Set(chartPoints.map { $0.anchorDate })
 
-        return weekAverages.compactMap { week in
-            let includedDates = week.dates
-                .filter { visibleDates.contains($0) }
-                .sorted()
+            return weekAverages.compactMap { week in
+                let includedDates = week.dates
+                    .filter { visibleDates.contains($0) }
+                    .sorted()
 
-            guard let firstDate = includedDates.first, let lastDate = includedDates.last else {
-                return nil
+                let firstDate = includedDates.first ?? week.weekStart
+                let endBoundary = includedDates.last ?? week.weekEnd
+
+                return WeekOverlay(
+                    id: week.id,
+                    start: firstDate,
+                    end: endBoundary,
+                    average: week.average
+                )
             }
-
-            let endBoundary = lastDate
-
-            return WeekOverlay(
-                id: week.id,
-                start: firstDate,
-                end: endBoundary,
-                average: week.average
-            )
         }
+
+        // For month/quarter aggregations, show only the most recent overlay aligned to the latest buckets.
+        guard let latestAverage = weekAverages.last else { return [] }
+
+        let includedPoints = chartPoints.filter { point in
+            point.anchorDate >= latestAverage.weekStart && point.anchorDate <= latestAverage.weekEnd
+        }
+
+        let matchingPoints: [ChartPoint]
+        if includedPoints.isEmpty {
+            // Fallback: use the trailing buckets on screen (e.g., last 3 months for quarter)
+            let sliceCount = aggregation == .quarter ? 3 : max(weekAverages.count, 1)
+            matchingPoints = Array(chartPoints.suffix(sliceCount))
+        } else {
+            matchingPoints = includedPoints
+        }
+
+        guard let start = matchingPoints.map(\.anchorDate).min(),
+              let end = matchingPoints.map(\.end).max() else {
+            return []
+        }
+
+        return [
+            WeekOverlay(
+                id: latestAverage.id,
+                start: start,
+                end: end,
+                average: latestAverage.average
+            ),
+        ]
     }
 
     private var maxYValue: Double {
@@ -197,69 +209,8 @@ struct PickEntryBarChart: View {
         chartPoints.map { $0.anchorDate }
     }
 
-    private func aggregatePoints(
-        from points: [PickEntryBreakdown.Point],
-        by component: Calendar.Component
-    ) -> [ChartPoint] {
-        var buckets: [Date: [PickEntryBreakdown.Point]] = [:]
-
-        for point in points {
-            let bucketStart = bucketStart(for: point.start, component: component)
-            buckets[bucketStart, default: []].append(point)
-        }
-
-        let sortedBuckets = buckets.keys.sorted()
-
-        return sortedBuckets.compactMap { bucketStart in
-            guard let bucketPoints = buckets[bucketStart] else { return nil }
-            let segments = aggregateSegments(from: bucketPoints)
-            let totalItems = segments.reduce(0) { $0 + $1.totalItems }
-
-            return ChartPoint(
-                id: "\(component)-\(bucketStart.timeIntervalSince1970)",
-                anchorDate: bucketStart,
-                skus: segments,
-                totalItems: totalItems
-            )
-        }
-    }
-
-    private func aggregateSegments(from points: [PickEntryBreakdown.Point]) -> [PickEntryBreakdown.Segment] {
-        var order: [String] = []
-        var totals: [String: (code: String, name: String, total: Int)] = [:]
-
-        for point in points {
-            for segment in point.skus {
-                if totals[segment.skuId] == nil {
-                    totals[segment.skuId] = (segment.skuCode, segment.skuName, 0)
-                    order.append(segment.skuId)
-                }
-                totals[segment.skuId]?.total += segment.totalItems
-            }
-        }
-
-        return order.compactMap { id in
-            guard let info = totals[id] else { return nil }
-            return PickEntryBreakdown.Segment(
-                skuId: id,
-                skuCode: info.code,
-                skuName: info.name,
-                totalItems: info.total
-            )
-        }
-    }
-
-    private func bucketStart(for date: Date, component: Calendar.Component) -> Date {
-        switch component {
-        case .weekOfYear:
-            let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-            return calendar.date(from: comps) ?? date
-        case .month:
-            let comps = calendar.dateComponents([.year, .month], from: date)
-            return calendar.date(from: comps) ?? date
-        default:
-            return date
-        }
+    private var labelsByDate: [Date: String] {
+        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.anchorDate, $0.label) })
     }
 
     private func weekLabel(for date: Date) -> String {
@@ -268,6 +219,10 @@ struct PickEntryBarChart: View {
     }
 
     private func axisLabel(for date: Date) -> String {
+        if aggregation != .week, let explicitLabel = labelsByDate[date], !explicitLabel.isEmpty {
+            return explicitLabel
+        }
+
         switch aggregation {
         case .week:
             let weekdayIndex = calendar.component(.weekday, from: date)

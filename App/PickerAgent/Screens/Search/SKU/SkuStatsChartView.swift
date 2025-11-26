@@ -1,80 +1,62 @@
-//
-//  SkuStatsChartView.swift
-//  PickerAgent
-//
-//  Created by Logan Janssen on 11/13/2025.
-//
-
 import SwiftUI
 import Charts
 
 struct SkuStatsChartView: View {
-    let stats: SkuStatsResponse
+    let breakdown: PickEntryBreakdown?
+    let availableFilters: PickEntryBreakdown.AvailableFilters
+    let isLoading: Bool
+    let errorMessage: String?
     @Binding var selectedPeriod: SkuPeriod
     @Binding var selectedLocationFilter: String?
     @Binding var selectedMachineFilter: String?
     let onFilterChange: (_ locationId: String?, _ machineId: String?) async -> Void
 
-    private var locationOptions: [SkuStatsLocationOption] { stats.locations }
-    private var machineOptions: [SkuStatsMachineOption] { stats.machines }
     private var aggregation: PickEntryBreakdown.Aggregation { selectedPeriod.pickEntryAggregation }
-    private var calendar: Calendar { chartCalendar(for: stats.timeZone) }
+    private var calendar: Calendar { chartCalendar(for: timeZone) }
+    private var timeZone: String { breakdown?.timeZone ?? TimeZone.current.identifier }
 
-    private var visibleMachines: [SkuStatsMachineOption] {
-        guard let locationId = selectedLocationFilter else {
-            return machineOptions
-        }
-        return machineOptions.filter { $0.locationId == locationId }
-    }
+    private var locationOptions: [PickEntryBreakdown.FilterOption] { availableFilters.location }
+    private var machineOptions: [PickEntryBreakdown.FilterOption] { availableFilters.machine }
 
     private var breakdownPoints: [PickEntryBreakdown.Point] {
-        let mappedPoints: [PickEntryBreakdown.Point] = stats.points.compactMap { point in
-            guard let start = parseAnalyticsDay(point.date, timeZoneIdentifier: stats.timeZone) else { return nil }
-            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
-            let segments = point.machines.map { machine in
-                PickEntryBreakdown.Segment(
-                    skuId: machine.machineId,
-                    skuCode: machine.machineCode,
-                    skuName: machine.machineName ?? machine.machineCode,
-                    totalItems: machine.count
-                )
-            }
-
-            return PickEntryBreakdown.Point(
-                label: point.date,
-                start: start,
-                end: end,
-                totalItems: point.totalItems,
-                skus: segments
-            )
-        }
-
-        guard aggregation == .week else {
-            return mappedPoints.sorted { $0.start < $1.start }
-        }
-
-        return ensureRollingEightDayWindow(points: mappedPoints, calendar: calendar)
+        let points = breakdown?.points ?? []
+        guard aggregation == .week else { return points.sorted { $0.start < $1.start } }
+        return ensureRollingEightDayWindow(points: points, calendar: calendar)
     }
 
-    private var weekAverages: [PickEntryBreakdown.WeekAverage] {
-        guard aggregation == .week else { return [] }
-        return buildWeekAverages(from: breakdownPoints, calendar: calendar)
+    private var averages: [PickEntryBreakdown.WeekAverage] {
+        breakdown?.weekAverages ?? []
+    }
+
+    private var hasChartData: Bool {
+        breakdownPoints.contains { !$0.skus.isEmpty && $0.totalItems > 0 }
+    }
+
+    private var chartSkuCount: Int {
+        let skuIds = breakdownPoints.flatMap { point in
+            point.skus.map(\.skuId)
+        }
+        return Set(skuIds).count
+    }
+
+    private var shouldHideLegend: Bool {
+        chartSkuCount > 6
     }
 
     private var locationFilterLabel: String {
         guard let selectedLocationFilter,
-              let location = locationOptions.first(where: { $0.id == selectedLocationFilter }) else {
+              let option = locationOptions.first(where: { $0.id == selectedLocationFilter }) else {
             return "All Locations"
         }
-        return location.displayName
+        return option.displayName
     }
 
     private var machineFilterLabel: String {
         guard let selectedMachineFilter,
-              let machine = machineOptions.first(where: { $0.id == selectedMachineFilter }) else {
+              let option = machineOptions.first(where: { $0.id == selectedMachineFilter }) else {
             return "All Machines"
         }
-        return machine.displayName
+        return option.displayName
     }
 
     var body: some View {
@@ -104,12 +86,20 @@ struct SkuStatsChartView: View {
 
             filterControls
 
-            if hasChartData {
+            if isLoading && breakdownPoints.isEmpty {
+                ProgressView("Loading")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let errorMessage, breakdownPoints.isEmpty {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if hasChartData {
                 PickEntryBarChart(
                     points: breakdownPoints,
                     aggregation: aggregation,
-                    weekAverages: weekAverages,
-                    timeZoneIdentifier: stats.timeZone,
+                    weekAverages: averages,
+                    timeZoneIdentifier: timeZone,
                     showLegend: !shouldHideLegend,
                     maxHeight: 220
                 )
@@ -137,77 +127,52 @@ struct SkuStatsChartView: View {
         }
     }
 
-    private var hasChartData: Bool {
-        breakdownPoints.contains { !$0.skus.isEmpty }
-    }
-
-    private var chartMachineCount: Int {
-        let machineIds = breakdownPoints.flatMap { point in
-            point.skus.map(\.skuId)
-        }
-        return Set(machineIds).count
-    }
-
-    private var shouldHideLegend: Bool {
-        chartMachineCount > 6
-    }
-
-    private var lookbackDays: Int {
-        if aggregation == .week {
-            return max(stats.lookbackDays, 8)
-        }
-        return max(stats.lookbackDays, aggregation.baseDays)
-    }
-
-    private var lookbackText: String {
-        let value = max(lookbackDays, breakdownPoints.count)
-        return value == 1 ? "1 day" : "\(value) days"
-    }
-
-    @ViewBuilder
     private var filterControls: some View {
-        HStack {
-            Menu {
-                Button("All Locations") {
-                    guard selectedLocationFilter != nil else { return }
-                    applyFilters(locationId: nil, machineId: nil)
-                }
-                if !locationOptions.isEmpty {
-                    Divider()
-                    ForEach(locationOptions) { location in
-                        Button(location.displayName) {
-                            guard selectedLocationFilter != location.id else { return }
-                            applyFilters(locationId: location.id, machineId: nil)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Menu {
+                    Button("All Locations") {
+                        applyFilters(locationId: nil, machineId: selectedMachineFilter)
+                    }
+                    ForEach(locationOptions) { option in
+                        Button(action: {
+                            applyFilters(locationId: option.id, machineId: nil)
+                        }) {
+                            HStack {
+                                Text(option.displayName)
+                                if selectedLocationFilter == option.id && selectedMachineFilter == nil {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
                         }
                     }
+                } label: {
+                    filterChip(label: locationFilterLabel)
                 }
-            } label: {
-                filterChip(label: locationFilterLabel)
-            }
-            .foregroundStyle(.secondary)
 
-            Menu {
-                Button("All Machines") {
-                    guard selectedMachineFilter != nil else { return }
-                    applyFilters(locationId: selectedLocationFilter, machineId: nil)
-                }
-                let machines = visibleMachines
-                if !machines.isEmpty {
-                    Divider()
-                    ForEach(machines) { machine in
-                        Button(machine.displayName) {
-                            guard selectedMachineFilter != machine.id else { return }
+                Menu {
+                    Button("All Machines") {
+                        applyFilters(locationId: selectedLocationFilter, machineId: nil)
+                    }
+                    ForEach(machineOptions) { machine in
+                        Button(action: {
                             applyFilters(locationId: selectedLocationFilter, machineId: machine.id)
+                        }) {
+                            HStack {
+                                Text(machine.displayName)
+                                if selectedMachineFilter == machine.id {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
                         }
                     }
+                } label: {
+                    filterChip(label: machineFilterLabel)
                 }
-            } label: {
-                filterChip(label: machineFilterLabel)
+                .disabled(machineOptions.isEmpty)
             }
-            .disabled(visibleMachines.isEmpty && machineOptions.isEmpty)
             .foregroundStyle(.secondary)
-
-            Spacer()
+            .font(.subheadline)
         }
     }
 

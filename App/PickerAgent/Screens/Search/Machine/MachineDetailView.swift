@@ -8,12 +8,16 @@ struct MachineDetailView: View {
     @State private var machineStats: MachineStatsResponse?
     @State private var isLoading = true
     @State private var isLoadingStats = true
+    @State private var machineBreakdown: PickEntryBreakdown?
+    @State private var isLoadingBreakdown = true
+    @State private var breakdownError: String?
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var skuNavigationTarget: MachineDetailSkuNavigation?
     @State private var locationNavigationTarget: MachineDetailLocationNavigation?
 
     private let machinesService = MachinesService()
+    private let analyticsService = AnalyticsService()
 
     var body: some View {
         List {
@@ -70,15 +74,15 @@ struct MachineDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                if let machineStats = machineStats {
-                    Section {
-                        MachineStatsChartView(
-                            stats: machineStats,
-                            selectedPeriod: $selectedPeriod
-                        )
-                    } header: {
-                        Text("Recent Activity")
-                    }
+                Section {
+                    MachineStatsChartView(
+                        breakdown: machineBreakdown,
+                        isLoading: isLoadingBreakdown,
+                        errorMessage: breakdownError,
+                        selectedPeriod: $selectedPeriod
+                    )
+                } header: {
+                    Text("Recent Activity")
                 }
             }
         }
@@ -90,6 +94,7 @@ struct MachineDetailView: View {
         .onChange(of: selectedPeriod) { _, _ in
             Task {
                 await loadMachineStats()
+                await loadMachineBreakdown()
             }
         }
         .navigationDestination(item: $skuNavigationTarget) { target in
@@ -105,6 +110,7 @@ struct MachineDetailView: View {
             machine = try await machinesService.getMachine(id: machineId)
             isLoading = false
             await loadMachineStats()
+            await loadMachineBreakdown()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
@@ -123,6 +129,37 @@ struct MachineDetailView: View {
             machineStats = nil
         }
         isLoadingStats = false
+    }
+
+    private func loadMachineBreakdown() async {
+        isLoadingBreakdown = true
+        breakdownError = nil
+
+        do {
+            let response = try await analyticsService.fetchPickEntryBreakdown(
+                aggregation: selectedPeriod.pickEntryAggregation,
+                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
+                filters: PickEntryBreakdown.Filters(
+                    skuIds: [],
+                    machineIds: [machineId],
+                    locationIds: []
+                ),
+                showBars: selectedPeriod.pickEntryAggregation.defaultBars,
+                credentials: session.credentials
+            )
+            machineBreakdown = response
+        } catch let authError as AuthError {
+            breakdownError = authError.localizedDescription
+            machineBreakdown = nil
+        } catch let analyticsError as AnalyticsServiceError {
+            breakdownError = analyticsError.localizedDescription
+            machineBreakdown = nil
+        } catch {
+            breakdownError = "We couldn't load chart data right now."
+            machineBreakdown = nil
+        }
+
+        isLoadingBreakdown = false
     }
 
     private var machineDisplayTitle: String {

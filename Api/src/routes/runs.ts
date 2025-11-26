@@ -254,7 +254,14 @@ router.post('/:runId/packing-sessions', setLogConfig({ level: 'minimal' }), asyn
       }
 
       if (categoryFilters.length > 0) {
-        baseWhere.AND = [...(baseWhere.AND ?? []), { OR: categoryFilters }];
+        const existingAnd = baseWhere.AND;
+        const normalizedAnd: Prisma.PickEntryWhereInput[] = Array.isArray(existingAnd)
+          ? [...existingAnd]
+          : existingAnd
+          ? [existingAnd]
+          : [];
+        normalizedAnd.push({ OR: categoryFilters });
+        baseWhere.AND = normalizedAnd;
       }
 
       const assignmentResult = await tx.pickEntry.updateMany({
@@ -1870,6 +1877,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
                 code: entry.coilItem.sku.code,
                 name: entry.coilItem.sku.name,
                 type: entry.coilItem.sku.type,
+                category: entry.coilItem.sku.category,
                 isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
               }
             : null,

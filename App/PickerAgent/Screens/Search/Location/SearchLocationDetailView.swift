@@ -8,15 +8,18 @@ struct SearchLocationDetailView: View {
     @State private var locationStats: LocationStatsResponse?
     @State private var isLoading = true
     @State private var isLoadingStats = true
+    @State private var locationBreakdown: PickEntryBreakdown?
+    @State private var isLoadingBreakdown = true
+    @State private var breakdownError: String?
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
-    @State private var selectedBreakdown: LocationChartBreakdown = .machines
     @State private var skuNavigationTarget: SearchLocationSkuNavigation?
     @State private var machineNavigationTarget: SearchLocationMachineNavigation?
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
 
     private let locationsService: LocationsServicing = LocationsService()
+    private let analyticsService = AnalyticsService()
 
     var body: some View {
         List {
@@ -68,16 +71,15 @@ struct SearchLocationDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                if let stats = locationStats {
-                    Section {
-                        LocationStatsChartView(
-                            stats: stats,
-                            selectedPeriod: $selectedPeriod,
-                            selectedBreakdown: $selectedBreakdown
-                        )
-                    } header: {
-                        Text("Recent Activity")
-                    }
+                Section {
+                    LocationStatsChartView(
+                        breakdown: locationBreakdown,
+                        isLoading: isLoadingBreakdown,
+                        errorMessage: breakdownError,
+                        selectedPeriod: $selectedPeriod
+                    )
+                } header: {
+                    Text("Recent Activity")
                 }
             }
         }
@@ -89,6 +91,7 @@ struct SearchLocationDetailView: View {
         .onChange(of: selectedPeriod) { _, _ in
             Task {
                 await loadLocationStats()
+                await loadLocationBreakdown()
             }
         }
         .toolbar {
@@ -116,6 +119,7 @@ struct SearchLocationDetailView: View {
             location = try await locationsService.getLocation(id: locationId)
             isLoading = false
             await loadLocationStats()
+            await loadLocationBreakdown()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
@@ -132,6 +136,38 @@ struct SearchLocationDetailView: View {
             locationStats = nil
         }
         isLoadingStats = false
+    }
+
+    private func loadLocationBreakdown() async {
+        guard location != nil else { return }
+        isLoadingBreakdown = true
+        breakdownError = nil
+
+        do {
+            let response = try await analyticsService.fetchPickEntryBreakdown(
+                aggregation: selectedPeriod.pickEntryAggregation,
+                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId),
+                filters: PickEntryBreakdown.Filters(
+                    skuIds: [],
+                    machineIds: [],
+                    locationIds: [locationId]
+                ),
+                showBars: selectedPeriod.pickEntryAggregation.defaultBars,
+                credentials: session.credentials
+            )
+            locationBreakdown = response
+        } catch let authError as AuthError {
+            breakdownError = authError.localizedDescription
+            locationBreakdown = nil
+        } catch let analyticsError as AnalyticsServiceError {
+            breakdownError = analyticsError.localizedDescription
+            locationBreakdown = nil
+        } catch {
+            breakdownError = "We couldn't load chart data right now."
+            locationBreakdown = nil
+        }
+
+        isLoadingBreakdown = false
     }
 
     private var locationDisplayTitle: String {

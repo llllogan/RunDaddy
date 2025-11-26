@@ -39,6 +39,12 @@ const PICK_ENTRY_DEFAULT_PERIODS = 4;
 const PICK_ENTRY_PERIOD_MIN = 1;
 const PICK_ENTRY_PERIOD_MAX = 12;
 const PICK_ENTRY_LOOKBACK_MAX = 180;
+const PICK_ENTRY_BREAKDOWN_SHOW_BARS = {
+  week: 8,
+  month: 6,
+  quarter: 4,
+} as const;
+const PICK_ENTRY_BREAKDOWN_MAX_BARS = 30;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -66,6 +72,19 @@ type DailySkuRow = {
 
 type DailyTotalRow = {
   day_label: string | Date | null;
+  total_items: bigint | number | string | null;
+};
+
+type PickEntryBreakdownRow = {
+  day_label: string | Date | null;
+  sku_id: string | null;
+  sku_code: string | null;
+  sku_name: string | null;
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_description: string | null;
+  location_id: string | null;
+  location_name: string | null;
   total_items: bigint | number | string | null;
 };
 
@@ -239,7 +258,7 @@ router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res)
   });
 });
 
-router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), async (req, res) => {
+router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'full' }), async (req, res) => {
   const context = await buildAggregatedLookbackContext(req, res);
   if (!context) {
     return;
@@ -248,6 +267,10 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), as
   const dayRangesWithTomorrow = appendTomorrowRange(context.dayRanges, context.timeZone, context.now);
   // Calculate extended range for data fetching to include tomorrow's data when available
   const extendedRange = dayRangesWithTomorrow[dayRangesWithTomorrow.length - 1];
+  if (!extendedRange) {
+    res.status(400).json({ error: 'Unable to construct aggregation window' });
+    return;
+  }
   
   const [dailyTotals, dailySkuRows] = await Promise.all([
     fetchDailyTotalRows(context.companyId, context.rangeStart, extendedRange.end, context.timeZone),
@@ -279,6 +302,81 @@ router.get('/pick-entries/sku-breakdown', setLogConfig({ level: 'minimal' }), as
     rangeEnd: responseRange.end,
     points,
     weekAverages,
+  });
+});
+
+router.post('/pick-entries/breakdown', setLogConfig({ level: 'full' }), async (req, res) => {
+  const timezoneContext = await buildTimezoneContext(req, res);
+  if (!timezoneContext) {
+    return;
+  }
+
+  const breakdownRequest = parsePickEntryBreakdownRequest(req.body);
+  const breakdownWindow = buildPickEntryBreakdownWindow(
+    breakdownRequest.aggregation,
+    timezoneContext.timeZone,
+    timezoneContext.now,
+    breakdownRequest.showBars,
+  );
+
+  if (breakdownWindow.buckets.length === 0) {
+    res.status(400).json({ error: 'Unable to construct breakdown window' });
+    return;
+  }
+
+  const rows = await fetchPickEntryBreakdownRows(
+    timezoneContext.companyId,
+    timezoneContext.timeZone,
+    breakdownWindow.rangeStart,
+    breakdownWindow.rangeEnd,
+    breakdownRequest.filters,
+  );
+
+  const { points, dailyTotals } = buildPickEntryBreakdownPoints(
+    breakdownWindow.buckets,
+    rows,
+    breakdownRequest.breakdownBy,
+    timezoneContext.timeZone,
+  );
+
+  const averages = buildPickEntryBreakdownAverages(
+    breakdownRequest.aggregation,
+    breakdownWindow.buckets,
+    dailyTotals,
+    timezoneContext.timeZone,
+  );
+
+  const availableFilters = buildPickEntryBreakdownAvailableFilters(
+    rows,
+    breakdownRequest.availableFilterDimensions,
+  );
+
+  const responseRange = formatAppExclusiveRange(
+    { start: breakdownWindow.rangeStart, end: breakdownWindow.rangeEnd },
+    timezoneContext.timeZone,
+  );
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: timezoneContext.timeZone,
+    aggregation: breakdownRequest.aggregation,
+    breakdownBy: breakdownRequest.breakdownBy,
+    showBars: breakdownWindow.buckets.length,
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
+    chartItemFocus: {
+      sku: breakdownRequest.chartItemFocus.skuId,
+      machine: breakdownRequest.chartItemFocus.machineId,
+      location: breakdownRequest.chartItemFocus.locationId,
+    },
+    filters: {
+      sku: breakdownRequest.filters.skuIds,
+      machine: breakdownRequest.filters.machineIds,
+      location: breakdownRequest.filters.locationIds,
+    },
+    availableFilters,
+    points,
+    averages,
   });
 });
 
@@ -646,6 +744,66 @@ type AggregatedLookbackContext = {
   periods: number;
   lookbackDays: number;
   dayRanges: TimezoneDayRange[];
+  rangeStart: Date;
+  rangeEnd: Date;
+};
+
+type PickEntryBreakdownDimension = 'sku' | 'machine' | 'location';
+
+type PickEntryBreakdownRequest = {
+  aggregation: PickEntryAggregation;
+  breakdownBy: PickEntryBreakdownDimension;
+  showBars: number;
+  chartItemFocus: {
+    skuId: string | null;
+    machineId: string | null;
+    locationId: string | null;
+  };
+  filters: {
+    skuIds: string[];
+    machineIds: string[];
+    locationIds: string[];
+  };
+  availableFilterDimensions: PickEntryBreakdownDimension[];
+};
+
+type PickEntryBreakdownBucket = {
+  key: string;
+  start: Date;
+  end: Date;
+  xValue: string;
+  dayLabels: string[];
+};
+
+type PickEntryBreakdownItem = {
+  id: string;
+  friendlyName: string;
+  totalItems: number;
+};
+
+type PickEntryBreakdownPoint = {
+  xValue: string;
+  start: string;
+  end: string;
+  totalItems: number;
+  items: PickEntryBreakdownItem[];
+};
+
+type PickEntryBreakdownAverage = {
+  start: string;
+  end: string;
+  dates: string[];
+  average: number;
+};
+
+type PickEntryBreakdownAvailableFilters = {
+  sku: Array<{ id: string; displayName: string }>;
+  machine: Array<{ id: string; displayName: string }>;
+  location: Array<{ id: string; displayName: string }>;
+};
+
+type PickEntryBreakdownWindow = {
+  buckets: PickEntryBreakdownBucket[];
   rangeStart: Date;
   rangeEnd: Date;
 };
@@ -1389,6 +1547,601 @@ function buildWeekAverages(
     });
 }
 
+function parsePickEntryBreakdownRequest(body: unknown): PickEntryBreakdownRequest {
+  const payload = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const aggregation = parsePickEntryAggregation(payload.aggregateBy ?? payload.aggregation);
+  const chartItemFocus = parseChartItemFocus(payload.chartItemFocus);
+  const focusType = determineBreakdownFocus(chartItemFocus);
+  const filters = mergeFocusWithFilters(parseBreakdownFilters(payload.filter), chartItemFocus);
+  const { breakdownBy, availableFilterDimensions } = deriveBreakdownRulesFromFocus(focusType);
+  const showBars = parseBreakdownShowBars(payload.showBars, aggregation);
+
+  return {
+    aggregation,
+    breakdownBy,
+    showBars,
+    chartItemFocus,
+    filters,
+    availableFilterDimensions,
+  };
+}
+
+function parseChartItemFocus(raw: unknown) {
+  const payload = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const skuId = normalizeIdValue(payload.sku ?? payload.skuId);
+  const machineId = normalizeIdValue(payload.machine ?? payload.machineId);
+  const locationId = normalizeIdValue(payload.location ?? payload.locationId);
+  return { skuId, machineId, locationId };
+}
+
+type PickEntryBreakdownFocus = 'sku' | 'machine' | 'location' | 'none';
+
+function determineBreakdownFocus(focus: { skuId: string | null; machineId: string | null; locationId: string | null }): PickEntryBreakdownFocus {
+  if (focus.skuId) {
+    return 'sku';
+  }
+  if (focus.machineId) {
+    return 'machine';
+  }
+  if (focus.locationId) {
+    return 'location';
+  }
+  return 'none';
+}
+
+function deriveBreakdownRulesFromFocus(
+  focus: PickEntryBreakdownFocus,
+): {
+  breakdownBy: PickEntryBreakdownDimension;
+  availableFilterDimensions: PickEntryBreakdownDimension[];
+} {
+  if (focus === 'sku') {
+    return { breakdownBy: 'machine', availableFilterDimensions: ['machine', 'location'] };
+  }
+  if (focus === 'machine') {
+    return { breakdownBy: 'sku', availableFilterDimensions: ['sku'] };
+  }
+  if (focus === 'location') {
+    return { breakdownBy: 'machine', availableFilterDimensions: ['machine', 'sku'] };
+  }
+  return {
+    breakdownBy: 'sku',
+    availableFilterDimensions: ['sku', 'machine', 'location'],
+  };
+}
+
+function parseBreakdownFilters(raw: unknown) {
+  const payload = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    skuIds: normalizeIdArray(payload.sku ?? payload.skuIds),
+    machineIds: normalizeIdArray(payload.machine ?? payload.machineIds),
+    locationIds: normalizeIdArray(payload.location ?? payload.locationIds),
+  };
+}
+
+function mergeFocusWithFilters(
+  filters: { skuIds: string[]; machineIds: string[]; locationIds: string[] },
+  focus: { skuId: string | null; machineId: string | null; locationId: string | null },
+) {
+  const skuIds = [...filters.skuIds, ...(focus.skuId ? [focus.skuId] : [])];
+  const machineIds = [...filters.machineIds, ...(focus.machineId ? [focus.machineId] : [])];
+  const locationIds = [...filters.locationIds, ...(focus.locationId ? [focus.locationId] : [])];
+
+  return {
+    skuIds: uniqueIds(skuIds),
+    machineIds: uniqueIds(machineIds),
+    locationIds: uniqueIds(locationIds),
+  };
+}
+
+function parseBreakdownShowBars(raw: unknown, aggregation: PickEntryAggregation): number {
+  const defaultValue = PICK_ENTRY_BREAKDOWN_SHOW_BARS[aggregation] ?? PICK_ENTRY_BREAKDOWN_SHOW_BARS.week;
+
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return clamp(Math.trunc(raw), 1, PICK_ENTRY_BREAKDOWN_MAX_BARS);
+  }
+
+  if (raw && typeof raw === 'object') {
+    const candidate = (raw as Record<string, unknown>)[aggregation];
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      return clamp(Math.trunc(candidate), 1, PICK_ENTRY_BREAKDOWN_MAX_BARS);
+    }
+  }
+
+  return defaultValue;
+}
+
+function buildPickEntryBreakdownWindow(
+  aggregation: PickEntryAggregation,
+  timeZone: string,
+  reference: Date,
+  showBars: number,
+): PickEntryBreakdownWindow {
+  switch (aggregation) {
+    case 'week':
+      return buildDailyBreakdownWindow(timeZone, reference, showBars);
+    case 'month':
+      return buildWeeklyBreakdownWindow(timeZone, reference, showBars);
+    case 'quarter':
+    default:
+      return buildMonthlyBreakdownWindow(timeZone, reference, showBars);
+  }
+}
+
+function buildDailyBreakdownWindow(
+  timeZone: string,
+  reference: Date,
+  showBars: number,
+): PickEntryBreakdownWindow {
+  const futureBuckets = 1;
+  const targetBars = Math.max(showBars, futureBuckets + 1);
+  const pastBuckets = Math.max(targetBars - 1 - futureBuckets, 0);
+  const buckets: PickEntryBreakdownBucket[] = [];
+
+  for (let offset = pastBuckets; offset >= -futureBuckets; offset -= 1) {
+    const dayRange = getTimezoneDayRange({ timeZone, dayOffset: -offset, reference });
+    buckets.push({
+      key: `${dayRange.label}-day`,
+      start: dayRange.start,
+      end: dayRange.end,
+      xValue: dayRange.label,
+      dayLabels: [dayRange.label],
+    });
+  }
+
+  const rangeStart = buckets[0]?.start ?? getTimezoneDayRange({ timeZone, reference }).start;
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? getTimezoneDayRange({ timeZone, reference }).end;
+
+  return { buckets, rangeStart, rangeEnd };
+}
+
+function buildWeeklyBreakdownWindow(
+  timeZone: string,
+  reference: Date,
+  showBars: number,
+): PickEntryBreakdownWindow {
+  const futureBuckets = 1;
+  const targetBars = Math.max(showBars, futureBuckets + 1);
+  const pastBuckets = Math.max(targetBars - 1 - futureBuckets, 0);
+  const currentWeekStart = getIsoWeekStart(timeZone, reference);
+  const buckets: PickEntryBreakdownBucket[] = [];
+
+  for (let offset = pastBuckets; offset >= -futureBuckets; offset -= 1) {
+    const start = new Date(currentWeekStart.getTime() - offset * WEEK_IN_MS);
+    const end = new Date(start.getTime() + WEEK_IN_MS);
+    buckets.push({
+      key: `${formatDateInTimezone(start, timeZone)}-week`,
+      start,
+      end,
+      xValue: `W${getIsoWeekNumber(timeZone, start)}`,
+      dayLabels: buildDayLabelsForRange(start, end, timeZone),
+    });
+  }
+
+  const rangeStart = buckets[0]?.start ?? currentWeekStart;
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date(currentWeekStart.getTime() + WEEK_IN_MS);
+
+  return { buckets, rangeStart, rangeEnd };
+}
+
+function buildMonthlyBreakdownWindow(
+  timeZone: string,
+  reference: Date,
+  showBars: number,
+): PickEntryBreakdownWindow {
+  const futureBuckets = 0;
+  const targetBars = Math.max(showBars, 1);
+  const pastBuckets = Math.max(targetBars - 1 - futureBuckets, 0);
+  const buckets: PickEntryBreakdownBucket[] = [];
+
+  for (let offset = pastBuckets; offset >= -futureBuckets; offset -= 1) {
+    const window = getMonthWindow(timeZone, reference, offset);
+    buckets.push({
+      key: `${formatDateInTimezone(window.start, timeZone)}-month`,
+      start: window.start,
+      end: window.end,
+      xValue: formatMonthLabel(window.start, timeZone),
+      dayLabels: buildDayLabelsForRange(window.start, window.end, timeZone),
+    });
+  }
+
+  const currentMonthWindow = getMonthWindow(timeZone, reference, 0);
+  const rangeStart = buckets[0]?.start ?? currentMonthWindow.start;
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? currentMonthWindow.end;
+
+  return { buckets, rangeStart, rangeEnd };
+}
+
+async function fetchPickEntryBreakdownRows(
+  companyId: string,
+  timeZone: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  filters: { skuIds: string[]; machineIds: string[]; locationIds: string[] },
+): Promise<PickEntryBreakdownRow[]> {
+  const skuFilterClause =
+    filters.skuIds.length > 0
+      ? Prisma.sql`AND sku_id IN (${Prisma.join(filters.skuIds)})`
+      : Prisma.sql``;
+  const machineFilterClause =
+    filters.machineIds.length > 0
+      ? Prisma.sql`AND machine_id IN (${Prisma.join(filters.machineIds)})`
+      : Prisma.sql``;
+  const locationFilterClause =
+    filters.locationIds.length > 0
+      ? Prisma.sql`AND location_id IN (${Prisma.join(filters.locationIds)})`
+      : Prisma.sql``;
+
+  return prisma.$queryRaw<PickEntryBreakdownRow[]>(
+    Prisma.sql`
+      SELECT
+        DATE_FORMAT(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}), '%Y-%m-%d') AS day_label,
+        sku_id,
+        sku_code,
+        sku_name,
+        machine_id,
+        machine_code,
+        machine_description,
+        location_id,
+        location_name,
+        SUM(count) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+        ${skuFilterClause}
+        ${machineFilterClause}
+        ${locationFilterClause}
+      GROUP BY
+        day_label,
+        sku_id,
+        sku_code,
+        sku_name,
+        machine_id,
+        machine_code,
+        machine_description,
+        location_id,
+        location_name
+      ORDER BY day_label ASC
+    `,
+  );
+}
+
+function buildPickEntryBreakdownPoints(
+  buckets: PickEntryBreakdownBucket[],
+  rows: PickEntryBreakdownRow[],
+  breakdownBy: PickEntryBreakdownDimension,
+  timeZone: string,
+): { points: PickEntryBreakdownPoint[]; dailyTotals: Map<string, number> } {
+  const bucketByDay = new Map<string, string>();
+  const bucketData = new Map<
+    string,
+    {
+      bucket: PickEntryBreakdownBucket;
+      totalItems: number;
+      segments: Map<string, PickEntryBreakdownItem>;
+    }
+  >();
+  const dailyTotals = new Map<string, number>();
+
+  for (const bucket of buckets) {
+    bucketData.set(bucket.key, { bucket, totalItems: 0, segments: new Map() });
+    for (const dayLabel of bucket.dayLabels) {
+      bucketByDay.set(dayLabel, bucket.key);
+      if (!dailyTotals.has(dayLabel)) {
+        dailyTotals.set(dayLabel, 0);
+      }
+    }
+  }
+
+  for (const row of rows) {
+    const dayLabel = normalizeDayLabel(row.day_label, timeZone);
+    if (!dayLabel) {
+      continue;
+    }
+    const bucketKey = bucketByDay.get(dayLabel);
+    if (!bucketKey) {
+      continue;
+    }
+
+    const totalItems = Math.max(toNumber(row.total_items), 0);
+    if (totalItems > 0) {
+      dailyTotals.set(dayLabel, (dailyTotals.get(dayLabel) ?? 0) + totalItems);
+    }
+
+    const bucketEntry = bucketData.get(bucketKey);
+    if (!bucketEntry || totalItems <= 0) {
+      continue;
+    }
+
+    bucketEntry.totalItems += totalItems;
+    const segment = mapBreakdownSegment(breakdownBy, row);
+    const existing = bucketEntry.segments.get(segment.id);
+    if (existing) {
+      existing.totalItems += totalItems;
+    } else {
+      bucketEntry.segments.set(segment.id, { ...segment, totalItems });
+    }
+  }
+
+  const points = buckets.map((bucket) => {
+    const bucketEntry = bucketData.get(bucket.key);
+    const items =
+      bucketEntry && bucketEntry.segments.size > 0
+        ? Array.from(bucketEntry.segments.values()).sort((a, b) => b.totalItems - a.totalItems)
+        : [];
+
+    return {
+      xValue: bucket.xValue,
+      start: formatDateInTimezone(bucket.start, timeZone),
+      end: formatDateInTimezone(new Date(bucket.end.getTime() - DAY_IN_MS), timeZone),
+      totalItems: bucketEntry?.totalItems ?? 0,
+      items,
+    };
+  });
+
+  return { points, dailyTotals };
+}
+
+function buildPickEntryBreakdownAverages(
+  aggregation: PickEntryAggregation,
+  buckets: PickEntryBreakdownBucket[],
+  dailyTotals: Map<string, number>,
+  timeZone: string,
+): PickEntryBreakdownAverage[] {
+  if (aggregation === 'week') {
+    // Group by ISO week to keep the original week overlay behavior
+    const weekGroups = new Map<
+      string,
+      { start: Date; end: Date; labels: string[]; totals: number[] }
+    >();
+
+    for (const bucket of buckets) {
+      for (const label of bucket.dayLabels) {
+        const date = parseDateLabelInTimezone(label, timeZone);
+        const weekStart = getIsoWeekStart(timeZone, date);
+        const weekEnd = new Date(weekStart.getTime() + WEEK_IN_MS);
+        const key = formatDateInTimezone(weekStart, timeZone);
+        const total = Math.max(dailyTotals.get(label) ?? 0, 0);
+        if (!weekGroups.has(key)) {
+          weekGroups.set(key, { start: weekStart, end: weekEnd, labels: [], totals: [] });
+        }
+        const group = weekGroups.get(key)!;
+        group.labels.push(label);
+        if (total > 0) {
+          group.totals.push(total);
+        }
+      }
+    }
+
+    return Array.from(weekGroups.values())
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((group) => {
+        const averageRaw =
+          group.totals.length > 0
+            ? group.totals.reduce((sum, value) => sum + value, 0) / group.totals.length
+            : 0;
+        return {
+          start: formatDateInTimezone(group.start, timeZone),
+          end: formatDateInTimezone(new Date(group.end.getTime() - DAY_IN_MS), timeZone),
+          dates: [...group.labels].sort(),
+          average: Number(averageRaw.toFixed(2)),
+        };
+      });
+  }
+
+  if (aggregation === 'quarter') {
+    const bucketsWithQuarter = buckets.map((bucket) => {
+      const { year, month } = getLocalDatePartsInTimezone(bucket.start, timeZone);
+      const quarterIndex = Math.floor((month - 1) / 3);
+      const quarterKey = year * QUARTERS_IN_YEAR + quarterIndex;
+      return { bucket, quarterKey };
+    });
+
+    if (bucketsWithQuarter.length === 0) {
+      return [];
+    }
+
+    const latestQuarterKey = Math.max(...bucketsWithQuarter.map((entry) => entry.quarterKey));
+    const latestQuarterBuckets = bucketsWithQuarter
+      .filter((entry) => entry.quarterKey === latestQuarterKey)
+      .map((entry) => entry.bucket)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    if (latestQuarterBuckets.length === 0) {
+      return [];
+    }
+
+    const bucketTotals = latestQuarterBuckets
+      .map((bucket) => sumBucketTotals(bucket, dailyTotals))
+      .filter((total) => total > 0); // exclude zero months
+    const averageRaw =
+      bucketTotals.length > 0
+        ? bucketTotals.reduce((sum, value) => sum + value, 0) / bucketTotals.length
+        : 0;
+
+    const allLabels = latestQuarterBuckets.flatMap((bucket) => bucket.dayLabels);
+    return [
+      {
+        start: formatDateInTimezone(latestQuarterBuckets[0]!.start, timeZone),
+        end: formatDateInTimezone(
+          new Date(latestQuarterBuckets[latestQuarterBuckets.length - 1]!.end.getTime() - DAY_IN_MS),
+          timeZone,
+        ),
+        dates: [...new Set(allLabels)].sort(),
+        average: Number(averageRaw.toFixed(2)),
+      },
+    ];
+  }
+
+  // Month aggregation: align averages per bucket and ignore zero-value days
+  return buckets.map((bucket) => {
+    const totals = bucket.dayLabels
+      .map((label) => Math.max(dailyTotals.get(label) ?? 0, 0))
+      .filter((value) => value > 0);
+    const averageRaw =
+      totals.length > 0 ? totals.reduce((sum, value) => sum + value, 0) / totals.length : 0;
+
+    return {
+      start: formatDateInTimezone(bucket.start, timeZone),
+      end: formatDateInTimezone(new Date(bucket.end.getTime() - DAY_IN_MS), timeZone),
+      dates: [...bucket.dayLabels].sort(),
+      average: Number(averageRaw.toFixed(2)),
+    };
+  });
+}
+
+function sumBucketTotals(bucket: PickEntryBreakdownBucket, dailyTotals: Map<string, number>): number {
+  return bucket.dayLabels.reduce((sum, label) => sum + Math.max(dailyTotals.get(label) ?? 0, 0), 0);
+}
+
+function buildPickEntryBreakdownAvailableFilters(
+  rows: PickEntryBreakdownRow[],
+  allowedDimensions: PickEntryBreakdownDimension[],
+): PickEntryBreakdownAvailableFilters {
+  const skuOptions = new Map<string, string>();
+  const machineOptions = new Map<string, string>();
+  const locationOptions = new Map<string, string>();
+
+  for (const row of rows) {
+    const totalItems = Math.max(toNumber(row.total_items), 0);
+    if (totalItems <= 0) {
+      continue;
+    }
+    if (allowedDimensions.includes('sku')) {
+      const skuId = normalizeIdValue(row.sku_id);
+      if (skuId) {
+        const name = (row.sku_name ?? row.sku_code ?? 'SKU').trim() || (row.sku_code ?? 'SKU');
+        skuOptions.set(skuId, name);
+      }
+    }
+    if (allowedDimensions.includes('machine')) {
+      const machineId = normalizeIdValue(row.machine_id);
+      if (machineId) {
+        const name =
+          (row.machine_description ?? row.machine_code ?? 'Machine').trim() ||
+          (row.machine_code ?? 'Machine');
+        machineOptions.set(machineId, name);
+      }
+    }
+    if (allowedDimensions.includes('location')) {
+      const locationId = normalizeIdValue(row.location_id);
+      if (locationId) {
+        const name = (row.location_name ?? 'Location').trim() || 'Location';
+        locationOptions.set(locationId, name);
+      }
+    }
+  }
+
+  const mapOptions = (optionMap: Map<string, string>) =>
+    Array.from(optionMap.entries())
+      .map(([id, displayName]) => ({ id, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'en'));
+
+  return {
+    sku: allowedDimensions.includes('sku') ? mapOptions(skuOptions) : [],
+    machine: allowedDimensions.includes('machine') ? mapOptions(machineOptions) : [],
+    location: allowedDimensions.includes('location') ? mapOptions(locationOptions) : [],
+  };
+}
+
+function mapBreakdownSegment(
+  breakdownBy: PickEntryBreakdownDimension,
+  row: PickEntryBreakdownRow,
+): PickEntryBreakdownItem {
+  if (breakdownBy === 'machine') {
+    const id = normalizeIdValue(row.machine_id) ?? 'unknown-machine';
+    const friendlyName =
+      (row.machine_description ?? row.machine_code ?? 'Machine').trim() ||
+      (row.machine_code ?? 'Machine');
+    return { id, friendlyName, totalItems: 0 };
+  }
+
+  if (breakdownBy === 'location') {
+    const id = normalizeIdValue(row.location_id) ?? 'unknown-location';
+    const friendlyName = (row.location_name ?? 'Location').trim() || 'Location';
+    return { id, friendlyName, totalItems: 0 };
+  }
+
+  const id = normalizeIdValue(row.sku_id) ?? 'unknown-sku';
+  const friendlyName = (row.sku_name ?? row.sku_code ?? 'SKU').trim() || (row.sku_code ?? 'SKU');
+  return { id, friendlyName, totalItems: 0 };
+}
+
+function resolveAverageGroupingWindow(
+  aggregation: PickEntryAggregation,
+  reference: Date,
+  timeZone: string,
+) {
+  if (aggregation === 'week') {
+    const start = getIsoWeekStart(timeZone, reference);
+    const end = new Date(start.getTime() + WEEK_IN_MS);
+    return { key: `${formatDateInTimezone(start, timeZone)}-week`, start, end };
+  }
+  if (aggregation === 'month') {
+    const window = getMonthWindow(timeZone, reference, 0);
+    return { key: `${formatDateInTimezone(window.start, timeZone)}-month`, start: window.start, end: window.end };
+  }
+  const window = getQuarterWindow(timeZone, reference, 0);
+  return { key: `${formatDateInTimezone(window.start, timeZone)}-quarter`, start: window.start, end: window.end };
+}
+
+function formatMonthLabel(reference: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', timeZone }).format(reference);
+}
+
+function buildDayLabelsForRange(start: Date, end: Date, timeZone: string): string[] {
+  const labels: string[] = [];
+  let cursor = start;
+  while (cursor < end) {
+    const range = getTimezoneDayRange({ timeZone, reference: cursor });
+    if (!labels.includes(range.label)) {
+      labels.push(range.label);
+    }
+    cursor = range.end;
+  }
+  return labels;
+}
+
+function getIsoWeekNumber(timeZone: string, reference: Date): number {
+  const { year, month, day } = getLocalDatePartsInTimezone(reference, timeZone);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayNumber = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - dayNumber + 3);
+  const firstThursday = date.getTime();
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.round((firstThursday - yearStart.getTime()) / (7 * DAY_IN_MS)) + 1;
+}
+
+function parseDateLabelInTimezone(label: string, timeZone: string): Date {
+  const date = new Date(`${label}T00:00:00Z`);
+  return convertDateToTimezoneMidnight(date, timeZone);
+}
+
+function normalizeIdArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return uniqueIds(
+    raw
+      .map((value) => normalizeIdValue(value))
+      .filter((value): value is string => typeof value === 'string' && value.length > 0),
+  );
+}
+
+function normalizeIdValue(raw: unknown): string | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function uniqueIds(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value && value.length > 0)));
+}
+
 function normalizeDayLabel(label: string | Date | null, timeZone: string): string | null {
   if (!label) {
     return null;
@@ -1763,7 +2516,7 @@ async function buildDashboardMachineTouchSeries(
     return {
       weekStart: range.start,
       weekEnd: range.end,
-      totalMachines: totals[index],
+      totalMachines: totals[index] ?? 0,
     };
   });
 }

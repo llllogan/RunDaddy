@@ -24,9 +24,26 @@ protocol AnalyticsServicing {
     ) async throws -> [DashboardMomentumSnapshot.MachineSlice]
     func fetchPickEntryBreakdown(
         aggregation: PickEntryBreakdown.Aggregation,
-        periods: Int,
+        focus: PickEntryBreakdown.ChartItemFocus,
+        filters: PickEntryBreakdown.Filters,
+        showBars: Int?,
         credentials: AuthCredentials
     ) async throws -> PickEntryBreakdown
+}
+
+extension AnalyticsServicing {
+    func fetchPickEntryBreakdown(
+        aggregation: PickEntryBreakdown.Aggregation,
+        credentials: AuthCredentials
+    ) async throws -> PickEntryBreakdown {
+        try await fetchPickEntryBreakdown(
+            aggregation: aggregation,
+            focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: nil),
+            filters: PickEntryBreakdown.Filters(skuIds: [], machineIds: [], locationIds: []),
+            showBars: nil,
+            credentials: credentials
+        )
+    }
 }
 
 struct DailyInsights: Equatable {
@@ -321,13 +338,19 @@ struct PickEntryBreakdown: Equatable {
             }
         }
 
-        var defaultPeriods: Int {
+        var defaultBars: Int {
             switch self {
-            case .week: return 4
-            case .month: return 2
-            case .quarter: return 1
+            case .week: return 8
+            case .month: return 6
+            case .quarter: return 4
             }
         }
+    }
+
+    enum Breakdown: String, Codable {
+        case sku
+        case machine
+        case location
     }
 
     struct Segment: Identifiable, Equatable {
@@ -359,6 +382,29 @@ struct PickEntryBreakdown: Equatable {
         }
     }
 
+    struct Filters: Equatable {
+        let skuIds: [String]
+        let machineIds: [String]
+        let locationIds: [String]
+    }
+
+    struct FilterOption: Identifiable, Equatable {
+        let id: String
+        let displayName: String
+    }
+
+    struct AvailableFilters: Equatable {
+        let sku: [FilterOption]
+        let machine: [FilterOption]
+        let location: [FilterOption]
+    }
+
+    struct ChartItemFocus: Equatable {
+        let skuId: String?
+        let machineId: String?
+        let locationId: String?
+    }
+
     struct Point: Identifiable, Equatable {
         var id: Date { start }
         let label: String
@@ -370,13 +416,16 @@ struct PickEntryBreakdown: Equatable {
 
     let generatedAt: Date
     let timeZone: String
+    let breakdownBy: Breakdown
     let aggregation: Aggregation
-    let periods: Int
-    let lookbackDays: Int
+    let showBars: Int
     let rangeStart: String
     let rangeEnd: String
     let points: [Point]
     let weekAverages: [WeekAverage]
+    let filters: Filters
+    let availableFilters: AvailableFilters
+    let chartItemFocus: ChartItemFocus
 
     var isEmpty: Bool {
         points.allSatisfy { $0.totalItems == 0 }
@@ -597,25 +646,39 @@ final class AnalyticsService: AnalyticsServicing {
 
     func fetchPickEntryBreakdown(
         aggregation: PickEntryBreakdown.Aggregation,
-        periods: Int,
+        focus: PickEntryBreakdown.ChartItemFocus = PickEntryBreakdown.ChartItemFocus(
+            skuId: nil,
+            machineId: nil,
+            locationId: nil
+        ),
+        filters: PickEntryBreakdown.Filters = PickEntryBreakdown.Filters(
+            skuIds: [],
+            machineIds: [],
+            locationIds: []
+        ),
+        showBars: Int? = nil,
         credentials: AuthCredentials
     ) async throws -> PickEntryBreakdown {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("analytics")
         url.appendPathComponent("pick-entries")
-        url.appendPathComponent("sku-breakdown")
+        url.appendPathComponent("breakdown")
 
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "aggregation", value: aggregation.rawValue),
-            URLQueryItem(name: "periods", value: String(max(1, periods)))
-        ]
-        let resolvedURL = components?.url ?? url
+        let payload = PickEntryBreakdownRequest(
+            aggregation: aggregation,
+            focus: focus,
+            filters: filters,
+            showBars: showBars
+        )
 
-        var request = URLRequest(url: resolvedURL)
-        request.httpMethod = "GET"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
         request.httpShouldHandleCookies = true
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(payload)
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -634,7 +697,7 @@ final class AnalyticsService: AnalyticsServicing {
         }
 
         do {
-            let payload = try decoder.decode(PickEntrySkuBreakdownResponse.self, from: data)
+            let payload = try decoder.decode(PickEntryBreakdownResponse.self, from: data)
             return payload.toDomain()
         } catch {
             throw AnalyticsServiceError.unableToDecode
@@ -1139,119 +1202,151 @@ private struct TopSkuStatsResponse: Decodable {
     }
 }
 
-private struct PickEntrySkuBreakdownResponse: Decodable {
-    struct SkuSegment: Decodable {
-        let skuId: String
-        let skuCode: String
-        let skuName: String
+private struct PickEntryBreakdownRequest: Encodable {
+    struct ChartFocus: Encodable {
+        let sku: String?
+        let machine: String?
+        let location: String?
+    }
+
+    struct Filters: Encodable {
+        let sku: [String]
+        let machine: [String]
+        let location: [String]
+    }
+
+    let aggregateBy: PickEntryBreakdown.Aggregation
+    let chartItemFocus: ChartFocus
+    let filter: Filters
+    let showBars: Int
+
+    init(
+        aggregation: PickEntryBreakdown.Aggregation,
+        focus: PickEntryBreakdown.ChartItemFocus,
+        filters: PickEntryBreakdown.Filters,
+        showBars: Int?
+    ) {
+        aggregateBy = aggregation
+        chartItemFocus = ChartFocus(
+            sku: focus.skuId,
+            machine: focus.machineId,
+            location: focus.locationId
+        )
+        filter = Filters(
+            sku: filters.skuIds,
+            machine: filters.machineIds,
+            location: filters.locationIds
+        )
+        self.showBars = showBars ?? aggregation.defaultBars
+    }
+}
+
+private struct PickEntryBreakdownResponse: Decodable {
+    struct Item: Decodable {
+        let id: String
+        let friendlyName: String
         let totalItems: Int
-
-        private enum CodingKeys: String, CodingKey {
-            case skuId
-            case skuCode
-            case skuName
-            case totalItems
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            skuId = try container.decode(String.self, forKey: .skuId)
-            skuCode = try container.decode(String.self, forKey: .skuCode)
-            skuName = try container.decode(String.self, forKey: .skuName)
-
-            if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
-                totalItems = max(intValue, 0)
-            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
-                totalItems = max(Int(doubleValue.rounded()), 0)
-            } else {
-                totalItems = 0
-            }
-        }
     }
 
     struct Point: Decodable {
-        let date: String
+        let xValue: String
         let start: String
         let end: String
         let totalItems: Int
-        let skus: [SkuSegment]
-
-        private enum CodingKeys: String, CodingKey {
-            case date
-            case start
-            case end
-            case totalItems
-            case skus
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            date = try container.decode(String.self, forKey: .date)
-            start = try container.decode(String.self, forKey: .start)
-            end = try container.decode(String.self, forKey: .end)
-
-            if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
-                totalItems = max(intValue, 0)
-            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
-                totalItems = max(Int(doubleValue.rounded()), 0)
-            } else {
-                totalItems = 0
-            }
-
-            skus = (try? container.decode([SkuSegment].self, forKey: .skus)) ?? []
-        }
+        let items: [Item]
     }
 
-    struct WeekAverage: Decodable {
-        let weekStart: String
-        let weekEnd: String
+    struct Average: Decodable {
+        let start: String
+        let end: String
         let dates: [String]
         let average: Double
+    }
+
+    struct FilterOption: Decodable {
+        let id: String
+        let displayName: String
+    }
+
+    struct AvailableFilters: Decodable {
+        let sku: [FilterOption]
+        let machine: [FilterOption]
+        let location: [FilterOption]
+    }
+
+    struct Filters: Decodable {
+        let sku: [String]
+        let machine: [String]
+        let location: [String]
+    }
+
+    struct ChartItemFocus: Decodable {
+        let sku: String?
+        let machine: String?
+        let location: String?
     }
 
     let generatedAt: Date
     let timeZone: String
     let aggregation: PickEntryBreakdown.Aggregation
-    let periods: Int
-    let lookbackDays: Int
+    let breakdownBy: PickEntryBreakdown.Breakdown
+    let showBars: Int
     let rangeStart: String
     let rangeEnd: String
+    let chartItemFocus: ChartItemFocus
+    let filters: Filters
+    let availableFilters: AvailableFilters
     let points: [Point]
-    let weekAverages: [WeekAverage]
+    let averages: [Average]
 
     func toDomain() -> PickEntryBreakdown {
         PickEntryBreakdown(
             generatedAt: generatedAt,
             timeZone: timeZone,
+            breakdownBy: breakdownBy,
             aggregation: aggregation,
-            periods: max(periods, 1),
-            lookbackDays: lookbackDays,
+            showBars: max(showBars, 1),
             rangeStart: rangeStart,
             rangeEnd: rangeEnd,
             points: points.map { point in
                 PickEntryBreakdown.Point(
-                    label: point.date,
+                    label: point.xValue,
                     start: AnalyticsDateParser.date(from: point.start, timeZoneIdentifier: timeZone),
                     end: AnalyticsDateParser.date(from: point.end, timeZoneIdentifier: timeZone),
                     totalItems: max(point.totalItems, 0),
-                    skus: point.skus.map { segment in
+                    skus: point.items.map { item in
                         PickEntryBreakdown.Segment(
-                            skuId: segment.skuId,
-                            skuCode: segment.skuCode,
-                            skuName: segment.skuName,
-                            totalItems: max(segment.totalItems, 0)
+                            skuId: item.id,
+                            skuCode: item.friendlyName,
+                            skuName: item.friendlyName,
+                            totalItems: max(item.totalItems, 0)
                         )
                     }
                 )
             },
-            weekAverages: weekAverages.map { week in
+            weekAverages: averages.map { average in
                 PickEntryBreakdown.WeekAverage(
-                    weekStart: AnalyticsDateParser.date(from: week.weekStart, timeZoneIdentifier: timeZone),
-                    weekEnd: AnalyticsDateParser.date(from: week.weekEnd, timeZoneIdentifier: timeZone),
-                    dates: week.dates.map { AnalyticsDateParser.date(from: $0, timeZoneIdentifier: timeZone) },
-                    average: max(week.average, 0)
+                    weekStart: AnalyticsDateParser.date(from: average.start, timeZoneIdentifier: timeZone),
+                    weekEnd: AnalyticsDateParser.date(from: average.end, timeZoneIdentifier: timeZone),
+                    dates: average.dates.map { AnalyticsDateParser.date(from: $0, timeZoneIdentifier: timeZone) },
+                    average: max(average.average, 0)
                 )
-            }
+            },
+            filters: PickEntryBreakdown.Filters(
+                skuIds: filters.sku,
+                machineIds: filters.machine,
+                locationIds: filters.location
+            ),
+            availableFilters: PickEntryBreakdown.AvailableFilters(
+                sku: availableFilters.sku.map { PickEntryBreakdown.FilterOption(id: $0.id, displayName: $0.displayName) },
+                machine: availableFilters.machine.map { PickEntryBreakdown.FilterOption(id: $0.id, displayName: $0.displayName) },
+                location: availableFilters.location.map { PickEntryBreakdown.FilterOption(id: $0.id, displayName: $0.displayName) }
+            ),
+            chartItemFocus: PickEntryBreakdown.ChartItemFocus(
+                skuId: chartItemFocus.sku,
+                machineId: chartItemFocus.machine,
+                locationId: chartItemFocus.location
+            )
         )
     }
 }

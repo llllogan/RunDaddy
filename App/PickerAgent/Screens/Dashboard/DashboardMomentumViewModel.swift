@@ -20,7 +20,6 @@ final class DashboardMomentumViewModel: ObservableObject {
     private var session: AuthSession
     private let analyticsService: AnalyticsServicing
     private let dashboardAggregation: PickEntryBreakdown.Aggregation = .week
-    private let dashboardPeriods: Int = 2
 
     init(session: AuthSession, analyticsService: AnalyticsServicing? = nil) {
         self.session = session
@@ -61,7 +60,9 @@ final class DashboardMomentumViewModel: ObservableObject {
         do {
             let breakdown = try await analyticsService.fetchPickEntryBreakdown(
                 aggregation: dashboardAggregation,
-                periods: dashboardPeriods,
+                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: nil),
+                filters: PickEntryBreakdown.Filters(skuIds: [], machineIds: [], locationIds: []),
+                showBars: dashboardAggregation.defaultBars,
                 credentials: session.credentials
             )
             pickEntryBreakdown = breakdown

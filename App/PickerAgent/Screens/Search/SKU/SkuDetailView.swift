@@ -8,6 +8,10 @@ struct SkuDetailView: View {
     @State private var skuStats: SkuStatsResponse?
     @State private var isLoading = true
     @State private var isLoadingStats = true
+    @State private var skuBreakdown: PickEntryBreakdown?
+    @State private var breakdownFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
+    @State private var isLoadingBreakdown = true
+    @State private var breakdownError: String?
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var isUpdatingCheeseStatus = false
@@ -16,6 +20,7 @@ struct SkuDetailView: View {
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
     
     private let skusService = SkusService()
+    private let analyticsService = AnalyticsService()
     
     var body: some View {
         List {
@@ -70,20 +75,21 @@ struct SkuDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                if let skuStats = skuStats {
-                    Section {
-                        SkuStatsChartView(
-                            stats: skuStats,
-                            selectedPeriod: $selectedPeriod,
-                            selectedLocationFilter: $selectedLocationFilter,
-                            selectedMachineFilter: $selectedMachineFilter,
-                            onFilterChange: { locationId, machineId in
-                                await applySkuStatsFilters(locationId: locationId, machineId: machineId)
-                            }
-                        )
-                    } header: {
-                        Text("Recent Activity")
-                    }
+                Section {
+                    SkuStatsChartView(
+                        breakdown: skuBreakdown,
+                        availableFilters: breakdownFilters,
+                        isLoading: isLoadingBreakdown,
+                        errorMessage: breakdownError,
+                        selectedPeriod: $selectedPeriod,
+                        selectedLocationFilter: $selectedLocationFilter,
+                        selectedMachineFilter: $selectedMachineFilter,
+                        onFilterChange: { locationId, machineId in
+                            await applySkuStatsFilters(locationId: locationId, machineId: machineId)
+                        }
+                    )
+                } header: {
+                    Text("Recent Activity")
                 }
             }
         }
@@ -95,6 +101,7 @@ struct SkuDetailView: View {
         .onChange(of: selectedPeriod) { _, _ in
             Task {
                 await loadSkuStats()
+                await loadSkuBreakdown()
             }
         }
         .navigationDestination(item: $machineNavigationTarget) { target in
@@ -109,6 +116,7 @@ struct SkuDetailView: View {
             
             // Load stats after SKU details are loaded
             await loadSkuStats()
+            await loadSkuBreakdown()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
@@ -130,6 +138,41 @@ struct SkuDetailView: View {
         }
         isLoadingStats = false
     }
+
+    private func loadSkuBreakdown() async {
+        isLoadingBreakdown = true
+        breakdownError = nil
+
+        do {
+            let response = try await analyticsService.fetchPickEntryBreakdown(
+                aggregation: selectedPeriod.pickEntryAggregation,
+                focus: PickEntryBreakdown.ChartItemFocus(skuId: skuId, machineId: nil, locationId: nil),
+                filters: PickEntryBreakdown.Filters(
+                    skuIds: [skuId],
+                    machineIds: selectedMachineFilter.map { [$0] } ?? [],
+                    locationIds: selectedLocationFilter.map { [$0] } ?? []
+                ),
+                showBars: selectedPeriod.pickEntryAggregation.defaultBars,
+                credentials: session.credentials
+            )
+            skuBreakdown = response
+            breakdownFilters = response.availableFilters
+        } catch let authError as AuthError {
+            breakdownError = authError.localizedDescription
+            skuBreakdown = nil
+            breakdownFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
+        } catch let analyticsError as AnalyticsServiceError {
+            breakdownError = analyticsError.localizedDescription
+            skuBreakdown = nil
+            breakdownFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
+        } catch {
+            breakdownError = "We couldn't load chart data right now."
+            skuBreakdown = nil
+            breakdownFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
+        }
+
+        isLoadingBreakdown = false
+    }
     
     private func applySkuStatsFilters(locationId: String?, machineId: String?) async {
         let didChange = selectedLocationFilter != locationId || selectedMachineFilter != machineId
@@ -139,6 +182,7 @@ struct SkuDetailView: View {
         selectedLocationFilter = locationId
         selectedMachineFilter = machineId
         await loadSkuStats()
+        await loadSkuBreakdown()
     }
     
     private func toggleCheeseStatus() {

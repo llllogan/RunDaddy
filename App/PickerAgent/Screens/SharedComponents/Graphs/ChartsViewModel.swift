@@ -27,7 +27,7 @@ class ChartsViewModel: ObservableObject {
     @Published var isLoadingSkuBreakdown = false
     @Published var skuBreakdownError: String?
     @Published var skuBreakdownAggregation: PickEntryBreakdown.Aggregation = .week
-    @Published var skuBreakdownPeriods: Int = PickEntryBreakdown.Aggregation.week.defaultPeriods
+    @Published var skuBreakdownShowBars: Int = PickEntryBreakdown.Aggregation.week.defaultBars
     @Published var skuBreakdownWeekAverages: [PickEntryBreakdown.WeekAverage] = []
     @Published var skuBreakdownTimeZone = TimeZone.current.identifier
     @Published var packPeriodComparisons: [PackPeriodComparisons.PeriodComparison] = []
@@ -63,7 +63,7 @@ class ChartsViewModel: ObservableObject {
         async let machineTotalsTask: Void = loadMachinePickTotals()
         async let skuBreakdownTask: Void = loadSkuBreakdown(
             aggregation: skuBreakdownAggregation,
-            periods: skuBreakdownPeriods
+            showBars: skuBreakdownShowBars
         )
         _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask, machineTotalsTask, skuBreakdownTask)
     }
@@ -176,14 +176,14 @@ class ChartsViewModel: ObservableObject {
 
     func loadSkuBreakdown(
         aggregation: PickEntryBreakdown.Aggregation? = nil,
-        periods: Int? = nil
+        showBars: Int? = nil
     ) async {
-        if isLoadingSkuBreakdown && aggregation == nil && periods == nil {
+        if isLoadingSkuBreakdown && aggregation == nil && showBars == nil {
             return
         }
 
         let targetAggregation = aggregation ?? skuBreakdownAggregation
-        let targetPeriods = periods ?? skuBreakdownPeriods
+        let targetShowBars = showBars ?? skuBreakdownShowBars
 
         isLoadingSkuBreakdown = true
         skuBreakdownError = nil
@@ -191,12 +191,14 @@ class ChartsViewModel: ObservableObject {
         do {
             let response = try await analyticsService.fetchPickEntryBreakdown(
                 aggregation: targetAggregation,
-                periods: targetPeriods,
+                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: nil),
+                filters: PickEntryBreakdown.Filters(skuIds: [], machineIds: [], locationIds: []),
+                showBars: targetShowBars,
                 credentials: session.credentials
             )
             skuBreakdownTimeZone = response.timeZone
             skuBreakdownAggregation = response.aggregation
-            skuBreakdownPeriods = response.periods
+            skuBreakdownShowBars = response.showBars
             skuBreakdownPoints = response.points
             skuBreakdownWeekAverages = response.weekAverages
         } catch let authError as AuthError {
@@ -220,14 +222,14 @@ class ChartsViewModel: ObservableObject {
     }
 
     func refreshSkuBreakdown() async {
-        await loadSkuBreakdown(aggregation: skuBreakdownAggregation, periods: skuBreakdownPeriods)
+        await loadSkuBreakdown(aggregation: skuBreakdownAggregation, showBars: skuBreakdownShowBars)
     }
 
     func updateSkuBreakdownAggregation(_ aggregation: PickEntryBreakdown.Aggregation) {
         skuBreakdownAggregation = aggregation
-        skuBreakdownPeriods = aggregation.defaultPeriods
+        skuBreakdownShowBars = aggregation.defaultBars
         Task {
-            await loadSkuBreakdown(aggregation: aggregation, periods: skuBreakdownPeriods)
+            await loadSkuBreakdown(aggregation: aggregation, showBars: skuBreakdownShowBars)
         }
     }
 
