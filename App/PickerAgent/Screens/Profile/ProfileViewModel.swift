@@ -22,6 +22,8 @@ class ProfileViewModel: ObservableObject {
     @Published var isLeavingCompany = false
     @Published var isSwitchingCompany = false
     @Published var companyTimezoneIdentifier: String = TimeZone.current.identifier
+    @Published var companyLocationAddress: String = ""
+    @Published var isUpdatingLocation = false
     
     let authService: AuthServicing
     private let inviteCodesService: InviteCodesServicing
@@ -51,6 +53,7 @@ class ProfileViewModel: ObservableObject {
 
                     currentCompany = profile.currentCompany
                     companies = profile.companies
+                    companyLocationAddress = profile.currentCompany?.location ?? ""
                     companyTimezoneIdentifier = profile.currentCompany?.timeZone ?? TimeZone.current.identifier
 
                     if let companyId = profile.currentCompany?.id {
@@ -105,11 +108,13 @@ class ProfileViewModel: ObservableObject {
                     id: updatedMembership.companyId,
                     name: updatedMembership.company?.name ?? "Company",
                     role: updatedMembership.role.rawValue,
+                    location: updatedMembership.company?.location,
                     timeZone: updatedMembership.company?.timeZone
                 )
             } else {
                 currentCompany = nil
             }
+            companyLocationAddress = currentCompany?.location ?? ""
             companyTimezoneIdentifier = currentCompany?.timeZone ?? TimeZone.current.identifier
             
             // Reload user info to reflect the change
@@ -175,6 +180,41 @@ class ProfileViewModel: ObservableObject {
         return companyTimezoneIdentifier
     }
 
+    func updateLocation(for companyId: String, to address: String?) async -> Bool {
+        guard let credentials = authService.loadStoredCredentials() else {
+            errorMessage = "Not authenticated"
+            return false
+        }
+
+        isUpdatingLocation = true
+        errorMessage = nil
+        defer { isUpdatingLocation = false }
+
+        do {
+            let updatedCompany = try await companyService.updateLocation(
+                companyId: companyId,
+                address: address,
+                credentials: credentials
+            )
+            companyLocationAddress = updatedCompany.location ?? ""
+            currentCompany = updatedCompany
+            companies = companies.map { company in
+                guard company.id == updatedCompany.id else { return company }
+                return updatedCompany
+            }
+            return true
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let companyError = error as? CompanyServiceError {
+                errorMessage = companyError.localizedDescription
+            } else {
+                errorMessage = "Failed to update location: \(error.localizedDescription)"
+            }
+            return false
+        }
+    }
+
     func updateTimezone(for companyId: String, to identifier: String) {
         Task {
             do {
@@ -187,6 +227,7 @@ class ProfileViewModel: ObservableObject {
                     credentials: credentials
                 )
                 await MainActor.run {
+                    companyLocationAddress = updatedCompany.location ?? ""
                     companyTimezoneIdentifier = updatedCompany.timeZone ?? TimeZone.current.identifier
                     currentCompany = updatedCompany
                     companies = companies.map { company in

@@ -676,6 +676,7 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
     id: membership.company.id,
     name: membership.company.name,
     role: membership.role,
+    location: membership.company.location ?? null,
     timeZone: membership.company.timeZone ?? null,
   }));
 
@@ -731,6 +732,7 @@ router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength
           id: currentMembership.company.id,
           name: currentMembership.company.name,
           role: currentMembership.role,
+          location: currentMembership.company.location ?? null,
           timeZone: currentMembership.company.timeZone ?? null,
         };
       }

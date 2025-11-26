@@ -73,6 +73,7 @@ model Company {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  location  String?
   timeZone  String?
   tierId    String
 

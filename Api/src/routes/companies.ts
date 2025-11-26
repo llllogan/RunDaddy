@@ -235,6 +235,8 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
           select: {
             id: true,
             name: true,
+            location: true,
+            timeZone: true,
           },
         },
       },
@@ -287,7 +289,12 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
           userId: activeMembership.userId,
           companyId: activeMembership.companyId,
           role: activeMembership.role,
-          company: { id: activeMembership.company.id, name: activeMembership.company.name },
+          company: {
+            id: activeMembership.company.id,
+            name: activeMembership.company.name,
+            location: activeMembership.company.location ?? null,
+            timeZone: activeMembership.company.timeZone ?? null,
+          },
         }
       : null;
 
@@ -441,12 +448,66 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
         id: updated.id,
         name: updated.name,
         role: membership.role,
+        location: updated.location ?? null,
         timeZone: updated.timeZone ?? null,
       },
     });
   } catch (error) {
     console.error('Error updating company timezone:', error);
     return res.status(500).json({ error: 'Unable to update company timezone' });
+  }
+});
+
+router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const { companyId } = req.params;
+  const { location } = req.body ?? {};
+
+  if (!companyId) {
+    return res.status(400).json({ error: 'companyId is required' });
+  }
+
+  if (location !== undefined && location !== null && typeof location !== 'string') {
+    return res.status(400).json({ error: 'Invalid location' });
+  }
+
+  const normalizedLocation = typeof location === 'string' ? location.trim() : null;
+  if (normalizedLocation && normalizedLocation.length < 3) {
+    return res.status(400).json({ error: 'Location must be at least 3 characters' });
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      userId: req.auth!.userId,
+      companyId,
+      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+    },
+    include: {
+      company: true,
+    },
+  });
+
+  if (!membership) {
+    return res.status(403).json({ error: 'Not authorized to update this company' });
+  }
+
+  try {
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: { location: normalizedLocation && normalizedLocation.length > 0 ? normalizedLocation : null },
+    });
+
+    return res.json({
+      company: {
+        id: updated.id,
+        name: updated.name,
+        role: membership.role,
+        location: updated.location ?? null,
+        timeZone: updated.timeZone ?? null,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating company location:', error);
+    return res.status(500).json({ error: 'Unable to update company location' });
   }
 });
 

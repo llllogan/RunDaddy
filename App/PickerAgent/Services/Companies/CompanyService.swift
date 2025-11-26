@@ -36,6 +36,7 @@ struct CompanyFeatures: Equatable, Decodable {
 
 protocol CompanyServicing {
     func updateTimezone(companyId: String, timezoneIdentifier: String, credentials: AuthCredentials) async throws -> CompanyInfo
+    func updateLocation(companyId: String, address: String?, credentials: AuthCredentials) async throws -> CompanyInfo
     func fetchFeatures(companyId: String, credentials: AuthCredentials) async throws -> CompanyFeatures
 }
 
@@ -46,6 +47,7 @@ enum CompanyServiceError: LocalizedError {
     case forbidden
     case notFound
     case invalidTimezone
+    case invalidLocation
 
     var errorDescription: String? {
         switch self {
@@ -61,6 +63,8 @@ enum CompanyServiceError: LocalizedError {
             return "We couldn't find that company."
         case .invalidTimezone:
             return "That timezone is not valid."
+        case .invalidLocation:
+            return "Please pick a valid address."
         }
     }
 }
@@ -132,6 +136,47 @@ final class CompanyService: CompanyServicing {
             return payload.company
         case 400:
             throw CompanyServiceError.invalidTimezone
+        case 401:
+            throw CompanyServiceError.unauthorized
+        case 403:
+            throw CompanyServiceError.forbidden
+        case 404:
+            throw CompanyServiceError.notFound
+        default:
+            throw CompanyServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func updateLocation(companyId: String, address: String?, credentials: AuthCredentials) async throws -> CompanyInfo {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("companies")
+        url.appendPathComponent(companyId)
+        url.appendPathComponent("location")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let trimmedAddress = address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let body: [String: Any] = [
+            "location": trimmedAddress.isEmpty ? NSNull() : trimmedAddress
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CompanyServiceError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200..<300:
+            let payload = try decoder.decode(CompanyResponse.self, from: data)
+            return payload.company
+        case 400:
+            throw CompanyServiceError.invalidLocation
         case 401:
             throw CompanyServiceError.unauthorized
         case 403:

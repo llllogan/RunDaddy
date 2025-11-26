@@ -38,6 +38,10 @@ struct ProfileView: View {
     private var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
+    
+    private var canEditCompanyLocation: Bool {
+        viewModel.userRole == .owner || viewModel.userRole == .admin || viewModel.userRole == .god
+    }
 
     private func roleDisplay(for company: CompanyInfo) -> String {
         if let role = UserRole(rawValue: company.role.uppercased()) {
@@ -184,6 +188,26 @@ struct ProfileView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
+                        }
+                        
+                        if canEditCompanyLocation {
+                            NavigationLink {
+                                CompanyLocationPickerView(
+                                    viewModel: viewModel,
+                                    company: company
+                                )
+                            } label: {
+                                HStack {
+                                    Image(systemName: "mappin.and.ellipse")
+                                        .foregroundStyle(.red)
+                                    Text("Company Location")
+                                    Spacer()
+                                    Text(viewModel.companyLocationAddress.isEmpty ? "Add address" : viewModel.companyLocationAddress)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .disabled(viewModel.isUpdatingLocation)
                         }
                     }
                 }
