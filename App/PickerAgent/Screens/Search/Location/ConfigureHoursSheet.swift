@@ -21,57 +21,46 @@ struct ConfigureHoursSheet: View {
     }
 
     var body: some View {
-        BentoCard(
-            item: BentoItem(
-                title: "Visit Window",
-                value: "",
-                subtitle: subtitle,
-                symbolName: "clock.badge.checkmark",
-                symbolTint: .blue,
-                allowsMultilineValue: true,
-                customContent: AnyView(content)
-            )
-        )
-    }
+        List {
+            Section {
+                timeRow(title: "Opens", isEnabled: $hasOpeningTime, time: $openingTime)
+                timeRow(title: "Closes", isEnabled: $hasClosingTime, time: $closingTime)
 
-    @ViewBuilder
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            timeRow(title: "Opens", isEnabled: $hasOpeningTime, time: $openingTime)
-            timeRow(title: "Closes", isEnabled: $hasClosingTime, time: $closingTime)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text("Dwell Time")
-                        .font(.subheadline.weight(.semibold))
-                    Text("(minutes)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("Dwell Time")
+                            .font(.subheadline.weight(.semibold))
+                        Text("(minutes)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     TextField("Not set", text: $dwellTimeText)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
-                    Text("min")
+                }
+                .padding(.vertical, 4)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+
+                if let formattedLastSaved {
+                    Text("Saved \(formattedLastSaved)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .padding(.top, 4)
                 }
-            }
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let formattedLastSaved {
-                Text("Saved \(formattedLastSaved)")
+            } footer: {
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .listStyle(.insetGrouped)
     }
 
     private func timeRow(title: String, isEnabled: Binding<Bool>, time: Binding<Date>) -> some View {

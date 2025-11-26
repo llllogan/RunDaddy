@@ -148,24 +148,21 @@ struct SearchLocationDetailView: View {
         }
         .sheet(isPresented: $showingScheduleSheet) {
             NavigationStack {
-                ScrollView {
-                    ConfigureHoursSheet(
-                        hasOpeningTime: $hasOpeningTime,
-                        hasClosingTime: $hasClosingTime,
-                        openingTime: $openingTime,
-                        closingTime: $closingTime,
-                        dwellTimeText: $dwellTimeText,
-                        isSaving: isSavingSchedule,
-                        errorMessage: scheduleError,
-                        lastSavedAt: scheduleSavedAt,
-                        onSave: {
-                            Task {
-                                await saveLocationSchedule()
-                            }
+                ConfigureHoursSheet(
+                    hasOpeningTime: $hasOpeningTime,
+                    hasClosingTime: $hasClosingTime,
+                    openingTime: $openingTime,
+                    closingTime: $closingTime,
+                    dwellTimeText: $dwellTimeText,
+                    isSaving: isSavingSchedule,
+                    errorMessage: scheduleError,
+                    lastSavedAt: scheduleSavedAt,
+                    onSave: {
+                        Task {
+                            await saveLocationSchedule()
                         }
-                    )
-                    .padding()
-                }
+                    }
+                )
                 .navigationTitle("Configure Hours")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
