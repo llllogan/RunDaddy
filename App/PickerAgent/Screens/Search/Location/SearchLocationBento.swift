@@ -73,7 +73,7 @@ struct SearchLocationInfoBento: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
-                            .tint(.blue)
+                            .foregroundStyle(Color(.secondaryLabel))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     )
@@ -91,30 +91,30 @@ struct SearchLocationInfoBento: View {
             )
         )
 
-        if let bestSku = bestSku {
-            cards.append(
-                BentoItem(
-                    title: "Best SKU",
-                    value: bestSku.displayName,
-                    subtitle: bestSku.totalPacks > 0 ? "\(bestSku.totalPacks) packs" : nil,
-                    symbolName: "tag",
-                    symbolTint: .teal,
-                    allowsMultilineValue: true,
-                    onTap: { onBestSkuTap?(bestSku) },
-                    showsChevron: true
-                )
-            )
-        } else {
-            cards.append(
-                BentoItem(
-                    title: "Best SKU",
-                    value: "No data",
-                    subtitle: "No SKU activity",
-                    symbolName: "tag",
-                    symbolTint: .gray
-                )
-            )
-        }
+//        if let bestSku = bestSku {
+//            cards.append(
+//                BentoItem(
+//                    title: "Best SKU",
+//                    value: bestSku.displayName,
+//                    subtitle: bestSku.totalPacks > 0 ? "\(bestSku.totalPacks) packs" : nil,
+//                    symbolName: "tag",
+//                    symbolTint: .teal,
+//                    allowsMultilineValue: true,
+//                    onTap: { onBestSkuTap?(bestSku) },
+//                    showsChevron: true
+//                )
+//            )
+//        } else {
+//            cards.append(
+//                BentoItem(
+//                    title: "Best SKU",
+//                    value: "No data",
+//                    subtitle: "No SKU activity",
+//                    symbolName: "tag",
+//                    symbolTint: .gray
+//                )
+//            )
+//        }
         
         cards.append(
             BentoItem(

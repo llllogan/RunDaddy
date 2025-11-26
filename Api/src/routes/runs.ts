@@ -505,7 +505,7 @@ router.post('/:runId/packing-sessions/:packingSessionId/finish', setLogConfig({ 
   }
 });
 
-router.get('/:runId/audio-commands', setLogConfig({ level: 'full' }), async (req, res) => {
+router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
