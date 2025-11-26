@@ -1976,20 +1976,59 @@ function buildPickEntryBreakdownAverages(
   }
 
   // Month aggregation: align averages per bucket and ignore zero-value days
-  return buckets.map((bucket) => {
-    const totals = bucket.dayLabels
-      .map((label) => Math.max(dailyTotals.get(label) ?? 0, 0))
-      .filter((value) => value > 0);
-    const averageRaw =
-      totals.length > 0 ? totals.reduce((sum, value) => sum + value, 0) / totals.length : 0;
+  const monthGroups = new Map<
+    string,
+    {
+      start: Date;
+      end: Date;
+      labels: Set<string>;
+      totals: number[];
+      nonZeroTotals: number[];
+    }
+  >();
 
-    return {
-      start: formatDateInTimezone(bucket.start, timeZone),
-      end: formatDateInTimezone(new Date(bucket.end.getTime() - DAY_IN_MS), timeZone),
-      dates: [...bucket.dayLabels].sort(),
-      average: Number(averageRaw.toFixed(2)),
-    };
-  });
+  for (const bucket of buckets) {
+    // Anchor the week to its final day so weeks containing the 1st of a month count toward that month.
+    const anchorDate = new Date(bucket.end.getTime() - DAY_IN_MS);
+    const { year, month } = getLocalDatePartsInTimezone(anchorDate, timeZone);
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const bucketTotal = Math.max(sumBucketTotals(bucket, dailyTotals), 0);
+
+    if (!monthGroups.has(monthKey)) {
+      monthGroups.set(monthKey, {
+        start: bucket.start,
+        end: bucket.end,
+        labels: new Set(bucket.dayLabels),
+        totals: [bucketTotal],
+        nonZeroTotals: bucketTotal > 0 ? [bucketTotal] : [],
+      });
+    } else {
+      const group = monthGroups.get(monthKey)!;
+      group.start = new Date(Math.min(group.start.getTime(), bucket.start.getTime()));
+      group.end = new Date(Math.max(group.end.getTime(), bucket.end.getTime()));
+      bucket.dayLabels.forEach((label) => group.labels.add(label));
+      group.totals.push(bucketTotal);
+      if (bucketTotal > 0) {
+        group.nonZeroTotals.push(bucketTotal);
+      }
+    }
+  }
+
+  return Array.from(monthGroups.entries())
+    .sort(([aKey], [bKey]) => (aKey < bKey ? -1 : 1))
+    .map(([, group]) => {
+      const averageRaw =
+        group.nonZeroTotals.length > 0
+          ? group.nonZeroTotals.reduce((sum, value) => sum + value, 0) / group.nonZeroTotals.length
+          : 0;
+
+      return {
+        start: formatDateInTimezone(group.start, timeZone),
+        end: formatDateInTimezone(new Date(group.end.getTime() - DAY_IN_MS), timeZone),
+        dates: Array.from(group.labels).sort(),
+        average: Number(averageRaw.toFixed(2)),
+      };
+    });
 }
 
 function sumBucketTotals(bucket: PickEntryBreakdownBucket, dailyTotals: Map<string, number>): number {

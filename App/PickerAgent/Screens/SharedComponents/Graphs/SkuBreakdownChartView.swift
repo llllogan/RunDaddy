@@ -167,35 +167,22 @@ struct PickEntryBarChart: View {
             }
         }
 
-        // For month/quarter aggregations, show only the most recent overlay aligned to the latest buckets.
-        guard let latestAverage = weekAverages.last else { return [] }
+        // For month/quarter aggregations, align every average window to the points in view.
+        return weekAverages.compactMap { week in
+            let includedPoints = chartPoints.filter { point in
+                point.anchorDate >= week.weekStart && point.anchorDate <= week.weekEnd
+            }
 
-        let includedPoints = chartPoints.filter { point in
-            point.anchorDate >= latestAverage.weekStart && point.anchorDate <= latestAverage.weekEnd
-        }
+            let start = includedPoints.map(\.anchorDate).min() ?? week.weekStart
+            let end = includedPoints.map(\.end).max() ?? week.weekEnd
 
-        let matchingPoints: [ChartPoint]
-        if includedPoints.isEmpty {
-            // Fallback: use the trailing buckets on screen (e.g., last 3 months for quarter)
-            let sliceCount = aggregation == .quarter ? 3 : max(weekAverages.count, 1)
-            matchingPoints = Array(chartPoints.suffix(sliceCount))
-        } else {
-            matchingPoints = includedPoints
-        }
-
-        guard let start = matchingPoints.map(\.anchorDate).min(),
-              let end = matchingPoints.map(\.end).max() else {
-            return []
-        }
-
-        return [
-            WeekOverlay(
-                id: latestAverage.id,
+            return WeekOverlay(
+                id: week.id,
                 start: start,
                 end: end,
-                average: latestAverage.average
-            ),
-        ]
+                average: week.average
+            )
+        }
     }
 
     private var maxYValue: Double {
