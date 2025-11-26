@@ -1024,13 +1024,22 @@ private struct ReorderLocationsSheet: View {
     }
 
     private func computeOptimisedSections(origin: MKMapItem, stops: [RouteNode]) async -> [RunLocationSection] {
+        let cache = EtaCache()
+        let originKey = cacheKey(for: origin, fallback: "company-origin")
         var currentItem = origin
         var currentTime = startTime
         var remaining = stops
         var ordered: [RunLocationSection] = []
 
         while !remaining.isEmpty {
-            guard let next = await bestNextStop(from: currentItem, at: currentTime, remaining: remaining, origin: origin) else {
+            guard let next = await bestNextStop(
+                from: currentItem,
+                at: currentTime,
+                remaining: remaining,
+                origin: origin,
+                originKey: originKey,
+                cache: cache
+            ) else {
                 break
             }
 
@@ -1047,12 +1056,21 @@ private struct ReorderLocationsSheet: View {
         from current: MKMapItem,
         at currentTime: Date,
         remaining: [RouteNode],
-        origin: MKMapItem
+        origin: MKMapItem,
+        originKey: String,
+        cache: EtaCache
     ) async -> (node: RouteNode, finishTime: Date)? {
         var best: (node: RouteNode, finish: Date, score: TimeInterval)?
+        let currentKey = cacheKey(for: current, fallback: "company-origin")
 
         for node in remaining {
-            guard let travelTo = await eta(from: current, to: node.mapItem, departure: currentTime) else {
+            guard let travelTo = await cache.eta(
+                from: current,
+                fromKey: currentKey,
+                to: node.mapItem,
+                toKey: node.id,
+                departure: currentTime
+            ) else {
                 continue
             }
 
@@ -1061,7 +1079,13 @@ private struct ReorderLocationsSheet: View {
             let dwellSeconds = TimeInterval((node.dwellMinutes ?? 5) * 60)
             let finish = startAt.addingTimeInterval(dwellSeconds)
 
-            guard let returnEta = await eta(from: node.mapItem, to: origin, departure: finish) else {
+            guard let returnEta = await cache.eta(
+                from: node.mapItem,
+                fromKey: node.id,
+                to: origin,
+                toKey: originKey,
+                departure: finish
+            ) else {
                 continue
             }
 
@@ -1102,19 +1126,13 @@ private struct ReorderLocationsSheet: View {
         return Calendar.current.date(from: components)
     }
 
-    private func eta(from source: MKMapItem, to destination: MKMapItem, departure: Date) async -> TimeInterval? {
-        let request = MKDirections.Request()
-        request.source = source
-        request.destination = destination
-        request.transportType = .automobile
-        request.departureDate = departure
-
-        do {
-            let eta = try await MKDirections(request: request).calculateETA()
-            return eta.expectedTravelTime
-        } catch {
-            return nil
+    private func cacheKey(for item: MKMapItem, fallback: String) -> String {
+        let coordinate = item.placemark.coordinate
+        let hash = "\(coordinate.latitude),\(coordinate.longitude)"
+        if hash == "0.0,0.0" {
+            return fallback
         }
+        return hash
     }
 
     private func buildRouteNodes() async -> ([RouteNode], [RunLocationSection], [RunLocationSection]) {
@@ -1185,6 +1203,45 @@ private struct ReorderLocationsSheet: View {
         let trimmed = viewModel.companyLocation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }
         return trimmed
+    }
+
+    private actor EtaCache {
+        private struct CacheKey: Hashable {
+            let from: String
+            let to: String
+            let bucket: Int
+        }
+
+        private var store: [CacheKey: TimeInterval] = [:]
+
+        func eta(
+            from source: MKMapItem,
+            fromKey: String,
+            to destination: MKMapItem,
+            toKey: String,
+            departure: Date
+        ) async -> TimeInterval? {
+            let bucket = Int(departure.timeIntervalSinceReferenceDate / 600) // 10-minute buckets
+            let key = CacheKey(from: fromKey, to: toKey, bucket: bucket)
+
+            if let cached = store[key] {
+                return cached
+            }
+
+            let request = MKDirections.Request()
+            request.source = source
+            request.destination = destination
+            request.transportType = .automobile
+            request.departureDate = departure
+
+            do {
+                let eta = try await MKDirections(request: request).calculateETA()
+                store[key] = eta.expectedTravelTime
+                return eta.expectedTravelTime
+            } catch {
+                return nil
+            }
+        }
     }
 }
 
