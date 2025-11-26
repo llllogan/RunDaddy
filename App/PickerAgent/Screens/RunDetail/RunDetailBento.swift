@@ -169,7 +169,7 @@ struct RunOverviewBento: View {
                 customContent: AnyView(
                     VStack(alignment: .leading, spacing: 8) {
                         if packers.isEmpty {
-                            Text("None so far.")
+                            Text("None so far")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
