@@ -10,7 +10,7 @@ struct SearchLocationInfoBento: View {
     let selectedPeriod: SkuPeriod?
     let onBestSkuTap: ((LocationBestSku) -> Void)?
     let onMachineTap: ((LocationMachine) -> Void)?
-    let hoursSummary: String?
+    let hoursDisplay: HoursDisplay?
     let onConfigureHours: (() -> Void)?
     
     init(
@@ -23,7 +23,7 @@ struct SearchLocationInfoBento: View {
         selectedPeriod: SkuPeriod?,
         onBestSkuTap: ((LocationBestSku) -> Void)? = nil,
         onMachineTap: ((LocationMachine) -> Void)? = nil,
-        hoursSummary: String? = nil,
+        hoursDisplay: HoursDisplay? = nil,
         onConfigureHours: (() -> Void)? = nil
     ) {
         self.location = location
@@ -35,7 +35,7 @@ struct SearchLocationInfoBento: View {
         self.selectedPeriod = selectedPeriod
         self.onBestSkuTap = onBestSkuTap
         self.onMachineTap = onMachineTap
-        self.hoursSummary = hoursSummary
+        self.hoursDisplay = hoursDisplay
         self.onConfigureHours = onConfigureHours
     }
 
@@ -56,7 +56,7 @@ struct SearchLocationInfoBento: View {
             )
         )
 
-        if let hoursSummary, let onConfigureHours {
+        if let hoursDisplay, let onConfigureHours {
             cards.append(
                 BentoItem(
                     title: "Hours",
@@ -66,10 +66,7 @@ struct SearchLocationInfoBento: View {
                     allowsMultilineValue: true,
                     customContent: AnyView(
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(hoursSummary)
-                                .font(.subheadline)
-                                .foregroundStyle(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            HoursSummaryView(display: hoursDisplay)
                             Button(action: onConfigureHours) {
                                 Text("Configure")
                                     .font(.subheadline.weight(.semibold))
@@ -351,4 +348,36 @@ struct SearchLocationInfoBento: View {
         formatter.locale = Locale.current
         return formatter
     }()
+}
+
+struct HoursDisplay {
+    let opening: String
+    let closing: String
+    let dwell: String
+}
+
+private struct HoursSummaryView: View {
+    let display: HoursDisplay
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            row(label: "Opens at", value: display.opening)
+            row(label: "Closes at", value: display.closing)
+            row(label: "Dwell time", value: display.dwell)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func row(label: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+    }
 }

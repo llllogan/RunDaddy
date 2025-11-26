@@ -71,7 +71,7 @@ struct SearchLocationDetailView: View {
                             selectedPeriod: selectedPeriod,
                             onBestSkuTap: { navigateToSkuDetail($0) },
                             onMachineTap: { navigateToMachineDetail($0) },
-                            hoursSummary: hoursSummary,
+                            hoursDisplay: hoursDisplay,
                             onConfigureHours: { showingScheduleSheet = true }
                         )
                     } else if isLoadingStats {
@@ -404,22 +404,23 @@ struct SearchLocationDetailView: View {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
 
-    private var hoursSummary: String {
-        let openText = hasOpeningTime ? formattedTime(openingTime) : "unspecified"
-        let closeText = hasClosingTime ? formattedTime(closingTime) : "unspecified"
-        let dwellText = displayDwellText
-        return "Opens at \(openText), closes at \(closeText), with a dwell time of \(dwellText)."
+    private var hoursDisplay: HoursDisplay {
+        HoursDisplay(
+            opening: hasOpeningTime ? formattedTime(openingTime) : "Unspecified",
+            closing: hasClosingTime ? formattedTime(closingTime) : "Unspecified",
+            dwell: displayDwellText
+        )
     }
 
     private var displayDwellText: String {
         let trimmed = dwellTimeText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "not set"
+            return "Not set"
         }
         if let value = Int(trimmed), value >= 0 {
             return "\(value) min"
         }
-        return "invalid value"
+        return "Invalid"
     }
 
     private func formattedTime(_ date: Date) -> String {
