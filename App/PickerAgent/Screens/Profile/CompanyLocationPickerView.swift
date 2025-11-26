@@ -173,35 +173,65 @@ private struct AddressSearchResult: Identifiable {
     let fullAddress: String
 
     init(mapItem: MKMapItem) {
-        let formatter = CNPostalAddressFormatter()
-        formatter.style = .mailingAddress
+        if #available(iOS 26, *) {
+            let reps = mapItem.addressRepresentations
+            let shortAddress = mapItem.address?.shortAddress
+                ?? reps?.fullAddress(includingRegion: false, singleLine: true)
+            let full = mapItem.address?.fullAddress
+                ?? reps?.fullAddress(includingRegion: true, singleLine: true)
 
-        if let postalAddress = mapItem.placemark.postalAddress {
-            let formatted = formatter.string(from: postalAddress).replacingOccurrences(of: "\n", with: ", ")
-            if let name = mapItem.name, !name.isEmpty, formatted.contains(name) == false {
-                title = name
-                subtitle = formatted
-                fullAddress = "\(name), \(formatted)"
+            let primaryName = mapItem.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let displayTitle = primaryName?.isEmpty == false ? primaryName! : (shortAddress ?? full ?? "Address")
+
+            let subtitleCandidate = shortAddress ?? full
+            if let subtitleCandidate, subtitleCandidate.caseInsensitiveCompare(displayTitle) != .orderedSame {
+                subtitle = subtitleCandidate
             } else {
-                title = mapItem.name ?? formatted
-                subtitle = formatted == title ? nil : formatted
-                fullAddress = formatted
+                subtitle = nil
+            }
+
+            title = displayTitle
+
+            if let full, let primaryName, full.localizedCaseInsensitiveContains(primaryName) == false {
+                fullAddress = "\(primaryName), \(full)"
+            } else if let full {
+                fullAddress = full
+            } else if let subtitle {
+                fullAddress = subtitle
+            } else {
+                fullAddress = displayTitle
             }
         } else {
-            let components = [
-                mapItem.name,
-                mapItem.placemark.thoroughfare,
-                mapItem.placemark.locality,
-                mapItem.placemark.administrativeArea,
-                mapItem.placemark.postalCode
-            ]
-                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+            let formatter = CNPostalAddressFormatter()
+            formatter.style = .mailingAddress
 
-            let joined = components.joined(separator: ", ")
-            title = mapItem.name ?? joined
-            subtitle = joined == title ? nil : joined
-            fullAddress = joined.isEmpty ? (mapItem.name ?? "Address") : joined
+            if let postalAddress = mapItem.placemark.postalAddress {
+                let formatted = formatter.string(from: postalAddress).replacingOccurrences(of: "\n", with: ", ")
+                if let name = mapItem.name, !name.isEmpty, formatted.contains(name) == false {
+                    title = name
+                    subtitle = formatted
+                    fullAddress = "\(name), \(formatted)"
+                } else {
+                    title = mapItem.name ?? formatted
+                    subtitle = formatted == title ? nil : formatted
+                    fullAddress = formatted
+                }
+            } else {
+                let components = [
+                    mapItem.name,
+                    mapItem.placemark.thoroughfare,
+                    mapItem.placemark.locality,
+                    mapItem.placemark.administrativeArea,
+                    mapItem.placemark.postalCode
+                ]
+                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+
+                let joined = components.joined(separator: ", ")
+                title = mapItem.name ?? joined
+                subtitle = joined == title ? nil : joined
+                fullAddress = joined.isEmpty ? (mapItem.name ?? "Address") : joined
+            }
         }
     }
 }
