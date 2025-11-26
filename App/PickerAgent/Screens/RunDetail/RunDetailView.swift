@@ -805,8 +805,14 @@ private struct ReorderLocationsSheet: View {
     @State private var draftSections: [RunLocationSection]
     @State private var isSaving = false
     @State private var isOptimizing = false
+    @State private var isCalculatingTravel = false
     @State private var errorMessage: String?
     @State private var startTime: Date
+    @State private var inboundLegs: [String: RouteLeg] = [:]
+    @State private var totalTravelSeconds: TimeInterval?
+    private let etaCache = EtaCache()
+    @State private var mapItemCache: [String: MKMapItem] = [:]
+    @State private var didHitMapSearchThrottle = false
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
@@ -832,8 +838,11 @@ private struct ReorderLocationsSheet: View {
                     List {
                         setupSection
                         Section(footer: footer) {
-                            ForEach(draftSections) { section in
+                            ForEach(Array(draftSections.enumerated()), id: \.1.id) { index, section in
                                 VStack(alignment: .leading, spacing: 4) {
+                                    if let leg = inboundLegs[section.id] {
+                                        travelRow(for: leg, isFirst: index == 0)
+                                    }
                                     Text(section.title)
                                         .font(.body)
                                         .fontWeight(.semibold)
@@ -847,6 +856,18 @@ private struct ReorderLocationsSheet: View {
                             }
                             .onMove { indices, newOffset in
                                 draftSections.move(fromOffsets: indices, toOffset: newOffset)
+                                Task {
+                                    await refreshTravelEstimates()
+                                }
+                            }
+                        }
+
+                        Section("Route Travel Time") {
+                            HStack {
+                                Label("Shop → Shop", systemImage: "arrow.clockwise")
+                                Spacer()
+                                Text(travelDisplay(totalTravelSeconds))
+                                    .font(.body.weight(.semibold))
                             }
                         }
                     }
@@ -892,21 +913,24 @@ private struct ReorderLocationsSheet: View {
                     .disabled(isSaving || isOptimizing || draftSections.count < 2)
                 }
             }
-            .overlay {
-                if isSaving || isOptimizing {
-                    ProgressView(isSaving ? "Saving" : "Optimising route...")
+            .overlay(alignment: .center) {
+                if let label = overlayStatusLabel {
+                    ProgressView(label)
                         .padding()
                         .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
+        .task {
+            await refreshTravelEstimates()
+        }
     }
 
     private var setupSection: some View {
         Section("Route Setup") {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Company Location")
+                Text("Shop")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Text(companyLocationLabel)
@@ -916,6 +940,11 @@ private struct ReorderLocationsSheet: View {
 
             DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.compact)
+                .onChange(of: startTime) { _, _ in
+                    Task {
+                        await refreshTravelEstimates()
+                    }
+                }
         }
     }
 
@@ -998,7 +1027,11 @@ private struct ReorderLocationsSheet: View {
 
         guard let originItem = await mapItem(for: companyAddress) else {
             await MainActor.run {
-                errorMessage = "We couldn't locate the company address in Maps."
+                if didHitMapSearchThrottle {
+                    errorMessage = "Maps lookups are temporarily rate limited. Please try again in a moment."
+                } else {
+                    errorMessage = "We couldn't locate the company address in Maps."
+                }
             }
             return
         }
@@ -1020,11 +1053,13 @@ private struct ReorderLocationsSheet: View {
             if orderedSections.isEmpty {
                 errorMessage = "We couldn't create a route between these stops."
             }
+            Task {
+                await refreshTravelEstimates()
+            }
         }
     }
 
     private func computeOptimisedSections(origin: MKMapItem, stops: [RouteNode]) async -> [RunLocationSection] {
-        let cache = EtaCache()
         let originKey = cacheKey(for: origin, fallback: "company-origin")
         var currentItem = origin
         var currentTime = startTime
@@ -1038,7 +1073,7 @@ private struct ReorderLocationsSheet: View {
                 remaining: remaining,
                 origin: origin,
                 originKey: originKey,
-                cache: cache
+                cache: etaCache
             ) else {
                 break
             }
@@ -1127,7 +1162,7 @@ private struct ReorderLocationsSheet: View {
     }
 
     private func cacheKey(for item: MKMapItem, fallback: String) -> String {
-        let coordinate = item.placemark.coordinate
+        let coordinate: CLLocationCoordinate2D = item.placemark.coordinate
         let hash = "\(coordinate.latitude),\(coordinate.longitude)"
         if hash == "0.0,0.0" {
             return fallback
@@ -1187,22 +1222,157 @@ private struct ReorderLocationsSheet: View {
     }
 
     private func mapItem(for address: String) async -> MKMapItem? {
+        let key = address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let cached = mapItemCache[key] {
+            return cached
+        }
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = address
         request.resultTypes = .address
 
         do {
             let response = try await MKLocalSearch(request: request).start()
-            return response.mapItems.first
+            if let first = response.mapItems.first {
+                await MainActor.run {
+                    mapItemCache[key] = first
+                    didHitMapSearchThrottle = false
+                }
+                return first
+            }
         } catch {
-            return nil
+            let nsError = error as NSError
+            if nsError.domain == "GEOErrorDomain" || nsError.localizedDescription.localizedCaseInsensitiveContains("Throttled") {
+                await MainActor.run {
+                    didHitMapSearchThrottle = true
+                }
+            }
         }
+
+        return mapItemCache[key]
     }
 
     private var companyStartAddress: String? {
         let trimmed = viewModel.companyLocation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }
         return trimmed
+    }
+
+    private func refreshTravelEstimates() async {
+        guard let companyAddress = companyStartAddress else {
+            await MainActor.run {
+                inboundLegs = [:]
+                totalTravelSeconds = nil
+                isCalculatingTravel = false
+            }
+            return
+        }
+
+        guard let companyItem = await mapItem(for: companyAddress) else {
+            await MainActor.run {
+                if didHitMapSearchThrottle {
+                    errorMessage = "Maps lookups are temporarily rate limited. Travel times will refresh soon."
+                }
+                isCalculatingTravel = false
+            }
+            return
+        }
+
+        await MainActor.run {
+            isCalculatingTravel = true
+        }
+
+        let nodes = await sectionsToNodes()
+        var legs: [String: RouteLeg] = [:]
+        var total: TimeInterval = 0
+        var previousItem = companyItem
+        var previousLabel = "Company"
+        var accumulatedStart = startTime
+
+        for node in nodes {
+            if let eta = await etaCache.eta(
+                from: previousItem,
+                fromKey: cacheKey(for: previousItem, fallback: previousLabel),
+                to: node.mapItem,
+                toKey: node.id,
+                departure: accumulatedStart
+            ) {
+                total += eta
+                accumulatedStart = accumulatedStart.addingTimeInterval(eta + TimeInterval((node.dwellMinutes ?? 5) * 60))
+                legs[node.section.id] = RouteLeg(
+                    id: UUID(),
+                    fromLabel: previousLabel,
+                    toLabel: node.section.title,
+                    etaSeconds: eta
+                )
+            }
+            previousItem = node.mapItem
+            previousLabel = node.section.title
+        }
+
+        if let backEta = await etaCache.eta(
+            from: previousItem,
+            fromKey: cacheKey(for: previousItem, fallback: previousLabel),
+            to: companyItem,
+            toKey: "company-origin",
+            departure: accumulatedStart
+        ) {
+            total += backEta
+        } else {
+            total = 0
+        }
+
+        await MainActor.run {
+            inboundLegs = legs
+            totalTravelSeconds = total > 0 ? total : nil
+            isCalculatingTravel = false
+        }
+    }
+
+    private func sectionsToNodes() async -> [RouteNode] {
+        var nodes: [RouteNode] = []
+        for section in draftSections {
+            if let node = await routeNode(for: section) {
+                nodes.append(node)
+            }
+        }
+        return nodes
+    }
+
+    private func travelDisplay(_ seconds: TimeInterval?) -> String {
+        guard let seconds else { return "N/A" }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        return formatter.string(from: seconds) ?? "\(Int(seconds/60)) min"
+    }
+
+    private func travelRow(for leg: RouteLeg, isFirst: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "car.fill")
+                .foregroundColor(.blue)
+            Text(travelDisplay(leg.etaSeconds))
+                .font(.footnote.weight(.semibold))
+            Spacer()
+            Text("\(isFirst ? "Shop" : leg.fromLabel) → \(leg.toLabel)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private struct RouteLeg: Identifiable {
+        let id: UUID
+        let fromLabel: String
+        let toLabel: String
+        let etaSeconds: TimeInterval?
+    }
+
+    private var overlayStatusLabel: String? {
+        if isSaving { return "Saving" }
+        if isOptimizing { return "Optimising route..." }
+        if isCalculatingTravel { return "Calculating travel..." }
+        return nil
     }
 
     private actor EtaCache {
