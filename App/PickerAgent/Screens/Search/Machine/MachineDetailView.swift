@@ -68,7 +68,8 @@ struct MachineDetailView: View {
                         )
                     }
                 } header: {
-                    Text("Machine Information")
+                    Text("Machine Details")
+                        .padding(.leading, 16)
                 }
                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                 .listRowBackground(Color.clear)
@@ -87,7 +88,7 @@ struct MachineDetailView: View {
             }
         }
         .navigationTitle(machineDisplayTitle)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadMachineDetails()
         }

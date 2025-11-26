@@ -65,7 +65,8 @@ struct SearchLocationDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 } header: {
-                    Text("Location Overview")
+                    Text("Location Details")
+                        .padding(.leading, 16)
                 }
                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                 .listRowBackground(Color.clear)
@@ -84,7 +85,7 @@ struct SearchLocationDetailView: View {
             }
         }
         .navigationTitle(locationDisplayTitle)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadLocationDetails()
         }

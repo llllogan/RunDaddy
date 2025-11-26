@@ -41,6 +41,7 @@ struct RunsListView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

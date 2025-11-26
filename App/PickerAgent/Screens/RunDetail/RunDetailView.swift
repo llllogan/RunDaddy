@@ -91,6 +91,7 @@ struct RunDetailView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Run Details")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showingPendingEntries) {
             PendingPickEntriesView(
                 viewModel: viewModel,
@@ -818,6 +819,7 @@ private struct ReorderLocationsSheet: View {
                 }
             }
             .navigationTitle("Reorder Locations")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -1020,6 +1022,7 @@ struct PendingPickEntriesView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Waiting to Pack")
+        .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await viewModel.load(force: true)
         }

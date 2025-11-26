@@ -293,6 +293,7 @@ private struct MachineTouchesLineChart: View {
                         x: .value("Week", point.weekStart),
                         y: .value("Machines", point.totalMachines)
                     )
+                    .interpolationMethod(.monotone)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [

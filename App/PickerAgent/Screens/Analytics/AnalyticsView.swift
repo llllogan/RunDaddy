@@ -49,7 +49,7 @@ struct AnalyticsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Analytics")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 chartRefreshTrigger.toggle()
             }

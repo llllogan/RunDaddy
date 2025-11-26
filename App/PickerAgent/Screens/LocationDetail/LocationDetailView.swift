@@ -215,6 +215,7 @@ struct LocationDetailView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(detail.section.title)
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingChocolateBoxesSheet) {
             ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
                 .presentationDetents([.fraction(0.5), .large])

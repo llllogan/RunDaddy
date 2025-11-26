@@ -69,7 +69,8 @@ struct SkuDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 } header: {
-                    Text("SKU Information")
+                    Text("SKU Details")
+                        .padding(.leading, 16)
                 }
                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                 .listRowBackground(Color.clear)
@@ -94,7 +95,7 @@ struct SkuDetailView: View {
             }
         }
         .navigationTitle(skuDisplayTitle)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadSkuDetails()
         }

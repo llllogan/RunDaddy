@@ -356,15 +356,7 @@ struct DashboardView: View {
                     )
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                     .listRowBackground(Color.clear)
-                } else if momentumViewModel.isLoading {
-                    LoadingStateRow()
-                } else if momentumViewModel.errorMessage != nil {
-                    EmptyStateRow(message: "Insights are unavailable right now.")
-                } else {
-                    EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
-                }
-                
-                
+                    
                     NavigationLink {
                         AnalyticsView(session: session)
                     } label: {
@@ -380,6 +372,13 @@ struct DashboardView: View {
                     .padding(.horizontal, 18)
                     .background(Color(.systemBackground))
                     .clipShape(Capsule())
+                } else if momentumViewModel.isLoading {
+                    LoadingStateRow()
+                } else if momentumViewModel.errorMessage != nil {
+                    EmptyStateRow(message: "Insights are unavailable right now.")
+                } else {
+                    EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
+                }
             }
         }
     }
