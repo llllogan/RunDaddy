@@ -1067,7 +1067,7 @@ private struct ReorderLocationsSheet: View {
         if let location = viewModel.companyLocation?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty {
             return location
         }
-        return "No company location on file"
+        return "Please configure a company location"
     }
 
     private struct RouteNode: Identifiable, Equatable {
@@ -1339,6 +1339,8 @@ private struct ReorderLocationsSheet: View {
                 inboundLegs = [:]
                 totalTravelSeconds = nil
                 isCalculatingTravel = false
+                didHitMapSearchThrottle = false
+                mapItemCache.removeAll()
             }
             return
         }

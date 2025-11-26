@@ -159,7 +159,7 @@ final class RunDetailViewModel: ObservableObject {
             self.companyUsers = users
             self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
             self.locationOrders = detail.locationOrders.sorted { $0.position < $1.position }
-            self.companyLocation = resolvedCompanyLocation ?? companyLocation
+            self.companyLocation = resolvedCompanyLocation
             rebuildLocationData(from: detail)
             await refreshLocationSchedules(from: detail.locations)
         } catch {
