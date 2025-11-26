@@ -810,6 +810,9 @@ private struct ReorderLocationsSheet: View {
     private let etaCache = EtaCache()
     @State private var mapItemCache: [String: MKMapItem] = [:]
     @State private var didHitMapSearchThrottle = false
+    @State private var mapCameraPosition: MapCameraPosition = .automatic
+    @State private var routePreviewAnnotations: [RouteAnnotation] = []
+    @State private var routePolyline: [CLLocationCoordinate2D] = []
     @State private var showingShopEditor = false
     @StateObject private var companyLocationPickerViewModel = ProfileViewModel(
         authService: AuthService(),
@@ -840,6 +843,7 @@ private struct ReorderLocationsSheet: View {
                 } else {
                     List {
                         setupSection
+                        routePreviewSection
                         Section(footer: footer) {
                             ForEach(Array(draftSections.enumerated()), id: \.1.id) { index, section in
                                 VStack(alignment: .leading, spacing: 4) {
@@ -870,15 +874,6 @@ private struct ReorderLocationsSheet: View {
                                 Task {
                                     await refreshTravelEstimates()
                                 }
-                            }
-                        }
-
-                        Section("Run Travel Time") {
-                            HStack {
-                                Text("Shop → Shop")
-                                Spacer()
-                                Text(travelDisplay(totalTravelSeconds))
-                                    .font(.body.weight(.semibold))
                             }
                         }
                     }
@@ -999,6 +994,85 @@ private struct ReorderLocationsSheet: View {
         }
     }
 
+    private var routePreviewSection: some View {
+        Section("Route Preview") {
+            if routePreviewAnnotations.isEmpty {
+                Text(routePreviewPlaceholder)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+            } else {
+                Map(position: $mapCameraPosition, interactionModes: [.pan, .zoom, .rotate]) {
+                    if routePolyline.count >= 2 {
+                        MapPolyline(coordinates: routePolyline)
+                            .stroke(.blue.opacity(0.6), lineWidth: 4)
+                    }
+                    
+                    ForEach(routePreviewAnnotations) { annotation in
+                        mapAnnotationContent(for: annotation)
+                    }
+                }
+                .frame(height: 260)
+                .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+//                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .listRowSeparator(.hidden)
+                
+                HStack {
+                    Text("Shop → Shop")
+                    Spacer()
+                    Text(travelDisplay(totalTravelSeconds))
+                        .font(.body.weight(.semibold))
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 18)
+                .background(Color(.systemBackground))
+                .clipShape(UnevenRoundedRectangle(cornerRadii: .init(topLeading: 0, bottomLeading: 12, bottomTrailing: 12, topTrailing: 0)))
+            }
+        }
+    }
+
+    private var routePreviewPlaceholder: String {
+        if companyStartAddress == nil {
+            return "Add a shop address to preview the route."
+        }
+        if draftSections.isEmpty {
+            return "Add locations to preview the route."
+        }
+        return "We couldn't plot these stops yet. Confirm the addresses look correct."
+    }
+
+    @MapContentBuilder
+    private func mapAnnotationContent(for annotation: RouteAnnotation) -> some MapContent {
+        let pinColor: Color = {
+            switch annotation.kind {
+            case .shop:
+                return Color.green.opacity(0.9)
+            case .stop:
+                return Color.blue.opacity(0.9)
+            }
+        }()
+
+        switch annotation.kind {
+        case .shop:
+            Marker("", systemImage: "building.2.fill", coordinate: annotation.coordinate)
+                .tint(pinColor)
+                .annotationTitles(.hidden)
+        case .stop(let order):
+            Marker("", systemImage: numberSymbolName(for: order), coordinate: annotation.coordinate)
+                .tint(pinColor)
+                .annotationTitles(.hidden)
+        }
+    }
+
+    private func numberSymbolName(for order: Int) -> String {
+        if (0...50).contains(order) {
+            return "\(order).circle.fill"
+        }
+        return "circle.fill"
+    }
+
     private var footer: some View {
         Text("Locations are in run order, packing announcements will be in reverse order.")
             .font(.caption)
@@ -1077,6 +1151,24 @@ private struct ReorderLocationsSheet: View {
         let openingMinutes: Int?
         let closingMinutes: Int?
         let dwellMinutes: Int?
+    }
+    
+    private struct RouteAnnotation: Identifiable {
+        enum Kind {
+            case shop
+            case stop(order: Int)
+        }
+        
+        let id: String
+        let title: String
+        let subtitle: String?
+        let coordinate: CLLocationCoordinate2D
+        let kind: Kind
+        
+        var isShop: Bool {
+            if case .shop = kind { return true }
+            return false
+        }
     }
 
     private func runOptimisation() async {
@@ -1339,6 +1431,9 @@ private struct ReorderLocationsSheet: View {
                 totalTravelSeconds = nil
                 isCalculatingTravel = false
                 didHitMapSearchThrottle = false
+                routePreviewAnnotations = []
+                routePolyline = []
+                mapCameraPosition = .automatic
                 mapItemCache.removeAll()
             }
             return
@@ -1350,6 +1445,9 @@ private struct ReorderLocationsSheet: View {
                     pushErrorBanner("Maps lookups are temporarily rate limited. Travel times will refresh soon.")
                 }
                 isCalculatingTravel = false
+                routePreviewAnnotations = []
+                routePolyline = []
+                mapCameraPosition = .automatic
             }
             return
         }
@@ -1359,6 +1457,7 @@ private struct ReorderLocationsSheet: View {
         }
 
         let nodes = await sectionsToNodes()
+        await updateRoutePreview(companyItem: companyItem, nodes: nodes)
         var legs: [String: RouteLeg] = [:]
         var total: TimeInterval = 0
         var previousItem = companyItem
@@ -1403,6 +1502,105 @@ private struct ReorderLocationsSheet: View {
             totalTravelSeconds = total > 0 ? total : nil
             isCalculatingTravel = false
         }
+    }
+
+    private func updateRoutePreview(companyItem: MKMapItem, nodes: [RouteNode]) async {
+        let annotations = buildRouteAnnotations(companyItem: companyItem, nodes: nodes)
+        let polyline = buildRoutePolyline(companyItem: companyItem, nodes: nodes)
+        let region = routeRegion(for: polyline)
+
+        await MainActor.run {
+            routePreviewAnnotations = annotations
+            routePolyline = polyline
+            if let region {
+                mapCameraPosition = .region(region)
+            }
+        }
+    }
+
+    private func buildRouteAnnotations(companyItem: MKMapItem, nodes: [RouteNode]) -> [RouteAnnotation] {
+        var annotations: [RouteAnnotation] = []
+        if let shopCoordinate = coordinate(for: companyItem), CLLocationCoordinate2DIsValid(shopCoordinate) {
+            annotations.append(
+                RouteAnnotation(
+                    id: "shop",
+                    title: "Shop",
+                    subtitle: companyStartAddress,
+                    coordinate: shopCoordinate,
+                    kind: .shop
+                )
+            )
+        }
+
+        for (index, node) in nodes.enumerated() {
+            guard let coordinate = coordinate(for: node.mapItem), CLLocationCoordinate2DIsValid(coordinate) else { continue }
+            annotations.append(
+                RouteAnnotation(
+                    id: node.section.id,
+                    title: node.section.title,
+                    subtitle: node.address,
+                    coordinate: coordinate,
+                    kind: .stop(order: index + 1)
+                )
+            )
+        }
+
+        return annotations
+    }
+
+    private func buildRoutePolyline(companyItem: MKMapItem, nodes: [RouteNode]) -> [CLLocationCoordinate2D] {
+        guard let shopCoordinate = coordinate(for: companyItem), CLLocationCoordinate2DIsValid(shopCoordinate) else {
+            return []
+        }
+
+        var coordinates: [CLLocationCoordinate2D] = [shopCoordinate]
+
+        for node in nodes {
+            if let coord = coordinate(for: node.mapItem), CLLocationCoordinate2DIsValid(coord) {
+                coordinates.append(coord)
+            }
+        }
+
+        coordinates.append(shopCoordinate) // Return to shop
+        return coordinates
+    }
+
+    private func routeRegion(for coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {
+        let valid = coordinates.filter(CLLocationCoordinate2DIsValid)
+        guard let first = valid.first else { return nil }
+
+        if valid.count == 1 {
+            return MKCoordinateRegion(
+                center: first,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        }
+
+        let latitudes = valid.map(\.latitude)
+        let longitudes = valid.map(\.longitude)
+
+        guard let minLat = latitudes.min(),
+              let maxLat = latitudes.max(),
+              let minLon = longitudes.min(),
+              let maxLon = longitudes.max() else {
+            return nil
+        }
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maxLat - minLat) * 1.4, 0.02),
+            longitudeDelta: max((maxLon - minLon) * 1.4, 0.02)
+        )
+
+        return MKCoordinateRegion(center: center, span: span)
+    }
+
+    private func coordinate(for mapItem: MKMapItem) -> CLLocationCoordinate2D? {
+        let coordinate = mapItem.location.coordinate
+        return CLLocationCoordinate2DIsValid(coordinate) ? coordinate : nil
     }
 
     private func sectionsToNodes() async -> [RouteNode] {

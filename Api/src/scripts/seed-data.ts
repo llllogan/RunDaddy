@@ -235,7 +235,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     locations: [
       {
         name: 'Metro Warehouse',
-        address: '1/112 Dickson Way, Point Lookout QLD 4183, Australia', // North-east island
+        address: '112 Redland Bay Rd, Capalaba QLD 4157, Australia', // Mainland hub near Redland Bay
         machines: [
           {
             code: 'METRO-WH-01',
