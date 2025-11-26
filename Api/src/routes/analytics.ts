@@ -1932,47 +1932,45 @@ function buildPickEntryBreakdownAverages(
   }
 
   if (aggregation === 'quarter') {
-    const bucketsWithQuarter = buckets.map((bucket) => {
+    const groupedByQuarter = new Map<
+      number,
+      {
+        buckets: PickEntryBreakdownBucket[];
+      }
+    >();
+
+    for (const bucket of buckets) {
       const { year, month } = getLocalDatePartsInTimezone(bucket.start, timeZone);
       const quarterIndex = Math.floor((month - 1) / 3);
       const quarterKey = year * QUARTERS_IN_YEAR + quarterIndex;
-      return { bucket, quarterKey };
-    });
-
-    if (bucketsWithQuarter.length === 0) {
-      return [];
+      if (!groupedByQuarter.has(quarterKey)) {
+        groupedByQuarter.set(quarterKey, { buckets: [] });
+      }
+      groupedByQuarter.get(quarterKey)!.buckets.push(bucket);
     }
 
-    const latestQuarterKey = Math.max(...bucketsWithQuarter.map((entry) => entry.quarterKey));
-    const latestQuarterBuckets = bucketsWithQuarter
-      .filter((entry) => entry.quarterKey === latestQuarterKey)
-      .map((entry) => entry.bucket)
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
+    return Array.from(groupedByQuarter.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, group]) => {
+        const orderedBuckets = group.buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
+        const bucketTotals = orderedBuckets.map((bucket) => sumBucketTotals(bucket, dailyTotals));
+        const nonZeroTotals = bucketTotals.filter((total) => total > 0);
+        const averageRaw =
+          nonZeroTotals.length > 0
+            ? nonZeroTotals.reduce((sum, value) => sum + value, 0) / nonZeroTotals.length
+            : 0;
+        const allLabels = orderedBuckets.flatMap((bucket) => bucket.dayLabels);
 
-    if (latestQuarterBuckets.length === 0) {
-      return [];
-    }
-
-    const bucketTotals = latestQuarterBuckets
-      .map((bucket) => sumBucketTotals(bucket, dailyTotals))
-      .filter((total) => total > 0); // exclude zero months
-    const averageRaw =
-      bucketTotals.length > 0
-        ? bucketTotals.reduce((sum, value) => sum + value, 0) / bucketTotals.length
-        : 0;
-
-    const allLabels = latestQuarterBuckets.flatMap((bucket) => bucket.dayLabels);
-    return [
-      {
-        start: formatDateInTimezone(latestQuarterBuckets[0]!.start, timeZone),
-        end: formatDateInTimezone(
-          new Date(latestQuarterBuckets[latestQuarterBuckets.length - 1]!.end.getTime() - DAY_IN_MS),
-          timeZone,
-        ),
-        dates: [...new Set(allLabels)].sort(),
-        average: Number(averageRaw.toFixed(2)),
-      },
-    ];
+        return {
+          start: formatDateInTimezone(orderedBuckets[0]!.start, timeZone),
+          end: formatDateInTimezone(
+            new Date(orderedBuckets[orderedBuckets.length - 1]!.end.getTime() - DAY_IN_MS),
+            timeZone,
+          ),
+          dates: [...new Set(allLabels)].sort(),
+          average: Number(averageRaw.toFixed(2)),
+        };
+      });
   }
 
   // Month aggregation: align averages per bucket and ignore zero-value days
