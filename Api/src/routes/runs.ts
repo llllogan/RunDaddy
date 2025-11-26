@@ -65,6 +65,47 @@ const startPackingSessionSchema = z.object({
   categories: z.array(z.string().trim().min(1).nullable()).optional(),
 });
 
+async function updateRunCompletionStatus(runId: string) {
+  const [run, unpickedCount, totalCount] = await prisma.$transaction([
+    prisma.run.findUnique({
+      where: { id: runId },
+      select: { status: true, pickingEndedAt: true },
+    }),
+    prisma.pickEntry.count({
+      where: {
+        runId,
+        isPicked: false,
+      },
+    }),
+    prisma.pickEntry.count({
+      where: { runId },
+    }),
+  ]);
+
+  if (!run || totalCount === 0 || unpickedCount > 0) {
+    return;
+  }
+
+  const updateData: Prisma.RunUpdateInput = {};
+
+  if (run.status === AppRunStatus.CREATED || run.status === AppRunStatus.PICKING) {
+    updateData.status = AppRunStatus.READY as PrismaRunStatus;
+  }
+
+  if (!run.pickingEndedAt) {
+    updateData.pickingEndedAt = new Date();
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return;
+  }
+
+  await prisma.run.update({
+    where: { id: runId },
+    data: updateData,
+  });
+}
+
 router.use(authenticate);
 
 // Lists runs for the current company, optionally filtered by status.
@@ -1170,6 +1211,8 @@ router.patch('/:runId/picks/status', async (req, res) => {
     });
   }
 
+  await updateRunCompletionStatus(run.id);
+
   return res.json({
     updatedCount: updatedPickEntries.count,
   });
@@ -1209,6 +1252,8 @@ router.delete('/:runId/picks/:pickId', async (req, res) => {
   await prisma.pickEntry.delete({
     where: { id: pickEntry.id }
   });
+
+  await updateRunCompletionStatus(run.id);
 
   return res.status(204).send();
 });
@@ -1289,6 +1334,8 @@ router.delete('/:runId/locations/:locationId', setLogConfig({ level: 'minimal' }
 
     return { deletedCount: deleted.count };
   });
+
+  await updateRunCompletionStatus(run.id);
 
   return res.json({ deletedCount });
 });
