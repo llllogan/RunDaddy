@@ -200,6 +200,17 @@ struct PickEntryBarChart: View {
         Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.anchorDate, $0.label) })
     }
 
+    private func isDateInCurrentBucket(_ date: Date) -> Bool {
+        switch aggregation {
+        case .week:
+            return calendar.isDateInToday(date)
+        case .month:
+            return calendar.isDate(Date(), equalTo: date, toGranularity: .weekOfYear)
+        case .quarter:
+            return calendar.isDate(Date(), equalTo: date, toGranularity: .month)
+        }
+    }
+
     private func weekLabel(for date: Date) -> String {
         let weekNumber = calendar.component(.weekOfYear, from: date)
         return "W\(weekNumber)"
@@ -303,8 +314,10 @@ struct PickEntryBarChart: View {
                     AxisValueLabel {
                         let label = axisLabel(for: date)
                         let isToday = calendar.isDateInToday(date)
+                        let isCurrentBucket = isDateInCurrentBucket(date)
                         Text(label)
-                            .foregroundStyle(isToday ? Color.primary : Color.secondary)
+                            .foregroundStyle(isToday || isCurrentBucket ? Color.primary : Color.secondary)
+                            .fontWeight(isToday || isCurrentBucket ? .medium : .regular)
                     }
                 }
             }
