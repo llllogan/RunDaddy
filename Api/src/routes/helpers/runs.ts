@@ -96,6 +96,11 @@ export const ensureRun = async (companyId: string, runId: string) => {
           position: 'asc',
         },
       },
+      packingSessions: {
+        include: {
+          user: true,
+        },
+      },
     },
   });
   if (!run || run.companyId !== companyId) {

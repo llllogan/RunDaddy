@@ -61,6 +61,11 @@ struct PreviewRunsService: RunsServicing {
             RunDetail.LocationOrder(id: "order-2", locationId: uptown.id, position: 1)
         ]
 
+        let packers = [
+            RunDetail.Packer(id: "user-1", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com", sessionCount: 2),
+            RunDetail.Packer(id: "user-2", firstName: "Riley", lastName: "Nguyen", email: "riley@example.com", sessionCount: 1)
+        ]
+
         return RunDetail(
             id: runId,
             status: "PICKING",
@@ -74,7 +79,8 @@ struct PreviewRunsService: RunsServicing {
             machines: [machineA, machineB, machineC],
             pickItems: [pickA, pickB, pickC],
             chocolateBoxes: [chocolateBox1, chocolateBox2, chocolateBox3],
-            locationOrders: locationOrders
+            locationOrders: locationOrders,
+            packers: packers
         )
     }
     

@@ -1669,6 +1669,13 @@ type RunDetailPayload = {
       sku: PickItemPayload['sku'];
     };
   }>;
+  packers: Array<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    sessionCount: number;
+  }>;
   chocolateBoxes: Array<{
     id: string;
     number: number;
@@ -1680,6 +1687,16 @@ type RunDetailPayload = {
 function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
   const machinesById = new Map<string, MachinePayload>();
   const locationsById = new Map<string, LocationPayload>();
+  const packersById = new Map<
+    string,
+    {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      email: string | null;
+      sessionCount: number;
+    }
+  >();
 
   const serializeLocation = (
     location: RunDetailSource['pickEntries'][number]['coilItem']['coil']['machine']['location'],
@@ -1795,6 +1812,24 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     };
   });
 
+  run.packingSessions.forEach((session) => {
+    const user = session.user;
+    if (!user) {
+      return;
+    }
+
+    const existing = packersById.get(user.id) ?? {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      sessionCount: 0,
+    };
+
+    existing.sessionCount += 1;
+    packersById.set(user.id, existing);
+  });
+
   const chocolateBoxes = run.chocolateBoxes.map((box) => ({
     id: box.id,
     number: box.number,
@@ -1883,6 +1918,21 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             : null,
         },
       };
+    }),
+    packers: Array.from(packersById.values()).sort((first, second) => {
+      const normalizedName = (packer: { firstName: string | null; lastName: string | null; email: string | null; id: string }) => {
+        const combined = `${packer.firstName ?? ''} ${packer.lastName ?? ''}`.trim();
+        if (combined.length > 0) {
+          return combined.toLowerCase();
+        }
+        const trimmedEmail = (packer.email ?? '').trim();
+        if (trimmedEmail.length > 0) {
+          return trimmedEmail.toLowerCase();
+        }
+        return packer.id.toLowerCase();
+      };
+
+      return normalizedName(first).localeCompare(normalizedName(second), undefined, { sensitivity: 'base' });
     }),
     chocolateBoxes,
     locationOrders,

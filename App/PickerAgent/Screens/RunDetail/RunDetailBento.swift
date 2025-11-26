@@ -12,6 +12,10 @@ struct RunOverviewBento: View {
     let viewModel: RunDetailViewModel
     let pendingItemsTap: () -> Void
 
+    private var packers: [RunDetail.Packer] {
+        viewModel.detail?.packers ?? []
+    }
+
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
 
@@ -95,12 +99,12 @@ struct RunOverviewBento: View {
             )
         }
         
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "\(summary.machineCount)",
-                      symbolName: "building.2",
-                      symbolTint: .purple)
-        )
+//        cards.append(
+//            BentoItem(title: "Machines",
+//                      value: "\(summary.machineCount)",
+//                      symbolName: "building.2",
+//                      symbolTint: .purple)
+//        )
         
         if let runner = summary.runnerName, !runner.isEmpty {
             cards.append(
@@ -155,6 +159,30 @@ struct RunOverviewBento: View {
                          )
             )
         }
+
+        cards.append(
+            BentoItem(
+                title: "Pickers",
+                value: "",
+                symbolName: "person.crop.rectangle.stack",
+                symbolTint: .blue,
+                customContent: AnyView(
+                    VStack(alignment: .leading, spacing: 8) {
+                        if packers.isEmpty {
+                            Text("None so far.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(packers, id: \.id) { packer in
+                                PackerRow(packer: packer)
+                                    .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                )
+            )
+        )
         
         cards.append(
             BentoItem(title: "Remaining",
@@ -218,5 +246,43 @@ struct RunnerAssignButtons: View {
             
             Spacer()
         }
+    }
+}
+
+private struct PackerRow: View {
+    let packer: RunDetail.Packer
+
+    private var emailText: String? {
+        guard let email = packer.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+            return nil
+        }
+        return email
+    }
+
+    private var sessionCountText: String {
+        let count = packer.sessionCount
+        return count == 1 ? "1 session" : "\(count) sessions"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(packer.displayName)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            HStack(spacing: 6) {
+                InfoChip(
+                    title: nil,
+                    date: nil,
+                    text: sessionCountText,
+                    colour: Color.blue.opacity(0.14),
+                    foregroundColour: .blue,
+                    icon: nil
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

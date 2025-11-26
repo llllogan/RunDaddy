@@ -168,6 +168,29 @@ struct RunDetail: Equatable {
         let location: Location?
     }
 
+    struct Packer: Identifiable, Equatable {
+        let id: String
+        let firstName: String?
+        let lastName: String?
+        let email: String?
+        let sessionCount: Int
+
+        var displayName: String {
+            let trimmedFirst = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let trimmedLast = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            if !trimmedFirst.isEmpty && !trimmedLast.isEmpty {
+                return "\(trimmedFirst) \(trimmedLast)"
+            } else if !trimmedFirst.isEmpty {
+                return trimmedFirst
+            } else if !trimmedLast.isEmpty {
+                return trimmedLast
+            } else {
+                return email ?? "Unknown Picker"
+            }
+        }
+    }
+
     struct Sku: Equatable {
         let id: String
         let code: String
@@ -250,6 +273,7 @@ struct RunDetail: Equatable {
     let pickItems: [PickItem]
     let chocolateBoxes: [ChocolateBox]
     var locationOrders: [LocationOrder]
+    let packers: [Packer]
 
     var runDate: Date {
         scheduledFor ?? createdAt
@@ -1349,6 +1373,24 @@ private struct RunDetailResponse: Decodable {
         }
     }
 
+    struct Packer: Decodable {
+        let id: String
+        let firstName: String?
+        let lastName: String?
+        let email: String?
+        let sessionCount: Int
+
+        func toPacker() -> RunDetail.Packer {
+            RunDetail.Packer(
+                id: id,
+                firstName: firstName,
+                lastName: lastName,
+                email: email,
+                sessionCount: sessionCount
+            )
+        }
+    }
+
     let id: String
     let status: String
     let companyId: String
@@ -1362,6 +1404,7 @@ private struct RunDetailResponse: Decodable {
     let pickItems: [PickItem]
     let chocolateBoxes: [ChocolateBox]
     let locationOrders: [LocationOrder]
+    let packers: [Packer]?
 
     func toDetail() -> RunDetail {
         RunDetail(
@@ -1377,7 +1420,8 @@ private struct RunDetailResponse: Decodable {
             machines: machines.map { $0.toMachine() },
             pickItems: pickItems.filter { $0.count > 0 }.map { $0.toPickItem() },
             chocolateBoxes: chocolateBoxes.map { $0.toChocolateBox() },
-            locationOrders: locationOrders.map { $0.toLocationOrder() }.sorted { $0.position < $1.position }
+            locationOrders: locationOrders.map { $0.toLocationOrder() }.sorted { $0.position < $1.position },
+            packers: (packers ?? []).map { $0.toPacker() }
         )
     }
 }
