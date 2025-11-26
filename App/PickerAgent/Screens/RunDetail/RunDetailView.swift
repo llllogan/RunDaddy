@@ -540,9 +540,11 @@ private extension RunDetailView {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
         let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
+        let locationDetail = viewModel.locationDetail(for: section.id)
+        let machines = locationDetail?.machines ?? []
 
         Group {
-            if let locationDetail = viewModel.locationDetail(for: section.id) {
+            if let locationDetail {
                 NavigationLink {
                     LocationDetailView(
                         detail: locationDetail,
@@ -555,11 +557,21 @@ private extension RunDetailView {
                         }
                     )
                 } label: {
-                    LocationSummaryRow(section: section, chocolateBoxLabel: chocolateBoxesLabel, isProcessing: isDeleting)
+                    LocationSummaryRow(
+                        section: section,
+                        machines: machines,
+                        chocolateBoxLabel: chocolateBoxesLabel,
+                        isProcessing: isDeleting
+                    )
                 }
                 .disabled(isDeleting)
             } else {
-                LocationSummaryRow(section: section, chocolateBoxLabel: chocolateBoxesLabel, isProcessing: isDeleting)
+                LocationSummaryRow(
+                    section: section,
+                    machines: machines,
+                    chocolateBoxLabel: chocolateBoxesLabel,
+                    isProcessing: isDeleting
+                )
             }
         }
         .opacity(isDeleting ? 0.45 : 1)
@@ -590,6 +602,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
+    var machines: [RunDetail.Machine] = []
     var chocolateBoxLabel: String? = nil
     var isProcessing = false
 
@@ -605,9 +618,18 @@ private struct LocationSummaryRow: View {
                     .foregroundStyle(.secondary)
             }
             
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                InfoChip(title: nil, date: nil, text: "\(section.machineCount) \(section.machineCount == 1 ? "Machine" : "Machines")", colour: nil, foregroundColour: nil, icon: nil)
-                
+            FlowLayout(spacing: 6) {
+                ForEach(machineTypeChips) { chip in
+                    InfoChip(
+                        title: nil,
+                        date: nil,
+                        text: chip.label,
+                        colour: Color.indigo.opacity(0.15),
+                        foregroundColour: Color.indigo,
+                        icon: nil
+                    )
+                }
+
                 if section.remainingCoils > 0 {
                     InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
                 } else {
@@ -636,6 +658,23 @@ private struct LocationSummaryRow: View {
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private var machineTypeChips: [MachineTypeChip] {
+        machines.compactMap { machine in
+            let trimmedDescription = machine.machineType?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let typeDescription = (trimmedDescription?.isEmpty == false) ? trimmedDescription : nil
+            let fallbackName = machine.machineType?.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = typeDescription ?? (fallbackName?.isEmpty == false ? fallbackName : "Unknown machine type")
+
+            guard let label else { return nil }
+            return MachineTypeChip(id: machine.id, label: label)
+        }
+    }
+
+    private struct MachineTypeChip: Identifiable {
+        let id: String
+        let label: String
     }
 }
 

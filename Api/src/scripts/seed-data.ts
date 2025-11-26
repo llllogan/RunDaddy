@@ -54,8 +54,12 @@ const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!12
 const MIN_RUN_LOCATIONS = 4;
 
 const MACHINE_TYPE_SEED_DATA = [
-  { name: 'Snack Tower', description: 'Standard snack vending tower' },
-  { name: 'Cold Beverage Cooler', description: 'Refrigerated drink merchandiser' },
+  { name: 'AMS Sensit 3', description: 'Snack' },
+  { name: 'DN BevMax 4', description: 'Food/Bev' },
+  { name: 'Vendo Vue GF', description: 'GF Bev' },
+  { name: 'Crane GF Fresh', description: 'GF Food' },
+  { name: 'Mars Merchant', description: 'Confectionary' },
+  { name: 'USI Combo Plus', description: 'Snakc/Food' },
 ];
 
 const DEFAULT_MACHINE_TYPE_NAME =
@@ -118,7 +122,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-SNACK-1',
         description: 'Testing snack machine',
-        machineType: 'Snack Tower',
+        machineType: 'AMS Sensit 3',
         coils: [
           { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 12 },
           { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 16 },
@@ -128,7 +132,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-BEV-1',
         description: 'Chilled beverage validation unit',
-        machineType: 'Cold Beverage Cooler',
+        machineType: 'DN BevMax 4',
         coils: [
           { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
           { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
@@ -144,7 +148,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-DEV-SNACK',
         description: 'Developer snack staging',
-        machineType: 'Snack Tower',
+        machineType: 'AMS Sensit 3',
         coils: [
           { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 18 },
           { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 15 },
@@ -154,7 +158,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-DEV-BEV',
         description: 'Developer beverage staging',
-        machineType: 'Cold Beverage Cooler',
+        machineType: 'DN BevMax 4',
         coils: [
           { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
           { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
@@ -170,7 +174,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-INF-SNACK',
         description: 'Legacy campus snack tower',
-        machineType: 'Snack Tower',
+        machineType: 'AMS Sensit 3',
         coils: [
           { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 17 },
           { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 17 },
@@ -180,7 +184,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-INF-BEV',
         description: 'Legacy campus beverage cooler',
-        machineType: 'Cold Beverage Cooler',
+        machineType: 'DN BevMax 4',
         coils: [
           { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
           { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 11 },
@@ -196,7 +200,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-SUN-SNACK',
         description: 'Logistics snack machine',
-        machineType: 'Snack Tower',
+        machineType: 'AMS Sensit 3',
         coils: [
           { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 20 },
           { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 18 },
@@ -206,7 +210,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
       {
         code: 'APPLE-SUN-BEV',
         description: 'Logistics beverage machine',
-        machineType: 'Cold Beverage Cooler',
+        machineType: 'DN BevMax 4',
         coils: [
           { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 13 },
           { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 15 },
@@ -236,7 +240,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-WH-01',
             description: 'Warehouse Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 18 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
@@ -246,7 +250,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-WH-02',
             description: 'Warehouse Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 14 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
@@ -262,7 +266,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-DT-01',
             description: 'Downtown Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 10 },
@@ -272,7 +276,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-DT-02',
             description: 'Downtown Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
@@ -288,7 +292,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-MIS-01',
             description: 'Mission Campus Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 17 },
               { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 16 },
@@ -298,7 +302,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-MIS-02',
             description: 'Mission Campus Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 13 },
@@ -314,7 +318,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-BAY-01',
             description: 'Bayview Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 19 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 18 },
@@ -324,7 +328,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'METRO-BAY-02',
             description: 'Bayview Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 15 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
@@ -353,7 +357,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-HQ-01',
             description: 'HQ Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
@@ -363,7 +367,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-HQ-02',
             description: 'HQ Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
@@ -379,7 +383,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-AU-01',
             description: 'Aurora Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
@@ -389,7 +393,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-AU-02',
             description: 'Aurora Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 15 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 13 },
@@ -405,7 +409,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-ST-01',
             description: 'Stapleton Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 17 },
               { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 15 },
@@ -415,7 +419,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-ST-02',
             description: 'Stapleton Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 13 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
@@ -431,7 +435,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-BO-01',
             description: 'Boulder Snack Tower',
-            machineType: 'Snack Tower',
+            machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 18 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 17 },
@@ -441,7 +445,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           {
             code: 'RIVER-BO-02',
             description: 'Boulder Beverage Cooler',
-            machineType: 'Cold Beverage Cooler',
+            machineType: 'DN BevMax 4',
             coils: [
               { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
               { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 13 },
@@ -472,7 +476,7 @@ const TREND_SCENARIO_COMPANY = {
         {
           code: 'PULSE-UP-01',
           description: 'Uptown snack pilot',
-          machineType: 'Snack Tower',
+          machineType: 'AMS Sensit 3',
           coils: [
             { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
             { code: 'A2', skuCode: 'SKU-CHIPS-SEA', par: 15 },
@@ -487,7 +491,7 @@ const TREND_SCENARIO_COMPANY = {
         {
           code: 'PULSE-RF-01',
           description: 'Riverfront beverage pilot',
-          machineType: 'Cold Beverage Cooler',
+          machineType: 'DN BevMax 4',
           coils: [
             { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
             { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 11 },

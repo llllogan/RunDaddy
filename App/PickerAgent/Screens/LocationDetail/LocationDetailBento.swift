@@ -207,25 +207,25 @@ struct LocationOverviewBento: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
+            
+            Text(machine.code)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             if let machineType = machine.machineType {
-                Text(machineType.name)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .center, spacing: 8) {
-                InfoChip(title: nil,
-                         date: nil,
-                         text: machine.code,
-                         colour: Color(.systemGray5),
-                         foregroundColour: .secondary,
-                         icon: nil)
-                if onMachineTap != nil {
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                HStack(alignment: .center, spacing: 8) {
+                    InfoChip(title: nil,
+                             date: nil,
+                             text: machineType.description,
+                             colour: Color.indigo.opacity(0.15),
+                             foregroundColour: Color.indigo,
+                             icon: nil)
+                    if onMachineTap != nil {
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
