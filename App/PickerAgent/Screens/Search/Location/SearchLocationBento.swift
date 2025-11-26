@@ -10,6 +10,34 @@ struct SearchLocationInfoBento: View {
     let selectedPeriod: SkuPeriod?
     let onBestSkuTap: ((LocationBestSku) -> Void)?
     let onMachineTap: ((LocationMachine) -> Void)?
+    let hoursSummary: String?
+    let onConfigureHours: (() -> Void)?
+    
+    init(
+        location: Location,
+        machines: [LocationMachine],
+        lastPacked: LocationLastPacked?,
+        percentageChange: SkuPercentageChange?,
+        bestSku: LocationBestSku?,
+        machineSalesShare: [LocationMachineSalesShare],
+        selectedPeriod: SkuPeriod?,
+        onBestSkuTap: ((LocationBestSku) -> Void)? = nil,
+        onMachineTap: ((LocationMachine) -> Void)? = nil,
+        hoursSummary: String? = nil,
+        onConfigureHours: (() -> Void)? = nil
+    ) {
+        self.location = location
+        self.machines = machines
+        self.lastPacked = lastPacked
+        self.percentageChange = percentageChange
+        self.bestSku = bestSku
+        self.machineSalesShare = machineSalesShare
+        self.selectedPeriod = selectedPeriod
+        self.onBestSkuTap = onBestSkuTap
+        self.onMachineTap = onMachineTap
+        self.hoursSummary = hoursSummary
+        self.onConfigureHours = onConfigureHours
+    }
 
     private var machineShareLookup: [String: LocationMachineSalesShare] {
         Dictionary(uniqueKeysWithValues: machineSalesShare.map { ($0.machineId, $0) })
@@ -27,6 +55,34 @@ struct SearchLocationInfoBento: View {
                 allowsMultilineValue: true
             )
         )
+
+        if let hoursSummary, let onConfigureHours {
+            cards.append(
+                BentoItem(
+                    title: "Hours",
+                    value: "",
+                    symbolName: "clock",
+                    symbolTint: .blue,
+                    allowsMultilineValue: true,
+                    customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(hoursSummary)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button(action: onConfigureHours) {
+                                Text("Configure")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.blue)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    )
+                )
+            )
+        }
 
         cards.append(
             BentoItem(

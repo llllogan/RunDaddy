@@ -99,6 +99,9 @@ model Location {
   companyId String
   name      String
   address   String?
+  openingTimeMinutes Int?
+  closingTimeMinutes Int?
+  dwellTimeMinutes   Int?
 
   company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   machines Machine[]

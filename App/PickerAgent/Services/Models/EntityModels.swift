@@ -25,6 +25,9 @@ struct Location: Codable, Identifiable {
     let id: String
     let name: String
     let address: String?
+    let openingTimeMinutes: Int?
+    let closingTimeMinutes: Int?
+    let dwellTimeMinutes: Int?
     let machines: [LocationMachine]?
 }
 

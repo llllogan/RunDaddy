@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -21,6 +22,23 @@ import {
 const router = Router();
 
 router.use(authenticate);
+
+const updateLocationTimingSchema = z
+  .object({
+    openingTimeMinutes: z.number().int().min(0).max(1439).nullable().optional(),
+    closingTimeMinutes: z.number().int().min(0).max(1439).nullable().optional(),
+    dwellTimeMinutes: z.number().int().min(0).max(24 * 60).nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      value.openingTimeMinutes == null ||
+      value.closingTimeMinutes == null ||
+      value.closingTimeMinutes >= value.openingTimeMinutes,
+    {
+      message: 'Closing time must be after opening time.',
+      path: ['closingTimeMinutes'],
+    },
+  );
 
 router.get('/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
@@ -47,36 +65,66 @@ router.get('/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) 
     return res.status(404).json({ error: 'Location not found' });
   }
 
-  const machines = await prisma.machine.findMany({
+  const machines = await fetchLocationMachines(locationId, req.auth.companyId);
+
+  return res.json(serializeLocationResponse(location, machines));
+});
+
+router.patch('/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { locationId } = req.params;
+  if (!locationId) {
+    return res.status(400).json({ error: 'Location ID is required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'User must belong to a company' });
+  }
+
+  const location = await prisma.location.findFirst({
     where: {
-      locationId,
+      id: locationId,
       companyId: req.auth.companyId,
-    },
-    include: {
-      machineType: true,
-    },
-    orderBy: {
-      code: 'asc',
     },
   });
 
-  return res.json({
-    id: location.id,
-    name: location.name,
-    address: location.address,
-    machines: machines.map(machine => ({
-      id: machine.id,
-      code: machine.code,
-      description: machine.description,
-      machineType: machine.machineType
-        ? {
-            id: machine.machineType.id,
-            name: machine.machineType.name,
-            description: machine.machineType.description,
-          }
-        : null,
-    })),
-  });
+  if (!location) {
+    return res.status(404).json({ error: 'Location not found' });
+  }
+
+  const parsed = updateLocationTimingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const firstIssue = parsed.error.errors[0];
+    return res.status(400).json({ error: firstIssue?.message ?? 'Invalid payload' });
+  }
+
+  const { openingTimeMinutes, closingTimeMinutes, dwellTimeMinutes } = parsed.data;
+  const updateData: Prisma.LocationUpdateInput = {};
+
+  if (openingTimeMinutes !== undefined) {
+    updateData.openingTimeMinutes = openingTimeMinutes;
+  }
+  if (closingTimeMinutes !== undefined) {
+    updateData.closingTimeMinutes = closingTimeMinutes;
+  }
+  if (dwellTimeMinutes !== undefined) {
+    updateData.dwellTimeMinutes = dwellTimeMinutes;
+  }
+
+  const updatedLocation =
+    Object.keys(updateData).length > 0
+      ? await prisma.location.update({
+          where: { id: locationId },
+          data: updateData,
+        })
+      : location;
+
+  const machines = await fetchLocationMachines(locationId, req.auth.companyId);
+
+  return res.json(serializeLocationResponse(updatedLocation, machines));
 });
 
 router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
@@ -188,6 +236,54 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     points,
   });
 });
+
+type MachineWithType = Prisma.MachineGetPayload<{ include: { machineType: true } }>;
+type LocationWithTiming = {
+  id: string;
+  name: string;
+  address: string | null;
+  openingTimeMinutes: number | null;
+  closingTimeMinutes: number | null;
+  dwellTimeMinutes: number | null;
+};
+
+function serializeLocationResponse(location: LocationWithTiming, machines: MachineWithType[]) {
+  return {
+    id: location.id,
+    name: location.name,
+    address: location.address,
+    openingTimeMinutes: location.openingTimeMinutes,
+    closingTimeMinutes: location.closingTimeMinutes,
+    dwellTimeMinutes: location.dwellTimeMinutes,
+    machines: machines.map(machine => ({
+      id: machine.id,
+      code: machine.code,
+      description: machine.description,
+      machineType: machine.machineType
+        ? {
+            id: machine.machineType.id,
+            name: machine.machineType.name,
+            description: machine.machineType.description,
+          }
+        : null,
+    })),
+  };
+}
+
+async function fetchLocationMachines(locationId: string, companyId: string) {
+  return prisma.machine.findMany({
+    where: {
+      locationId,
+      companyId,
+    },
+    include: {
+      machineType: true,
+    },
+    orderBy: {
+      code: 'asc',
+    },
+  });
+}
 
 type LocationChartRow = {
   date: string;
