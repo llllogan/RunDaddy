@@ -100,6 +100,7 @@ final class RunDetailViewModel: ObservableObject {
     @Published var showingChocolateBoxesSheet = false
     @Published var activePackingSessionId: String?
     @Published private(set) var companyLocation: String?
+    @Published private(set) var currentMembershipRole: String?
     @Published private(set) var locationSchedules: [String: LocationSchedule] = [:]
     
     // MARK: - Haptic Feedback Triggers
@@ -148,18 +149,19 @@ final class RunDetailViewModel: ObservableObject {
             async let detailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
             async let usersTask = service.fetchCompanyUsers(credentials: session.credentials)
             async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
-            async let companyLocationTask = fetchCompanyLocation()
-            
+            async let companyLocationTask = fetchCompanyContext()
+
             let detail = try await detailTask
             let users = try await usersTask
             let chocolateBoxes = try await chocolateBoxesTask
-            let resolvedCompanyLocation = await companyLocationTask
+            let companyContext = await companyLocationTask
             
             self.detail = detail
             self.companyUsers = users
             self.chocolateBoxes = chocolateBoxes.sorted { $0.number < $1.number }
             self.locationOrders = detail.locationOrders.sorted { $0.position < $1.position }
-            self.companyLocation = resolvedCompanyLocation
+            self.companyLocation = companyContext.location
+            self.currentMembershipRole = companyContext.role
             rebuildLocationData(from: detail)
             await refreshLocationSchedules(from: detail.locations)
         } catch {
@@ -677,14 +679,16 @@ final class RunDetailViewModel: ObservableObject {
         return result
     }
 
-    private func fetchCompanyLocation() async -> String? {
+    private func fetchCompanyContext() async -> (location: String?, role: String?) {
         do {
             let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
             let location = profile.currentCompany?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let location, !location.isEmpty else { return nil }
-            return location
+            let normalizedLocation = (location?.isEmpty == true) ? nil : location
+            let role = profile.currentCompany?.role.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedRole = (role?.isEmpty == true) ? nil : role
+            return (normalizedLocation, normalizedRole)
         } catch {
-            return companyLocation
+            return (companyLocation, currentMembershipRole)
         }
     }
 }
