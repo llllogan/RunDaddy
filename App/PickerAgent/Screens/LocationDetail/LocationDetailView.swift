@@ -650,10 +650,14 @@ struct PickEntryRow: View {
                     }
                     
                     if let machineCode = pickItem.machine?.description {
-                        InfoChip(title: "Machine", date: nil, text: machineCode, colour: nil, foregroundColour: nil, icon: nil)
+                        InfoChip(title: nil, date: nil, text: machineCode, colour: nil, foregroundColour: nil, icon: nil)
                     }
                     
                     InfoChip(title: "Coil", date: nil, text: pickItem.coilItem.coil.code, colour: nil, foregroundColour: nil, icon: nil)
+
+                    if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
+                        InfoChip(title: nil, date: nil, text: category, colour: Color.indigo.opacity(0.15), foregroundColour: Color.indigo, icon: nil)
+                    }
                 }
             }
             .padding(.vertical, 6)

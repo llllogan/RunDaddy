@@ -176,7 +176,7 @@ struct LocationOverviewBento: View {
                       symbolName: "shippingbox",
                       symbolTint: .brown,
                       onTap: onChocolateBoxesTap,
-                      showsChevron: onChocolateBoxesTap != nil,
+                      showsChevron: false,
                       customContent: AnyView(
                         HStack {
                             Text(chocolateBoxNumbersText)
