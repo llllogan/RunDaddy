@@ -79,21 +79,23 @@ struct ChocolateBoxRow: View {
                 
                 if let machine = box.machine {
                     
-                    HStack(spacing: 4) {
-                        if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(description)
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                        }
-                        
-                        Text(machine.code)
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                                .fontWeight(.regular)
+                    if let description = machine.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(description)
+                            .font(.headline)
+                            .fontWeight(.semibold)
                     }
                     
-                    if let machineType = machine.machineType {
-                        Text(machineType.name)
+                    HStack(spacing: 4) {
+                        if let machineTypeDescription = machine.machineType?.description {
+                            Text(machineTypeDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                        }
+                        Text(machine.code)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 8)
@@ -101,6 +103,8 @@ struct ChocolateBoxRow: View {
                             .background(Color(.systemGray5))
                             .clipShape(Capsule())
                     }
+                    
+                    
                 } else {
                     Text("No machine assigned")
                         .font(.subheadline)
