@@ -656,7 +656,15 @@ struct PickEntryRow: View {
                     InfoChip(title: "Coil", date: nil, text: pickItem.coilItem.coil.code, colour: nil, foregroundColour: nil, icon: nil)
 
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
-                        InfoChip(title: nil, date: nil, text: category, colour: Color.indigo.opacity(0.15), foregroundColour: Color.indigo, icon: nil)
+                        let chipColour = colorForCategoryChip(category)
+                        InfoChip(
+                            title: nil,
+                            date: nil,
+                            text: category,
+                            colour: chipColour.opacity(0.2),
+                            foregroundColour: chipColour,
+                            icon: "tray.2"
+                        )
                     }
                 }
             }
@@ -683,6 +691,26 @@ private extension PickEntryRow {
             .background(Color(.systemGray5))
             .clipShape(Capsule())
     }
+}
+
+
+private func colorForCategoryChip(_ category: String) -> Color {
+    let palette: [Color] = [
+        Color(red: 0.05, green: 0.30, blue: 0.59), // deep indigo
+        Color(red: 0.12, green: 0.45, blue: 0.25), // forest green
+        Color(red: 0.70, green: 0.15, blue: 0.35), // rich berry
+        Color(red: 0.40, green: 0.14, blue: 0.54), // plum
+        Color(red: 0.85, green: 0.40, blue: 0.12), // burnt orange
+        Color(red: 0.60, green: 0.21, blue: 0.16), // brick red
+        Color(red: 0.16, green: 0.45, blue: 0.56), // slate teal
+        Color(red: 0.38, green: 0.52, blue: 0.73), // storm blue
+    ]
+
+    let stableHash = category.unicodeScalars.reduce(0) { result, scalar in
+        (result &* 31) &+ Int(scalar.value)
+    }
+    let paletteIndex = abs(stableHash) % palette.count
+    return palette[paletteIndex]
 }
 
 
