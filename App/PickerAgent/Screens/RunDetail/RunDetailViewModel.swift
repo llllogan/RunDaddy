@@ -97,7 +97,6 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var companyFeatures: CompanyFeatures?
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
     @Published private(set) var locationOrders: [RunDetail.LocationOrder] = []
-    @Published var showingChocolateBoxesSheet = false
     @Published var activePackingSessionId: String?
     @Published private(set) var companyLocation: String?
     @Published private(set) var currentMembershipRole: String?

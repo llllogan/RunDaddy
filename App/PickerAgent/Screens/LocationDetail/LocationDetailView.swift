@@ -33,7 +33,7 @@ struct LocationDetailView: View {
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
-    @State private var showingChocolateBoxesSheet = false
+    @State private var activeSheet: LocationDetailSheet?
     @State private var isResettingLocationPickStatuses = false
     @State private var confirmingLocationReset = false
     @Environment(\.openURL) private var openURL
@@ -118,7 +118,7 @@ struct LocationDetailView: View {
                     machines: machines,
                     viewModel: viewModel,
                     onChocolateBoxesTap: {
-                        showingChocolateBoxesSheet = true
+                        activeSheet = .chocolateBoxes
                     },
                     cheeseItems: cheeseItems,
                     onLocationTap: {
@@ -216,13 +216,13 @@ struct LocationDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(detail.section.title)
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingChocolateBoxesSheet) {
-            ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
-                .presentationDetents([.fraction(0.5), .large])
-                .presentationDragIndicator(.visible)
-        }
-        .onReceive(viewModel.$showingChocolateBoxesSheet) { showing in
-            showingChocolateBoxesSheet = showing
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .chocolateBoxes:
+                ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
+                    .presentationDetents([.fraction(0.5), .large])
+                    .presentationDragIndicator(.visible)
+            }
         }
         .sheet(item: $selectedPickItemForCountPointer) { pickItem in
             CountPointerSelectionSheet(
@@ -465,6 +465,17 @@ private struct LocationDetailSearchNavigation: Identifiable, Hashable {
 
 private struct LocationDetailMachineNavigation: Identifiable, Hashable {
     let id: String
+}
+
+private enum LocationDetailSheet: Identifiable {
+    case chocolateBoxes
+    
+    var id: String {
+        switch self {
+        case .chocolateBoxes:
+            return "chocolateBoxes"
+        }
+    }
 }
 
 struct CountPointerSelectionSheet: View {

@@ -175,23 +175,22 @@ struct LocationOverviewBento: View {
                       value: "",
                       symbolName: "shippingbox",
                       symbolTint: .brown,
-                     customContent: AnyView(
-                        HStack{
+                      onTap: onChocolateBoxesTap,
+                      showsChevron: onChocolateBoxesTap != nil,
+                      customContent: AnyView(
+                        HStack {
                             Text(chocolateBoxNumbersText)
                                 .font(.title3.weight(.semibold))
                                 .multilineTextAlignment(.leading)
                             Spacer()
-                            Button(action: {
-                                onChocolateBoxesTap?()
-                            }) {
-                                Image(systemName: "magnifyingglass")
-                                    .padding(6)
-                                    .background(Color(.systemGray5))
-                                    .clipShape(Circle())
-                                    .tint(.primary)
-                            }
+                            Image(systemName: "magnifyingglass")
+                                .padding(6)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                                .foregroundStyle(.primary)
                         }
-                     ))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
         )
 
         return cards
