@@ -544,7 +544,7 @@ private extension RunDetailView {
         Group {
             if let locationDetail {
                 NavigationLink {
-                    LocationDetailView(
+                    RunLocationDetailView(
                         detail: locationDetail,
                         runId: viewModel.detail?.id ?? "",
                         session: viewModel.session,

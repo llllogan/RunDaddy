@@ -1,5 +1,5 @@
 //
-//  LocationDetailView.swift
+//  RunLocationDetailView.swift
 //  PickAgent
 //
 //  Created by ChatGPT on 5/26/2025.
@@ -21,7 +21,7 @@ enum CoilSortOrder: CaseIterable {
     }
 }
 
-struct LocationDetailView: View {
+struct RunLocationDetailView: View {
     let detail: RunLocationDetail
     let runId: String
     let session: AuthSession
@@ -33,7 +33,7 @@ struct LocationDetailView: View {
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
-    @State private var activeSheet: LocationDetailSheet?
+    @State private var activeSheet: RunLocationDetailSheet?
     @State private var isResettingLocationPickStatuses = false
     @State private var confirmingLocationReset = false
     @Environment(\.openURL) private var openURL
@@ -41,11 +41,11 @@ struct LocationDetailView: View {
     
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
-    @State private var locationNavigationTarget: LocationDetailSearchNavigation?
-    @State private var machineNavigationTarget: LocationDetailMachineNavigation?
+    @State private var locationNavigationTarget: RunLocationDetailSearchNavigation?
+    @State private var machineNavigationTarget: RunLocationDetailMachineNavigation?
 
-    private var overviewSummary: LocationOverviewSummary {
-        LocationOverviewSummary(
+    private var overviewSummary: RunLocationOverviewSummary {
+        RunLocationOverviewSummary(
             title: detail.section.title,
             address: detail.section.subtitle,
             machineCount: detail.section.machineCount,
@@ -113,7 +113,7 @@ struct LocationDetailView: View {
     var body: some View {
         List {
             Section {
-                LocationOverviewBento(
+                RunLocationOverviewBento(
                     summary: overviewSummary,
                     machines: machines,
                     viewModel: viewModel,
@@ -428,14 +428,14 @@ struct LocationDetailView: View {
         guard let locationId = detail.section.location?.id, !locationId.isEmpty else {
             return
         }
-        locationNavigationTarget = LocationDetailSearchNavigation(id: locationId)
+        locationNavigationTarget = RunLocationDetailSearchNavigation(id: locationId)
     }
 
     private func navigateToMachineDetail(_ machine: RunDetail.Machine) {
         guard !machine.id.isEmpty else {
             return
         }
-        machineNavigationTarget = LocationDetailMachineNavigation(id: machine.id)
+        machineNavigationTarget = RunLocationDetailMachineNavigation(id: machine.id)
     }
     
     private var locationPickItemsSnapshot: [RunDetail.PickItem] {
@@ -459,15 +459,15 @@ struct LocationDetailView: View {
     }
 }
 
-private struct LocationDetailSearchNavigation: Identifiable, Hashable {
+private struct RunLocationDetailSearchNavigation: Identifiable, Hashable {
     let id: String
 }
 
-private struct LocationDetailMachineNavigation: Identifiable, Hashable {
+private struct RunLocationDetailMachineNavigation: Identifiable, Hashable {
     let id: String
 }
 
-private enum LocationDetailSheet: Identifiable {
+private enum RunLocationDetailSheet: Identifiable {
     case chocolateBoxes
     
     var id: String {
@@ -751,7 +751,7 @@ private func colorForCategoryChip(_ category: String) -> Color {
     )
 
     NavigationStack {
-        LocationDetailView(
+        RunLocationDetailView(
             detail: detail,
             runId: "preview-run",
             session: AuthSession(

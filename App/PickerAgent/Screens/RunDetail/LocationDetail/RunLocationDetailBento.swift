@@ -1,5 +1,5 @@
 //
-//  LocationDetailBento.swift
+//  RunLocationDetailBento.swift
 //  PickerAgent
 //
 //  Created by Logan Janssen on 13/11/2025.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct LocationOverviewSummary {
+struct RunLocationOverviewSummary {
     let title: String
     let address: String?
     let machineCount: Int
@@ -20,8 +20,8 @@ struct LocationOverviewSummary {
     }
 }
 
-struct LocationOverviewBento: View {
-    let summary: LocationOverviewSummary
+struct RunLocationOverviewBento: View {
+    let summary: RunLocationOverviewSummary
     let machines: [RunDetail.Machine]
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
@@ -29,7 +29,7 @@ struct LocationOverviewBento: View {
     let onLocationTap: (() -> Void)?
     let onMachineTap: ((RunDetail.Machine) -> Void)?
 
-    init(summary: LocationOverviewSummary,
+    init(summary: RunLocationOverviewSummary,
          machines: [RunDetail.Machine] = [],
          viewModel: RunDetailViewModel,
          onChocolateBoxesTap: (() -> Void)? = nil,
