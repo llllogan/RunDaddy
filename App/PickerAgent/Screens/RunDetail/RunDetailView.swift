@@ -807,8 +807,7 @@ private struct ReorderLocationsSheet: View {
     @State private var startTime: Date
     @State private var inboundLegs: [String: RouteLeg] = [:]
     @State private var totalTravelSeconds: TimeInterval?
-    private let etaCache = EtaCache()
-    @State private var mapItemCache: [String: MKMapItem] = [:]
+    private let directionsClient = RateLimitedDirections()
     @State private var didHitMapSearchThrottle = false
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var routePreviewAnnotations: [RouteAnnotation] = []
@@ -819,11 +818,12 @@ private struct ReorderLocationsSheet: View {
         inviteCodesService: InviteCodesService()
     )
     @State private var notifications: [InAppNotification] = []
+    private let startTimeStore = RouteStartTimeStore()
 
     init(viewModel: RunDetailViewModel, sections: [RunLocationSection]) {
         self.viewModel = viewModel
         _draftSections = State(initialValue: sections)
-        let initialStart = viewModel.detail?.scheduledFor ?? viewModel.detail?.createdAt ?? Date()
+        let initialStart = startTimeStore.load(for: viewModel.runId) ?? Date()
         _startTime = State(initialValue: initialStart)
     }
 
@@ -907,20 +907,18 @@ private struct ReorderLocationsSheet: View {
                             await runOptimisation()
                         }
                     } label: {
-                        HStack(spacing: 0) {
-                            Image(systemName: "wand.and.stars")
-                            Text("Optimise")
+                        HStack(spacing: 6) {
+                            if isOptimizing || isCalculatingTravel {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "wand.and.stars")
+                            }
+                            Text(optimiseLabel)
                         }
                     }
-                    .disabled(isSaving || isOptimizing || draftSections.count < 2)
-                }
-            }
-            .overlay(alignment: .center) {
-                if let label = overlayStatusLabel {
-                    ProgressView(label)
-                        .padding()
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .disabled(isSaving || isOptimizing || isCalculatingTravel || draftSections.count < 2)
                 }
             }
         }
@@ -987,6 +985,7 @@ private struct ReorderLocationsSheet: View {
             DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.compact)
                 .onChange(of: startTime) { _, _ in
+                    startTimeStore.save(startTime, for: viewModel.runId)
                     Task {
                         await refreshTravelEstimates()
                     }
@@ -1148,9 +1147,52 @@ private struct ReorderLocationsSheet: View {
         let section: RunLocationSection
         let address: String
         let mapItem: MKMapItem
-        let openingMinutes: Int?
-        let closingMinutes: Int?
-        let dwellMinutes: Int?
+        let schedule: ResolvedSchedule
+    }
+
+    private struct ResolvedSchedule: Equatable {
+        private static let defaultOpeningMinutes = 0
+        private static let defaultClosingMinutes = (24 * 60) - 1
+        private static let defaultDwellMinutes = 20
+
+        let openingMinutes: Int
+        let closingMinutes: Int
+        let dwellMinutes: Int
+
+        init(openingMinutes: Int?, closingMinutes: Int?, dwellMinutes: Int?) {
+            let resolvedOpen = openingMinutes ?? Self.defaultOpeningMinutes
+            let clampedOpen = max(0, min(resolvedOpen, Self.defaultClosingMinutes))
+
+            let resolvedClose = closingMinutes ?? Self.defaultClosingMinutes
+            let minimumClose = clampedOpen + 1
+            let clampedClose = max(minimumClose, min(resolvedClose, Self.defaultClosingMinutes))
+
+            let resolvedDwell = dwellMinutes ?? Self.defaultDwellMinutes
+
+            self.openingMinutes = clampedOpen
+            self.closingMinutes = clampedClose
+            self.dwellMinutes = max(1, resolvedDwell)
+        }
+
+        var dwellSeconds: TimeInterval {
+            TimeInterval(dwellMinutes * 60)
+        }
+
+        func window(for date: Date, calendar: Calendar = .current) -> (open: Date, close: Date)? {
+            var openComponents = calendar.dateComponents([.year, .month, .day], from: date)
+            openComponents.hour = openingMinutes / 60
+            openComponents.minute = openingMinutes % 60
+
+            var closeComponents = calendar.dateComponents([.year, .month, .day], from: date)
+            closeComponents.hour = closingMinutes / 60
+            closeComponents.minute = closingMinutes % 60
+
+            guard let openDate = calendar.date(from: openComponents),
+                  let closeDate = calendar.date(from: closeComponents) else {
+                return nil
+            }
+            return (open: openDate, close: closeDate)
+        }
     }
     
     private struct RouteAnnotation: Identifiable {
@@ -1210,13 +1252,13 @@ private struct ReorderLocationsSheet: View {
             return
         }
 
-        let orderedSections = await computeOptimisedSections(origin: originItem, stops: stops)
+        let orderedNodes = await computeOptimisedSections(origin: originItem, stops: stops)
 
         await MainActor.run {
             withAnimation {
-                draftSections = orderedSections + unresolved + unassigned
+                draftSections = orderedNodes.map(\.section) + unresolved + unassigned
             }
-            if orderedSections.isEmpty {
+            if orderedNodes.isEmpty {
                 pushErrorBanner("We couldn't create a route between these stops.")
             }
             Task {
@@ -1225,115 +1267,101 @@ private struct ReorderLocationsSheet: View {
         }
     }
 
-    private func computeOptimisedSections(origin: MKMapItem, stops: [RouteNode]) async -> [RunLocationSection] {
-        let originKey = cacheKey(for: origin, fallback: "company-origin")
+    private func computeOptimisedSections(origin: MKMapItem, stops: [RouteNode]) async -> [RouteNode] {
         var currentItem = origin
         var currentTime = startTime
         var remaining = stops
-        var ordered: [RunLocationSection] = []
+        var ordered: [RouteNode] = []
 
         while !remaining.isEmpty {
-            guard let next = await bestNextStop(
+            guard let next = await nextStop(
                 from: currentItem,
-                at: currentTime,
+                currentTime: currentTime,
                 remaining: remaining,
-                origin: origin,
-                originKey: originKey,
-                cache: etaCache
+                origin: origin
             ) else {
                 break
             }
 
-            ordered.append(next.node.section)
+            ordered.append(next.node)
             currentItem = next.node.mapItem
             currentTime = next.finishTime
             remaining.removeAll { $0.id == next.node.id }
         }
 
-        return ordered + remaining.map(\.section)
+        return ordered + remaining
     }
 
-    private func bestNextStop(
+    private func nextStop(
         from current: MKMapItem,
-        at currentTime: Date,
+        currentTime: Date,
         remaining: [RouteNode],
-        origin: MKMapItem,
-        originKey: String,
-        cache: EtaCache
+        origin: MKMapItem
     ) async -> (node: RouteNode, finishTime: Date)? {
-        var best: (node: RouteNode, finish: Date, score: TimeInterval)?
-        let currentKey = cacheKey(for: current, fallback: "company-origin")
+        struct Candidate {
+            let node: RouteNode
+            let finish: Date
+            let waiting: TimeInterval
+            let returnEta: TimeInterval?
+            let windowClose: Date
+        }
+
+        var candidates: [Candidate] = []
 
         for node in remaining {
-            guard let travelTo = await cache.eta(
+            guard let window = node.schedule.window(for: currentTime) else { continue }
+            guard let travelTo = await directionsClient.travelTime(
                 from: current,
-                fromKey: currentKey,
                 to: node.mapItem,
-                toKey: node.id,
                 departure: currentTime
             ) else {
                 continue
             }
 
             let arrival = currentTime.addingTimeInterval(travelTo)
-            let startAt = adjustedStartTime(for: node, arrival: arrival)
-            let dwellSeconds = TimeInterval((node.dwellMinutes ?? 5) * 60)
-            let finish = startAt.addingTimeInterval(dwellSeconds)
+            let startAt = max(arrival, window.open)
+            let finish = startAt.addingTimeInterval(node.schedule.dwellSeconds)
+            let waiting = max(0, startAt.timeIntervalSince(arrival))
 
-            guard let returnEta = await cache.eta(
+            let returnEta = await directionsClient.travelTime(
                 from: node.mapItem,
-                fromKey: node.id,
                 to: origin,
-                toKey: originKey,
                 departure: finish
-            ) else {
-                continue
-            }
+            )
 
-            let latenessPenalty: TimeInterval
-            if let closing = node.closingMinutes, let closingDate = date(on: startTime, minutes: closing) {
-                latenessPenalty = max(0, finish.timeIntervalSince(closingDate)) * 4
-            } else {
-                latenessPenalty = 0
-            }
-
-            let waitTime = max(0, startAt.timeIntervalSince(arrival))
-            let score = finish.timeIntervalSince(startTime) + (returnEta * 0.75) + waitTime * 0.25 + latenessPenalty
-
-            if let candidate = best {
-                if score < candidate.score {
-                    best = (node, finish, score)
-                }
-            } else {
-                best = (node, finish, score)
-            }
+            let candidate = Candidate(
+                node: node,
+                finish: finish,
+                waiting: waiting,
+                returnEta: returnEta,
+                windowClose: window.close
+            )
+            candidates.append(candidate)
         }
 
-        guard let best else { return nil }
-        return (best.node, best.finish)
-    }
-
-    private func adjustedStartTime(for node: RouteNode, arrival: Date) -> Date {
-        if let opening = node.openingMinutes, let openingDate = date(on: arrival, minutes: opening) {
-            return max(arrival, openingDate)
+        let feasible = candidates.filter { $0.finish <= $0.windowClose }
+        if let best = feasible.min(by: { lhs, rhs in
+            if lhs.finish != rhs.finish { return lhs.finish < rhs.finish }
+            if lhs.windowClose != rhs.windowClose { return lhs.windowClose < rhs.windowClose }
+            let lhsReturn = lhs.returnEta ?? .infinity
+            let rhsReturn = rhs.returnEta ?? .infinity
+            if lhsReturn != rhsReturn { return lhsReturn < rhsReturn }
+            return lhs.waiting < rhs.waiting
+        }) {
+            return (best.node, best.finish)
         }
-        return arrival
-    }
 
-    private func date(on base: Date, minutes: Int) -> Date? {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: base)
-        components.hour = minutes / 60
-        components.minute = minutes % 60
-        return Calendar.current.date(from: components)
-    }
-
-    private func cacheKey(for item: MKMapItem, fallback: String) -> String {
-        let coordinate: CLLocationCoordinate2D = item.location.coordinate
-        let hash = "\(coordinate.latitude),\(coordinate.longitude)"
-        if hash == "0.0,0.0" {
-            return fallback
+        if let fallback = candidates.min(by: { lhs, rhs in
+            let lhsLateness = max(0, lhs.finish.timeIntervalSince(lhs.windowClose))
+            let rhsLateness = max(0, rhs.finish.timeIntervalSince(rhs.windowClose))
+            if lhsLateness != rhsLateness { return lhsLateness < rhsLateness }
+            if lhs.finish != rhs.finish { return lhs.finish < rhs.finish }
+            return (lhs.returnEta ?? .infinity) < (rhs.returnEta ?? .infinity)
+        }) {
+            return (fallback.node, fallback.finish)
         }
-        return hash
+
+        return nil
     }
 
     private func buildRouteNodes() async -> ([RouteNode], [RunLocationSection], [RunLocationSection]) {
@@ -1381,41 +1409,67 @@ private struct ReorderLocationsSheet: View {
             section: section,
             address: address,
             mapItem: mapItem,
-            openingMinutes: schedule?.openingMinutes,
-            closingMinutes: schedule?.closingMinutes,
-            dwellMinutes: schedule?.dwellMinutes
+            schedule: resolvedSchedule(for: location.id, fallback: location)
+        )
+    }
+
+    private func resolvedSchedule(for locationId: String?, fallback location: RunDetail.Location?) -> ResolvedSchedule {
+        let schedule = viewModel.schedule(for: locationId)
+        return ResolvedSchedule(
+            openingMinutes: schedule?.openingMinutes ?? location?.openingTimeMinutes,
+            closingMinutes: schedule?.closingMinutes ?? location?.closingTimeMinutes,
+            dwellMinutes: schedule?.dwellMinutes ?? location?.dwellTimeMinutes
         )
     }
 
     private func mapItem(for address: String) async -> MKMapItem? {
-        let key = address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let cached = mapItemCache[key] {
-            return cached
-        }
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
 
         let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = address
+        request.naturalLanguageQuery = trimmed
         request.resultTypes = .address
 
-        do {
-            let response = try await MKLocalSearch(request: request).start()
-            if let first = response.mapItems.first {
+        var attempt = 0
+        let maxBackoff: UInt64 = 15_000_000_000
+
+        while !Task.isCancelled {
+            do {
+                let response = try await MKLocalSearch(request: request).start()
                 await MainActor.run {
-                    mapItemCache[key] = first
                     didHitMapSearchThrottle = false
                 }
-                return first
-            }
-        } catch {
-            let nsError = error as NSError
-            if nsError.domain == "GEOErrorDomain" || nsError.localizedDescription.localizedCaseInsensitiveContains("Throttled") {
-                await MainActor.run {
-                    didHitMapSearchThrottle = true
+                return response.mapItems.first
+            } catch {
+                if isMapsThrottleError(error) {
+                    attempt += 1
+                    let delay = min(UInt64(attempt) * 1_500_000_000, maxBackoff)
+                    await MainActor.run {
+                        didHitMapSearchThrottle = true
+                    }
+                    try? await Task.sleep(nanoseconds: delay)
+                    continue
                 }
+                break
             }
         }
 
-        return mapItemCache[key]
+        return nil
+    }
+
+    private func isMapsThrottleError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if let mkError = error as? MKError, mkError.code == .loadingThrottled {
+            return true
+        }
+        if nsError.domain == "GEOErrorDomain" {
+            return true
+        }
+        if nsError.domain == MKError.errorDomain && nsError.code == MKError.Code.loadingThrottled.rawValue {
+            return true
+        }
+        let description = nsError.localizedDescription.lowercased()
+        return description.contains("throttl") || description.contains("limit")
     }
 
     private var companyStartAddress: String? {
@@ -1434,7 +1488,6 @@ private struct ReorderLocationsSheet: View {
                 routePreviewAnnotations = []
                 routePolyline = []
                 mapCameraPosition = .automatic
-                mapItemCache.removeAll()
             }
             return
         }
@@ -1461,40 +1514,39 @@ private struct ReorderLocationsSheet: View {
         var legs: [String: RouteLeg] = [:]
         var total: TimeInterval = 0
         var previousItem = companyItem
-        var previousLabel = "Company"
+        var previousLabel = "Shop"
         var accumulatedStart = startTime
 
         for node in nodes {
-            if let eta = await etaCache.eta(
+            guard let eta = await directionsClient.travelTime(
                 from: previousItem,
-                fromKey: cacheKey(for: previousItem, fallback: previousLabel),
                 to: node.mapItem,
-                toKey: node.id,
                 departure: accumulatedStart
-            ) {
-                total += eta
-                accumulatedStart = accumulatedStart.addingTimeInterval(eta + TimeInterval((node.dwellMinutes ?? 5) * 60))
-                legs[node.section.id] = RouteLeg(
-                    id: UUID(),
-                    fromLabel: previousLabel,
-                    toLabel: node.section.title,
-                    etaSeconds: eta
-                )
-            }
+            ) else { continue }
+
+            total += eta
+            let arrival = accumulatedStart.addingTimeInterval(eta)
+            let window = node.schedule.window(for: accumulatedStart) ?? (open: arrival, close: arrival)
+            let startAt = max(arrival, window.open)
+            let finish = startAt.addingTimeInterval(node.schedule.dwellSeconds)
+
+            accumulatedStart = finish
+            legs[node.section.id] = RouteLeg(
+                id: UUID(),
+                fromLabel: previousLabel,
+                toLabel: node.section.title,
+                etaSeconds: eta
+            )
             previousItem = node.mapItem
             previousLabel = node.section.title
         }
 
-        if let backEta = await etaCache.eta(
+        if let backEta = await directionsClient.travelTime(
             from: previousItem,
-            fromKey: cacheKey(for: previousItem, fallback: previousLabel),
             to: companyItem,
-            toKey: "company-origin",
             departure: accumulatedStart
         ) {
             total += backEta
-        } else {
-            total = 0
         }
 
         await MainActor.run {
@@ -1646,49 +1698,101 @@ private struct ReorderLocationsSheet: View {
         let etaSeconds: TimeInterval?
     }
 
-    private var overlayStatusLabel: String? {
+    private var optimiseLabel: String {
         if isSaving { return "Saving" }
-        if isOptimizing { return "Optimising route..." }
-        if isCalculatingTravel { return "Calculating travel..." }
-        return nil
+        if isOptimizing { return "Optimising" }
+        if isCalculatingTravel { return "Calculating" }
+        return "Optimise"
     }
 
-    private actor EtaCache {
-        private struct CacheKey: Hashable {
-            let from: String
-            let to: String
-            let bucket: Int
+    // Fetches ETAs while respecting MapKit throttling by backing off without caching results.
+    private actor RateLimitedDirections {
+        private var etaTimestamps: [Date] = []
+        private let window: TimeInterval = 60
+        private let limit = 50
+
+        func travelTime(from source: MKMapItem, to destination: MKMapItem, departure: Date) async -> TimeInterval? {
+            var attempt = 0
+            let maxBackoff: UInt64 = 15_000_000_000
+
+            while !Task.isCancelled {
+                if let delay = throttleDelay(since: Date()) {
+                    try? await Task.sleep(nanoseconds: toNanoseconds(delay))
+                    continue
+                }
+
+                record(now: Date())
+
+                do {
+                    let request = MKDirections.Request()
+                    request.source = source
+                    request.destination = destination
+                    request.transportType = .automobile
+                    request.departureDate = departure
+
+                    let eta = try await MKDirections(request: request).calculateETA()
+                    return eta.expectedTravelTime
+                } catch {
+                    if shouldRetry(after: error) {
+                        attempt += 1
+                        let throttleDelayNs = toNanoseconds(throttleDelay(since: Date()) ?? 0)
+                        let backoff = min(UInt64(max(attempt, 1)) * 1_500_000_000, maxBackoff)
+                        let wait = max(backoff, throttleDelayNs)
+                        try? await Task.sleep(nanoseconds: wait)
+                        continue
+                    }
+                    return nil
+                }
+            }
+
+            return nil
         }
 
-        private var store: [CacheKey: TimeInterval] = [:]
+        private func throttleDelay(since now: Date) -> TimeInterval? {
+            etaTimestamps = etaTimestamps.filter { now.timeIntervalSince($0) < window }
+            guard etaTimestamps.count >= limit, let oldest = etaTimestamps.min() else { return nil }
+            let elapsed = now.timeIntervalSince(oldest)
+            return max(0, window - elapsed)
+        }
 
-        func eta(
-            from source: MKMapItem,
-            fromKey: String,
-            to destination: MKMapItem,
-            toKey: String,
-            departure: Date
-        ) async -> TimeInterval? {
-            let bucket = Int(departure.timeIntervalSinceReferenceDate / 600) // 10-minute buckets
-            let key = CacheKey(from: fromKey, to: toKey, bucket: bucket)
+        private func record(now: Date) {
+            etaTimestamps.append(now)
+        }
 
-            if let cached = store[key] {
-                return cached
+        private func toNanoseconds(_ seconds: TimeInterval) -> UInt64 {
+            guard seconds > 0 else { return 0 }
+            return UInt64(seconds * 1_000_000_000)
+        }
+
+        private func shouldRetry(after error: Error) -> Bool {
+            let nsError = error as NSError
+            if let mkError = error as? MKError, mkError.code == .loadingThrottled {
+                return true
             }
-
-            let request = MKDirections.Request()
-            request.source = source
-            request.destination = destination
-            request.transportType = .automobile
-            request.departureDate = departure
-
-            do {
-                let eta = try await MKDirections(request: request).calculateETA()
-                store[key] = eta.expectedTravelTime
-                return eta.expectedTravelTime
-            } catch {
-                return nil
+            if nsError.domain == "GEOErrorDomain" {
+                return true
             }
+            if nsError.domain == MKError.errorDomain && nsError.code == MKError.Code.loadingThrottled.rawValue {
+                return true
+            }
+            let description = nsError.localizedDescription.lowercased()
+            return description.contains("throttl") || description.contains("limit")
+        }
+    }
+
+    private struct RouteStartTimeStore {
+        private let defaults = UserDefaults.standard
+
+        func load(for runId: String) -> Date? {
+            defaults.object(forKey: key(for: runId)) as? Date
+        }
+
+        func save(_ date: Date, for runId: String) {
+            defaults.set(date, forKey: key(for: runId))
+        }
+
+        private func key(for runId: String) -> String {
+            "route_start_time_\(runId)"
         }
     }
 }
