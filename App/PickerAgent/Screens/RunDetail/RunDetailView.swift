@@ -624,7 +624,7 @@ private struct LocationSummaryRow: View {
                         text: chip.label,
                         colour: Color.indigo.opacity(0.15),
                         foregroundColour: Color.indigo,
-                        icon: nil
+                        icon: "building"
                     )
                 }
 
