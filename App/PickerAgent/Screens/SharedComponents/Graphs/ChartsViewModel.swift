@@ -36,6 +36,9 @@ class ChartsViewModel: ObservableObject {
     @Published var machinePickTotals: [DashboardMomentumSnapshot.MachineSlice] = []
     @Published var isLoadingMachinePickTotals = false
     @Published var machinePickTotalsError: String?
+    @Published var machineTouches: [DashboardMomentumSnapshot.MachineTouchPoint] = []
+    @Published var isLoadingMachineTouches = false
+    @Published var machineTouchesError: String?
 
     private var session: AuthSession
     private let analyticsService: AnalyticsServicing
@@ -266,26 +269,36 @@ class ChartsViewModel: ObservableObject {
         }
 
         isLoadingMachinePickTotals = true
+        isLoadingMachineTouches = true
         machinePickTotalsError = nil
+        machineTouchesError = nil
 
         do {
-            let totals = try await analyticsService.fetchMachinePickTotals(
-                lookbackDays: 14,
-                credentials: session.credentials
-            )
-            machinePickTotals = totals
+            let snapshot = try await analyticsService.fetchDashboardMomentum(credentials: session.credentials)
+            machinePickTotals = snapshot.machinePickTotals
+            machineTouches = snapshot.machineTouches
         } catch let authError as AuthError {
-            machinePickTotalsError = authError.localizedDescription
+            let message = authError.localizedDescription
+            machinePickTotalsError = message
+            machineTouchesError = message
             machinePickTotals = []
+            machineTouches = []
         } catch let analyticsError as AnalyticsServiceError {
-            machinePickTotalsError = analyticsError.localizedDescription
+            let message = analyticsError.localizedDescription
+            machinePickTotalsError = message
+            machineTouchesError = message
             machinePickTotals = []
+            machineTouches = []
         } catch {
-            machinePickTotalsError = "We couldn't load machine totals right now."
+            let message = "We couldn't load machine metrics right now."
+            machinePickTotalsError = message
+            machineTouchesError = message
             machinePickTotals = []
+            machineTouches = []
         }
 
         isLoadingMachinePickTotals = false
+        isLoadingMachineTouches = false
     }
 
     func refreshMachinePickTotals() async {

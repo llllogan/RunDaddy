@@ -65,7 +65,7 @@ struct DashboardMomentumBentoView: View {
         }
 
         return BentoItem(
-            title: "Pick Entries",
+            title: "Picks",
             value: headline,
             symbolName: "tag",
             symbolTint: .cyan,
@@ -263,85 +263,5 @@ private extension DashboardMomentumBentoView {
             let segments = weekSegments.sorted { $0.totalItems > $1.totalItems }
             return WeekBucket(label: label, segments: segments)
         }
-    }
-}
-
-private struct MachineTouchesLineChart: View {
-    let points: [DashboardMomentumSnapshot.MachineTouchPoint]
-
-    private var orderedPoints: [DashboardMomentumSnapshot.MachineTouchPoint] {
-        points.sorted { $0.weekStart < $1.weekStart }
-    }
-
-    private var maxValue: Double {
-        let maxTotal = orderedPoints.map(\.totalMachines).max() ?? 0
-        return max(Double(maxTotal), 1)
-    }
-
-    private static let isoCalendar = Calendar(identifier: .iso8601)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if orderedPoints.isEmpty {
-                Text("Machine activity will appear once picks start landing each week.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Chart(orderedPoints) { point in
-                    AreaMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                .purple.opacity(0.24),
-                                .purple.opacity(0.05)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                    LineMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(.purple)
-                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
-
-                    PointMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .foregroundStyle(.purple)
-                }
-                .chartLegend(.hidden)
-                .chartYAxis {
-                    AxisMarks(position: .trailing)
-                }
-                .chartXAxis {
-                    AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in
-                        if let date = value.as(Date.self) {
-                            AxisValueLabel {
-                                Text(Self.weekLabel(for: date))
-                                    .font(.caption2.weight(.light))
-                            }
-                        }
-                    }
-                }
-                .chartYScale(domain: 0...maxValue)
-                .frame(height: 170)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private static func weekLabel(for date: Date) -> String {
-        let weekNumber = isoCalendar.component(.weekOfYear, from: date)
-        return "W\(weekNumber)"
     }
 }
