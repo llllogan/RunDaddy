@@ -12,9 +12,10 @@ import {
   PERIOD_DAY_COUNTS,
   buildChartBuckets,
   buildChartRange,
-  buildAveragePercentageChange,
+  buildPercentageChange,
   buildPeriodRange,
   parseLocalDate,
+  type PeriodBucket,
   type StatsPeriod,
 } from './helpers/stats.js';
 
@@ -118,30 +119,74 @@ router.get('/:machineId/stats', setLogConfig({ level: 'minimal' }), async (req, 
   const chartRange = buildChartRange(period, periodRange, timeZone, now);
   const dataEnd = new Date(Math.min(periodRange.end.getTime(), chartRange.end.getTime()));
   const elapsedMs = Math.max(0, Math.min(periodDurationMs, now.getTime() - periodStart.getTime()));
-
-  const chartData = await buildMachineChartPoints(
-    machineId,
-    chartRange.start,
-    chartRange.end,
-    dataEnd,
-    periodStart,
-    periodEnd,
-    req.auth.companyId,
-    timeZone,
-    period,
-  );
-
-  const { points, totalItems, latestPeriodRowEndMs } = chartData;
-
   const previousPeriodStart = new Date(periodStart.getTime() - periodDurationMs);
-  const previousTotal = await getMachineTotalPicks(
-    machineId,
-    previousPeriodStart,
-    periodStart,
-    req.auth.companyId,
-  );
+  const previousPeriodEnd = periodStart;
 
-  const percentageChange = buildAveragePercentageChange(totalItems, previousTotal, periodDays);
+  const [chartData, previousPeriodData] = await Promise.all([
+    buildMachineChartPoints(
+      machineId,
+      chartRange.start,
+      chartRange.end,
+      dataEnd,
+      periodStart,
+      periodEnd,
+      req.auth.companyId,
+      timeZone,
+      period,
+    ),
+    buildMachineChartPoints(
+      machineId,
+      previousPeriodStart,
+      previousPeriodEnd,
+      previousPeriodEnd,
+      previousPeriodStart,
+      previousPeriodEnd,
+      req.auth.companyId,
+      timeZone,
+      period,
+    ),
+  ]);
+
+  const {
+    points,
+    totalItems: currentTotal,
+    periodPositiveBucketCount: currentPositiveBuckets,
+    periodBucketSummaries: currentBucketSummaries,
+  } = chartData;
+  const {
+    totalItems: previousTotal,
+    periodPositiveBucketCount: previousPositiveBuckets,
+    periodBucketSummaries: previousBucketSummaries,
+  } = previousPeriodData;
+
+  const currentAverage =
+    currentPositiveBuckets > 0 ? currentTotal / currentPositiveBuckets : currentTotal;
+  const previousAverage =
+    previousPositiveBuckets > 0 ? previousTotal / previousPositiveBuckets : previousTotal;
+
+  const percentageChange = buildPercentageChange(currentAverage, previousAverage);
+  console.log('[stats] machine percentage change', {
+    machineId,
+    period,
+    timeZone,
+    periodStart: formatAppDate(periodStart, timeZone),
+    periodEnd: formatAppDate(periodEnd, timeZone),
+    previousPeriodStart: formatAppDate(previousPeriodStart, timeZone),
+    previousPeriodEnd: formatAppDate(previousPeriodEnd, timeZone),
+    currentTotal,
+    previousTotal,
+    currentPositiveBuckets,
+    previousPositiveBuckets,
+    currentAverage,
+    previousAverage,
+    percentageChange,
+    currentBuckets: currentBucketSummaries
+      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
+      .map(bucket => ({ label: bucket.label, total: bucket.total })),
+    previousBuckets: previousBucketSummaries
+      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
+      .map(bucket => ({ label: bucket.label, total: bucket.total })),
+  });
 
   const [bestSku, lastStocked] = await Promise.all([
     getMachineBestSku(machineId, req.auth.companyId, periodStart, periodEnd),
@@ -231,6 +276,7 @@ async function buildMachineChartPoints(
   const buckets = buildChartBuckets(period, chartStart, chartEnd, timeZone);
 
   const bucketTotals = new Map<string, number>();
+  const periodBucketTotals = new Map<string, number>();
   const bucketSkus = new Map<
     string,
     Map<string, { skuCode: string; skuName: string; count: number }>
@@ -260,6 +306,10 @@ async function buildMachineChartPoints(
       continue;
     }
 
+    if (rowEndMs > periodStartMs && rowDateMs < periodEndMs) {
+      periodBucketTotals.set(bucket.key, (periodBucketTotals.get(bucket.key) ?? 0) + rowCount);
+    }
+
     const skusForBucket = bucketSkus.get(bucket.key) ?? new Map();
     const existing = skusForBucket.get(row.skuId);
 
@@ -285,6 +335,7 @@ async function buildMachineChartPoints(
       : [];
 
     const totalItems = bucketTotals.get(bucket.key) ?? 0;
+
     return {
       date: bucket.label,
       totalItems,
@@ -292,7 +343,36 @@ async function buildMachineChartPoints(
     };
   });
 
-  return { points, totalItems: periodTotalItems, latestPeriodRowEndMs };
+  const isBucketInPeriod = (bucket: PeriodBucket) => {
+    if (period === 'month') {
+      const anchorMs = bucket.endMs - ONE_DAY_MS;
+      return anchorMs >= periodStartMs && anchorMs < periodEndMs;
+    }
+    return bucket.startMs >= periodStartMs && bucket.startMs < periodEndMs;
+  };
+
+  let periodPositiveBucketCount = 0;
+  for (const bucket of buckets) {
+    const bucketTotalInPeriod = periodBucketTotals.get(bucket.key) ?? 0;
+    const isInPeriod = isBucketInPeriod(bucket);
+    if (isInPeriod && bucketTotalInPeriod > 0) {
+      periodPositiveBucketCount += 1;
+    }
+  }
+
+  const periodBucketSummaries = buckets.map(bucket => ({
+    label: bucket.label,
+    total: periodBucketTotals.get(bucket.key) ?? 0,
+    isInPeriod: isBucketInPeriod(bucket),
+  }));
+
+  return {
+    points,
+    totalItems: periodTotalItems,
+    latestPeriodRowEndMs,
+    periodPositiveBucketCount,
+    periodBucketSummaries,
+  };
 }
 
 async function getMachineTotalPicks(
