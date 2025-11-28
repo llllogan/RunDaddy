@@ -8,9 +8,6 @@ struct SearchLocationDetailView: View {
     @State private var locationStats: LocationStatsResponse?
     @State private var isLoading = true
     @State private var isLoadingStats = true
-    @State private var locationBreakdown: PickEntryBreakdown?
-    @State private var isLoadingBreakdown = true
-    @State private var breakdownError: String?
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var skuNavigationTarget: SearchLocationSkuNavigation?
@@ -26,9 +23,15 @@ struct SearchLocationDetailView: View {
     @State private var showingScheduleSheet = false
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
+    @StateObject private var chartsViewModel: ChartsViewModel
 
     private let locationsService: LocationsServicing = LocationsService()
-    private let analyticsService = AnalyticsService()
+
+    init(locationId: String, session: AuthSession) {
+        self.locationId = locationId
+        self.session = session
+        _chartsViewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+    }
 
     private static var defaultOpeningTime: Date {
         baseDate(hour: 8, minute: 0)
@@ -92,11 +95,15 @@ struct SearchLocationDetailView: View {
                 .listRowSeparator(.hidden)
 
                 Section {
-                    LocationStatsChartView(
-                        breakdown: locationBreakdown,
-                        isLoading: isLoadingBreakdown,
-                        errorMessage: breakdownError,
-                        selectedPeriod: $selectedPeriod
+                    SkuBreakdownChartView(
+                        viewModel: chartsViewModel,
+                        refreshTrigger: false,
+                        showFilters: true,
+                        focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId),
+                        onAggregationChange: { newAgg in
+                            selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
+                        },
+                        applyPadding: false
                     )
                 } header: {
                     Text("Recent Activity")
@@ -106,12 +113,18 @@ struct SearchLocationDetailView: View {
         .navigationTitle(locationDisplayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            chartsViewModel.updateSkuBreakdownFocus(
+                PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId)
+            )
+            chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
             await loadLocationDetails()
         }
         .onChange(of: selectedPeriod) { _, _ in
             Task {
                 await loadLocationStats()
-                await loadLocationBreakdown()
+                if chartsViewModel.skuBreakdownAggregation != selectedPeriod.pickEntryAggregation {
+                    chartsViewModel.updateSkuBreakdownAggregation(selectedPeriod.pickEntryAggregation)
+                }
             }
         }
         .onChange(of: hasOpeningTime) { _, _ in
@@ -205,7 +218,6 @@ struct SearchLocationDetailView: View {
                 syncTimingState(from: fetchedLocation)
             }
             await loadLocationStats()
-            await loadLocationBreakdown()
         } catch {
             await MainActor.run {
                 errorMessage = error.localizedDescription
@@ -224,38 +236,6 @@ struct SearchLocationDetailView: View {
             locationStats = nil
         }
         isLoadingStats = false
-    }
-
-    private func loadLocationBreakdown() async {
-        guard location != nil else { return }
-        isLoadingBreakdown = true
-        breakdownError = nil
-
-        do {
-            let response = try await analyticsService.fetchPickEntryBreakdown(
-                aggregation: selectedPeriod.pickEntryAggregation,
-                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId),
-                filters: PickEntryBreakdown.Filters(
-                    skuIds: [],
-                    machineIds: [],
-                    locationIds: [locationId]
-                ),
-                showBars: selectedPeriod.pickEntryAggregation.defaultBars,
-                credentials: session.credentials
-            )
-            locationBreakdown = response
-        } catch let authError as AuthError {
-            breakdownError = authError.localizedDescription
-            locationBreakdown = nil
-        } catch let analyticsError as AnalyticsServiceError {
-            breakdownError = analyticsError.localizedDescription
-            locationBreakdown = nil
-        } catch {
-            breakdownError = "We couldn't load chart data right now."
-            locationBreakdown = nil
-        }
-
-        isLoadingBreakdown = false
     }
 
     private func saveLocationSchedule() async {

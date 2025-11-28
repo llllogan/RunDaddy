@@ -11,16 +11,41 @@ import Charts
 struct SkuBreakdownChartView: View {
     let refreshTrigger: Bool
     @ObservedObject private var viewModel: ChartsViewModel
+    private let showFilters: Bool
+    private let focus: PickEntryBreakdown.ChartItemFocus?
+    private let onAggregationChange: ((PickEntryBreakdown.Aggregation) -> Void)?
+    private let applyPadding: Bool
     @State private var selectedAggregation: PickEntryBreakdown.Aggregation
+    @State private var selectedSkuFilter: String?
+    @State private var selectedMachineFilter: String?
+    @State private var selectedLocationFilter: String?
 
-    init(viewModel: ChartsViewModel, refreshTrigger: Bool = false) {
+    init(
+        viewModel: ChartsViewModel,
+        refreshTrigger: Bool = false,
+        showFilters: Bool = false,
+        focus: PickEntryBreakdown.ChartItemFocus? = nil,
+        onAggregationChange: ((PickEntryBreakdown.Aggregation) -> Void)? = nil,
+        applyPadding: Bool = true
+    ) {
         self.refreshTrigger = refreshTrigger
         _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.showFilters = showFilters
+        self.focus = focus
+        self.onAggregationChange = onAggregationChange
+        self.applyPadding = applyPadding
         _selectedAggregation = State(initialValue: viewModel.skuBreakdownAggregation)
+        _selectedSkuFilter = State(initialValue: viewModel.skuBreakdownFilters.skuIds.first)
+        _selectedMachineFilter = State(initialValue: viewModel.skuBreakdownFilters.machineIds.first)
+        _selectedLocationFilter = State(initialValue: viewModel.skuBreakdownFilters.locationIds.first)
     }
 
     private var orderedPoints: [PickEntryBreakdown.Point] {
         viewModel.skuBreakdownPoints.sorted { $0.start < $1.start }
+    }
+
+    private var availableFilters: PickEntryBreakdown.AvailableFilters {
+        viewModel.skuBreakdownAvailableFilters
     }
 
     var body: some View {
@@ -51,6 +76,10 @@ struct SkuBreakdownChartView: View {
                 .foregroundStyle(.primary)
             }
 
+            if showFilters {
+                filterControls
+            }
+
             if viewModel.isLoadingSkuBreakdown && orderedPoints.isEmpty {
                 ProgressView("Loading")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,20 +104,144 @@ struct SkuBreakdownChartView: View {
                 )
             }
         }
-        .padding()
+        .padding(applyPadding ? .all : .init())
         .task {
+            if let focus {
+                viewModel.updateSkuBreakdownFocus(focus)
+            }
             await viewModel.loadSkuBreakdown(
                 aggregation: viewModel.skuBreakdownAggregation,
-                showBars: viewModel.skuBreakdownShowBars
+                showBars: viewModel.skuBreakdownShowBars,
+                focus: focus ?? viewModel.skuBreakdownFocus,
+                filters: currentFilters
             )
         }
         .onChange(of: viewModel.skuBreakdownAggregation, initial: false) { _, newValue in
             selectedAggregation = newValue
+            onAggregationChange?(newValue)
         }
         .onChange(of: refreshTrigger) { _, _ in
             Task {
                 await viewModel.refreshSkuBreakdown()
             }
+        }
+        .onChange(of: availableFilters) { _, _ in
+            syncSelectionWithAvailableFilters()
+        }
+        .onChange(of: viewModel.skuBreakdownFilters) { _, _ in
+            selectedSkuFilter = viewModel.skuBreakdownFilters.skuIds.first
+            selectedMachineFilter = viewModel.skuBreakdownFilters.machineIds.first
+            selectedLocationFilter = viewModel.skuBreakdownFilters.locationIds.first
+        }
+    }
+
+    private var currentFilters: PickEntryBreakdown.Filters {
+        PickEntryBreakdown.Filters(
+            skuIds: availableFilters.sku.isEmpty ? [] : (selectedSkuFilter.map { [$0] } ?? []),
+            machineIds: availableFilters.machine.isEmpty ? [] : (selectedMachineFilter.map { [$0] } ?? []),
+            locationIds: availableFilters.location.isEmpty ? [] : (selectedLocationFilter.map { [$0] } ?? [])
+        )
+    }
+
+    private var filterControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if !availableFilters.location.isEmpty {
+                    Menu {
+                        Button("All Locations") {
+                            applyFilters(locationId: nil, machineId: selectedMachineFilter, skuId: selectedSkuFilter)
+                        }
+                        ForEach(availableFilters.location) { option in
+                            Button {
+                                applyFilters(locationId: option.id, machineId: selectedMachineFilter, skuId: selectedSkuFilter)
+                            } label: {
+                                HStack {
+                                    Text(option.displayName)
+                                    if selectedLocationFilter == option.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterChip(label: selectedLocationFilter.flatMap { id in
+                            availableFilters.location.first(where: { $0.id == id })?.displayName
+                        } ?? "All Locations")
+                    }
+                }
+
+                if !availableFilters.machine.isEmpty {
+                    Menu {
+                        Button("All Machines") {
+                            applyFilters(locationId: selectedLocationFilter, machineId: nil, skuId: selectedSkuFilter)
+                        }
+                        ForEach(availableFilters.machine) { option in
+                            Button {
+                                applyFilters(locationId: selectedLocationFilter, machineId: option.id, skuId: selectedSkuFilter)
+                            } label: {
+                                HStack {
+                                    Text(option.displayName)
+                                    if selectedMachineFilter == option.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterChip(label: selectedMachineFilter.flatMap { id in
+                            availableFilters.machine.first(where: { $0.id == id })?.displayName
+                        } ?? "All Machines")
+                    }
+                }
+
+                if !availableFilters.sku.isEmpty {
+                    Menu {
+                        Button("All SKUs") {
+                            applyFilters(locationId: selectedLocationFilter, machineId: selectedMachineFilter, skuId: nil)
+                        }
+                        ForEach(availableFilters.sku) { option in
+                            Button {
+                                applyFilters(locationId: selectedLocationFilter, machineId: selectedMachineFilter, skuId: option.id)
+                            } label: {
+                                HStack {
+                                    Text(option.displayName)
+                                    if selectedSkuFilter == option.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterChip(label: selectedSkuFilter.flatMap { id in
+                            availableFilters.sku.first(where: { $0.id == id })?.displayName
+                        } ?? "All SKUs")
+                    }
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func applyFilters(locationId: String?, machineId: String?, skuId: String?) {
+        selectedLocationFilter = locationId
+        selectedMachineFilter = machineId
+        selectedSkuFilter = skuId
+        viewModel.updateSkuBreakdownFilters(currentFilters)
+    }
+
+    private func syncSelectionWithAvailableFilters() {
+        if let locationId = selectedLocationFilter,
+           !availableFilters.location.contains(where: { $0.id == locationId }) {
+            selectedLocationFilter = nil
+        }
+        if let machineId = selectedMachineFilter,
+           !availableFilters.machine.contains(where: { $0.id == machineId }) {
+            selectedMachineFilter = nil
+        }
+        if let skuId = selectedSkuFilter,
+           !availableFilters.sku.contains(where: { $0.id == skuId }) {
+            selectedSkuFilter = nil
         }
     }
 }
@@ -370,6 +523,14 @@ extension SkuPeriod {
         case .week: return .week
         case .month: return .month
         case .quarter: return .quarter
+        }
+    }
+
+    init?(aggregation: PickEntryBreakdown.Aggregation) {
+        switch aggregation {
+        case .week: self = .week
+        case .month: self = .month
+        case .quarter: self = .quarter
         }
     }
 }

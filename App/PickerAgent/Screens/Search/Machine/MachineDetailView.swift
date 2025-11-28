@@ -8,16 +8,19 @@ struct MachineDetailView: View {
     @State private var machineStats: MachineStatsResponse?
     @State private var isLoading = true
     @State private var isLoadingStats = true
-    @State private var machineBreakdown: PickEntryBreakdown?
-    @State private var isLoadingBreakdown = true
-    @State private var breakdownError: String?
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var skuNavigationTarget: MachineDetailSkuNavigation?
     @State private var locationNavigationTarget: MachineDetailLocationNavigation?
+    @StateObject private var chartsViewModel: ChartsViewModel
 
     private let machinesService = MachinesService()
-    private let analyticsService = AnalyticsService()
+
+    init(machineId: String, session: AuthSession) {
+        self.machineId = machineId
+        self.session = session
+        _chartsViewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+    }
 
     var body: some View {
         List {
@@ -76,11 +79,15 @@ struct MachineDetailView: View {
                 .listRowSeparator(.hidden)
 
                 Section {
-                    MachineStatsChartView(
-                        breakdown: machineBreakdown,
-                        isLoading: isLoadingBreakdown,
-                        errorMessage: breakdownError,
-                        selectedPeriod: $selectedPeriod
+                    SkuBreakdownChartView(
+                        viewModel: chartsViewModel,
+                        refreshTrigger: false,
+                        showFilters: true,
+                        focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
+                        onAggregationChange: { newAgg in
+                            selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
+                        },
+                        applyPadding: false
                     )
                 } header: {
                     Text("Recent Activity")
@@ -90,12 +97,18 @@ struct MachineDetailView: View {
         .navigationTitle(machineDisplayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            chartsViewModel.updateSkuBreakdownFocus(
+                PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil)
+            )
+            chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
             await loadMachineDetails()
         }
         .onChange(of: selectedPeriod) { _, _ in
             Task {
                 await loadMachineStats()
-                await loadMachineBreakdown()
+                if chartsViewModel.skuBreakdownAggregation != selectedPeriod.pickEntryAggregation {
+                    chartsViewModel.updateSkuBreakdownAggregation(selectedPeriod.pickEntryAggregation)
+                }
             }
         }
         .navigationDestination(item: $skuNavigationTarget) { target in
@@ -111,7 +124,6 @@ struct MachineDetailView: View {
             machine = try await machinesService.getMachine(id: machineId)
             isLoading = false
             await loadMachineStats()
-            await loadMachineBreakdown()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
@@ -130,37 +142,6 @@ struct MachineDetailView: View {
             machineStats = nil
         }
         isLoadingStats = false
-    }
-
-    private func loadMachineBreakdown() async {
-        isLoadingBreakdown = true
-        breakdownError = nil
-
-        do {
-            let response = try await analyticsService.fetchPickEntryBreakdown(
-                aggregation: selectedPeriod.pickEntryAggregation,
-                focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
-                filters: PickEntryBreakdown.Filters(
-                    skuIds: [],
-                    machineIds: [machineId],
-                    locationIds: []
-                ),
-                showBars: selectedPeriod.pickEntryAggregation.defaultBars,
-                credentials: session.credentials
-            )
-            machineBreakdown = response
-        } catch let authError as AuthError {
-            breakdownError = authError.localizedDescription
-            machineBreakdown = nil
-        } catch let analyticsError as AnalyticsServiceError {
-            breakdownError = analyticsError.localizedDescription
-            machineBreakdown = nil
-        } catch {
-            breakdownError = "We couldn't load chart data right now."
-            machineBreakdown = nil
-        }
-
-        isLoadingBreakdown = false
     }
 
     private var machineDisplayTitle: String {
