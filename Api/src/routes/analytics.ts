@@ -1715,36 +1715,33 @@ function buildDailyBreakdownWindow(
   reference: Date,
   showBars: number,
 ): PickEntryBreakdownWindow {
-  const futureBuckets = 1;
-  const targetBars = Math.max(showBars, futureBuckets + 1);
-  const pastBuckets = Math.max(targetBars - 1 - futureBuckets, 0);
-  const buckets: PickEntryBreakdownBucket[] = [];
+  const todayRange = getTimezoneDayRange({ timeZone, reference });
+  const currentWeekStart = getIsoWeekStart(timeZone, todayRange.start);
+  const twoWeeksAgoStart = new Date(currentWeekStart.getTime() - 2 * WEEK_IN_MS);
+  const tomorrowRange = getTimezoneDayRange({ timeZone, reference, dayOffset: 1 });
 
-  for (let offset = pastBuckets; offset >= -futureBuckets; offset -= 1) {
-    const dayRange = getTimezoneDayRange({ timeZone, dayOffset: -offset, reference });
-    buckets.push({
-      key: `${dayRange.label}-day`,
-      start: dayRange.start,
-      end: dayRange.end,
-      xValue: dayRange.label,
-      dayLabels: [dayRange.label],
-    });
-  }
+  const baselineBuckets = buildDailyBucketsForRange(twoWeeksAgoStart, tomorrowRange.end, timeZone);
+  const targetBucketCount = Math.max(showBars, baselineBuckets.length);
+  const extraDaysNeeded = Math.max(targetBucketCount - baselineBuckets.length, 0);
+  const adjustedStart = extraDaysNeeded > 0
+    ? new Date(twoWeeksAgoStart.getTime() - extraDaysNeeded * DAY_IN_MS)
+    : twoWeeksAgoStart;
+  const buckets =
+    extraDaysNeeded > 0
+      ? buildDailyBucketsForRange(adjustedStart, tomorrowRange.end, timeZone)
+      : baselineBuckets;
 
-  const rangeStart = buckets[0]?.start ?? getTimezoneDayRange({ timeZone, reference }).start;
-  const rangeEnd = buckets[buckets.length - 1]?.end ?? getTimezoneDayRange({ timeZone, reference }).end;
-
-  const previousWeek = getPeriodWindow('week', timeZone, reference, 1);
-  const currentWeek = getPeriodWindow('week', timeZone, reference, 0);
-  const averageBuckets = buildDailyBucketsForRange(previousWeek.start, currentWeek.end, timeZone);
+  const rangeStart = buckets[0]?.start ?? twoWeeksAgoStart;
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? tomorrowRange.end;
+  const averageBuckets = buckets;
 
   return {
     buckets,
     rangeStart,
     rangeEnd,
     averageBuckets,
-    dataRangeStart: previousWeek.start,
-    dataRangeEnd: currentWeek.end,
+    dataRangeStart: rangeStart,
+    dataRangeEnd: rangeEnd,
   };
 }
 
@@ -1753,41 +1750,33 @@ function buildWeeklyBreakdownWindow(
   reference: Date,
   showBars: number,
 ): PickEntryBreakdownWindow {
-  const targetWeeks = Math.max(showBars, 1);
-  const todayRange = getTimezoneDayRange({ timeZone, reference });
-  const currentWeekStart = getIsoWeekStart(timeZone, todayRange.start);
-  const buckets: PickEntryBreakdownBucket[] = [];
+  const twoMonthsAgo = getMonthWindow(timeZone, reference, 2);
+  const nextMonth = getMonthWindow(timeZone, reference, -1);
 
-  // Show current week (offset 0) plus previous weeks only - no future weeks
-  for (let offset = 0; offset < targetWeeks; offset += 1) {
-    const start = new Date(currentWeekStart.getTime() - offset * WEEK_IN_MS);
-    const end = new Date(start.getTime() + WEEK_IN_MS);
-    buckets.push({
-      key: `${formatDateInTimezone(start, timeZone)}-week`,
-      start,
-      end,
-      xValue: `W${getIsoWeekNumber(timeZone, start)}`,
-      dayLabels: buildDayLabelsForRange(start, end, timeZone),
-    });
-  }
+  const rangeStart = getIsoWeekStart(timeZone, twoMonthsAgo.start);
+  const rangeEnd = getIsoWeekStart(timeZone, nextMonth.start);
 
-  // Sort buckets chronologically (oldest to newest) for proper chart display
-  buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const baselineBuckets = buildWeeklyBucketsForRange(rangeStart, rangeEnd, timeZone);
+  const targetWeeks = Math.max(showBars, baselineBuckets.length);
+  const extraWeeksNeeded = Math.max(targetWeeks - baselineBuckets.length, 0);
+  const adjustedStart =
+    extraWeeksNeeded > 0 ? new Date(rangeStart.getTime() - extraWeeksNeeded * WEEK_IN_MS) : rangeStart;
+  const buckets =
+    extraWeeksNeeded > 0
+      ? buildWeeklyBucketsForRange(adjustedStart, rangeEnd, timeZone)
+      : baselineBuckets;
 
-  const rangeStart = buckets[0]?.start ?? currentWeekStart;
-  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date(currentWeekStart.getTime() + WEEK_IN_MS);
-
-  const previousMonth = getMonthWindow(timeZone, reference, 1);
-  const currentMonth = getMonthWindow(timeZone, reference, 0);
-  const averageBuckets = buildWeeklyBucketsForRange(previousMonth.start, currentMonth.end, timeZone);
+  const averageBuckets = buckets;
+  const chartRangeStart = buckets[0]?.start ?? adjustedStart;
+  const chartRangeEnd = buckets[buckets.length - 1]?.end ?? rangeEnd;
 
   return {
     buckets,
-    rangeStart,
-    rangeEnd,
+    rangeStart: chartRangeStart,
+    rangeEnd: chartRangeEnd,
     averageBuckets,
-    dataRangeStart: previousMonth.start,
-    dataRangeEnd: currentMonth.end,
+    dataRangeStart: chartRangeStart,
+    dataRangeEnd: chartRangeEnd,
   };
 }
 
@@ -1796,39 +1785,33 @@ function buildMonthlyBreakdownWindow(
   reference: Date,
   showBars: number,
 ): PickEntryBreakdownWindow {
-  const targetMonths = Math.max(showBars, 1);
-  const todayRange = getTimezoneDayRange({ timeZone, reference });
-  
-  const buckets: PickEntryBreakdownBucket[] = [];
-  // Show current month (offset 0) plus previous months (offset 1, 2, 3...)
-  for (let offset = 0; offset < targetMonths; offset += 1) {
-    const monthStart = getMonthWindow(timeZone, reference, offset);
-    buckets.push({
-      key: `${formatDateInTimezone(monthStart.start, timeZone)}-month`,
-      start: monthStart.start,
-      end: monthStart.end,
-      xValue: new Intl.DateTimeFormat('en-US', { month: 'short', timeZone }).format(monthStart.start),
-      dayLabels: buildDayLabelsForRange(monthStart.start, monthStart.end, timeZone),
-    });
-  }
+  const twoQuartersAgo = getQuarterWindow(timeZone, reference, 2);
+  const nextMonth = getMonthWindow(timeZone, reference, -1);
 
-  // Sort buckets chronologically (oldest to newest) for proper chart display
-  buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const rangeStart = twoQuartersAgo.start;
+  const rangeEnd = nextMonth.start;
 
-  const rangeStart = buckets[0]?.start ?? todayRange.start;
-  const rangeEnd = buckets[buckets.length - 1]?.end ?? todayRange.end;
+  const baselineBuckets = buildMonthlyBucketsForRange(rangeStart, rangeEnd, timeZone);
+  const targetMonths = Math.max(showBars, baselineBuckets.length);
+  const extraMonthsNeeded = Math.max(targetMonths - baselineBuckets.length, 0);
+  const adjustedStart =
+    extraMonthsNeeded > 0 ? getMonthWindow(timeZone, rangeStart, extraMonthsNeeded).start : rangeStart;
+  const buckets =
+    extraMonthsNeeded > 0
+      ? buildMonthlyBucketsForRange(adjustedStart, rangeEnd, timeZone)
+      : baselineBuckets;
 
-  const previousQuarter = getQuarterWindow(timeZone, reference, 1);
-  const currentQuarter = getQuarterWindow(timeZone, reference, 0);
-  const averageBuckets = buildMonthlyBucketsForRange(previousQuarter.start, currentQuarter.end, timeZone);
+  const averageBuckets = buckets;
+  const chartRangeStart = buckets[0]?.start ?? adjustedStart;
+  const chartRangeEnd = buckets[buckets.length - 1]?.end ?? rangeEnd;
 
   return {
     buckets,
-    rangeStart,
-    rangeEnd,
+    rangeStart: chartRangeStart,
+    rangeEnd: chartRangeEnd,
     averageBuckets,
-    dataRangeStart: previousQuarter.start,
-    dataRangeEnd: currentQuarter.end,
+    dataRangeStart: chartRangeStart,
+    dataRangeEnd: chartRangeEnd,
   };
 }
 

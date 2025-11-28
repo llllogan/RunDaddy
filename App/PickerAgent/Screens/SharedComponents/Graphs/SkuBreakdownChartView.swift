@@ -100,9 +100,10 @@ struct PickEntryBarChart: View {
     let timeZoneIdentifier: String
     var showLegend: Bool = true
     var maxHeight: CGFloat = 200
-
+    @State private var scrollPosition: Double = 0
     private struct ChartPoint: Identifiable {
         let id: String
+        let index: Int
         let label: String
         let key: String
         let startDate: Date
@@ -112,8 +113,8 @@ struct PickEntryBarChart: View {
 
     private struct WeekOverlay: Identifiable {
         let id: String
-        let startKey: String
-        let endKey: String
+        let startIndex: Int
+        let endIndex: Int
         let average: Double
     }
 
@@ -129,6 +130,7 @@ struct PickEntryBarChart: View {
         orderedPoints.enumerated().map { index, point in
             ChartPoint(
                 id: "period-\(index)",
+                index: index,
                 label: point.label,
                 key: "p\(index)",
                 startDate: point.start,
@@ -138,32 +140,28 @@ struct PickEntryBarChart: View {
         }
     }
 
-    private var keyByDate: [Date: String] {
-        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.startDate, $0.key) })
-    }
-
-    private var labelsByKey: [String: String] {
-        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.key, axisLabel(for: $0)) })
+    private var labelsByIndex: [Int: String] {
+        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.index, axisLabel(for: $0)) })
     }
 
     private var weekAverageOverlays: [WeekOverlay] {
-        func keyRange(for start: Date, end: Date) -> (String, String)? {
+        func indexRange(for start: Date, end: Date) -> (Int, Int)? {
             let matches = chartPoints.filter { point in
                 point.startDate >= start && point.startDate <= end
             }
-            guard let first = matches.min(by: { $0.key < $1.key }),
-                  let last = matches.max(by: { $0.key < $1.key }) else {
+            guard let first = matches.min(by: { $0.index < $1.index }),
+                  let last = matches.max(by: { $0.index < $1.index }) else {
                 return nil
             }
-            return (first.key, last.key)
+            return (first.index, last.index)
         }
 
         return weekAverages.compactMap { week in
-            if let range = keyRange(for: week.weekStart, end: week.weekEnd) {
-                return WeekOverlay(id: week.id, startKey: range.0, endKey: range.1, average: week.average)
+            if let range = indexRange(for: week.weekStart, end: week.weekEnd) {
+                return WeekOverlay(id: week.id, startIndex: range.0, endIndex: range.1, average: week.average)
             }
-            if let firstKey = chartPoints.first?.key, let lastKey = chartPoints.last?.key {
-                return WeekOverlay(id: week.id, startKey: firstKey, endKey: lastKey, average: week.average)
+            if let firstIndex = chartPoints.first?.index, let lastIndex = chartPoints.last?.index {
+                return WeekOverlay(id: week.id, startIndex: firstIndex, endIndex: lastIndex, average: week.average)
             }
             return nil
         }
@@ -200,8 +198,9 @@ struct PickEntryBarChart: View {
         ForEach(bars) { point in
             ForEach(point.skus) { segment in
                 BarMark(
-                    x: .value("Period", point.key),
-                    y: .value("Pick Entries", segment.totalItems)
+                    x: .value("Period", point.index),
+                    y: .value("Pick Entries", segment.totalItems),
+                    width: .fixed(24)
                 )
                 .foregroundStyle(by: .value("SKU", segment.displayLabel))
                 .cornerRadius(5, style: .continuous)
@@ -215,8 +214,8 @@ struct PickEntryBarChart: View {
     ) -> some ChartContent {
         ForEach(overlays) { overlay in
             RuleMark(
-                xStart: .value("Period Start", overlay.startKey),
-                xEnd: .value("Period End", overlay.endKey),
+                xStart: .value("Period Start", Double(overlay.startIndex) - 0.5),
+                xEnd: .value("Period End", Double(overlay.endIndex) + 0.5),
                 y: .value("Weekly Average", overlay.average)
             )
             .lineStyle(StrokeStyle(lineWidth: 1.5))
@@ -233,27 +232,39 @@ struct PickEntryBarChart: View {
     var body: some View {
         let bars = chartPoints
         let overlays = weekAverageOverlays
-        let axisValues = chartPoints.map(\.key)
+        let axisValues = chartPoints.map(\.index)
         let yMax = maxYValue
+        let visibleCount = aggregation.defaultBars
+        let domainEnd = max((bars.count - 1), (visibleCount - 1), 0)
+        let xDomain: ClosedRange<Int> = 0...domainEnd
 
         return Chart {
             barMarks(bars: bars)
             overlayMarks(overlays: overlays)
         }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: Double(visibleCount))
+        .chartScrollPosition(x: $scrollPosition)
         .chartYAxis {
             AxisMarks(position: .leading)
         }
         .chartXAxis {
             AxisMarks(values: axisValues) { value in
-                if let key = value.as(String.self), let label = labelsByKey[key] {
-                    AxisValueLabel(label)
+                if let index = value.as(Int.self), let label = labelsByIndex[index] {
+                    AxisValueLabel(label, anchor: .center)
                 }
             }
         }
-        .chartXScale(domain: axisValues)
+        .chartXScale(domain: xDomain, range: .plotDimension(padding: 0))
         .chartLegend(showLegend ? .visible : .hidden)
         .chartYScale(domain: 0...yMax)
         .frame(height: maxHeight)
+        .onAppear {
+            scrollPosition = Double(domainEnd)
+        }
+        .onChange(of: domainEnd) { _, newValue in
+            scrollPosition = Double(newValue)
+        }
     }
 }
 
