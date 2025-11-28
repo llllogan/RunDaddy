@@ -23,9 +23,11 @@ struct SearchLocationDetailView: View {
     @State private var showingScheduleSheet = false
     @Environment(\.openURL) private var openURL
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
+    @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
 
     private let locationsService: LocationsServicing = LocationsService()
+    private let authService: AuthServicing = AuthService()
 
     init(locationId: String, session: AuthSession) {
         self.locationId = locationId
@@ -69,7 +71,8 @@ struct SearchLocationDetailView: View {
                             lastPacked: stats.lastPacked,
                             bestSku: stats.bestSku,
                             hoursDisplay: hoursDisplay,
-                            onConfigureHours: { showingScheduleSheet = true }
+                            onConfigureHours: { showingScheduleSheet = true },
+                            canConfigureHours: canConfigureHours
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading stats...")
@@ -88,50 +91,52 @@ struct SearchLocationDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                Section {
-                    SkuBreakdownChartView(
-                        viewModel: chartsViewModel,
-                        refreshTrigger: false,
-                        showFilters: true,
-                        focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId),
-                        onAggregationChange: { newAgg in
-                            selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
-                        },
-                        applyPadding: false
-                    )
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
+                if canViewRecentActivity {
+                    Section {
+                        SkuBreakdownChartView(
+                            viewModel: chartsViewModel,
+                            refreshTrigger: false,
+                            showFilters: true,
+                            focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId),
+                            onAggregationChange: { newAgg in
+                                selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
+                            },
+                            applyPadding: false
+                        )
+                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 26.0))
 
-                    if let stats = locationStats {
-                        SearchLocationPerformanceBento(
-                            percentageChange: stats.percentageChange,
-                            machineSalesShare: stats.machineSalesShare ?? [],
-                            machines: location.machines ?? [],
-                            selectedPeriod: selectedPeriod,
-                            onMachineTap: { navigateToMachineDetail($0) }
-                        )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    } else if !isLoadingStats {
-                        SearchLocationPerformanceBento(
-                            percentageChange: nil,
-                            machineSalesShare: [],
-                            machines: location.machines ?? [],
-                            selectedPeriod: selectedPeriod,
-                            onMachineTap: location.machines?.isEmpty == false ? { machine in
-                                navigateToMachineDetail(machine)
-                            } : nil
-                        )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                        if let stats = locationStats {
+                            SearchLocationPerformanceBento(
+                                percentageChange: stats.percentageChange,
+                                machineSalesShare: stats.machineSalesShare ?? [],
+                                machines: location.machines ?? [],
+                                selectedPeriod: selectedPeriod,
+                                onMachineTap: { navigateToMachineDetail($0) }
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        } else if !isLoadingStats {
+                            SearchLocationPerformanceBento(
+                                percentageChange: nil,
+                                machineSalesShare: [],
+                                machines: location.machines ?? [],
+                                selectedPeriod: selectedPeriod,
+                                onMachineTap: location.machines?.isEmpty == false ? { machine in
+                                    navigateToMachineDetail(machine)
+                                } : nil
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        }
+                    } header: {
+                        Text("Recent Activity")
                     }
-                } header: {
-                    Text("Recent Activity")
                 }
             }
         }
@@ -142,6 +147,7 @@ struct SearchLocationDetailView: View {
                 PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: locationId)
             )
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
+            await loadEffectiveRole()
             await loadLocationDetails()
         }
         .onChange(of: selectedPeriod) { _, _ in
@@ -390,6 +396,49 @@ struct SearchLocationDetailView: View {
 
     private var locationDisplayTitle: String {
         location?.name ?? "Location Details"
+    }
+
+    private var canViewRecentActivity: Bool {
+        guard let role = resolvedRole else { return false }
+        return role == .admin || role == .owner || role == .god
+    }
+
+    private var canConfigureHours: Bool {
+        guard let role = resolvedRole else { return false }
+        return role != .picker
+    }
+
+    private var resolvedRole: UserRole? {
+        if let effectiveRole {
+            return effectiveRole
+        }
+        guard let raw = session.profile.role?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() else {
+            return nil
+        }
+        return UserRole(rawValue: raw)
+    }
+
+    private func loadEffectiveRole() async {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            if let companyRole = profile.currentCompany?.role
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: companyRole) {
+                effectiveRole = userRole
+                return
+            }
+            if let userRoleValue = profile.role?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: userRoleValue) {
+                effectiveRole = userRole
+            }
+        } catch {
+            print("Failed to load effective role: \(error)")
+        }
     }
 
     private func navigateToSkuDetail(_ sku: LocationBestSku) {

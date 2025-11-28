@@ -12,9 +12,11 @@ struct SkuDetailView: View {
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var isUpdatingCheeseStatus = false
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
+    @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
     
     private let skusService = SkusService()
+    private let authService: AuthServicing = AuthService()
 
     init(skuId: String, session: AuthSession) {
         self.skuId = skuId
@@ -70,50 +72,52 @@ struct SkuDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                Section {
-                    SkuBreakdownChartView(
-                        viewModel: chartsViewModel,
-                        refreshTrigger: false,
-                        showFilters: true,
-                        focus: PickEntryBreakdown.ChartItemFocus(skuId: skuId, machineId: nil, locationId: nil),
-                        onAggregationChange: { newAgg in
-                            if let mapped = SkuPeriod(aggregation: newAgg) {
-                                selectedPeriod = mapped
-                            }
-                        },
-                        applyPadding: false
-                    )
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
+                if canViewRecentActivity {
+                    Section {
+                        SkuBreakdownChartView(
+                            viewModel: chartsViewModel,
+                            refreshTrigger: false,
+                            showFilters: true,
+                            focus: PickEntryBreakdown.ChartItemFocus(skuId: skuId, machineId: nil, locationId: nil),
+                            onAggregationChange: { newAgg in
+                                if let mapped = SkuPeriod(aggregation: newAgg) {
+                                    selectedPeriod = mapped
+                                }
+                            },
+                            applyPadding: false
+                        )
+                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 26.0))
 
-                    if let skuStats {
-                        SkuPerformanceBento(
-                            percentageChange: skuStats.percentageChange,
-                            bestMachine: skuStats.bestMachine,
-                            selectedPeriod: selectedPeriod,
-                            onBestMachineTap: { bestMachine in
-                                navigateToMachineDetail(bestMachine)
-                            }
-                        )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    } else if !isLoadingStats {
-                        SkuPerformanceBento(
-                            percentageChange: nil,
-                            bestMachine: nil,
-                            selectedPeriod: selectedPeriod,
-                            onBestMachineTap: nil
-                        )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                        if let skuStats {
+                            SkuPerformanceBento(
+                                percentageChange: skuStats.percentageChange,
+                                bestMachine: skuStats.bestMachine,
+                                selectedPeriod: selectedPeriod,
+                                onBestMachineTap: { bestMachine in
+                                    navigateToMachineDetail(bestMachine)
+                                }
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        } else if !isLoadingStats {
+                            SkuPerformanceBento(
+                                percentageChange: nil,
+                                bestMachine: nil,
+                                selectedPeriod: selectedPeriod,
+                                onBestMachineTap: nil
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        }
+                    } header: {
+                        Text("Recent Activity")
                     }
-                } header: {
-                    Text("Recent Activity")
                 }
             }
         }
@@ -124,6 +128,7 @@ struct SkuDetailView: View {
                 PickEntryBreakdown.ChartItemFocus(skuId: skuId, machineId: nil, locationId: nil)
             )
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
+            await loadEffectiveRole()
             await loadSkuDetails()
         }
         .onChange(of: selectedPeriod) { _, _ in
@@ -197,6 +202,44 @@ struct SkuDetailView: View {
             return code
         }
         return "SKU Details"
+    }
+
+    private var canViewRecentActivity: Bool {
+        guard let role = resolvedRole else { return false }
+        return role == .admin || role == .owner || role == .god
+    }
+
+    private var resolvedRole: UserRole? {
+        if let effectiveRole {
+            return effectiveRole
+        }
+        guard let raw = session.profile.role?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() else {
+            return nil
+        }
+        return UserRole(rawValue: raw)
+    }
+
+    private func loadEffectiveRole() async {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            if let companyRole = profile.currentCompany?.role
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: companyRole) {
+                effectiveRole = userRole
+                return
+            }
+            if let userRoleValue = profile.role?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: userRoleValue) {
+                effectiveRole = userRole
+            }
+        } catch {
+            print("Failed to load effective role: \(error)")
+        }
     }
 
     private func navigateToMachineDetail(_ bestMachine: SkuBestMachine) {

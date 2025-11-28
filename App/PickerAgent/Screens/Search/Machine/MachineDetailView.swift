@@ -12,9 +12,11 @@ struct MachineDetailView: View {
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var skuNavigationTarget: MachineDetailSkuNavigation?
     @State private var locationNavigationTarget: MachineDetailLocationNavigation?
+    @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
 
     private let machinesService = MachinesService()
+    private let authService: AuthServicing = AuthService()
 
     init(machineId: String, session: AuthSession) {
         self.machineId = machineId
@@ -72,46 +74,48 @@ struct MachineDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                Section {
-                    SkuBreakdownChartView(
-                        viewModel: chartsViewModel,
-                        refreshTrigger: false,
-                        showFilters: true,
-                        focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
-                        onAggregationChange: { newAgg in
-                            selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
-                        },
-                        applyPadding: false
-                    )
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
-                    
-                    if let machineStats {
-                        MachinePerformanceBento(
-                            stats: machineStats,
-                            selectedPeriod: selectedPeriod,
-                            onBestSkuTap: { bestSku in
-                                navigateToSkuDetail(bestSku)
-                            }
+                if canViewRecentActivity {
+                    Section {
+                        SkuBreakdownChartView(
+                            viewModel: chartsViewModel,
+                            refreshTrigger: false,
+                            showFilters: true,
+                            focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
+                            onAggregationChange: { newAgg in
+                                selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
+                            },
+                            applyPadding: false
                         )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                    } else if !isLoadingStats {
-                        MachinePerformanceBento(
-                            stats: nil,
-                            selectedPeriod: selectedPeriod,
-                            onBestSkuTap: nil
-                        )
-                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 26.0))
+                        
+                        if let machineStats {
+                            MachinePerformanceBento(
+                                stats: machineStats,
+                                selectedPeriod: selectedPeriod,
+                                onBestSkuTap: { bestSku in
+                                    navigateToSkuDetail(bestSku)
+                                }
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        } else if !isLoadingStats {
+                            MachinePerformanceBento(
+                                stats: nil,
+                                selectedPeriod: selectedPeriod,
+                                onBestSkuTap: nil
+                            )
+                            .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        }
+                    } header: {
+                        Text("Recent Activity")
                     }
-                } header: {
-                    Text("Recent Activity")
                 }
             }
         }
@@ -122,6 +126,7 @@ struct MachineDetailView: View {
                 PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil)
             )
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
+            await loadEffectiveRole()
             await loadMachineDetails()
         }
         .onChange(of: selectedPeriod) { _, _ in
@@ -173,6 +178,45 @@ struct MachineDetailView: View {
             return code
         }
         return "Machine Details"
+    }
+
+    private var canViewRecentActivity: Bool {
+        guard let role = resolvedRole else { return false }
+        return role == .admin || role == .owner || role == .god
+    }
+
+    private var resolvedRole: UserRole? {
+        if let effectiveRole {
+            return effectiveRole
+        }
+        guard let raw = session.profile.role?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() else {
+            return nil
+        }
+        return UserRole(rawValue: raw)
+    }
+
+    private func loadEffectiveRole() async {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            if let companyRole = profile.currentCompany?.role
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: companyRole) {
+                effectiveRole = userRole
+                return
+            }
+            if let userRoleValue = profile.role?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
+               let userRole = UserRole(rawValue: userRoleValue) {
+                effectiveRole = userRole
+            }
+        } catch {
+            // Leave effectiveRole nil on failure; guard will default to hiding.
+            print("Failed to load effective role: \(error)")
+        }
     }
 
     private func navigateToSkuDetail(_ bestSku: MachineBestSku) {

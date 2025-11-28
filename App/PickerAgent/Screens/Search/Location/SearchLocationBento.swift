@@ -6,19 +6,22 @@ struct SearchLocationInfoBento: View {
     let bestSku: LocationBestSku?
     let hoursDisplay: HoursDisplay?
     let onConfigureHours: (() -> Void)?
+    let canConfigureHours: Bool
     
     init(
         location: Location,
         lastPacked: LocationLastPacked?,
         bestSku: LocationBestSku?,
         hoursDisplay: HoursDisplay? = nil,
-        onConfigureHours: (() -> Void)? = nil
+        onConfigureHours: (() -> Void)? = nil,
+        canConfigureHours: Bool = true
     ) {
         self.location = location
         self.lastPacked = lastPacked
         self.bestSku = bestSku
         self.hoursDisplay = hoursDisplay
         self.onConfigureHours = onConfigureHours
+        self.canConfigureHours = canConfigureHours
     }
 
     private var items: [BentoItem] {
@@ -34,7 +37,7 @@ struct SearchLocationInfoBento: View {
             )
         )
 
-        if let hoursDisplay, let onConfigureHours {
+        if let hoursDisplay, let onConfigureHours, canConfigureHours {
             cards.append(
                 BentoItem(
                     title: "Hours",
