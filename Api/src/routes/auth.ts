@@ -169,7 +169,7 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
 });
 
 // Authenticates a user and establishes a session for the selected company.
-router.post('/login', setLogConfig({ level: 'detailed', maxResponseLength: 100 }), async (req, res) => {
+router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -658,7 +658,7 @@ router.post('/logout', setLogConfig({ level: 'minimal' }), (req, res) => {
 });
 
 // Returns the authenticated user's profile and company context.
-router.get('/me', authenticate, setLogConfig({ level: 'basic', maxResponseLength: 200 }), async (req, res) => {
+router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

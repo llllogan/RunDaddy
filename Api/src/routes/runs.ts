@@ -1040,7 +1040,6 @@ router.post('/:runId/assignment', setLogConfig({ level: 'minimal' }), async (req
   }
 
   const run = await ensureRun(req.auth.companyId, runId);
-  console.log('Run found:', !!run, run?.companyId);
   if (!run) {
     return res.status(404).json({ error: 'Run not found' });
   }

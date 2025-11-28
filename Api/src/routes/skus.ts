@@ -344,28 +344,6 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     previousPositiveBuckets > 0 ? previousTotal / previousPositiveBuckets : previousTotal;
 
   const percentageChange = buildPercentageChange(currentAverage, previousAverage);
-  console.log('[stats] sku percentage change', {
-    skuId,
-    period,
-    timeZone,
-    periodStart: formatAppDate(periodStart, timeZone),
-    periodEnd: formatAppDate(periodEnd, timeZone),
-    previousPeriodStart: formatAppDate(previousPeriodStart, timeZone),
-    previousPeriodEnd: formatAppDate(previousPeriodEnd, timeZone),
-    currentTotal,
-    previousTotal,
-    currentPositiveBuckets,
-    previousPositiveBuckets,
-    currentAverage,
-    previousAverage,
-    percentageChange,
-    currentBuckets: currentBucketSummaries
-      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
-      .map(bucket => ({ label: bucket.label, total: bucket.total })),
-    previousBuckets: previousBucketSummaries
-      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
-      .map(bucket => ({ label: bucket.label, total: bucket.total })),
-  });
   const bestMachine = await getSkuBestMachine(
     skuId,
     req.auth!.companyId,

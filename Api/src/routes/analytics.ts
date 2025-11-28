@@ -348,36 +348,6 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     timezoneContext.timeZone,
   );
 
-  console.log('[breakdown] average computation', {
-    aggregation: breakdownRequest.aggregation,
-    timeZone: timezoneContext.timeZone,
-    dataRangeStart: breakdownWindow.dataRangeStart.toISOString(),
-    dataRangeEnd: breakdownWindow.dataRangeEnd.toISOString(),
-    chartRangeStart: breakdownWindow.rangeStart.toISOString(),
-    chartRangeEnd: breakdownWindow.rangeEnd.toISOString(),
-    averageBuckets: breakdownWindow.averageBuckets.map((b) => ({
-      key: b.key,
-      start: b.start.toISOString(),
-      end: b.end.toISOString(),
-      xValue: b.xValue,
-      dayLabels: b.dayLabels,
-    })),
-    displayBuckets: breakdownWindow.buckets.map((b) => ({
-      key: b.key,
-      start: b.start.toISOString(),
-      end: b.end.toISOString(),
-      xValue: b.xValue,
-      dayLabels: b.dayLabels,
-    })),
-    averages,
-    points: points.map(point => ({
-      xValue: point.xValue,
-      start: point.start,
-      end: point.end,
-      totalItems: point.totalItems,
-    })),
-  });
-
   const availableFilters = buildPickEntryBreakdownAvailableFilters(
     rows,
     breakdownRequest.availableFilterDimensions,

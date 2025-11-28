@@ -221,28 +221,6 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     previousPositiveBuckets > 0 ? previousTotal / previousPositiveBuckets : previousTotal;
 
   const percentageChange = buildPercentageChange(currentAverage, previousAverage);
-  console.log('[stats] location percentage change', {
-    locationId,
-    period,
-    timeZone,
-    periodStart: formatAppDate(periodStart, timeZone),
-    periodEnd: formatAppDate(periodEnd, timeZone),
-    previousPeriodStart: formatAppDate(previousPeriodStart, timeZone),
-    previousPeriodEnd: formatAppDate(previousPeriodEnd, timeZone),
-    currentTotal,
-    previousTotal,
-    currentPositiveBuckets,
-    previousPositiveBuckets,
-    currentAverage,
-    previousAverage,
-    percentageChange,
-    currentBuckets: currentBucketSummaries
-      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
-      .map(bucket => ({ label: bucket.label, total: bucket.total })),
-    previousBuckets: previousBucketSummaries
-      .filter(bucket => bucket.total > 0 && bucket.isInPeriod)
-      .map(bucket => ({ label: bucket.label, total: bucket.total })),
-  });
 
   const [bestMachine, bestSku, lastPacked] = await Promise.all([
     getLocationBestMachine(locationId, req.auth.companyId, periodStart, periodEnd),
