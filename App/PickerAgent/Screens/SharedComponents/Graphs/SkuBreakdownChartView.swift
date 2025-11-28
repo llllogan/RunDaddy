@@ -103,9 +103,9 @@ struct PickEntryBarChart: View {
     @State private var scrollPosition: Double = 0
     private var barWidth: Double {
         switch aggregation {
-        case .week: return 24
-        case .month: return 32
-        case .quarter: return 40
+        case .week: return 30
+        case .month: return 36
+        case .quarter: return 55
         }
     }
     private struct ChartPoint: Identifiable {
