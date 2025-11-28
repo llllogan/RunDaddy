@@ -221,17 +221,11 @@ struct PickEntryBarChart: View {
             )
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .foregroundStyle(Color(.secondaryLabel))
-
-            PointMark(
-                x: .value("Label Anchor", overlay.startKey),
-                y: .value("Weekly Average", overlay.average)
-            )
-            .opacity(0)
             .annotation(position: .top, alignment: .leading) {
                 Text(String(format: "avg %.0f", overlay.average))
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(Color(.secondaryLabel))
-                    .padding(.leading, -16)
+                    .offset(x: 2, y: 0)
             }
         }
     }
