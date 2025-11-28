@@ -50,13 +50,7 @@ struct SkuDetailView: View {
                             sku: sku,
                             isUpdatingCheeseStatus: isUpdatingCheeseStatus,
                             onToggleCheeseStatus: { toggleCheeseStatus() },
-                            mostRecentPick: skuStats.mostRecentPick,
-                            percentageChange: skuStats.percentageChange,
-                            bestMachine: skuStats.bestMachine,
-                            selectedPeriod: selectedPeriod,
-                            onBestMachineTap: { bestMachine in
-                                navigateToMachineDetail(bestMachine)
-                            }
+                            mostRecentPick: skuStats.mostRecentPick
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -89,6 +83,35 @@ struct SkuDetailView: View {
                         },
                         applyPadding: false
                     )
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
+
+                    if let skuStats {
+                        SkuPerformanceBento(
+                            percentageChange: skuStats.percentageChange,
+                            bestMachine: skuStats.bestMachine,
+                            selectedPeriod: selectedPeriod,
+                            onBestMachineTap: { bestMachine in
+                                navigateToMachineDetail(bestMachine)
+                            }
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else if !isLoadingStats {
+                        SkuPerformanceBento(
+                            percentageChange: nil,
+                            bestMachine: nil,
+                            selectedPeriod: selectedPeriod,
+                            onBestMachineTap: nil
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
                 } header: {
                     Text("Recent Activity")
                 }

@@ -66,14 +66,8 @@ struct SearchLocationDetailView: View {
                     if let stats = locationStats {
                         SearchLocationInfoBento(
                             location: location,
-                            machines: location.machines ?? [],
                             lastPacked: stats.lastPacked,
-                            percentageChange: stats.percentageChange,
                             bestSku: stats.bestSku,
-                            machineSalesShare: stats.machineSalesShare ?? [],
-                            selectedPeriod: selectedPeriod,
-                            onBestSkuTap: { navigateToSkuDetail($0) },
-                            onMachineTap: { navigateToMachineDetail($0) },
                             hoursDisplay: hoursDisplay,
                             onConfigureHours: { showingScheduleSheet = true }
                         )
@@ -105,6 +99,37 @@ struct SearchLocationDetailView: View {
                         },
                         applyPadding: false
                     )
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
+
+                    if let stats = locationStats {
+                        SearchLocationPerformanceBento(
+                            percentageChange: stats.percentageChange,
+                            machineSalesShare: stats.machineSalesShare ?? [],
+                            machines: location.machines ?? [],
+                            selectedPeriod: selectedPeriod,
+                            onMachineTap: { navigateToMachineDetail($0) }
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else if !isLoadingStats {
+                        SearchLocationPerformanceBento(
+                            percentageChange: nil,
+                            machineSalesShare: [],
+                            machines: location.machines ?? [],
+                            selectedPeriod: selectedPeriod,
+                            onMachineTap: location.machines?.isEmpty == false ? { machine in
+                                navigateToMachineDetail(machine)
+                            } : nil
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
                 } header: {
                     Text("Recent Activity")
                 }

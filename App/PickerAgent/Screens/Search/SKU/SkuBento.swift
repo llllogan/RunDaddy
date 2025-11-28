@@ -12,10 +12,6 @@ struct SkuInfoBento: View {
     let isUpdatingCheeseStatus: Bool
     let onToggleCheeseStatus: () -> Void
     let mostRecentPick: MostRecentPick?
-    let percentageChange: SkuPercentageChange?
-    let bestMachine: SkuBestMachine?
-    let selectedPeriod: SkuPeriod?
-    let onBestMachineTap: ((SkuBestMachine) -> Void)?
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -56,8 +52,6 @@ struct SkuInfoBento: View {
                       symbolTint: .blue)
         )
         
-        
-        
         cards.append(
             BentoItem(title: "Cheese Tub",
                       value: sku.isCheeseAndCrackers ? "Enabled" : "Disabled",
@@ -82,37 +76,6 @@ struct SkuInfoBento: View {
                         }
                     ))
         )
-        
-        
-        
-        cards.append(
-            BentoItem(title: "Pack Trend",
-                      value: formatPercentageChange(percentageChange),
-                      subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
-                      symbolName: trendSymbol(percentageChange?.trend),
-                      symbolTint: trendColor(percentageChange?.trend),
-                      isProminent: true)
-        )
-
-        if let bestMachine = bestMachine {
-            cards.append(
-                BentoItem(title: "Best Machine",
-                          value: (bestMachine.machineName?.isEmpty == false ? bestMachine.machineName : nil) ?? bestMachine.machineCode,
-                          subtitle: bestMachine.locationName ?? bestMachine.machineCode,
-                          symbolName: "building",
-                          symbolTint: .purple,
-                          onTap: { onBestMachineTap?(bestMachine) },
-                          showsChevron: true)
-            )
-        } else {
-            cards.append(
-                BentoItem(title: "Best Machine",
-                          value: "No data",
-                          subtitle: "No machine data yet",
-                          symbolName: "building",
-                          symbolTint: .purple)
-            )
-        }
         
         return cards
     }
@@ -154,46 +117,6 @@ struct SkuInfoBento: View {
         }
         return SkuInfoBento.basicIsoFormatter.date(from: dateString)
     }
-    
-    private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
-        guard let change = change else { return "No Data" }
-        return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
-    }
-
-    private func formatTrendSubtitle(_ trend: String?, period: SkuPeriod?) -> String {
-        switch trend {
-        case "up":
-            return "Up from previous \(period?.displayName ?? "period")"
-        case "down":
-            return "Down from previous \(period?.displayName ?? "period")"
-        case "neutral":
-            return "Stable vs previous \(period?.displayName ?? "period")"
-        default:
-            return "No data"
-        }
-    }
-    
-    private func trendSymbol(_ trend: String?) -> String {
-        switch trend {
-        case "up":
-            return "arrow.up.forward"
-        case "down":
-            return "arrow.down.right"
-        default:
-            return "minus"
-        }
-    }
-    
-    private func trendColor(_ trend: String?) -> Color {
-        switch trend {
-        case "up":
-            return .green
-        case "down":
-            return .red
-        default:
-            return .gray
-        }
-    }
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -213,4 +136,95 @@ struct SkuInfoBento: View {
         formatter.locale = Locale.current
         return formatter
     }()
+}
+
+struct SkuPerformanceBento: View {
+    let percentageChange: SkuPercentageChange?
+    let bestMachine: SkuBestMachine?
+    let selectedPeriod: SkuPeriod?
+    let onBestMachineTap: ((SkuBestMachine) -> Void)?
+
+    private var items: [BentoItem] {
+        [
+            packTrendCard,
+            bestMachineCard
+        ]
+    }
+
+    private var packTrendCard: BentoItem {
+        BentoItem(
+            title: "Pack Trend",
+            value: formatPercentageChange(percentageChange),
+            subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
+            symbolName: trendSymbol(percentageChange?.trend),
+            symbolTint: trendColor(percentageChange?.trend),
+            isProminent: true
+        )
+    }
+
+    private var bestMachineCard: BentoItem {
+        guard let bestMachine else {
+            return BentoItem(
+                title: "Best Machine",
+                value: "No data",
+                subtitle: "No machine data yet",
+                symbolName: "building",
+                symbolTint: .purple
+            )
+        }
+
+        return BentoItem(
+            title: "Best Machine",
+            value: (bestMachine.machineName?.isEmpty == false ? bestMachine.machineName : nil) ?? bestMachine.machineCode,
+            subtitle: bestMachine.locationName ?? bestMachine.machineCode,
+            symbolName: "building",
+            symbolTint: .purple,
+            onTap: { onBestMachineTap?(bestMachine) },
+            showsChevron: true
+        )
+    }
+
+    var body: some View {
+        StaggeredBentoGrid(items: items, columnCount: 2)
+    }
+
+    private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
+        guard let change = change else { return "No Data" }
+        return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
+    }
+
+    private func formatTrendSubtitle(_ trend: String?, period: SkuPeriod?) -> String {
+        switch trend {
+        case "up":
+            return "Up from previous \(period?.displayName ?? "period")"
+        case "down":
+            return "Down from previous \(period?.displayName ?? "period")"
+        case "neutral":
+            return "Stable vs previous \(period?.displayName ?? "period")"
+        default:
+            return "No data"
+        }
+    }
+
+    private func trendSymbol(_ trend: String?) -> String {
+        switch trend {
+        case "up":
+            return "arrow.up.forward"
+        case "down":
+            return "arrow.down.right"
+        default:
+            return "minus"
+        }
+    }
+
+    private func trendColor(_ trend: String?) -> Color {
+        switch trend {
+        case "up":
+            return .green
+        case "down":
+            return .red
+        default:
+            return .gray
+        }
+    }
 }

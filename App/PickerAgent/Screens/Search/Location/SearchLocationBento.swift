@@ -2,45 +2,23 @@ import SwiftUI
 
 struct SearchLocationInfoBento: View {
     let location: Location
-    let machines: [LocationMachine]
     let lastPacked: LocationLastPacked?
-    let percentageChange: SkuPercentageChange?
     let bestSku: LocationBestSku?
-    let machineSalesShare: [LocationMachineSalesShare]
-    let selectedPeriod: SkuPeriod?
-    let onBestSkuTap: ((LocationBestSku) -> Void)?
-    let onMachineTap: ((LocationMachine) -> Void)?
     let hoursDisplay: HoursDisplay?
     let onConfigureHours: (() -> Void)?
     
     init(
         location: Location,
-        machines: [LocationMachine],
         lastPacked: LocationLastPacked?,
-        percentageChange: SkuPercentageChange?,
         bestSku: LocationBestSku?,
-        machineSalesShare: [LocationMachineSalesShare],
-        selectedPeriod: SkuPeriod?,
-        onBestSkuTap: ((LocationBestSku) -> Void)? = nil,
-        onMachineTap: ((LocationMachine) -> Void)? = nil,
         hoursDisplay: HoursDisplay? = nil,
         onConfigureHours: (() -> Void)? = nil
     ) {
         self.location = location
-        self.machines = machines
         self.lastPacked = lastPacked
-        self.percentageChange = percentageChange
         self.bestSku = bestSku
-        self.machineSalesShare = machineSalesShare
-        self.selectedPeriod = selectedPeriod
-        self.onBestSkuTap = onBestSkuTap
-        self.onMachineTap = onMachineTap
         self.hoursDisplay = hoursDisplay
         self.onConfigureHours = onConfigureHours
-    }
-
-    private var machineShareLookup: [String: LocationMachineSalesShare] {
-        Dictionary(uniqueKeysWithValues: machineSalesShare.map { ($0.machineId, $0) })
     }
 
     private var items: [BentoItem] {
@@ -116,97 +94,8 @@ struct SearchLocationInfoBento: View {
 //            )
 //        }
         
-        cards.append(
-            BentoItem(
-                title: "Share of Sales",
-                value: "",
-                symbolName: "building.2",
-                symbolTint: .purple,
-                customContent: AnyView(
-                    VStack(alignment: .leading, spacing: 8) {
-                        if machines.isEmpty {
-                            Text("No machines")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .italic()
-                        } else {
-                            ForEach(machinesBySalesShare) { machine in
-                                machineRow(for: machine)
-                                    .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                )
-            )
-        )
-        
-        cards.append(
-            BentoItem(
-                title: "Pack Trend",
-                value: formatPercentageChange(percentageChange),
-                subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
-                symbolName: trendSymbol(percentageChange?.trend),
-                symbolTint: trendColor(percentageChange?.trend),
-                isProminent: true
-            )
-        )
-
-        
 
         return cards
-    }
-
-    @ViewBuilder
-    private func machineRow(for machine: LocationMachine) -> some View {
-        let isBestMachine = bestMachineId == machine.id
-
-        let row = VStack(alignment: .leading, spacing: 4) {
-            if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !description.isEmpty {
-                Text(description)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
-
-            if let machineType = machine.machineType {
-                Text(machineType.name)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .center, spacing: 8) {
-                InfoChip(
-                    title: machineShareText(for: machine),
-                    date: nil,
-                    text: nil,
-                    colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
-                    foregroundColour: isBestMachine ? .green : .blue,
-                    icon: nil
-                )
-                if onMachineTap != nil {
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-
-        if let onMachineTap {
-            Button {
-                onMachineTap(machine)
-            } label: {
-                row
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        } else {
-            row
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 
     private var addressValue: String {
@@ -263,6 +152,169 @@ struct SearchLocationInfoBento: View {
         return SearchLocationInfoBento.dayMonthFormatter.string(from: date)
     }
 
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        formatter.locale = Locale.current
+        return formatter
+    }()
+}
+
+struct HoursDisplay {
+    let opening: String
+    let closing: String
+    let dwell: String
+}
+
+struct SearchLocationPerformanceBento: View {
+    let percentageChange: SkuPercentageChange?
+    let machineSalesShare: [LocationMachineSalesShare]
+    let machines: [LocationMachine]
+    let selectedPeriod: SkuPeriod?
+    let onMachineTap: ((LocationMachine) -> Void)?
+
+    private var items: [BentoItem] {
+        [
+            packTrendCard,
+            shareOfSalesCard
+        ]
+    }
+
+    private var packTrendCard: BentoItem {
+        BentoItem(
+            title: "Pack Trend",
+            value: formatPercentageChange(percentageChange),
+            subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
+            symbolName: trendSymbol(percentageChange?.trend),
+            symbolTint: trendColor(percentageChange?.trend),
+            isProminent: true
+        )
+    }
+
+    private var shareOfSalesCard: BentoItem {
+        BentoItem(
+            title: "Share of Sales",
+            value: "",
+            symbolName: "building.2",
+            symbolTint: .purple,
+            customContent: AnyView(
+                VStack(alignment: .leading, spacing: 8) {
+                    if machines.isEmpty {
+                        Text("No machines")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .italic()
+                    } else {
+                        ForEach(machinesBySalesShare) { machine in
+                            machineRow(for: machine)
+                                .padding(.vertical, 2)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        )
+    }
+
+    @ViewBuilder
+    private func machineRow(for machine: LocationMachine) -> some View {
+        let isBestMachine = bestMachineId == machine.id
+
+        let row = VStack(alignment: .leading, spacing: 4) {
+            if let description = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !description.isEmpty {
+                Text(description)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            if let machineType = machine.machineType {
+                Text(machineType.name)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                InfoChip(
+                    title: machineShareText(for: machine),
+                    date: nil,
+                    text: nil,
+                    colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
+                    foregroundColour: isBestMachine ? .green : .blue,
+                    icon: nil
+                )
+                if onMachineTap != nil {
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let onMachineTap {
+            Button {
+                onMachineTap(machine)
+            } label: {
+                row
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            row
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var machineShareLookup: [String: LocationMachineSalesShare] {
+        Dictionary(uniqueKeysWithValues: machineSalesShare.map { ($0.machineId, $0) })
+    }
+
+    private func machineShareText(for machine: LocationMachine) -> String {
+        machineShareLookup[machine.id]?.roundedPercentageText ?? "0% of sales"
+    }
+
+    private func machineShareValue(for machine: LocationMachine) -> Double {
+        machineShareLookup[machine.id]?.percentage ?? 0
+    }
+
+    private var machinesBySalesShare: [LocationMachine] {
+        machines.sorted { first, second in
+            let firstShare = machineShareValue(for: first)
+            let secondShare = machineShareValue(for: second)
+            if firstShare == secondShare {
+                return first.id < second.id
+            }
+            return firstShare > secondShare
+        }
+    }
+
+    private var bestMachineId: String? {
+        guard let machine = machinesBySalesShare.first,
+              machineShareValue(for: machine) > 0 else {
+            return nil
+        }
+        return machine.id
+    }
+
+    var body: some View {
+        StaggeredBentoGrid(items: items, columnCount: 2)
+    }
+
     private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
         guard let change = change else { return "No data" }
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
@@ -302,58 +354,6 @@ struct SearchLocationInfoBento: View {
             return .gray
         }
     }
-
-    private func machineShareText(for machine: LocationMachine) -> String {
-        machineShareLookup[machine.id]?.roundedPercentageText ?? "0% of sales"
-    }
-
-    private func machineShareValue(for machine: LocationMachine) -> Double {
-        machineShareLookup[machine.id]?.percentage ?? 0
-    }
-
-    private var machinesBySalesShare: [LocationMachine] {
-        machines.sorted { first, second in
-            let firstShare = machineShareValue(for: first)
-            let secondShare = machineShareValue(for: second)
-            if firstShare == secondShare {
-                return first.id < second.id
-            }
-            return firstShare > secondShare
-        }
-    }
-
-    private var bestMachineId: String? {
-        guard let machine = machinesBySalesShare.first,
-              machineShareValue(for: machine) > 0 else {
-            return nil
-        }
-        return machine.id
-    }
-
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private static let basicIsoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    private static let dayMonthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        formatter.locale = Locale.current
-        return formatter
-    }()
-}
-
-struct HoursDisplay {
-    let opening: String
-    let closing: String
-    let dwell: String
 }
 
 private struct HoursSummaryView: View {
