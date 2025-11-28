@@ -343,10 +343,30 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
   const averages = buildPickEntryBreakdownAverages(
     breakdownRequest.aggregation,
     breakdownWindow.averageBuckets,
+    breakdownWindow.buckets,
     dailyTotals,
     timezoneContext.timeZone,
-    { start: breakdownWindow.rangeStart, end: breakdownWindow.rangeEnd },
   );
+
+  console.log('[breakdown] average computation', {
+    aggregation: breakdownRequest.aggregation,
+    timeZone: timezoneContext.timeZone,
+    dataRangeStart: breakdownWindow.dataRangeStart.toISOString(),
+    dataRangeEnd: breakdownWindow.dataRangeEnd.toISOString(),
+    chartRangeStart: breakdownWindow.rangeStart.toISOString(),
+    chartRangeEnd: breakdownWindow.rangeEnd.toISOString(),
+    averageBuckets: breakdownWindow.averageBuckets.map((b) => ({
+      key: b.key,
+      start: b.start.toISOString(),
+      end: b.end.toISOString(),
+    })),
+    displayBuckets: breakdownWindow.buckets.map((b) => ({
+      key: b.key,
+      start: b.start.toISOString(),
+      end: b.end.toISOString(),
+    })),
+    averages,
+  });
 
   const availableFilters = buildPickEntryBreakdownAvailableFilters(
     rows,
@@ -1697,13 +1717,17 @@ function buildDailyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? getTimezoneDayRange({ timeZone, reference }).start;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? getTimezoneDayRange({ timeZone, reference }).end;
 
+  const previousWeek = getPeriodWindow('week', timeZone, reference, 1);
+  const currentWeek = getPeriodWindow('week', timeZone, reference, 0);
+  const averageBuckets = buildDailyBucketsForRange(previousWeek.start, currentWeek.end, timeZone);
+
   return {
     buckets,
     rangeStart,
     rangeEnd,
-    averageBuckets: buckets,
-    dataRangeStart: rangeStart,
-    dataRangeEnd: rangeEnd,
+    averageBuckets,
+    dataRangeStart: previousWeek.start,
+    dataRangeEnd: currentWeek.end,
   };
 }
 
@@ -1733,13 +1757,17 @@ function buildWeeklyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? currentWeekStart;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date(currentWeekStart.getTime() + WEEK_IN_MS);
 
+  const previousMonth = getMonthWindow(timeZone, reference, 1);
+  const currentMonth = getMonthWindow(timeZone, reference, 0);
+  const averageBuckets = buildWeeklyBucketsForRange(previousMonth.start, currentMonth.end, timeZone);
+
   return {
     buckets,
     rangeStart,
     rangeEnd,
-    averageBuckets: buckets,
-    dataRangeStart: rangeStart,
-    dataRangeEnd: rangeEnd,
+    averageBuckets,
+    dataRangeStart: previousMonth.start,
+    dataRangeEnd: currentMonth.end,
   };
 }
 
@@ -1768,13 +1796,17 @@ function buildMonthlyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? currentMonthWindow.start;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? currentMonthWindow.end;
 
+  const previousQuarter = getQuarterWindow(timeZone, reference, 1);
+  const currentQuarter = getQuarterWindow(timeZone, reference, 0);
+  const averageBuckets = buildMonthlyBucketsForRange(previousQuarter.start, currentQuarter.end, timeZone);
+
   return {
     buckets,
     rangeStart,
     rangeEnd,
-    averageBuckets: buckets,
-    dataRangeStart: rangeStart,
-    dataRangeEnd: rangeEnd,
+    averageBuckets,
+    dataRangeStart: previousQuarter.start,
+    dataRangeEnd: currentQuarter.end,
   };
 }
 
@@ -1921,12 +1953,86 @@ function buildDailyTotalsFromRows(
   return totals;
 }
 
+function buildDailyBucketsForRange(start: Date, end: Date, timeZone: string): PickEntryBreakdownBucket[] {
+  const buckets: PickEntryBreakdownBucket[] = [];
+  let cursor = start;
+  while (cursor < end) {
+    const dayRange = getTimezoneDayRange({ timeZone, reference: cursor });
+    buckets.push({
+      key: `${dayRange.label}-avg-day`,
+      start: dayRange.start,
+      end: dayRange.end,
+      xValue: dayRange.label,
+      dayLabels: [dayRange.label],
+    });
+    cursor = dayRange.end;
+  }
+  return buckets;
+}
+
+function resolveDisplaySpan(
+  periodStart: Date,
+  periodEnd: Date,
+  displayBuckets: PickEntryBreakdownBucket[],
+): { start: Date; end: Date } {
+  const candidates = displayBuckets
+    .filter((bucket) => bucket.start < periodEnd && bucket.end > periodStart)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  if (candidates.length === 0) {
+    return { start: periodStart, end: periodEnd };
+  }
+
+  return {
+    start: candidates[0]!.start,
+    end: candidates[candidates.length - 1]!.end,
+  };
+}
+
+function buildWeeklyBucketsForRange(start: Date, end: Date, timeZone: string): PickEntryBreakdownBucket[] {
+  const buckets: PickEntryBreakdownBucket[] = [];
+  let cursor = getIsoWeekStart(timeZone, start);
+  while (cursor < end) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = new Date(bucketStart.getTime() + WEEK_IN_MS);
+    buckets.push({
+      key: `${formatDateInTimezone(bucketStart, timeZone)}-avg-week`,
+      start: bucketStart,
+      end: bucketEnd,
+      xValue: `W${getIsoWeekNumber(timeZone, bucketStart)}`,
+      dayLabels: buildDayLabelsForRange(bucketStart, bucketEnd, timeZone),
+    });
+    cursor = bucketEnd;
+  }
+  return buckets;
+}
+
+function buildMonthlyBucketsForRange(start: Date, end: Date, timeZone: string): PickEntryBreakdownBucket[] {
+  const buckets: PickEntryBreakdownBucket[] = [];
+  let cursor = getMonthWindow(timeZone, start, 0).start;
+  while (cursor < end) {
+    const window = getMonthWindow(timeZone, cursor, 0);
+    buckets.push({
+      key: `${formatDateInTimezone(window.start, timeZone)}-avg-month`,
+      start: window.start,
+      end: window.end,
+      xValue: formatMonthLabel(window.start, timeZone),
+      dayLabels: buildDayLabelsForRange(window.start, window.end, timeZone),
+    });
+    cursor = window.end;
+  }
+  return buckets;
+}
+
 function buildPickEntryBreakdownAverages(
   aggregation: PickEntryAggregation,
   buckets: PickEntryBreakdownBucket[],
+  displayBuckets: PickEntryBreakdownBucket[],
   dailyTotals: Map<string, number>,
   timeZone: string,
 ): PickEntryBreakdownAverage[] {
+  const displaySpanForPeriod = (start: Date, end: Date) => resolveDisplaySpan(start, end, displayBuckets);
+
   if (aggregation === 'week') {
     // Group by ISO week to keep the original week overlay behavior
     const weekGroups = new Map<
@@ -1959,9 +2065,10 @@ function buildPickEntryBreakdownAverages(
           group.totals.length > 0
             ? group.totals.reduce((sum, value) => sum + value, 0) / group.totals.length
             : 0;
+        const displaySpan = displaySpanForPeriod(group.start, group.end);
         return {
-          start: formatDateInTimezone(group.start, timeZone),
-          end: formatDateInTimezone(new Date(group.end.getTime() - DAY_IN_MS), timeZone),
+          start: formatDateInTimezone(displaySpan.start, timeZone),
+          end: formatDateInTimezone(new Date(displaySpan.end.getTime() - DAY_IN_MS), timeZone),
           dates: [...group.labels].sort(),
           average: Number(averageRaw.toFixed(2)),
         };
@@ -1997,11 +2104,15 @@ function buildPickEntryBreakdownAverages(
             ? nonZeroTotals.reduce((sum, value) => sum + value, 0) / nonZeroTotals.length
             : 0;
         const allLabels = orderedBuckets.flatMap((bucket) => bucket.dayLabels);
+        const displaySpan = displaySpanForPeriod(
+          orderedBuckets[0]!.start,
+          orderedBuckets[orderedBuckets.length - 1]!.end,
+        );
 
         return {
-          start: formatDateInTimezone(orderedBuckets[0]!.start, timeZone),
+          start: formatDateInTimezone(displaySpan.start, timeZone),
           end: formatDateInTimezone(
-            new Date(orderedBuckets[orderedBuckets.length - 1]!.end.getTime() - DAY_IN_MS),
+            new Date(displaySpan.end.getTime() - DAY_IN_MS),
             timeZone,
           ),
           dates: [...new Set(allLabels)].sort(),
@@ -2056,11 +2167,11 @@ function buildPickEntryBreakdownAverages(
         group.nonZeroTotals.length > 0
           ? group.nonZeroTotals.reduce((sum, value) => sum + value, 0) / group.nonZeroTotals.length
           : 0;
-      // Use full month span; leave placement to the chart renderer.
+      const displaySpan = displaySpanForPeriod(group.start, group.end);
 
       return {
-        start: formatDateInTimezone(group.start, timeZone),
-        end: formatDateInTimezone(new Date(group.end.getTime() - DAY_IN_MS), timeZone),
+        start: formatDateInTimezone(displaySpan.start, timeZone),
+        end: formatDateInTimezone(new Date(displaySpan.end.getTime() - DAY_IN_MS), timeZone),
         dates: Array.from(group.labels).sort(),
         average: Number(averageRaw.toFixed(2)),
       };

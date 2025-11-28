@@ -104,84 +104,68 @@ struct PickEntryBarChart: View {
     private struct ChartPoint: Identifiable {
         let id: String
         let label: String
-        let anchorDate: Date
-        let end: Date
+        let key: String
+        let startDate: Date
         let skus: [PickEntryBreakdown.Segment]
         let totalItems: Int
     }
 
     private struct WeekOverlay: Identifiable {
         let id: String
-        let start: Date
-        let end: Date
+        let startKey: String
+        let endKey: String
         let average: Double
     }
-
-    private var analyticsTimeZone: TimeZone {
-        TimeZone(identifier: timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)!
-    }
-
-    private var calendar: Calendar {
-        var calendar = Calendar(identifier: .iso8601)
-        calendar.timeZone = analyticsTimeZone
-        return calendar
-    }
-
-    private let weekdaySymbols = Calendar.current.shortWeekdaySymbols
 
     private var orderedPoints: [PickEntryBreakdown.Point] {
         points.sorted { $0.start < $1.start }
     }
 
+    private var calendar: Calendar {
+        chartCalendar(for: timeZoneIdentifier)
+    }
+
     private var chartPoints: [ChartPoint] {
-        return orderedPoints.map { point in
+        orderedPoints.enumerated().map { index, point in
             ChartPoint(
-                id: "period-\(point.id.timeIntervalSince1970)",
+                id: "period-\(index)",
                 label: point.label,
-                anchorDate: point.start,
-                end: point.end,
+                key: "p\(index)",
+                startDate: point.start,
                 skus: point.skus,
                 totalItems: point.totalItems
             )
         }
     }
 
+    private var keyByDate: [Date: String] {
+        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.startDate, $0.key) })
+    }
+
+    private var labelsByKey: [String: String] {
+        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.key, axisLabel(for: $0)) })
+    }
+
     private var weekAverageOverlays: [WeekOverlay] {
-        if aggregation == .week {
-            let visibleDates = Set(chartPoints.map { $0.anchorDate })
-
-            return weekAverages.compactMap { week in
-                let includedDates = week.dates
-                    .filter { visibleDates.contains($0) }
-                    .sorted()
-
-                let firstDate = includedDates.first ?? week.weekStart
-                let endBoundary = includedDates.last ?? week.weekEnd
-
-                return WeekOverlay(
-                    id: week.id,
-                    start: firstDate,
-                    end: endBoundary,
-                    average: week.average
-                )
+        func keyRange(for start: Date, end: Date) -> (String, String)? {
+            let matches = chartPoints.filter { point in
+                point.startDate >= start && point.startDate <= end
             }
+            guard let first = matches.min(by: { $0.key < $1.key }),
+                  let last = matches.max(by: { $0.key < $1.key }) else {
+                return nil
+            }
+            return (first.key, last.key)
         }
 
-        // For month/quarter aggregations, align every average window to the points in view.
         return weekAverages.compactMap { week in
-            let includedPoints = chartPoints.filter { point in
-                point.anchorDate >= week.weekStart && point.anchorDate <= week.weekEnd
+            if let range = keyRange(for: week.weekStart, end: week.weekEnd) {
+                return WeekOverlay(id: week.id, startKey: range.0, endKey: range.1, average: week.average)
             }
-
-            let start = includedPoints.map(\.anchorDate).min() ?? week.weekStart
-            let end = includedPoints.map(\.end).max() ?? week.weekEnd
-
-            return WeekOverlay(
-                id: week.id,
-                start: start,
-                end: end,
-                average: week.average
-            )
+            if let firstKey = chartPoints.first?.key, let lastKey = chartPoints.last?.key {
+                return WeekOverlay(id: week.id, startKey: firstKey, endKey: lastKey, average: week.average)
+            }
+            return nil
         }
     }
 
@@ -192,72 +176,31 @@ struct PickEntryBarChart: View {
         return max(ceiling * 1.15, 1)
     }
 
-    private var xAxisValues: [Date] {
-        chartPoints.map { $0.anchorDate }
-    }
-
-    private var labelsByDate: [Date: String] {
-        Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.anchorDate, $0.label) })
-    }
-
-    private func isDateInCurrentBucket(_ date: Date) -> Bool {
+    private func axisLabel(for point: ChartPoint) -> String {
         switch aggregation {
         case .week:
-            return calendar.isDateInToday(date)
+            let weekday = calendar.component(.weekday, from: point.startDate)
+            let index = max(min(weekday - 1, calendar.shortWeekdaySymbols.count - 1), 0)
+            let symbol = calendar.shortWeekdaySymbols.indices.contains(index) ? calendar.shortWeekdaySymbols[index] : ""
+            return symbol.first.map(String.init) ?? point.label
         case .month:
-            return calendar.isDate(Date(), equalTo: date, toGranularity: .weekOfYear)
+            let weekNumber = calendar.component(.weekOfYear, from: point.startDate)
+            return "W\(weekNumber)"
         case .quarter:
-            return calendar.isDate(Date(), equalTo: date, toGranularity: .month)
-        }
-    }
-
-    private func weekLabel(for date: Date) -> String {
-        let weekNumber = calendar.component(.weekOfYear, from: date)
-        return "W\(weekNumber)"
-    }
-
-    private func axisLabel(for date: Date) -> String {
-        if aggregation != .week, let explicitLabel = labelsByDate[date], !explicitLabel.isEmpty {
-            return explicitLabel
-        }
-
-        switch aggregation {
-        case .week:
-            let weekdayIndex = calendar.component(.weekday, from: date)
-            let index = max(min(weekdayIndex - 1, weekdaySymbols.count - 1), 0)
-            let symbol = weekdaySymbols.indices.contains(index) ? weekdaySymbols[index] : ""
-            return symbol.first.map(String.init) ?? ""
-        case .month:
-            return weekLabel(for: date)
-        case .quarter:
-            let comps = calendar.dateComponents([.month], from: date)
-            if let month = comps.month {
-                let index = max(min(month - 1, calendar.shortMonthSymbols.count - 1), 0)
-                if calendar.shortMonthSymbols.indices.contains(index) {
-                    return calendar.shortMonthSymbols[index]
-                }
-            }
-            return ""
-        }
-    }
-
-    private var xAxisUnit: Calendar.Component {
-        switch aggregation {
-        case .week: return .day
-        case .month: return .weekOfYear
-        case .quarter: return .month
+            let month = calendar.component(.month, from: point.startDate)
+            let index = max(min(month - 1, calendar.shortMonthSymbols.count - 1), 0)
+            return calendar.shortMonthSymbols.indices.contains(index) ? calendar.shortMonthSymbols[index] : point.label
         }
     }
 
     @ChartContentBuilder
     private func barMarks(
-        bars: [ChartPoint],
-        axisUnit: Calendar.Component
+        bars: [ChartPoint]
     ) -> some ChartContent {
         ForEach(bars) { point in
             ForEach(point.skus) { segment in
                 BarMark(
-                    x: .value("Period", point.anchorDate, unit: axisUnit),
+                    x: .value("Period", point.key),
                     y: .value("Pick Entries", segment.totalItems)
                 )
                 .foregroundStyle(by: .value("SKU", segment.displayLabel))
@@ -268,20 +211,19 @@ struct PickEntryBarChart: View {
 
     @ChartContentBuilder
     private func overlayMarks(
-        overlays: [WeekOverlay],
-        aggregation: PickEntryBreakdown.Aggregation
+        overlays: [WeekOverlay]
     ) -> some ChartContent {
         ForEach(overlays) { overlay in
             RuleMark(
-                xStart: .value("Week Start", overlay.start, unit: .day),
-                xEnd: .value("Week End", overlay.end, unit: .day),
+                xStart: .value("Period Start", overlay.startKey),
+                xEnd: .value("Period End", overlay.endKey),
                 y: .value("Weekly Average", overlay.average)
             )
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .foregroundStyle(Color(.secondaryLabel))
 
             PointMark(
-                x: .value("Label Anchor", overlay.start, unit: .day),
+                x: .value("Label Anchor", overlay.startKey),
                 y: .value("Weekly Average", overlay.average)
             )
             .opacity(0)
@@ -289,7 +231,7 @@ struct PickEntryBarChart: View {
                 Text(String(format: "avg %.0f", overlay.average))
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(Color(.secondaryLabel))
-                    .padding(.leading, aggregation == .week ? -16 : 0)
+                    .padding(.leading, -16)
             }
         }
     }
@@ -297,31 +239,24 @@ struct PickEntryBarChart: View {
     var body: some View {
         let bars = chartPoints
         let overlays = weekAverageOverlays
-        let axisValues = xAxisValues
-        let axisUnit = xAxisUnit
+        let axisValues = chartPoints.map(\.key)
         let yMax = maxYValue
 
         return Chart {
-            barMarks(bars: bars, axisUnit: axisUnit)
-            overlayMarks(overlays: overlays, aggregation: aggregation)
+            barMarks(bars: bars)
+            overlayMarks(overlays: overlays)
         }
         .chartYAxis {
             AxisMarks(position: .leading)
         }
         .chartXAxis {
             AxisMarks(values: axisValues) { value in
-                if let date = value.as(Date.self) {
-                    AxisValueLabel {
-                        let label = axisLabel(for: date)
-                        let isToday = calendar.isDateInToday(date)
-                        let isCurrentBucket = isDateInCurrentBucket(date)
-                        Text(label)
-                            .foregroundStyle(isToday || isCurrentBucket ? Color.primary : Color.secondary)
-                            .fontWeight(isToday || isCurrentBucket ? .medium : .regular)
-                    }
+                if let key = value.as(String.self), let label = labelsByKey[key] {
+                    AxisValueLabel(label)
                 }
             }
         }
+        .chartXScale(domain: axisValues)
         .chartLegend(showLegend ? .visible : .hidden)
         .chartYScale(domain: 0...yMax)
         .frame(height: maxHeight)
