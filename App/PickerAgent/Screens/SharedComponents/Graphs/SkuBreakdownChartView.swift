@@ -46,6 +46,17 @@ struct SkuBreakdownChartView: View {
         viewModel.skuBreakdownAvailableFilters
     }
 
+    private var chartSkuCount: Int {
+        let skuIds = orderedPoints.flatMap { point in
+            point.skus.map(\.skuId)
+        }
+        return Set(skuIds).count
+    }
+
+    private var shouldHideLegend: Bool {
+        chartSkuCount > 8
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
@@ -97,7 +108,7 @@ struct SkuBreakdownChartView: View {
                     aggregation: selectedAggregation,
                     weekAverages: viewModel.skuBreakdownWeekAverages,
                     timeZoneIdentifier: viewModel.skuBreakdownTimeZone,
-                    showLegend: true,
+                    showLegend: !shouldHideLegend,
                     maxHeight: 220
                 )
             }
