@@ -101,6 +101,13 @@ struct PickEntryBarChart: View {
     var showLegend: Bool = true
     var maxHeight: CGFloat = 200
     @State private var scrollPosition: Double = 0
+    private var barWidth: Double {
+        switch aggregation {
+        case .week: return 24
+        case .month: return 32
+        case .quarter: return 40
+        }
+    }
     private struct ChartPoint: Identifiable {
         let id: String
         let index: Int
@@ -200,7 +207,7 @@ struct PickEntryBarChart: View {
                 BarMark(
                     x: .value("Period", point.index),
                     y: .value("Pick Entries", segment.totalItems),
-                    width: .fixed(24)
+                    width: .fixed(barWidth)
                 )
                 .foregroundStyle(by: .value("SKU", segment.displayLabel))
                 .cornerRadius(5, style: .continuous)
@@ -232,11 +239,11 @@ struct PickEntryBarChart: View {
     var body: some View {
         let bars = chartPoints
         let overlays = weekAverageOverlays
-        let axisValues = chartPoints.map(\.index)
+        let axisValues = chartPoints.map { Double($0.index) }
         let yMax = maxYValue
         let visibleCount = aggregation.defaultBars
         let domainEnd = max((bars.count - 1), (visibleCount - 1), 0)
-        let xDomain: ClosedRange<Int> = 0...domainEnd
+        let xDomain: ClosedRange<Double> = -0.5...(Double(domainEnd) + 0.5)
 
         return Chart {
             barMarks(bars: bars)
@@ -250,8 +257,11 @@ struct PickEntryBarChart: View {
         }
         .chartXAxis {
             AxisMarks(values: axisValues) { value in
-                if let index = value.as(Int.self), let label = labelsByIndex[index] {
-                    AxisValueLabel(label, anchor: .center)
+                if let raw = value.as(Double.self) {
+                    let index = Int(raw.rounded())
+                    if let label = labelsByIndex[index] {
+                        AxisValueLabel(label, anchor: .center)
+                    }
                 }
             }
         }
