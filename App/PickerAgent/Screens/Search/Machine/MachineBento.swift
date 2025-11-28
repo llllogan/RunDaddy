@@ -3,8 +3,6 @@ import SwiftUI
 struct MachineInfoBento: View {
     let machine: Machine
     let stats: MachineStatsResponse?
-    let selectedPeriod: SkuPeriod
-    let onBestSkuTap: ((MachineBestSku) -> Void)?
     let onLocationTap: ((Location) -> Void)?
 
     private var cards: [BentoItem] {
@@ -12,9 +10,7 @@ struct MachineInfoBento: View {
             detailsCard,
             lastStockedCard,
             codeCard,
-            locationCard,
-            packTrendCard,
-            bestSkuCard
+            locationCard
         ]
     }
 
@@ -97,6 +93,75 @@ struct MachineInfoBento: View {
         onLocationTap?(location)
     }
 
+    var body: some View {
+        StaggeredBentoGrid(items: cards, columnCount: 2)
+    }
+
+    private func formatStockedDate(_ isoDate: String?) -> String {
+        guard let isoDate else {
+            return "No data yet"
+        }
+        if let date = parseDate(isoDate) {
+            return formatRelativeDay(from: date)
+        }
+        return isoDate
+    }
+
+    private func parseDate(_ string: String) -> Date? {
+        if let date = MachineInfoBento.isoFormatter.date(from: string) {
+            return date
+        }
+        if let date = MachineInfoBento.basicIsoFormatter.date(from: string) {
+            return date
+        }
+        return nil
+    }
+
+    private func formatRelativeDay(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        return MachineInfoBento.dayMonthFormatter.string(from: date)
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        return formatter
+    }()
+}
+
+struct MachinePerformanceBento: View {
+    let stats: MachineStatsResponse?
+    let selectedPeriod: SkuPeriod
+    let onBestSkuTap: ((MachineBestSku) -> Void)?
+
+    private var cards: [BentoItem] {
+        [
+            packTrendCard,
+            bestSkuCard
+        ]
+    }
+
     private var packTrendCard: BentoItem {
         BentoItem(
             title: "Pack Trend",
@@ -135,40 +200,6 @@ struct MachineInfoBento: View {
 
     var body: some View {
         StaggeredBentoGrid(items: cards, columnCount: 2)
-    }
-
-    private func formatStockedDate(_ isoDate: String?) -> String {
-        guard let isoDate else {
-            return "No data yet"
-        }
-        if let date = parseDate(isoDate) {
-            return formatRelativeDay(from: date)
-        }
-        return isoDate
-    }
-
-    private func parseDate(_ string: String) -> Date? {
-        if let date = MachineInfoBento.isoFormatter.date(from: string) {
-            return date
-        }
-        if let date = MachineInfoBento.basicIsoFormatter.date(from: string) {
-            return date
-        }
-        return nil
-    }
-
-    private func formatRelativeDay(from date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "Today"
-        }
-        if calendar.isDateInYesterday(date) {
-            return "Yesterday"
-        }
-        if calendar.isDateInTomorrow(date) {
-            return "Tomorrow"
-        }
-        return MachineInfoBento.dayMonthFormatter.string(from: date)
     }
 
     private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
@@ -210,22 +241,4 @@ struct MachineInfoBento: View {
             return .gray
         }
     }
-
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private static let basicIsoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    private static let dayMonthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        return formatter
-    }()
 }

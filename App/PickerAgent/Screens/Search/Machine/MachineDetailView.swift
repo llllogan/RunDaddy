@@ -48,10 +48,6 @@ struct MachineDetailView: View {
                         MachineInfoBento(
                             machine: machine,
                             stats: machineStats,
-                            selectedPeriod: selectedPeriod,
-                            onBestSkuTap: { bestSku in
-                                navigateToSkuDetail(bestSku)
-                            },
                             onLocationTap: { location in
                                 navigateToLocationDetail(location)
                             }
@@ -63,8 +59,6 @@ struct MachineDetailView: View {
                         MachineInfoBento(
                             machine: machine,
                             stats: nil,
-                            selectedPeriod: selectedPeriod,
-                            onBestSkuTap: nil,
                             onLocationTap: { location in
                                 navigateToLocationDetail(location)
                             }
@@ -89,6 +83,33 @@ struct MachineDetailView: View {
                         },
                         applyPadding: false
                     )
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 26.0))
+                    
+                    if let machineStats {
+                        MachinePerformanceBento(
+                            stats: machineStats,
+                            selectedPeriod: selectedPeriod,
+                            onBestSkuTap: { bestSku in
+                                navigateToSkuDetail(bestSku)
+                            }
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else if !isLoadingStats {
+                        MachinePerformanceBento(
+                            stats: nil,
+                            selectedPeriod: selectedPeriod,
+                            onBestSkuTap: nil
+                        )
+                        .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
                 } header: {
                     Text("Recent Activity")
                 }

@@ -14,7 +14,6 @@ struct SkuBreakdownChartView: View {
     private let showFilters: Bool
     private let focus: PickEntryBreakdown.ChartItemFocus?
     private let onAggregationChange: ((PickEntryBreakdown.Aggregation) -> Void)?
-    private let applyPadding: Bool
     @State private var selectedAggregation: PickEntryBreakdown.Aggregation
     @State private var selectedSkuFilter: String?
     @State private var selectedMachineFilter: String?
@@ -33,7 +32,6 @@ struct SkuBreakdownChartView: View {
         self.showFilters = showFilters
         self.focus = focus
         self.onAggregationChange = onAggregationChange
-        self.applyPadding = applyPadding
         _selectedAggregation = State(initialValue: viewModel.skuBreakdownAggregation)
         _selectedSkuFilter = State(initialValue: viewModel.skuBreakdownFilters.skuIds.first)
         _selectedMachineFilter = State(initialValue: viewModel.skuBreakdownFilters.machineIds.first)
@@ -104,7 +102,7 @@ struct SkuBreakdownChartView: View {
                 )
             }
         }
-        .padding(applyPadding ? .all : .init())
+        .padding()
         .task {
             if let focus {
                 viewModel.updateSkuBreakdownFocus(focus)
