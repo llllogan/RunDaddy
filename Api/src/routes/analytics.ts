@@ -327,12 +327,13 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
   const rows = await fetchPickEntryBreakdownRows(
     timezoneContext.companyId,
     timezoneContext.timeZone,
-    breakdownWindow.rangeStart,
-    breakdownWindow.rangeEnd,
+    breakdownWindow.dataRangeStart,
+    breakdownWindow.dataRangeEnd,
     breakdownRequest.filters,
   );
 
-  const { points, dailyTotals } = buildPickEntryBreakdownPoints(
+  const dailyTotals = buildDailyTotalsFromRows(rows, timezoneContext.timeZone);
+  const points = buildPickEntryBreakdownPoints(
     breakdownWindow.buckets,
     rows,
     breakdownRequest.breakdownBy,
@@ -341,9 +342,10 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
 
   const averages = buildPickEntryBreakdownAverages(
     breakdownRequest.aggregation,
-    breakdownWindow.buckets,
+    breakdownWindow.averageBuckets,
     dailyTotals,
     timezoneContext.timeZone,
+    { start: breakdownWindow.rangeStart, end: breakdownWindow.rangeEnd },
   );
 
   const availableFilters = buildPickEntryBreakdownAvailableFilters(
@@ -806,6 +808,9 @@ type PickEntryBreakdownWindow = {
   buckets: PickEntryBreakdownBucket[];
   rangeStart: Date;
   rangeEnd: Date;
+  averageBuckets: PickEntryBreakdownBucket[];
+  dataRangeStart: Date;
+  dataRangeEnd: Date;
 };
 
 type PeriodType = (typeof PERIOD_TYPES)[number];
@@ -1692,7 +1697,14 @@ function buildDailyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? getTimezoneDayRange({ timeZone, reference }).start;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? getTimezoneDayRange({ timeZone, reference }).end;
 
-  return { buckets, rangeStart, rangeEnd };
+  return {
+    buckets,
+    rangeStart,
+    rangeEnd,
+    averageBuckets: buckets,
+    dataRangeStart: rangeStart,
+    dataRangeEnd: rangeEnd,
+  };
 }
 
 function buildWeeklyBreakdownWindow(
@@ -1721,7 +1733,14 @@ function buildWeeklyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? currentWeekStart;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date(currentWeekStart.getTime() + WEEK_IN_MS);
 
-  return { buckets, rangeStart, rangeEnd };
+  return {
+    buckets,
+    rangeStart,
+    rangeEnd,
+    averageBuckets: buckets,
+    dataRangeStart: rangeStart,
+    dataRangeEnd: rangeEnd,
+  };
 }
 
 function buildMonthlyBreakdownWindow(
@@ -1749,7 +1768,14 @@ function buildMonthlyBreakdownWindow(
   const rangeStart = buckets[0]?.start ?? currentMonthWindow.start;
   const rangeEnd = buckets[buckets.length - 1]?.end ?? currentMonthWindow.end;
 
-  return { buckets, rangeStart, rangeEnd };
+  return {
+    buckets,
+    rangeStart,
+    rangeEnd,
+    averageBuckets: buckets,
+    dataRangeStart: rangeStart,
+    dataRangeEnd: rangeEnd,
+  };
 }
 
 async function fetchPickEntryBreakdownRows(
@@ -1813,7 +1839,7 @@ function buildPickEntryBreakdownPoints(
   rows: PickEntryBreakdownRow[],
   breakdownBy: PickEntryBreakdownDimension,
   timeZone: string,
-): { points: PickEntryBreakdownPoint[]; dailyTotals: Map<string, number> } {
+): PickEntryBreakdownPoint[] {
   const bucketByDay = new Map<string, string>();
   const bucketData = new Map<
     string,
@@ -1823,15 +1849,11 @@ function buildPickEntryBreakdownPoints(
       segments: Map<string, PickEntryBreakdownItem>;
     }
   >();
-  const dailyTotals = new Map<string, number>();
 
   for (const bucket of buckets) {
     bucketData.set(bucket.key, { bucket, totalItems: 0, segments: new Map() });
     for (const dayLabel of bucket.dayLabels) {
       bucketByDay.set(dayLabel, bucket.key);
-      if (!dailyTotals.has(dayLabel)) {
-        dailyTotals.set(dayLabel, 0);
-      }
     }
   }
 
@@ -1846,10 +1868,6 @@ function buildPickEntryBreakdownPoints(
     }
 
     const totalItems = Math.max(toNumber(row.total_items), 0);
-    if (totalItems > 0) {
-      dailyTotals.set(dayLabel, (dailyTotals.get(dayLabel) ?? 0) + totalItems);
-    }
-
     const bucketEntry = bucketData.get(bucketKey);
     if (!bucketEntry || totalItems <= 0) {
       continue;
@@ -1865,7 +1883,7 @@ function buildPickEntryBreakdownPoints(
     }
   }
 
-  const points = buckets.map((bucket) => {
+  return buckets.map((bucket) => {
     const bucketEntry = bucketData.get(bucket.key);
     const items =
       bucketEntry && bucketEntry.segments.size > 0
@@ -1880,8 +1898,27 @@ function buildPickEntryBreakdownPoints(
       items,
     };
   });
+}
 
-  return { points, dailyTotals };
+function buildDailyTotalsFromRows(
+  rows: PickEntryBreakdownRow[],
+  timeZone: string,
+): Map<string, number> {
+  const totals = new Map<string, number>();
+
+  for (const row of rows) {
+    const dayLabel = normalizeDayLabel(row.day_label, timeZone);
+    if (!dayLabel) {
+      continue;
+    }
+    const totalItems = Math.max(toNumber(row.total_items), 0);
+    if (totalItems <= 0) {
+      continue;
+    }
+    totals.set(dayLabel, (totals.get(dayLabel) ?? 0) + totalItems);
+  }
+
+  return totals;
 }
 
 function buildPickEntryBreakdownAverages(
@@ -2019,6 +2056,7 @@ function buildPickEntryBreakdownAverages(
         group.nonZeroTotals.length > 0
           ? group.nonZeroTotals.reduce((sum, value) => sum + value, 0) / group.nonZeroTotals.length
           : 0;
+      // Use full month span; leave placement to the chart renderer.
 
       return {
         start: formatDateInTimezone(group.start, timeZone),
