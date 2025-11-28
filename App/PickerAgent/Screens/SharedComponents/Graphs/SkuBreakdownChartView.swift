@@ -261,6 +261,7 @@ struct PickEntryBarChart: View {
                     let index = Int(raw.rounded())
                     if let label = labelsByIndex[index] {
                         AxisValueLabel(label, anchor: .center)
+                            .offset(x: -barWidth / 2.0)
                     }
                 }
             }
