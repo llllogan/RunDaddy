@@ -457,8 +457,8 @@ struct SearchLocationDetailView: View {
 
     private var hoursDisplay: HoursDisplay {
         HoursDisplay(
-            opening: hasOpeningTime ? formattedTime(openingTime) : "Unspecified",
-            closing: hasClosingTime ? formattedTime(closingTime) : "Unspecified",
+            opening: hasOpeningTime ? formattedTime(openingTime) : "-",
+            closing: hasClosingTime ? formattedTime(closingTime) : "-",
             dwell: displayDwellText
         )
     }
@@ -466,7 +466,7 @@ struct SearchLocationDetailView: View {
     private var displayDwellText: String {
         let trimmed = dwellTimeText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "Not set"
+            return "-"
         }
         if let value = Int(trimmed), value >= 0 {
             return "\(value) min"

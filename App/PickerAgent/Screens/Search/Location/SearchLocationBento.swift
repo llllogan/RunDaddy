@@ -37,7 +37,7 @@ struct SearchLocationInfoBento: View {
             )
         )
 
-        if let hoursDisplay, let onConfigureHours, canConfigureHours {
+        if let hoursDisplay, let onConfigureHours {
             cards.append(
                 BentoItem(
                     title: "Hours",
@@ -48,13 +48,16 @@ struct SearchLocationInfoBento: View {
                     customContent: AnyView(
                         VStack(alignment: .leading, spacing: 10) {
                             HoursSummaryView(display: hoursDisplay)
-                            Button(action: onConfigureHours) {
-                                Text("Configure")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity)
+                            
+                            if canConfigureHours {
+                                Button(action: onConfigureHours) {
+                                    Text("Configure")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .foregroundStyle(Color(.secondaryLabel))
                             }
-                            .buttonStyle(.bordered)
-                            .foregroundStyle(Color(.secondaryLabel))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     )
