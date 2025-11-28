@@ -1796,41 +1796,39 @@ function buildMonthlyBreakdownWindow(
   reference: Date,
   showBars: number,
 ): PickEntryBreakdownWindow {
-  const targetWeeks = Math.max(showBars, 1);
+  const targetMonths = Math.max(showBars, 1);
   const todayRange = getTimezoneDayRange({ timeZone, reference });
-  const currentWeekStart = getIsoWeekStart(timeZone, todayRange.start);
-
+  
   const buckets: PickEntryBreakdownBucket[] = [];
-  // Show current week (offset 0) plus previous weeks (offset 1, 2, 3, 4, 5)
-  for (let offset = 0; offset < targetWeeks; offset += 1) {
-    const start = new Date(currentWeekStart.getTime() - offset * WEEK_IN_MS);
-    const end = new Date(start.getTime() + WEEK_IN_MS);
+  // Show current month (offset 0) plus previous months (offset 1, 2, 3...)
+  for (let offset = 0; offset < targetMonths; offset += 1) {
+    const monthStart = getMonthWindow(timeZone, reference, offset);
     buckets.push({
-      key: `${formatDateInTimezone(start, timeZone)}-week`,
-      start,
-      end,
-      xValue: `W${getIsoWeekNumber(timeZone, start)}`,
-      dayLabels: buildDayLabelsForRange(start, end, timeZone),
+      key: `${formatDateInTimezone(monthStart.start, timeZone)}-month`,
+      start: monthStart.start,
+      end: monthStart.end,
+      xValue: new Intl.DateTimeFormat('en-US', { month: 'short', timeZone }).format(monthStart.start),
+      dayLabels: buildDayLabelsForRange(monthStart.start, monthStart.end, timeZone),
     });
   }
 
   // Sort buckets chronologically (oldest to newest) for proper chart display
   buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-  const rangeStart = buckets[0]?.start ?? currentWeekStart;
-  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date(currentWeekStart.getTime() + WEEK_IN_MS);
+  const rangeStart = buckets[0]?.start ?? todayRange.start;
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? todayRange.end;
 
-  const previousMonth = getMonthWindow(timeZone, reference, 1);
-  const currentMonth = getMonthWindow(timeZone, reference, 0);
-  const averageBuckets = buildWeeklyBucketsForRange(previousMonth.start, currentMonth.end, timeZone);
+  const previousQuarter = getQuarterWindow(timeZone, reference, 1);
+  const currentQuarter = getQuarterWindow(timeZone, reference, 0);
+  const averageBuckets = buildMonthlyBucketsForRange(previousQuarter.start, currentQuarter.end, timeZone);
 
   return {
     buckets,
     rangeStart,
     rangeEnd,
     averageBuckets,
-    dataRangeStart: previousMonth.start,
-    dataRangeEnd: currentMonth.end,
+    dataRangeStart: previousQuarter.start,
+    dataRangeEnd: currentQuarter.end,
   };
 }
 
