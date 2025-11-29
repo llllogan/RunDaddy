@@ -370,7 +370,7 @@ struct DashboardView: View {
                     .listRowSeparator(.hidden)
                     .padding(.vertical, 16)
                     .padding(.horizontal, 18)
-                    .background(Color(.systemBackground))
+                    .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(Capsule())
                 } else if momentumViewModel.isLoading {
                     LoadingStateRow()

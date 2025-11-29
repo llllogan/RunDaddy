@@ -246,7 +246,7 @@ struct ReorderLocationsSheet: View {
                 .listRowBackground(Color.clear)
                 .padding(.vertical, 16)
                 .padding(.horizontal, 18)
-                .background(Color(.systemBackground))
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(UnevenRoundedRectangle(cornerRadii: .init(topLeading: 0, bottomLeading: 12, bottomTrailing: 12, topTrailing: 0)))
             }
         }

@@ -106,7 +106,7 @@ struct SearchLocationDetailView: View {
                         .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .background(Color(.systemBackground))
+                        .background(Color(.secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 26.0))
 
                         if let stats = locationStats {
