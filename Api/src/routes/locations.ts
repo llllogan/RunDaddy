@@ -206,19 +206,18 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     points,
     machineSalesShare,
     totalItems: currentTotal,
-    periodPositiveBucketCount: currentPositiveBuckets,
+    periodPositiveBucketCount: currentBucketCount,
     periodBucketSummaries: currentBucketSummaries,
   } = chartData;
   const {
     totalItems: previousTotal,
-    periodPositiveBucketCount: previousPositiveBuckets,
+    periodPositiveBucketCount: previousBucketCount,
     periodBucketSummaries: previousBucketSummaries,
   } = previousPeriodData;
 
-  const currentAverage =
-    currentPositiveBuckets > 0 ? currentTotal / currentPositiveBuckets : currentTotal;
+  const currentAverage = currentBucketCount > 0 ? currentTotal / currentBucketCount : currentTotal;
   const previousAverage =
-    previousPositiveBuckets > 0 ? previousTotal / previousPositiveBuckets : previousTotal;
+    previousBucketCount > 0 ? previousTotal / previousBucketCount : previousTotal;
 
   const percentageChange = buildPercentageChange(currentAverage, previousAverage);
 
@@ -506,27 +505,19 @@ async function buildLocationChartPoints(
     return bucket.startMs >= periodStartMs && bucket.startMs < periodEndMs;
   };
 
-  let periodPositiveBucketCount = 0;
-  for (const bucket of buckets) {
-    const bucketTotalInPeriod = periodBucketTotals.get(bucket.key) ?? 0;
-    const isInPeriod = isBucketInPeriod(bucket);
-    if (isInPeriod && bucketTotalInPeriod > 0) {
-      periodPositiveBucketCount += 1;
-    }
-  }
-
   const periodBucketSummaries = buckets.map(bucket => ({
     label: bucket.label,
     total: periodBucketTotals.get(bucket.key) ?? 0,
     isInPeriod: isBucketInPeriod(bucket),
   }));
+  const periodBucketCount = periodBucketSummaries.filter(bucket => bucket.isInPeriod).length;
 
   return {
     points,
     totalItems: periodTotalItems,
     latestPeriodRowEndMs,
     machineSalesShare,
-    periodPositiveBucketCount,
+    periodPositiveBucketCount: periodBucketCount,
     periodBucketSummaries,
   };
 }

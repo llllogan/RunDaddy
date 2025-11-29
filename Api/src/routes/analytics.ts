@@ -2027,19 +2027,16 @@ function buildPickEntryBreakdownAverages(
         }
         const group = weekGroups.get(key)!;
         group.labels.push(label);
-        if (total > 0) {
-          group.totals.push(total);
-        }
+        group.totals.push(total);
       }
     }
 
     return Array.from(weekGroups.values())
       .sort((a, b) => a.start.getTime() - b.start.getTime())
       .map((group) => {
-        const averageRaw =
-          group.totals.length > 0
-            ? group.totals.reduce((sum, value) => sum + value, 0) / group.totals.length
-            : 0;
+        const dayCount = Math.max(group.totals.length, group.labels.length, 1);
+        const total = group.totals.reduce((sum, value) => sum + value, 0);
+        const averageRaw = total / dayCount;
         const displaySpan = displaySpanForPeriod(group.start, group.end);
         return {
           start: formatDateInTimezone(displaySpan.start, timeZone),
@@ -2073,11 +2070,8 @@ function buildPickEntryBreakdownAverages(
       .map(([, group]) => {
         const orderedBuckets = group.buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
         const bucketTotals = orderedBuckets.map((bucket) => sumBucketTotals(bucket, dailyTotals));
-        const nonZeroTotals = bucketTotals.filter((total) => total > 0);
-        const averageRaw =
-          nonZeroTotals.length > 0
-            ? nonZeroTotals.reduce((sum, value) => sum + value, 0) / nonZeroTotals.length
-            : 0;
+        const divisor = bucketTotals.length || 1;
+        const averageRaw = bucketTotals.reduce((sum, value) => sum + value, 0) / divisor;
         const allLabels = orderedBuckets.flatMap((bucket) => bucket.dayLabels);
         const displaySpan = displaySpanForPeriod(
           orderedBuckets[0]!.start,
@@ -2104,7 +2098,6 @@ function buildPickEntryBreakdownAverages(
       end: Date;
       labels: Set<string>;
       totals: number[];
-      nonZeroTotals: number[];
     }
   >();
 
@@ -2121,7 +2114,6 @@ function buildPickEntryBreakdownAverages(
         end: bucket.end,
         labels: new Set(bucket.dayLabels),
         totals: [bucketTotal],
-        nonZeroTotals: bucketTotal > 0 ? [bucketTotal] : [],
       });
     } else {
       const group = monthGroups.get(monthKey)!;
@@ -2129,19 +2121,14 @@ function buildPickEntryBreakdownAverages(
       group.end = new Date(Math.max(group.end.getTime(), bucket.end.getTime()));
       bucket.dayLabels.forEach((label) => group.labels.add(label));
       group.totals.push(bucketTotal);
-      if (bucketTotal > 0) {
-        group.nonZeroTotals.push(bucketTotal);
-      }
     }
   }
 
   return Array.from(monthGroups.entries())
     .sort(([aKey], [bKey]) => (aKey < bKey ? -1 : 1))
     .map(([, group]) => {
-      const averageRaw =
-        group.nonZeroTotals.length > 0
-          ? group.nonZeroTotals.reduce((sum, value) => sum + value, 0) / group.nonZeroTotals.length
-          : 0;
+      const divisor = Math.max(group.totals.length, 1);
+      const averageRaw = group.totals.reduce((sum, value) => sum + value, 0) / divisor;
       const displaySpan = displaySpanForPeriod(group.start, group.end);
 
       return {
