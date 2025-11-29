@@ -340,6 +340,14 @@ final class RunDetailViewModel: ObservableObject {
         locationContextsByID[sectionID]?.pickItems.count ?? 0
     }
 
+    func cheeseItemCount(for sectionID: String) -> Int {
+        guard let context = locationContextsByID[sectionID] else { return 0 }
+        return context.pickItems.reduce(into: 0) { total, item in
+            guard item.sku?.isCheeseAndCrackers == true else { return }
+            total += max(item.count, 0)
+        }
+    }
+
     func deletePickEntries(for sectionID: String) async -> Bool {
         guard let runId = detail?.id else { return false }
 

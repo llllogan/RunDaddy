@@ -71,7 +71,7 @@ struct RunDetailView: View {
                     }
                 }
 
-                Section("Locations") {
+        Section("Locations") {
                     if viewModel.locationSections.isEmpty {
                         Text("No locations are assigned to this run yet.")
                             .font(.footnote)
@@ -537,6 +537,7 @@ private extension RunDetailView {
     private func locationRow(for section: RunLocationSection) -> some View {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
+        let cheeseItemQuantity = viewModel.cheeseItemCount(for: section.id)
         let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
         let locationDetail = viewModel.locationDetail(for: section.id)
         let machines = locationDetail?.machines ?? []
@@ -558,6 +559,7 @@ private extension RunDetailView {
                     LocationSummaryRow(
                         section: section,
                         machines: machines,
+                        cheeseItemQuantity: cheeseItemQuantity,
                         chocolateBoxLabel: chocolateBoxesLabel,
                         isProcessing: isDeleting
                     )
@@ -567,6 +569,7 @@ private extension RunDetailView {
                 LocationSummaryRow(
                     section: section,
                     machines: machines,
+                    cheeseItemQuantity: cheeseItemQuantity,
                     chocolateBoxLabel: chocolateBoxesLabel,
                     isProcessing: isDeleting
                 )
@@ -601,6 +604,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
     var machines: [RunDetail.Machine] = []
+    var cheeseItemQuantity: Int = 0
     var chocolateBoxLabel: String? = nil
     var isProcessing = false
 
@@ -625,6 +629,17 @@ private struct LocationSummaryRow: View {
                         colour: Color.indigo.opacity(0.15),
                         foregroundColour: Color.indigo,
                         icon: "building"
+                    )
+                }
+
+                if cheeseItemQuantity > 0 {
+                    InfoChip(
+                        title: nil,
+                        date: nil,
+                        text: "\(cheeseItemQuantity)",
+                        colour: Color.yellow.opacity(0.15),
+                        foregroundColour: Color.yellow,
+                        icon: "rectangle.fill"
                     )
                 }
 
