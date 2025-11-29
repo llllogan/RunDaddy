@@ -621,6 +621,13 @@ private struct LocationSummaryRow: View {
             }
             
             FlowLayout(spacing: 6) {
+                
+                if section.remainingCoils > 0 {
+                    InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
+                } else {
+                    InfoChip(title: nil, date: nil, text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green, icon: nil)
+                }
+                
                 ForEach(machineTypeChips) { chip in
                     InfoChip(
                         title: nil,
@@ -643,12 +650,6 @@ private struct LocationSummaryRow: View {
                     )
                 }
 
-                if section.remainingCoils > 0 {
-                    InfoChip(title: nil, date: nil, text: "\(section.remainingCoils) remaining", colour: nil, foregroundColour: nil, icon: nil)
-                } else {
-                    InfoChip(title: nil, date: nil, text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green, icon: nil)
-                }
-
                 if let chocolateBoxLabel {
                     InfoChip(
                         title: nil,
@@ -656,7 +657,7 @@ private struct LocationSummaryRow: View {
                         text: chocolateBoxLabel,
                         colour: Color.brown.opacity(0.15),
                         foregroundColour: Color.brown,
-                        icon: "shippingbox"
+                        icon: "shippingbox.fill"
                     )
                 }
             }

@@ -654,18 +654,7 @@ struct PickEntryRow: View {
                     }
                     
                     InfoChip(title: "Coil", date: nil, text: pickItem.coilItem.coil.code, colour: nil, foregroundColour: nil, icon: nil)
-
-                    if pickItem.sku?.isCheeseAndCrackers == true {
-                        InfoChip(
-                            title: nil,
-                            date: nil,
-                            text: "Cheese Tub",
-                            colour: Color.yellow.opacity(0.15),
-                            foregroundColour: Color.yellow,
-                            icon: nil
-                        )
-                    }
-
+                    
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
                         let chipColour = colorForCategoryChip(category)
                         InfoChip(
@@ -675,6 +664,17 @@ struct PickEntryRow: View {
                             colour: chipColour.opacity(0.2),
                             foregroundColour: chipColour,
                             icon: "tray.2"
+                        )
+                    }
+
+                    if pickItem.sku?.isCheeseAndCrackers == true {
+                        InfoChip(
+                            title: nil,
+                            date: nil,
+                            text: "Cheese Tub",
+                            colour: Color.yellow.opacity(0.15),
+                            foregroundColour: Color.yellow,
+                            icon: nil
                         )
                     }
                 }
