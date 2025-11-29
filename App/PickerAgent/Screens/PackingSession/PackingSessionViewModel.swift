@@ -175,7 +175,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             let detail = try await runDetailTask
             let boxes = try await chocolateBoxesTask
 
-            audioCommands = Array(response.audioCommands.reversed())
+            audioCommands = response.audioCommands
             let sessionPickIds = Set(response.audioCommands.filter { $0.type == "item" }.flatMap { $0.pickEntryIds })
             runDetail = detail
             chocolateBoxes = boxes.sorted { $0.number < $1.number }

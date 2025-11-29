@@ -630,7 +630,8 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
     return aName < bName ? -1 : 1;
   });
 
-  sortedLocationGroups.forEach(locationGroup => {
+  const locationGroupsInReverseOrder = [...sortedLocationGroups].reverse();
+  locationGroupsInReverseOrder.forEach(locationGroup => {
     // Add location announcement
     const location = locationGroup.location;
     const locationKey = location?.id || UNASSIGNED_LOCATION_KEY;
