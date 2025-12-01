@@ -155,7 +155,6 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         self.service = service
         super.init()
         synthesizer.delegate = self
-        setupRemoteCommandCenter()
     }
     
     func loadAudioCommands() async {
@@ -248,9 +247,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         guard canGoBack else { return }
         
-        currentIndex -= 1
+        currentIndex = max(currentIndex - 1, 0)
         updateNowPlayingInfo()
-        await speakCurrentCommand()
+        await speakCurrentCommand(skippingCompleted: false)
     }
     
     func skipCurrent() async {
@@ -281,7 +280,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         updateNowPlayingInfo()
-        await speakCurrentCommand()
+        await speakCurrentCommand(skippingCompleted: false)
     }
     
     func stopSession() async -> Bool {
@@ -371,14 +370,18 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         machineCompletionInfo = nil
     }
     
-    private func speakCurrentCommand() async {
+    private func speakCurrentCommand(skippingCompleted: Bool = true) async {
         guard !audioCommands.isEmpty else { return }
         
-        // Skip over already-completed item commands so we don't re-read packed items
-        if let nextIndex = nextPlayableIndex(startingAt: currentIndex) {
-            currentIndex = nextIndex
-        } else {
-            completeSession()
+        if skippingCompleted {
+            // Skip over already-completed item commands so we don't re-read packed items
+            if let nextIndex = nextPlayableIndex(startingAt: currentIndex) {
+                currentIndex = nextIndex
+            } else {
+                completeSession()
+                return
+            }
+        } else if currentIndex < 0 || currentIndex >= audioCommands.count {
             return
         }
         
@@ -671,9 +674,19 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             return .success
         }
         
+        // Some devices use skip backward for the back control; map it to repeat as well
+        commandCenter.skipBackwardCommand.addTarget { [weak self] event in
+            Task { @MainActor in
+                await self?.repeatCurrent()
+            }
+            return .success
+        }
+        commandCenter.skipBackwardCommand.preferredIntervals = [0]
+        
         // Enable the commands
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.skipBackwardCommand.isEnabled = true
         
         remoteCommandCenterConfigured = true
     }
@@ -686,6 +699,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         commandCenter.previousTrackCommand.removeTarget(nil)
         commandCenter.nextTrackCommand.isEnabled = false
         commandCenter.previousTrackCommand.isEnabled = false
+        commandCenter.skipBackwardCommand.removeTarget(nil)
+        commandCenter.skipBackwardCommand.isEnabled = false
         
         remoteCommandCenterConfigured = false
     }
