@@ -256,11 +256,8 @@ struct SearchLocationPerformanceBento: View {
             HStack(alignment: .center, spacing: 8) {
                 InfoChip(
                     title: machineShareText(for: machine),
-                    date: nil,
-                    text: nil,
                     colour: isBestMachine ? .green.opacity(0.15) : .blue.opacity(0.15),
-                    foregroundColour: isBestMachine ? .green : .blue,
-                    icon: nil
+                    foregroundColour: isBestMachine ? .green : .blue
                 )
                 if onMachineTap != nil {
                     Spacer(minLength: 4)

@@ -41,7 +41,7 @@ struct MachineInfoBento: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
 
-                    InfoChip(title: nil, date: nil, text: chipText, colour: nil, foregroundColour: nil, icon: nil)
+                    InfoChip(text: chipText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             )

@@ -143,11 +143,7 @@ struct RunLocationOverviewBento: View {
                       isProminent: cheeseItems.count > 0,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 4) {
-                            if cheeseItems.isEmpty {
-                                Text("None")
-                                    .font(.title3.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            } else {
+                            if !cheeseItems.isEmpty {
                                 let groupedCheeseItems = Dictionary(grouping: cheeseItems) { item in
                                     item.sku?.type ?? "Unknown SKU"
                                 }
@@ -183,9 +179,8 @@ struct RunLocationOverviewBento: View {
                         VStack(alignment: .leading, spacing: 12) {
                             if locationChocolateBoxes.isEmpty {
                                 Text("No chocolate boxes")
-                                    .font(.caption)
+                                    .font(.footnote)
                                     .foregroundStyle(.secondary)
-                                    .italic()
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(locationChocolateBoxes) { box in
@@ -224,12 +219,9 @@ struct RunLocationOverviewBento: View {
 
             if let machineType = machine.machineType {
                 HStack(alignment: .center, spacing: 8) {
-                    InfoChip(title: nil,
-                             date: nil,
-                             text: machineType.description,
+                    InfoChip(text: machineType.description,
                              colour: Color.indigo.opacity(0.15),
-                             foregroundColour: Color.indigo,
-                             icon: nil)
+                             foregroundColour: Color.indigo)
                     if onMachineTap != nil {
                         Spacer(minLength: 4)
                         Image(systemName: "chevron.right")

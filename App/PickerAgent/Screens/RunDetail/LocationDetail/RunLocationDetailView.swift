@@ -656,35 +656,30 @@ struct PickEntryRow: View {
                 
                 FlowLayout(spacing: 6) {
                     if showsLocation, let locationLabel {
-                        InfoChip(title: nil, date: nil, text: locationLabel, colour: nil, foregroundColour: nil, icon: nil)
+                        InfoChip(text: locationLabel)
                     }
                     
                     if let machineCode = pickItem.machine?.description {
-                        InfoChip(title: nil, date: nil, text: machineCode, colour: nil, foregroundColour: nil, icon: nil)
+                        InfoChip(text: machineCode)
                     }
                     
-                    InfoChip(title: "Coil", date: nil, text: pickItem.coilItem.coil.code, colour: nil, foregroundColour: nil, icon: nil)
+                    InfoChip(title: "Coil", text: pickItem.coilItem.coil.code)
                     
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
                         let chipColour = colorForCategoryChip(category)
                         InfoChip(
-                            title: nil,
-                            date: nil,
                             text: category,
                             colour: chipColour.opacity(0.2),
                             foregroundColour: chipColour,
-                            icon: "tray.2"
+                            icon: "tray.fill"
                         )
                     }
 
                     if pickItem.sku?.isCheeseAndCrackers == true {
                         InfoChip(
-                            title: nil,
-                            date: nil,
                             text: "Cheese Tub",
                             colour: Color.yellow.opacity(0.15),
-                            foregroundColour: Color.yellow,
-                            icon: nil
+                            foregroundColour: Color.yellow
                         )
                     }
                 }

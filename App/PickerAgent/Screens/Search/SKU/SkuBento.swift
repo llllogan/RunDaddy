@@ -29,7 +29,7 @@ struct SkuInfoBento: View {
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                             
-                            InfoChip(title: "Category", date: nil, text: sku.category ?? "None", colour: nil, foregroundColour: nil, icon: nil)
+                            InfoChip(title: "Category", text: sku.category ?? "None")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))

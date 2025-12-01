@@ -15,6 +15,22 @@ struct InfoChip: View {
     let colour: Color?
     let foregroundColour: Color?
     let icon: String?
+    
+    init(
+        title: String? = nil,
+        date: Date? = nil,
+        text: String? = nil,
+        colour: Color? = nil,
+        foregroundColour: Color? = nil,
+        icon: String? = nil
+    ) {
+        self.title = title
+        self.date = date
+        self.text = text
+        self.colour = colour
+        self.foregroundColour = foregroundColour
+        self.icon = icon
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -43,7 +59,7 @@ struct InfoChip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(colour != nil ? Color(colour!) : Color(.systemGray5))
+        .background(colour ?? Color(.systemGray5))
         .clipShape(Capsule())
     }
 }

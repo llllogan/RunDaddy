@@ -96,23 +96,18 @@ struct RunRow: View {
                 .fontWeight(.semibold)
             
             FlowLayout(spacing: 6) {
-                InfoChip(title: nil, date: nil, text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor, icon: nil)
+                InfoChip(text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
 
                 if isAssignedToCurrentUser {
                     InfoChip(
-                        title: nil,
-                        date: nil,
                         text: "Assigned to you",
                         colour: Color.blue.opacity(0.15),
-                        foregroundColour: .blue,
-                        icon: nil
+                        foregroundColour: .blue
                     )
                 }
                 
                 if !run.chocolateBoxes.isEmpty {
                     InfoChip(
-                        title: nil,
-                        date: nil,
                         text: run.chocolateBoxesDisplay,
                         colour: Color.brown.opacity(0.15),
                         foregroundColour: Color.brown,
@@ -121,10 +116,10 @@ struct RunRow: View {
                 }
                 
                 if let started = run.pickingStartedAt {
-                    InfoChip(title: "Started", date: started, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
+                    InfoChip(title: "Started", date: started, colour: Color(.systemGray5), foregroundColour: .secondary)
                 }
                 if let ended = run.pickingEndedAt {
-                    InfoChip(title: "Ended", date: ended, text: nil, colour: Color(.systemGray5), foregroundColour: .secondary, icon: nil)
+                    InfoChip(title: "Ended", date: ended, colour: Color(.systemGray5), foregroundColour: .secondary)
                 }
             }
         }

@@ -274,12 +274,9 @@ private struct PackerRow: View {
 
             HStack(spacing: 6) {
                 InfoChip(
-                    title: nil,
-                    date: nil,
                     text: sessionCountText,
                     colour: Color.blue.opacity(0.14),
-                    foregroundColour: .blue,
-                    icon: nil
+                    foregroundColour: .blue
                 )
             }
         }
