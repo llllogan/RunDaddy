@@ -120,6 +120,9 @@ struct RunLocationDetailView: View {
                     onChocolateBoxesTap: {
                         activeSheet = .chocolateBoxes
                     },
+                    onAddChocolateBoxTap: {
+                        activeSheet = .addChocolateBox
+                    },
                     cheeseItems: cheeseItems,
                     onLocationTap: {
                         navigateToSearchLocation()
@@ -221,6 +224,10 @@ struct RunLocationDetailView: View {
             case .chocolateBoxes:
                 ChocolateBoxesSheet(viewModel: viewModel, locationMachines: machines)
                     .presentationDetents([.fraction(0.5), .large])
+                    .presentationDragIndicator(.visible)
+            case .addChocolateBox:
+                AddChocolateBoxSheet(viewModel: viewModel, locationMachines: machines)
+                    .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
         }
@@ -469,11 +476,14 @@ private struct RunLocationDetailMachineNavigation: Identifiable, Hashable {
 
 private enum RunLocationDetailSheet: Identifiable {
     case chocolateBoxes
+    case addChocolateBox
     
     var id: String {
         switch self {
         case .chocolateBoxes:
             return "chocolateBoxes"
+        case .addChocolateBox:
+            return "addChocolateBox"
         }
     }
 }

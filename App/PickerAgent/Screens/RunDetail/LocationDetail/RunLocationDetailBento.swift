@@ -25,6 +25,7 @@ struct RunLocationOverviewBento: View {
     let machines: [RunDetail.Machine]
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
+    let onAddChocolateBoxTap: (() -> Void)?
     let cheeseItems: [RunDetail.PickItem]
     let onLocationTap: (() -> Void)?
     let onMachineTap: ((RunDetail.Machine) -> Void)?
@@ -33,6 +34,7 @@ struct RunLocationOverviewBento: View {
          machines: [RunDetail.Machine] = [],
          viewModel: RunDetailViewModel,
          onChocolateBoxesTap: (() -> Void)? = nil,
+         onAddChocolateBoxTap: (() -> Void)? = nil,
          cheeseItems: [RunDetail.PickItem] = [],
          onLocationTap: (() -> Void)? = nil,
          onMachineTap: ((RunDetail.Machine) -> Void)? = nil) {
@@ -40,6 +42,7 @@ struct RunLocationOverviewBento: View {
         self.machines = machines
         self.viewModel = viewModel
         self.onChocolateBoxesTap = onChocolateBoxesTap
+        self.onAddChocolateBoxTap = onAddChocolateBoxTap
         self.cheeseItems = cheeseItems
         self.onLocationTap = onLocationTap
         self.onMachineTap = onMachineTap
@@ -175,19 +178,27 @@ struct RunLocationOverviewBento: View {
                       value: "",
                       symbolName: "shippingbox",
                       symbolTint: .brown,
-                      onTap: onChocolateBoxesTap,
                       showsChevron: false,
                       customContent: AnyView(
-                        HStack {
-                            Text(chocolateBoxNumbersText)
-                                .font(.title3.weight(.semibold))
-                                .multilineTextAlignment(.leading)
-                            Spacer()
-                            Image(systemName: "magnifyingglass")
-                                .padding(6)
-                                .background(Color(.systemGray5))
-                                .clipShape(Circle())
-                                .foregroundStyle(.primary)
+                        VStack(alignment: .leading, spacing: 12) {
+                            if locationChocolateBoxes.isEmpty {
+                                Text("No chocolate boxes")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(locationChocolateBoxes) { box in
+                                        chocolateBoxRow(for: box)
+                                    }
+                                }
+                            }
+                            
+                            HStack {
+                                chocolateBoxesButton
+                                Spacer()
+                                addChocolateBoxButton
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))
@@ -244,21 +255,88 @@ struct RunLocationOverviewBento: View {
         }
     }
 
-    private var chocolateBoxNumbersText: String {
-        // Filter chocolate boxes to only include those assigned to machines in this location
+    private var locationChocolateBoxes: [RunDetail.ChocolateBox] {
         let locationMachineIds = Set(machines.map { $0.id })
-        let locationChocolateBoxes = viewModel.chocolateBoxes.filter { box in
-            box.machine?.id != nil && locationMachineIds.contains(box.machine!.id)
+        return viewModel.chocolateBoxes
+            .filter { box in
+                guard let machineId = box.machine?.id else { return false }
+                return locationMachineIds.contains(machineId)
+            }
+            .sorted { lhs, rhs in
+                let lhsName = machineName(for: lhs.machine)
+                let rhsName = machineName(for: rhs.machine)
+                
+                if lhsName == rhsName {
+                    return lhs.number < rhs.number
+                }
+                
+                return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
+            }
+    }
+    
+    @ViewBuilder
+    private func chocolateBoxRow(for box: RunDetail.ChocolateBox) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(machineName(for: box.machine))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                
+                if let code = box.machine?.code {
+                    Text(code)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer(minLength: 12)
+            
+            Text("\(box.number)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
         }
-        
-        let numbers = locationChocolateBoxes.map { $0.number }.sorted()
-        if numbers.isEmpty {
-            return "None"
-        } else if numbers.count <= 3 {
-            return numbers.map(String.init).joined(separator: ", ")
-        } else {
-            return "\(numbers[0]), \(numbers[1]), \(numbers[2])..."
+        .padding(.vertical, 4)
+    }
+    
+    private func machineName(for machine: RunDetail.Machine?) -> String {
+        if let description = machine?.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !description.isEmpty {
+            return description
         }
+        return machine?.code ?? "Unassigned"
+    }
+    
+    private var chocolateBoxesButton: some View {
+        Button {
+            onChocolateBoxesTap?()
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.body.weight(.semibold))
+                .padding(8)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
+                .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+        .disabled(onChocolateBoxesTap == nil)
+    }
+    
+    private var addChocolateBoxButton: some View {
+        Button {
+            onAddChocolateBoxTap?()
+        } label: {
+            Image(systemName: "plus")
+                .font(.body.weight(.semibold))
+                .padding(8)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
+                .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+        .disabled(onAddChocolateBoxTap == nil)
     }
 
     var body: some View {
