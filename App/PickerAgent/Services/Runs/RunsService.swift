@@ -112,8 +112,8 @@ struct RunSummary: Identifiable, Equatable {
     }
     
     var chocolateBoxesDisplay: String {
-        let sortedBoxes = chocolateBoxes.sorted { $0.number < $1.number }
-        return sortedBoxes.map { "\($0.number)" }.joined(separator: ", ")
+        let count = chocolateBoxes.count
+        return count == 1 ? "1 chocolate box" : "\(count) chocolate boxes"
     }
 }
 
