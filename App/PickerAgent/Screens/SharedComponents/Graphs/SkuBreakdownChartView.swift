@@ -160,6 +160,9 @@ struct SkuBreakdownChartView: View {
                         Button("All Locations") {
                             applyFilters(locationId: nil, machineId: selectedMachineFilter, skuId: selectedSkuFilter)
                         }
+                        if !availableFilters.location.isEmpty {
+                            Divider()
+                        }
                         ForEach(availableFilters.location) { option in
                             Button {
                                 applyFilters(locationId: option.id, machineId: selectedMachineFilter, skuId: selectedSkuFilter)
@@ -184,6 +187,9 @@ struct SkuBreakdownChartView: View {
                         Button("All Machines") {
                             applyFilters(locationId: selectedLocationFilter, machineId: nil, skuId: selectedSkuFilter)
                         }
+                        if !availableFilters.machine.isEmpty {
+                            Divider()
+                        }
                         ForEach(availableFilters.machine) { option in
                             Button {
                                 applyFilters(locationId: selectedLocationFilter, machineId: option.id, skuId: selectedSkuFilter)
@@ -207,6 +213,9 @@ struct SkuBreakdownChartView: View {
                     Menu {
                         Button("All SKUs") {
                             applyFilters(locationId: selectedLocationFilter, machineId: selectedMachineFilter, skuId: nil)
+                        }
+                        if !availableFilters.sku.isEmpty {
+                            Divider()
                         }
                         ForEach(availableFilters.sku) { option in
                             Button {

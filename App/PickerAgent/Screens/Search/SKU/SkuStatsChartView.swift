@@ -134,6 +134,9 @@ struct SkuStatsChartView: View {
                     Button("All Locations") {
                         applyFilters(locationId: nil, machineId: selectedMachineFilter)
                     }
+                    if !locationOptions.isEmpty {
+                        Divider()
+                    }
                     ForEach(locationOptions) { option in
                         Button(action: {
                             applyFilters(locationId: option.id, machineId: nil)
@@ -153,6 +156,9 @@ struct SkuStatsChartView: View {
                 Menu {
                     Button("All Machines") {
                         applyFilters(locationId: selectedLocationFilter, machineId: nil)
+                    }
+                    if !machineOptions.isEmpty {
+                        Divider()
                     }
                     ForEach(machineOptions) { machine in
                         Button(action: {
