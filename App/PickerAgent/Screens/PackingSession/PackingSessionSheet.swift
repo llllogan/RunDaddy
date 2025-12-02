@@ -252,11 +252,6 @@ struct PackingSessionSheet: View {
                 .background(Theme.packingSessionBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             } else if let command = viewModel.currentCommand {
-                CommandDebugLogger(
-                    command: command,
-                    machines: viewModel.runDetail?.machines,
-                    resolvedLocation: viewModel.currentLocationName
-                )
                 CurrentCommandView(
                     layout: layout,
                     command: command,
@@ -778,24 +773,6 @@ struct ProgressDonutView: View {
                 .rotationEffect(.degrees(-90))
         }
         .frame(width: 48, height: 48)
-    }
-}
-
-
-struct CommandDebugLogger: View {
-    init(command: AudioCommandsResponse.AudioCommand, machines: [RunDetail.Machine]?, resolvedLocation: String?) {
-        print("🍫 Command type: \(command.type) machineId: \(command.machineId ?? "nil") pickEntryIds: \(command.pickEntryIds)")
-        if let machines {
-            print("🍫 Loaded machines: \(machines.map { $0.id })")
-        } else {
-            print("🍫 Run detail machines not loaded")
-        }
-        let commandLocation = (command.locationName ?? "nil").isEmpty ? "empty" : (command.locationName ?? "nil")
-        print("🍫 Command locationName: \(commandLocation) | resolved location: \(resolvedLocation ?? "nil")")
-    }
-    
-    var body: some View {
-        EmptyView()
     }
 }
 
