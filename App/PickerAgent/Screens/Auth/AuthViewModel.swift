@@ -14,6 +14,7 @@ final class AuthViewModel: ObservableObject {
         case loading
         case authenticated(AuthSession)
         case login(message: String?)
+        case updateRequired(requiredVersion: String)
 
         static func == (lhs: Phase, rhs: Phase) -> Bool {
             switch (lhs, rhs) {
@@ -23,6 +24,8 @@ final class AuthViewModel: ObservableObject {
                 return lhsSession == rhsSession
             case let (.login(lhsMessage), .login(rhsMessage)):
                 return lhsMessage == rhsMessage
+            case let (.updateRequired(lhsVersion), .updateRequired(rhsVersion)):
+                return lhsVersion == rhsVersion
             default:
                 return false
             }
@@ -59,6 +62,9 @@ final class AuthViewModel: ObservableObject {
             service.store(credentials: refreshedCredentials)
             phase = .authenticated(session)
         } catch {
+            if handleUpdateRequirement(from: error) {
+                return
+            }
             service.clearStoredCredentials()
             if let authError = error as? AuthError, case .unauthorized = authError {
                 phase = .login(message: "Please sign in again to continue.")
@@ -73,6 +79,7 @@ final class AuthViewModel: ObservableObject {
         guard !isProcessing else { return }
         errorMessage = nil
         isProcessing = true
+        defer { isProcessing = false }
 
         do {
             let normalizedEmail = email
@@ -85,20 +92,22 @@ final class AuthViewModel: ObservableObject {
             service.store(credentials: credentials)
             phase = .authenticated(session)
         } catch {
+            if handleUpdateRequirement(from: error) {
+                return
+            }
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
             } else {
                 errorMessage = "Something went wrong while signing in. Please try again."
             }
         }
-
-        isProcessing = false
     }
 
     func createAccount(email: String, password: String, firstName: String, lastName: String, phone: String?) async {
         guard !isProcessing else { return }
         errorMessage = nil
         isProcessing = true
+        defer { isProcessing = false }
 
         do {
             let normalizedEmail = email
@@ -117,14 +126,15 @@ final class AuthViewModel: ObservableObject {
             service.store(credentials: credentials)
             phase = .authenticated(session)
         } catch {
+            if handleUpdateRequirement(from: error) {
+                return
+            }
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
             } else {
                 errorMessage = "Something went wrong while creating your account. Please try again."
             }
         }
-
-        isProcessing = false
     }
 
     func logout() {
@@ -143,6 +153,9 @@ final class AuthViewModel: ObservableObject {
             let session = AuthSession(credentials: storedCredentials, profile: profile)
             phase = .authenticated(session)
         } catch {
+            if handleUpdateRequirement(from: error) {
+                return
+            }
             if let authError = error as? AuthError, case .unauthorized = authError {
                 service.clearStoredCredentials()
                 phase = .login(message: "Please sign in again to continue.")
@@ -150,5 +163,16 @@ final class AuthViewModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func handleUpdateRequirement(from error: Error) -> Bool {
+        if let updateError = error as? AppUpdateRequiredError {
+            errorMessage = nil
+            isProcessing = false
+            phase = .updateRequired(requiredVersion: updateError.requiredVersion)
+            return true
+        }
+
+        return false
     }
 }

@@ -9,6 +9,7 @@ import { runRouter, getRunDetailPayload } from './routes/runs.js';
 import { skuRouter } from './routes/skus.js';
 import { inviteCodesRouter } from './routes/invite-codes.js';
 import { companyRouter } from './routes/companies.js';
+import { apiVersionMiddleware } from './middleware/api-version.js';
 import { loggingMiddleware } from './middleware/logging.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { adminRouter } from './routes/admin.js';
@@ -29,6 +30,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json());
+app.use(apiVersionMiddleware());
 
 // Logging middleware
 app.use(loggingMiddleware());

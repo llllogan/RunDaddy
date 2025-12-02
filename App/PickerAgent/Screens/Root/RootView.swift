@@ -21,6 +21,8 @@ struct RootView: View {
                 }
             case .login:
                 LoginView()
+            case let .updateRequired(requiredVersion):
+                UpdateRequiredView(requiredVersion: requiredVersion)
             }
         }
         .task {

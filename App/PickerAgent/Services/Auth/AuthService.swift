@@ -34,13 +34,16 @@ final class AuthService: AuthServicing {
     private let urlSession: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let versionValidator: ApiVersionValidating
 
     init(
         credentialStore: CredentialStoring = CredentialStore(),
-        urlSession: URLSession = .shared
+        urlSession: URLSession = .shared,
+        versionValidator: ApiVersionValidating = ApiVersionValidator()
     ) {
         self.credentialStore = credentialStore
         self.urlSession = urlSession
+        self.versionValidator = versionValidator
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.encoder = encoder
@@ -110,6 +113,8 @@ final class AuthService: AuthServicing {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthError.invalidResponse
         }
+
+        try validateVersion(in: httpResponse)
         
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
@@ -145,6 +150,8 @@ final class AuthService: AuthServicing {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthError.invalidResponse
         }
+
+        try validateVersion(in: httpResponse)
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             switch httpResponse.statusCode {
@@ -182,6 +189,8 @@ final class AuthService: AuthServicing {
                 throw AuthError.invalidResponse
             }
 
+            try validateVersion(in: httpResponse)
+
             if httpResponse.statusCode == 404 {
                 // If standalone endpoint returns 404, try regular users endpoint
                 return try await fetchProfileFromUsersEndpoint(userID: userID, credentials: credentials)
@@ -218,6 +227,8 @@ final class AuthService: AuthServicing {
             throw AuthError.invalidResponse
         }
 
+        try validateVersion(in: httpResponse)
+
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
                 throw AuthError.unauthorized
@@ -227,6 +238,10 @@ final class AuthService: AuthServicing {
 
         let payload = try decoder.decode(UserResponse.self, from: data)
         return payload.profile
+    }
+
+    private func validateVersion(in response: HTTPURLResponse) throws {
+        try versionValidator.validate(response: response)
     }
 
     private func performRequest<Request: Encodable, Response: Decodable>(
@@ -244,6 +259,8 @@ final class AuthService: AuthServicing {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthError.invalidResponse
         }
+
+        try validateVersion(in: httpResponse)
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
