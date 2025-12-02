@@ -186,6 +186,14 @@ struct MachineTouchesLineChart: View {
         points.sorted { $0.weekStart < $1.weekStart }
     }
 
+    private var completedTrendPoints: [DashboardMomentumSnapshot.MachineTouchPoint] {
+        Array(orderedPoints.dropLast())
+    }
+
+    private var trailingSegmentPoints: [DashboardMomentumSnapshot.MachineTouchPoint] {
+        Array(orderedPoints.suffix(2))
+    }
+
     private var maxValue: Double {
         let maxTotal = orderedPoints.map(\.totalMachines).max() ?? 0
         return max(Double(maxTotal), 1)
@@ -206,36 +214,52 @@ struct MachineTouchesLineChart: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Chart(orderedPoints) { point in
-                    AreaMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                .purple.opacity(0.24),
-                                .purple.opacity(0.05)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
+                Chart {
+                    ForEach(orderedPoints) { point in
+                        AreaMark(
+                            x: .value("Week", point.weekStart),
+                            y: .value("Machines", point.totalMachines)
                         )
-                    )
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    .purple.opacity(0.24),
+                                    .purple.opacity(0.05)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
 
-                    LineMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(.purple)
-                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
+                        PointMark(
+                            x: .value("Week", point.weekStart),
+                            y: .value("Machines", point.totalMachines)
+                        )
+                        .foregroundStyle(.purple)
+                    }
 
-                    PointMark(
-                        x: .value("Week", point.weekStart),
-                        y: .value("Machines", point.totalMachines)
-                    )
-                    .foregroundStyle(.purple)
+                    ForEach(completedTrendPoints) { point in
+                        LineMark(
+                            x: .value("Week", point.weekStart),
+                            y: .value("Machines", point.totalMachines)
+                        )
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(.purple)
+                        .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
+                    }
+
+                    if trailingSegmentPoints.count == 2 {
+                        ForEach(trailingSegmentPoints) { point in
+                            LineMark(
+                                x: .value("Week", point.weekStart),
+                                y: .value("Machines", point.totalMachines)
+                            )
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(.purple)
+                            .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round, dash: [6, 4]))
+                        }
+                    }
                 }
                 .chartLegend(.hidden)
                 .chartYAxis {
@@ -244,7 +268,7 @@ struct MachineTouchesLineChart: View {
                 .chartXAxis {
                     AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in
                         if let date = value.as(Date.self) {
-                            AxisValueLabel {
+                            AxisValueLabel(centered: false, anchor: .topTrailing) {
                                 Text(Self.weekLabel(for: date))
                                     .font(.caption2.weight(.light))
                             }
