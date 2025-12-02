@@ -332,22 +332,10 @@ struct DashboardView: View {
             NoCompanyMembershipSection {
                 handleJoinCompanyTap()
             }
-        } else if hasCompany {
-            Section("History") {
-                NavigationLink {
-                    AllRunsView(session: session)
-                } label: {
-                    HStack {
-                        Text("View all Runs")
-                            .foregroundStyle(.primary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
         }
 
         if shouldShowInsights {
-            Section("Analytics") {
+            Section() {
                 if let snapshot = momentumViewModel.snapshot {
                     DashboardMomentumBentoView(
                         snapshot: snapshot,
@@ -368,10 +356,29 @@ struct DashboardView: View {
                     .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 12)
                     .padding(.horizontal, 18)
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(Capsule())
+                    
+                    // Bento item with 1 column
+                    
+                    NavigationLink {
+                        AllRunsView(session: session)
+                    } label: {
+                        HStack {
+                            Text("View all Runs")
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 18)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(Capsule())
+                    
                 } else if momentumViewModel.isLoading {
                     LoadingStateRow()
                 } else if momentumViewModel.errorMessage != nil {
