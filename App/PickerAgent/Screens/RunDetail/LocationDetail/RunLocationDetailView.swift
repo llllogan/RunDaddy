@@ -13,11 +13,15 @@ enum CoilSortOrder: CaseIterable {
     
     var displayName: String {
         switch self {
-        case .descending:
-            return "Coil: Ascending"
         case .ascending:
-            return "Coil: Decending"
+            return "Ascending"
+        case .descending:
+            return "Descending"
         }
+    }
+
+    mutating func toggle() {
+        self = self == .ascending ? .descending : .ascending
     }
 }
 
@@ -30,6 +34,7 @@ struct RunLocationDetailView: View {
     let onPickStatusChanged: () async -> Void
     
     @State private var selectedMachineFilter: String?
+    @State private var selectedCategoryFilter: String?
     @State private var coilSortOrder: CoilSortOrder = .descending
     @State private var updatingPickIds: Set<String> = []
     @State private var updatingSkuIds: Set<String> = []
@@ -65,6 +70,19 @@ struct RunLocationDetailView: View {
         detail.machines
     }
 
+    private var availableSkuCategories: [String] {
+        var seen = Set<String>()
+        var categories: [String] = []
+
+        for category in detail.pickItems.compactMap({ $0.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines) }) {
+            guard !category.isEmpty, !seen.contains(category.lowercased()) else { continue }
+            seen.insert(category.lowercased())
+            categories.append(category)
+        }
+
+        return categories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     private var filteredPickItems: [RunDetail.PickItem] {
         let allPickItems = detail.pickItems
         let filteredItems = if let machineId = selectedMachineFilter {
@@ -72,42 +90,36 @@ struct RunLocationDetailView: View {
         } else {
             allPickItems
         }
-        
-        // Group by machine first, then sort within each machine group
-        let groupedByMachine = Dictionary(grouping: filteredItems) { item in
-            item.machine?.id ?? "unknown"
-        }
-        
-        // Sort machines by their code/description for consistent ordering
-        let sortedMachineIds = groupedByMachine.keys.sorted { machineId1, machineId2 in
-            let machine1 = machines.first { $0.id == machineId1 }
-            let machine2 = machines.first { $0.id == machineId2 }
-            
-            let code1 = machine1?.code ?? machineId1
-            let code2 = machine2?.code ?? machineId2
-            
-            return code1.localizedCaseInsensitiveCompare(code2) == .orderedAscending
-        }
-        
-        // Flatten the groups while maintaining coil sort order within each machine
-        var result: [RunDetail.PickItem] = []
-        for machineId in sortedMachineIds {
-            let machineItems = groupedByMachine[machineId] ?? []
-            let sortedItems = machineItems.sorted { item1, item2 in
-                let coil1 = item1.coilItem.coil.code
-                let coil2 = item2.coilItem.coil.code
-                
-                switch coilSortOrder {
-                case .ascending:
-                    return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedAscending
-                case .descending:
-                    return coil1.localizedCaseInsensitiveCompare(coil2) == .orderedDescending
+
+        let categoryFilteredItems = if let category = selectedCategoryFilter {
+            filteredItems.filter { pickItem in
+                guard let itemCategory = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !itemCategory.isEmpty else {
+                    return false
                 }
+                return itemCategory.caseInsensitiveCompare(category) == .orderedSame
             }
-            result.append(contentsOf: sortedItems)
+        } else {
+            filteredItems
         }
         
-        return result
+        return categoryFilteredItems.sorted { item1, item2 in
+            let coil1 = item1.coilItem.coil.code
+            let coil2 = item2.coilItem.coil.code
+
+            let comparison = coil1.compare(coil2, options: [.numeric, .caseInsensitive])
+
+            switch (coilSortOrder, comparison) {
+            case (.ascending, .orderedAscending), (.descending, .orderedDescending):
+                return true
+            case (.ascending, .orderedDescending), (.descending, .orderedAscending):
+                return false
+            case (_, .orderedSame):
+                // Stable fallback so equal coils stay predictable
+                return item1.id < item2.id
+            default:
+                return false
+            }
+        }
     }
 
     var body: some View {
@@ -146,28 +158,49 @@ struct RunLocationDetailView: View {
                         }
                         Divider()
                         ForEach(machines, id: \.id) { machine in
-                            Button(machine.description ?? machine.code) {
-                                selectedMachineFilter = machine.id
-                            }
-                        }
-                    } label: {
-                        filterChip(label: selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
+                    Button(machine.description ?? machine.code) {
+                        selectedMachineFilter = machine.id
                     }
-                    .foregroundStyle(.secondary)
-                    
-                    Menu {
-                        ForEach(CoilSortOrder.allCases, id: \.self) { order in
-                            Button(order.displayName) {
-                                coilSortOrder = order
-                            }
-                        }
-                    } label: {
-                        filterChip(label: coilSortOrder.displayName)
-                    }
-                    .foregroundStyle(.secondary)
-                    
-                    Spacer()
                 }
+            } label: {
+                filterChip(label: selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
+            }
+            .foregroundStyle(.secondary)
+            
+            Menu {
+                Button("All Categories") {
+                    selectedCategoryFilter = nil
+                }
+
+                if !availableSkuCategories.isEmpty {
+                    Divider()
+                }
+
+                ForEach(availableSkuCategories, id: \.self) { category in
+                    Button(category) {
+                        selectedCategoryFilter = category
+                    }
+                }
+            } label: {
+                filterChip(label: selectedCategoryFilter ?? "All Categories")
+            }
+            .foregroundStyle(.secondary)
+            .disabled(availableSkuCategories.isEmpty)
+            
+            Spacer()
+
+            Button {
+                coilSortOrder.toggle()
+            } label: {
+                Image(systemName: coilSortOrder.displayName.contains("Ascending") ? "arrow.up" : "arrow.down")
+                    .font(.footnote.weight(.semibold))
+                    .padding(6)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.secondary)
+        }
                 
                 if filteredPickItems.isEmpty {
                     Text("No picks found.")
