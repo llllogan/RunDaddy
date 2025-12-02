@@ -790,6 +790,24 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
   });
 });
 
+router.get('/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.json({ totalRuns: 0 });
+  }
+
+  const totalRuns = await prisma.run.count({
+    where: {
+      companyId: req.auth.companyId,
+    },
+  });
+
+  return res.json({ totalRuns });
+});
+
 // Get all runs for the company
 router.get('/all', async (req, res) => {
   if (!req.auth) {

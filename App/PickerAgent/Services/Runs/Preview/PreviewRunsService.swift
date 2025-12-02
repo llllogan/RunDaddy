@@ -11,6 +11,10 @@ struct PreviewRunsService: RunsServicing {
     func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
         []
     }
+
+    func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats {
+        RunStats(totalRuns: 128)
+    }
     
     func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
         // Return some sample runs for testing

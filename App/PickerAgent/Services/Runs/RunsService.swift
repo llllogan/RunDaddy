@@ -9,6 +9,7 @@ import Foundation
 
 protocol RunsServicing {
     func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary]
+    func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats
     func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
@@ -118,6 +119,10 @@ struct RunSummary: Identifiable, Equatable {
 }
 
 typealias RunParticipant = RunSummary.Participant
+
+struct RunStats: Equatable {
+    let totalRuns: Int
+}
 
 struct AudioCommandsResponse: Equatable, Decodable {
     struct AudioCommand: Equatable, Decodable {
@@ -380,6 +385,34 @@ final class RunsService: RunsServicing {
 
         let payload = try decoder.decode([RunResponse].self, from: data)
         return payload.map { $0.toSummary() }
+    }
+
+    func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent("stats")
+
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try decoder.decode(RunStatsResponse.self, from: data)
+        return RunStats(totalRuns: payload.totalRuns)
     }
 
     func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
@@ -1128,6 +1161,10 @@ final class RunsService: RunsServicing {
         let payload = try decoder.decode(UpdateLocationOrderResponse.self, from: data)
         return payload.locationOrders.map { $0.toLocationOrder() }.sorted { $0.position < $1.position }
     }
+}
+
+private struct RunStatsResponse: Decodable {
+    let totalRuns: Int
 }
 
 private struct RunResponse: Decodable {

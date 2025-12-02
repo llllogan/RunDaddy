@@ -56,6 +56,22 @@ struct DashboardView: View {
         viewModel.currentUserProfile?.hasCompany == true && !isPickerUser
     }
 
+    private var totalRunsBentoItem: BentoItem? {
+        guard let totalRuns = viewModel.totalRuns else {
+            return nil
+        }
+
+        let formattedTotal = totalRuns.formatted(.number.grouping(.automatic))
+
+        return BentoItem(
+            title: "All Time Total Runs",
+            value: formattedTotal,
+            symbolName: "flag.checkered",
+            symbolTint: Color.green,
+            isProminent: true
+        )
+    }
+
     private var navigationSubtitleText: String {
         let companyName = viewModel.currentUserProfile?.currentCompany?.name ?? "No Company"
         let dateString = Date().formatted(
@@ -361,7 +377,15 @@ struct DashboardView: View {
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(Capsule())
                     
-                    // Bento item with 1 column
+                    if let totalRunsItem = totalRunsBentoItem {
+                        StaggeredBentoGrid(items: [totalRunsItem], columnCount: 1)
+                            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
+                            .listRowBackground(Color.clear)
+                    } else if viewModel.isLoading {
+                        LoadingStateRow()
+                            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
+                            .listRowBackground(Color.clear)
+                    }
                     
                     NavigationLink {
                         AllRunsView(session: session)

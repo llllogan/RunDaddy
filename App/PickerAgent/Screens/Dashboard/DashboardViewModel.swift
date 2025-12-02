@@ -15,6 +15,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
+    @Published private(set) var totalRuns: Int?
 
     private var session: AuthSession
     private let service: RunsServicing
@@ -46,10 +47,12 @@ final class DashboardViewModel: ObservableObject {
             async let today = service.fetchRuns(for: .today, credentials: session.credentials)
             async let tomorrow = service.fetchRuns(for: .tomorrow, credentials: session.credentials)
             async let profile = authService.fetchCurrentUserProfile(credentials: session.credentials)
-            let (todayRuns, tomorrowRuns, currentUserProfile) = try await (today, tomorrow, profile)
+            async let stats = service.fetchRunStats(credentials: session.credentials)
+            let (todayRuns, tomorrowRuns, currentUserProfile, runStats) = try await (today, tomorrow, profile, stats)
             self.todayRuns = todayRuns
             self.tomorrowRuns = tomorrowRuns
             self.currentUserProfile = currentUserProfile
+            totalRuns = runStats.totalRuns
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -60,6 +63,7 @@ final class DashboardViewModel: ObservableObject {
             }
             todayRuns = []
             tomorrowRuns = []
+            totalRuns = nil
         }
 
         isLoading = false
