@@ -26,7 +26,7 @@ struct ChocolateBoxesSheet: View {
                 if locationChocolateBoxes.isEmpty {
                     ContentUnavailableView(
                         "No Chocolate Boxes",
-                        systemImage: "shippingbox",
+                        systemImage: "shippingbox.fill",
                         description: Text("Add chocolate boxes to track their machine assignments")
                     )
                 } else {

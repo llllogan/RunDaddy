@@ -111,7 +111,7 @@ struct RunRow: View {
                         text: run.chocolateBoxesDisplay,
                         colour: Color.brown.opacity(0.15),
                         foregroundColour: Color.brown,
-                        icon: "shippingbox"
+                        icon: "shippingbox.fill"
                     )
                 }
                 
