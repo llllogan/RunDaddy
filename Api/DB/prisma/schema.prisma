@@ -165,6 +165,7 @@ model SKU {
   name                String
   type                String
   category            String?
+  weight              Float?
   countNeededPointer  String?  @default("total")
   isCheeseAndCrackers Boolean  @default(false)
 

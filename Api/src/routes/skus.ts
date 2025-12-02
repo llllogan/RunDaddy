@@ -223,8 +223,84 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
     name: sku.name,
     type: sku.type,
     category: sku.category,
+    weight: sku.weight,
     isCheeseAndCrackers: sku.isCheeseAndCrackers,
     countNeededPointer: sku.countNeededPointer,
+  });
+});
+
+// Update SKU weight
+router.patch('/:skuId/weight', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { skuId } = req.params;
+  if (!skuId) {
+    return res.status(400).json({ error: 'SKU ID is required' });
+  }
+
+  const { weight } = req.body;
+  if (weight !== null && weight !== undefined) {
+    const parsedWeight = Number(weight);
+    if (Number.isNaN(parsedWeight) || !Number.isFinite(parsedWeight) || parsedWeight < 0) {
+      return res
+        .status(400)
+        .json({ error: 'weight must be a non-negative number or null to clear it' });
+    }
+  }
+
+  const sku = await prisma.sKU.findFirst({
+    where: { id: skuId },
+    include: {
+      coilItems: {
+        include: {
+          coil: {
+            include: {
+              machine: {
+                include: {
+                  company: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!sku) {
+    return res.status(404).json({ error: 'SKU not found' });
+  }
+
+  const belongsToCompany = sku.coilItems.some(
+    coilItem => coilItem.coil.machine?.companyId === req.auth!.companyId,
+  );
+
+  if (!belongsToCompany) {
+    return res.status(403).json({ error: 'SKU does not belong to your company' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const parsedWeight =
+    weight === null || weight === undefined ? null : Number(weight);
+  const updatedSku = await prisma.sKU.update({
+    where: { id: skuId },
+    data: { weight: parsedWeight },
+  });
+
+  return res.json({
+    id: updatedSku.id,
+    code: updatedSku.code,
+    name: updatedSku.name,
+    type: updatedSku.type,
+    category: updatedSku.category,
+    weight: updatedSku.weight,
+    countNeededPointer: updatedSku.countNeededPointer,
+    isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
   });
 });
 

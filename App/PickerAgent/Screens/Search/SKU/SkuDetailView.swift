@@ -11,6 +11,10 @@ struct SkuDetailView: View {
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
     @State private var isUpdatingCheeseStatus = false
+    @State private var isUpdatingWeight = false
+    @State private var isShowingWeightAlert = false
+    @State private var weightInputText = ""
+    @State private var weightUpdateError: String?
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
     @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
@@ -142,6 +146,39 @@ struct SkuDetailView: View {
         .navigationDestination(item: $machineNavigationTarget) { target in
             MachineDetailView(machineId: target.id, session: session)
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isUpdatingWeight {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                } else {
+                    Button {
+                        openWeightEditor()
+                    } label: {
+                        Label("Update Weight", systemImage: "scalemass")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(!canEditSku || sku == nil)
+                    .accessibilityLabel("Update SKU weight")
+                }
+            }
+        }
+        .textFieldAlert(
+            isPresented: $isShowingWeightAlert,
+            text: $weightInputText,
+            title: "Update Weight",
+            message: weightUpdateError,
+            confirmTitle: "Save",
+            cancelTitle: "Cancel",
+            keyboardType: .decimalPad,
+            allowedCharacterSet: CharacterSet(charactersIn: "0123456789.,"),
+            onConfirm: {
+                Task { await submitWeightUpdate() }
+            },
+            onCancel: {
+                weightUpdateError = nil
+            }
+        )
     }
     
     private func loadSkuDetails() async {
@@ -193,6 +230,76 @@ struct SkuDetailView: View {
             isUpdatingCheeseStatus = false
         }
     }
+
+    private func openWeightEditor() {
+        guard sku != nil else { return }
+        weightUpdateError = nil
+        weightInputText = formattedWeightInput(from: sku?.weight)
+        isShowingWeightAlert = true
+    }
+
+    private func formattedWeightInput(from weight: Double?) -> String {
+        guard let weight else { return "" }
+        return SkuDetailView.weightFormatter.string(from: NSNumber(value: weight)) ?? "\(weight)"
+    }
+
+    private func submitWeightUpdate() async {
+        if isUpdatingWeight {
+            return
+        }
+
+        let trimmed = weightInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed: Double?
+        if trimmed.isEmpty {
+            parsed = nil
+        } else {
+            let normalizedText = trimmed.replacingOccurrences(of: ",", with: ".")
+            let parsedNumber = SkuDetailView.weightFormatter.number(from: trimmed)?.doubleValue
+                ?? Double(normalizedText)
+            guard let parsedNumber else {
+                await MainActor.run {
+                    weightUpdateError = "Enter a valid weight."
+                }
+                return
+            }
+            if parsedNumber < 0 {
+                await MainActor.run {
+                    weightUpdateError = "Weight must be zero or greater."
+                }
+                return
+            }
+            parsed = parsedNumber
+        }
+
+        await MainActor.run {
+            weightUpdateError = nil
+            isUpdatingWeight = true
+        }
+
+        do {
+            try await skusService.updateWeight(id: skuId, weight: parsed)
+            await loadSkuDetails()
+            await MainActor.run {
+                isShowingWeightAlert = false
+            }
+        } catch {
+            await MainActor.run {
+                weightUpdateError = error.localizedDescription
+            }
+        }
+
+        await MainActor.run {
+            isUpdatingWeight = false
+        }
+    }
+
+    private static let weightFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 3
+        return formatter
+    }()
     
     private var skuDisplayTitle: String {
         if let name = sku?.name, !name.isEmpty {
@@ -205,6 +312,11 @@ struct SkuDetailView: View {
     }
 
     private var canViewRecentActivity: Bool {
+        guard let role = resolvedRole else { return false }
+        return role == .admin || role == .owner || role == .god
+    }
+
+    private var canEditSku: Bool {
         guard let role = resolvedRole else { return false }
         return role == .admin || role == .owner || role == .god
     }

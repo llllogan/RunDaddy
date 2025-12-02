@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `SKU` ADD COLUMN `weight` DOUBLE NULL;

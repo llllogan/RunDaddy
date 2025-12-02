@@ -37,6 +37,7 @@ struct SKU: Codable, Identifiable {
     let name: String
     let type: String
     let category: String?
+    let weight: Double?
     let countNeededPointer: String?
     let isCheeseAndCrackers: Bool
 }

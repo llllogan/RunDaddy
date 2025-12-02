@@ -9,6 +9,7 @@ protocol SkusServicing {
         machineId: String?
     ) async throws -> SkuStatsResponse
     func updateCheeseStatus(id: String, isCheeseAndCrackers: Bool) async throws
+    func updateWeight(id: String, weight: Double?) async throws
 }
 
 final class SkusService: SkusServicing {
@@ -136,6 +137,47 @@ final class SkusService: SkusServicing {
             throw SkusServiceError.invalidResponse
         }
         
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw SkusServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw SkusServiceError.skuNotFound
+            }
+            throw SkusServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func updateWeight(id: String, weight: Double?) async throws {
+        guard let credentials = credentialStore.loadCredentials() else {
+            throw AuthError.unauthorized
+        }
+
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("skus")
+        url.appendPathComponent(id)
+        url.appendPathComponent("weight")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "weight": weight as Any? ?? NSNull()
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SkusServiceError.invalidResponse
+        }
+
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
                 throw AuthError.unauthorized

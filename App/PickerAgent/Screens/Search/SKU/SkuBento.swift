@@ -51,6 +51,8 @@ struct SkuInfoBento: View {
                       symbolName: "barcode",
                       symbolTint: .blue)
         )
+
+        cards.append(weightCard)
         
         cards.append(
             BentoItem(title: "Cheese Tub",
@@ -134,6 +136,40 @@ struct SkuInfoBento: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM"
         formatter.locale = Locale.current
+        return formatter
+    }()
+
+    private var weightCard: BentoItem {
+        guard let weight = sku.weight else {
+            return BentoItem(
+                title: "Weight",
+                value: "Not set",
+                subtitle: "Tap Update Weight to add it",
+                symbolName: "scalemass",
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            title: "Weight",
+            value: formattedWeight(weight),
+            subtitle: "Per unit",
+            symbolName: "scalemass",
+            symbolTint: .orange,
+            isProminent: true
+        )
+    }
+
+    private func formattedWeight(_ value: Double) -> String {
+        let formattedValue = SkuInfoBento.weightFormatter.string(from: NSNumber(value: value))
+        return "\(formattedValue ?? "\(value)") g"
+    }
+
+    private static let weightFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 3
         return formatter
     }()
 }
