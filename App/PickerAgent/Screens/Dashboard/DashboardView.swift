@@ -369,7 +369,7 @@ struct DashboardView: View {
                         AnalyticsView(session: session)
                     } label: {
                         HStack {
-                            Text("View More Information")
+                            Text("View More Statistics")
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -383,11 +383,11 @@ struct DashboardView: View {
                     
                     if let totalRunsItem = totalRunsBentoItem {
                         StaggeredBentoGrid(items: [totalRunsItem], columnCount: 1)
-                            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
+                            .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                             .listRowBackground(Color.clear)
                     } else if viewModel.isLoading {
                         LoadingStateRow()
-                            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
+                            .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                             .listRowBackground(Color.clear)
                     }
                     
