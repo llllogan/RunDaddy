@@ -29,7 +29,9 @@ struct SkuInfoBento: View {
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                             
-                            InfoChip(title: "Category", text: sku.category ?? "None")
+                            InfoChip(text: sku.category ?? "None", icon: "tray.fill")
+                            
+                            InfoChip(text: sku.code, icon: "barcode")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))
@@ -45,12 +47,12 @@ struct SkuInfoBento: View {
             )
         }
         
-        cards.append(
-            BentoItem(title: "Code",
-                      value: sku.code,
-                      symbolName: "barcode",
-                      symbolTint: .blue)
-        )
+//        cards.append(
+//            BentoItem(title: "Code",
+//                      value: sku.code,
+//                      symbolName: "barcode",
+//                      symbolTint: .blue)
+//        )
 
         cards.append(weightCard)
         
@@ -144,7 +146,6 @@ struct SkuInfoBento: View {
             return BentoItem(
                 title: "Weight",
                 value: "Not set",
-                subtitle: "Tap Update Weight to add it",
                 symbolName: "scalemass",
                 symbolTint: .secondary
             )

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Charts
 
 struct BentoCard: View {
     let item: BentoItem
@@ -184,18 +183,6 @@ struct PackedGaugeChart: View {
     let totalCount: Int
     let tint: Color
 
-    private enum GaugeSliceKind {
-        case gap
-        case progress
-        case remainder
-    }
-
-    private struct GaugeSlice: Identifiable {
-        let id = UUID()
-        let kind: GaugeSliceKind
-        let value: Double
-    }
-
     private var clampedProgress: Double {
         min(max(progress, 0), 1)
     }
@@ -210,51 +197,27 @@ struct PackedGaugeChart: View {
         return "\(totalCount) items"
     }
 
-    /// Creates donut slices that render a semi-circular gauge using a Swift Chart.
-    private var slices: [GaugeSlice] {
-        let gapPortion = 0.5
-        let activePortion = 1 - gapPortion
-        let filledPortion = clampedProgress * activePortion
-        let remainingPortion = max(activePortion - filledPortion, 0)
-
-        var items: [GaugeSlice] = [
-            GaugeSlice(kind: .gap, value: gapPortion / 2)
-        ]
-
-        if filledPortion > 0 {
-            items.append(GaugeSlice(kind: .progress, value: filledPortion))
-        }
-
-        if remainingPortion > 0 {
-            items.append(GaugeSlice(kind: .remainder, value: remainingPortion))
-        }
-
-        items.append(GaugeSlice(kind: .gap, value: gapPortion / 2))
-
-        return items
-    }
-
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { proxy in
-                let diameter = proxy.size.width
+                let progressWidth = max(proxy.size.width * clampedProgress, 0)
 
-                Chart(slices) { slice in
-                    SectorMark(angle: .value("Completion", slice.value),
-                               innerRadius: .ratio(0.62),
-                               outerRadius: .ratio(1.0))
-                        .cornerRadius(6)
-                        .foregroundStyle(style(for: slice.kind))
-                        .opacity(slice.kind == .gap ? 0 : 1)
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(.systemGray6))
+
+                    if progressWidth > 0 {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(tint.gradient)
+                            .frame(width: progressWidth)
+                    }
                 }
-                .chartLegend(.hidden)
-                .rotationEffect(.degrees(180))
-                .frame(width: diameter, height: diameter)
-                .clipShape(SemiCircleClipShape())
-                .frame(width: diameter, height: diameter / 2, alignment: .top)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color(.separator).opacity(0.35))
+                )
             }
-            .aspectRatio(2, contentMode: .fit)
-            .layoutPriority(1)
+            .frame(height: 14)
 
             HStack {
                 Text(packedPercentageText)
@@ -270,25 +233,5 @@ struct PackedGaugeChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Packed completion")
         .accessibilityValue(Text("\(Int((clampedProgress * 100).rounded())) percent"))
-    }
-
-    private func style(for kind: GaugeSliceKind) -> AnyShapeStyle {
-        switch kind {
-        case .gap:
-            return AnyShapeStyle(Color.clear)
-        case .progress:
-            return AnyShapeStyle(tint.gradient)
-        case .remainder:
-            return AnyShapeStyle(Color(.systemGray5))
-        }
-    }
-}
-
-struct SemiCircleClipShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let clipRect = CGRect(x: 0, y: 0, width: rect.width, height: rect.height / 2)
-        path.addRect(clipRect)
-        return path
     }
 }
