@@ -242,7 +242,8 @@ struct MachineTouchesLineChart: View {
                     ForEach(completedTrendPoints) { point in
                         LineMark(
                             x: .value("Week", point.weekStart),
-                            y: .value("Machines", point.totalMachines)
+                            y: .value("Machines", point.totalMachines),
+                            series: .value("Series", "Completed")
                         )
                         .interpolationMethod(.monotone)
                         .foregroundStyle(.purple)
@@ -253,11 +254,12 @@ struct MachineTouchesLineChart: View {
                         ForEach(trailingSegmentPoints) { point in
                             LineMark(
                                 x: .value("Week", point.weekStart),
-                                y: .value("Machines", point.totalMachines)
+                                y: .value("Machines", point.totalMachines),
+                                series: .value("Series", "Current")
                             )
                             .interpolationMethod(.monotone)
                             .foregroundStyle(.purple)
-                            .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round, dash: [6, 4]))
+                            .lineStyle(StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round, dash: [6, 4]))
                         }
                     }
                 }
