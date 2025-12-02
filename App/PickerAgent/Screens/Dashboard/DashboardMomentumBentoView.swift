@@ -23,7 +23,7 @@ struct DashboardMomentumBentoView: View {
         let chartContent = MachineTouchesLineChart(points: orderedPoints)
 
         return BentoItem(
-            title: "Total Machines",
+            title: "Machines p/week",
             value: machineTouchHeadline(for: orderedPoints),
             symbolName: "building.2",
             symbolTint: hasData ? .purple : .gray,
@@ -65,7 +65,7 @@ struct DashboardMomentumBentoView: View {
         }
 
         return BentoItem(
-            title: "Picks",
+            title: "Items Stocked",
             value: headline,
             symbolName: "tag",
             symbolTint: .cyan,

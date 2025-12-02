@@ -29,7 +29,7 @@ struct AnalyticsView: View {
                     PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
-                Section("Total Machines") {
+                Section("Total Machines Stocked Per Week") {
                     MachineTouchesChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .padding(.top, 10)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

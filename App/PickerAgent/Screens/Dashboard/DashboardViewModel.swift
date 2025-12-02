@@ -16,6 +16,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var currentUserProfile: CurrentUserProfile?
     @Published private(set) var totalRuns: Int?
+    @Published private(set) var averageRunsPerDay: Double?
 
     private var session: AuthSession
     private let service: RunsServicing
@@ -53,6 +54,7 @@ final class DashboardViewModel: ObservableObject {
             self.tomorrowRuns = tomorrowRuns
             self.currentUserProfile = currentUserProfile
             totalRuns = runStats.totalRuns
+            averageRunsPerDay = runStats.averageRunsPerDay
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -64,6 +66,7 @@ final class DashboardViewModel: ObservableObject {
             todayRuns = []
             tomorrowRuns = []
             totalRuns = nil
+            averageRunsPerDay = nil
         }
 
         isLoading = false

@@ -796,7 +796,7 @@ router.get('/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
   }
 
   if (!req.auth.companyId) {
-    return res.json({ totalRuns: 0 });
+    return res.json({ totalRuns: 0, averageRunsPerDay: 0 });
   }
 
   const totalRuns = await prisma.run.count({
@@ -805,7 +805,26 @@ router.get('/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
     },
   });
 
-  return res.json({ totalRuns });
+  const earliestRun = await prisma.run.findFirst({
+    where: {
+      companyId: req.auth.companyId,
+      scheduledFor: { not: null },
+    },
+    orderBy: { scheduledFor: 'asc' },
+    select: { scheduledFor: true },
+  });
+
+  let averageRunsPerDay = 0;
+
+  if (earliestRun?.scheduledFor) {
+    const now = new Date();
+    const start = earliestRun.scheduledFor;
+    const millisecondsInDay = 1000 * 60 * 60 * 24;
+    const daysActive = Math.max(1, Math.ceil((now.getTime() - start.getTime()) / millisecondsInDay));
+    averageRunsPerDay = totalRuns / daysActive;
+  }
+
+  return res.json({ totalRuns, averageRunsPerDay });
 });
 
 // Get all runs for the company

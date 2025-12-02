@@ -62,10 +62,14 @@ struct DashboardView: View {
         }
 
         let formattedTotal = totalRuns.formatted(.number.grouping(.automatic))
+        let formattedAverage = viewModel.averageRunsPerDay.map {
+            $0.formatted(.number.precision(.fractionLength(1)))
+        }
 
         return BentoItem(
             title: "All Time Total Runs",
             value: formattedTotal,
+            callout: formattedAverage.map { "\($0)/day" },
             symbolName: "flag.checkered",
             symbolTint: Color.green,
             isProminent: true

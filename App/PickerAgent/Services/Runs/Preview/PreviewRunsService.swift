@@ -13,7 +13,7 @@ struct PreviewRunsService: RunsServicing {
     }
 
     func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats {
-        RunStats(totalRuns: 128)
+        RunStats(totalRuns: 128, averageRunsPerDay: 6.2)
     }
     
     func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {

@@ -122,6 +122,7 @@ typealias RunParticipant = RunSummary.Participant
 
 struct RunStats: Equatable {
     let totalRuns: Int
+    let averageRunsPerDay: Double
 }
 
 struct AudioCommandsResponse: Equatable, Decodable {
@@ -412,7 +413,7 @@ final class RunsService: RunsServicing {
         }
 
         let payload = try decoder.decode(RunStatsResponse.self, from: data)
-        return RunStats(totalRuns: payload.totalRuns)
+        return RunStats(totalRuns: payload.totalRuns, averageRunsPerDay: payload.averageRunsPerDay)
     }
 
     func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
@@ -1165,6 +1166,7 @@ final class RunsService: RunsServicing {
 
 private struct RunStatsResponse: Decodable {
     let totalRuns: Int
+    let averageRunsPerDay: Double
 }
 
 private struct RunResponse: Decodable {

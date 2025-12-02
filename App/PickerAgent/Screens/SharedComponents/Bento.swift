@@ -38,6 +38,16 @@ struct BentoCard: View {
                         .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
                         .lineLimit(item.allowsMultilineValue ? nil : 2)
                         .multilineTextAlignment(.leading)
+
+                    Spacer(minLength: 8)
+
+                    if let callout = item.callout, !callout.isEmpty {
+                        Text(callout)
+                            .font(item.isProminent ? .title3.weight(.semibold) : .headline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(item.allowsMultilineValue ? nil : 2)
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
             }
 
@@ -79,6 +89,7 @@ struct BentoItem: Identifiable {
     let id = UUID()
     let title: String
     let value: String
+    let callout: String?
     let subtitle: String?
     let symbolName: String
     let symbolTint: Color
@@ -90,6 +101,7 @@ struct BentoItem: Identifiable {
 
     init(title: String,
          value: String,
+         callout: String? = nil,
          subtitle: String? = nil,
          symbolName: String,
          symbolTint: Color,
@@ -100,6 +112,7 @@ struct BentoItem: Identifiable {
          customContent: AnyView? = nil) {
         self.title = title
         self.value = value
+        self.callout = callout
         self.subtitle = subtitle
         self.symbolName = symbolName
         self.symbolTint = symbolTint
