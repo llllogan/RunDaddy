@@ -47,7 +47,7 @@ struct RunOverviewBento: View {
                           symbolTint: .green)
             )
         }
-        
+
         if let currentStatus = viewModel.detail?.status {
             cards.append(
                 BentoItem(title: "Status",
@@ -159,7 +159,7 @@ struct RunOverviewBento: View {
                          )
             )
         }
-
+        
         cards.append(
             BentoItem(
                 title: "Pickers",
@@ -195,6 +195,8 @@ struct RunOverviewBento: View {
                       showsChevron: true)
         )
         
+        cards.append(totalWeightCard)
+        
         return cards
     }
 
@@ -203,6 +205,33 @@ struct RunOverviewBento: View {
             .padding(.vertical, 2)
             .padding(.horizontal, 4)
     }
+
+    private var totalWeightCard: BentoItem {
+        let totalWeightKg = summary.totalWeightGrams / 1000
+        let formatted = RunOverviewBento.weightFormatter.string(from: NSNumber(value: totalWeightKg))
+            ?? "\(totalWeightKg)"
+
+        let subtitle: String? = summary.itemsMissingWeight > 0
+            ? "\(summary.itemsMissingWeight) without weight"
+            : nil
+
+        return BentoItem(
+            title: "Total Weight",
+            value: "\(formatted) kg",
+            subtitle: subtitle,
+            symbolName: "scalemass",
+            symbolTint: .orange,
+            isProminent: false
+        )
+    }
+
+    private static let weightFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
 }
 
 struct RunnerAssignButtons: View {

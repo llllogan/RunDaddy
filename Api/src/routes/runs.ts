@@ -1710,6 +1710,7 @@ type PickItemPayload = {
     name: string;
     type: string;
     category: string | null;
+    weight: number | null;
     isCheeseAndCrackers: boolean;
   };
   machine: MachinePayload | null;
@@ -1888,6 +1889,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             name: entry.coilItem.sku.name,
             type: entry.coilItem.sku.type,
             category: entry.coilItem.sku.category,
+            weight: entry.coilItem.sku.weight,
             isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
           }
         : null,

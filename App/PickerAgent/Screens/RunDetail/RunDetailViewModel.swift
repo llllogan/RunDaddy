@@ -41,6 +41,8 @@ struct RunOverviewSummary: Equatable {
     let packedCoils: Int
     let remainingCoils: Int
     let totalItems: Int
+    let totalWeightGrams: Double
+    let itemsMissingWeight: Int
 }
 
 struct RunLocationSection: Identifiable, Equatable {
@@ -288,6 +290,16 @@ final class RunDetailViewModel: ObservableObject {
         let totalItems = detail.pickItems.reduce(into: 0) { partialResult, item in
             partialResult += max(item.count, 0)
         }
+        var totalWeightGrams = 0.0
+        var itemsMissingWeight = 0
+        detail.pickItems.forEach { item in
+            let count = max(item.count, 0)
+            if let weight = item.sku?.weight {
+                totalWeightGrams += Double(count) * weight
+            } else {
+                itemsMissingWeight += count
+            }
+        }
 
         return RunOverviewSummary(
             runDate: detail.runDate,
@@ -296,7 +308,9 @@ final class RunDetailViewModel: ObservableObject {
             totalCoils: totalCoils,
             packedCoils: packedCoils,
             remainingCoils: max(totalCoils - packedCoils, 0),
-            totalItems: totalItems
+            totalItems: totalItems,
+            totalWeightGrams: totalWeightGrams,
+            itemsMissingWeight: itemsMissingWeight
         )
     }
 
