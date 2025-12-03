@@ -191,7 +191,7 @@ struct MachineTouchesLineChart: View {
     }
 
     private var trailingSegmentPoints: [DashboardMomentumSnapshot.MachineTouchPoint] {
-        Array(orderedPoints.suffix(2))
+        Array(orderedPoints.suffix(3))
     }
 
     private var maxValue: Double {
@@ -250,18 +250,6 @@ struct MachineTouchesLineChart: View {
                         .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
                     }
 
-                    if trailingSegmentPoints.count == 2 {
-                        ForEach(trailingSegmentPoints) { point in
-                            LineMark(
-                                x: .value("Week", point.weekStart),
-                                y: .value("Machines", point.totalMachines),
-                                series: .value("Series", "Current")
-                            )
-                            .interpolationMethod(.monotone)
-                            .foregroundStyle(.purple)
-                            .lineStyle(StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round, dash: [6, 4]))
-                        }
-                    }
                 }
                 .chartLegend(.hidden)
                 .chartYAxis {
@@ -279,6 +267,56 @@ struct MachineTouchesLineChart: View {
                 }
                 .chartYScale(domain: minValue...maxValue)
                 .frame(height: 170)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        ZStack {
+                            if trailingSegmentPoints.count >= 2,
+                               let previous = trailingSegmentPoints.dropLast().first,
+                               let current = trailingSegmentPoints.dropLast().last,
+                               let latest = trailingSegmentPoints.last,
+                               let previousX = proxy.position(forX: previous.weekStart),
+                               let previousY = proxy.position(forY: previous.totalMachines),
+                               let currentX = proxy.position(forX: current.weekStart),
+                               let currentY = proxy.position(forY: current.totalMachines),
+                               let latestX = proxy.position(forX: latest.weekStart),
+                               let latestY = proxy.position(forY: latest.totalMachines) {
+
+                                let plotFrame = geometry[proxy.plotAreaFrame]
+
+                                let adjustedPrevious = CGPoint(
+                                    x: previousX + plotFrame.minX,
+                                    y: previousY + plotFrame.minY
+                                )
+                                let adjustedCurrent = CGPoint(
+                                    x: currentX + plotFrame.minX,
+                                    y: currentY + plotFrame.minY
+                                )
+                                let adjustedLatest = CGPoint(
+                                    x: latestX + plotFrame.minX,
+                                    y: latestY + plotFrame.minY
+                                )
+
+                                let control1 = CGPoint(
+                                    x: adjustedCurrent.x + (adjustedCurrent.x - adjustedPrevious.x) / 3,
+                                    y: adjustedCurrent.y + (adjustedCurrent.y - adjustedPrevious.y) / 3
+                                )
+                                let control2 = CGPoint(
+                                    x: adjustedLatest.x - (adjustedLatest.x - adjustedCurrent.x) / 3,
+                                    y: adjustedLatest.y - (adjustedLatest.y - adjustedCurrent.y) / 3
+                                )
+
+                                Path { path in
+                                    path.move(to: adjustedCurrent)
+                                    path.addCurve(to: adjustedLatest, control1: control1, control2: control2)
+                                }
+                                .stroke(
+                                    .purple,
+                                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round, dash: [6, 4])
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
