@@ -326,10 +326,17 @@ struct PickEntryBarChart: View {
 
     private var currentBucketIndex: Int? {
         let now = Date()
-        if let match = chartPoints.first(where: { now >= $0.startDate && now < $0.endDate }) {
-            return match.index
+        let match = chartPoints.first { point in
+            switch aggregation {
+            case .week:
+                return calendar.isDate(now, inSameDayAs: point.startDate)
+            case .month:
+                return calendar.isDate(now, equalTo: point.startDate, toGranularity: .weekOfYear)
+            case .quarter:
+                return calendar.isDate(now, equalTo: point.startDate, toGranularity: .month)
+            }
         }
-        return chartPoints.last?.index
+        return match?.index ?? chartPoints.last?.index
     }
 
     private var weekAverageOverlays: [WeekOverlay] {
@@ -452,6 +459,7 @@ struct PickEntryBarChart: View {
                         AxisValueLabel(anchor: .center) {
                             Text(label)
                                 .foregroundStyle(isCurrentBucket ? .primary : .secondary)
+                                .fontWeight(isCurrentBucket ? .semibold : .regular)
                         }
                         .offset(x: -barWidth / 2.0)
                     }
