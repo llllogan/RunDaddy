@@ -257,6 +257,27 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 13 },
             ],
           },
+          {
+            code: 'METRO-WH-03',
+            description: 'Warehouse Combo Unit',
+            machineType: 'USI Combo Plus',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 14 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 16 },
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
+            ],
+          },
+          {
+            code: 'METRO-WH-04',
+            description: 'Warehouse Overflow Cooler',
+            machineType: 'DN BevMax 4',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
+            ],
+          },
         ],
       },
       {
