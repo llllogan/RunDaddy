@@ -285,6 +285,7 @@ struct PickEntryBarChart: View {
         let label: String
         let key: String
         let startDate: Date
+        let endDate: Date
         let skus: [PickEntryBreakdown.Segment]
         let totalItems: Int
     }
@@ -312,6 +313,7 @@ struct PickEntryBarChart: View {
                 label: point.label,
                 key: "p\(index)",
                 startDate: point.start,
+                endDate: point.end,
                 skus: point.skus,
                 totalItems: point.totalItems
             )
@@ -320,6 +322,14 @@ struct PickEntryBarChart: View {
 
     private var labelsByIndex: [Int: String] {
         Dictionary(uniqueKeysWithValues: chartPoints.map { ($0.index, axisLabel(for: $0)) })
+    }
+
+    private var currentBucketIndex: Int? {
+        let now = Date()
+        if let match = chartPoints.first(where: { now >= $0.startDate && now < $0.endDate }) {
+            return match.index
+        }
+        return chartPoints.last?.index
     }
 
     private var weekAverageOverlays: [WeekOverlay] {
@@ -401,7 +411,14 @@ struct PickEntryBarChart: View {
             .annotation(position: .top, alignment: .leading) {
                 Text(String(format: "avg %.0f", overlay.average))
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(Color(.secondaryLabel))
+                    .foregroundStyle(Color(.secondaryLabel))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
+                    )
                     .offset(x: 2, y: 0)
             }
         }
@@ -431,8 +448,12 @@ struct PickEntryBarChart: View {
                 if let raw = value.as(Double.self) {
                     let index = Int(raw.rounded())
                     if let label = labelsByIndex[index] {
-                        AxisValueLabel(label, anchor: .center)
-                            .offset(x: -barWidth / 2.0)
+                        let isCurrentBucket = currentBucketIndex == index
+                        AxisValueLabel(anchor: .center) {
+                            Text(label)
+                                .foregroundStyle(isCurrentBucket ? .primary : .secondary)
+                        }
+                        .offset(x: -barWidth / 2.0)
                     }
                 }
             }

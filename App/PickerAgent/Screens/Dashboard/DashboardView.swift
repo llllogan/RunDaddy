@@ -369,7 +369,7 @@ struct DashboardView: View {
                         AnalyticsView(session: session)
                     } label: {
                         HStack {
-                            Text("View More Statistics")
+                            Text("View more Statistics")
                                 .foregroundStyle(.primary)
                         }
                     }
