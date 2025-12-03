@@ -27,15 +27,7 @@ struct SearchLocationInfoBento: View {
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
 
-        cards.append(
-            BentoItem(
-                title: "Address",
-                value: addressValue,
-                symbolName: "mappin.circle",
-                symbolTint: .orange,
-                allowsMultilineValue: true
-            )
-        )
+        cards.append(addressCard)
 
         if let hoursDisplay, let onConfigureHours {
             cards.append(
@@ -104,9 +96,29 @@ struct SearchLocationInfoBento: View {
         return cards
     }
 
+    private var addressCard: BentoItem {
+        BentoItem(
+            title: "Address",
+            value: addressValue,
+            symbolName: "mappin.circle",
+            symbolTint: .orange,
+            allowsMultilineValue: true,
+            customContent: AnyView(
+                AddressDetailView(
+                    components: addressComponents,
+                    fallback: addressValue
+                )
+            )
+        )
+    }
+
     private var addressValue: String {
         let trimmed = location.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? "No address available" : trimmed
+    }
+
+    private var addressComponents: AddressComponents? {
+        AddressComponents.parse(from: location.address)
     }
 
     private var lastPackedTitle: String {
@@ -182,6 +194,179 @@ struct HoursDisplay {
     let opening: String
     let closing: String
     let dwell: String
+}
+
+private struct AddressDetailView: View {
+    let components: AddressComponents?
+    let fallback: String
+
+    @State private var isExpanded = false
+
+    private var hasParsedDetails: Bool {
+        guard let components else { return false }
+        return !components.isEmpty
+    }
+
+    private var hasExpandableDetails: Bool {
+        guard let components else { return false }
+        return components.suburbLine != nil || components.state != nil || components.country != nil
+    }
+
+    private var headlineLine: String {
+        components?.street ?? fallback
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(headlineLine)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+
+            if isExpanded {
+                if let suburbLine = components?.suburbLine {
+                    AddressDetailRow(label: "Suburb", value: suburbLine)
+                }
+
+                if let state = components?.state {
+                    AddressDetailRow(label: "State", value: state)
+                }
+
+                if let country = components?.country {
+                    AddressDetailRow(label: "Country", value: country)
+                }
+
+                if !hasParsedDetails {
+                    Text(fallback)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+
+            if hasExpandableDetails {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(isExpanded ? "Hide details" : "Show more")
+                            .font(.caption)
+                        Spacer(minLength: 4)
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AddressDetailRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+private struct AddressComponents {
+    let street: String?
+    let suburb: String?
+    let state: String?
+    let postalCode: String?
+    let country: String?
+
+    var suburbLine: String? {
+        let parts = [suburb, postalCode].compactMap { $0?.trimmedNonEmpty }
+        let joined = parts.joined(separator: " ")
+        return joined.trimmedNonEmpty
+    }
+
+    var isEmpty: Bool {
+        [street, suburb, state, postalCode, country].allSatisfy { ($0?.isEmpty ?? true) }
+    }
+
+    static func parse(from address: String?) -> AddressComponents? {
+        guard let cleanedAddress = address?.trimmedNonEmpty else {
+            return nil
+        }
+
+        let segments = cleanedAddress
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let street = segments.first?.trimmedNonEmpty
+        var country: String?
+
+        var localitySegments = Array(segments.dropFirst())
+        if localitySegments.count > 1 {
+            country = localitySegments.removeLast().trimmedNonEmpty
+        }
+
+        let locality = localitySegments.joined(separator: ", ")
+        let (suburb, state, postalCode) = parseLocality(locality)
+
+        let parsed = AddressComponents(
+            street: street,
+            suburb: suburb,
+            state: state,
+            postalCode: postalCode,
+            country: country
+        )
+
+        return parsed.isEmpty ? nil : parsed
+    }
+
+    private static func parseLocality(_ text: String) -> (String?, String?, String?) {
+        var tokens = text
+            .split(separator: " ")
+            .map { String($0) }
+            .filter { !$0.isEmpty }
+
+        var postalCode: String?
+        if let last = tokens.last, last.isNumericOnly {
+            postalCode = last
+            tokens.removeLast()
+        }
+
+        var state: String?
+        if let last = tokens.last,
+           last.range(of: #"^[A-Za-z]{2,3}$"#, options: .regularExpression) != nil {
+            state = last
+            tokens.removeLast()
+        }
+
+        let suburb = tokens.joined(separator: " ").trimmedNonEmpty
+
+        return (suburb, state, postalCode)
+    }
+}
+
+private extension String {
+    var trimmedNonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var isNumericOnly: Bool {
+        !isEmpty && allSatisfy(\.isNumber)
+    }
 }
 
 struct SearchLocationPerformanceBento: View {
