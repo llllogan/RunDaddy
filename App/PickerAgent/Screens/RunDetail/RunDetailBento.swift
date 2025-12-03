@@ -164,15 +164,12 @@ struct RunOverviewBento: View {
             BentoItem(
                 title: "Pickers",
                 value: "",
+                subtitle: packers.isEmpty ? "None" : "",
                 symbolName: "person.crop.rectangle.stack",
                 symbolTint: .blue,
                 customContent: AnyView(
                     VStack(alignment: .leading, spacing: 8) {
-                        if packers.isEmpty {
-                            Text("None so far")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
+                        if !packers.isEmpty {
                             ForEach(packers, id: \.id) { packer in
                                 PackerRow(packer: packer)
                                     .padding(.vertical, 2)
