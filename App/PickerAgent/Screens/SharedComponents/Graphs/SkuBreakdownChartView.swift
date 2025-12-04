@@ -415,7 +415,7 @@ struct PickEntryBarChart: View {
             )
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .foregroundStyle(Color(.secondaryLabel))
-            .annotation(position: .top, alignment: .leading) {
+            .annotation(position: .top, alignment: .trailing) {
                 Text(String(format: "avg %.0f", overlay.average))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color(.secondaryLabel))
