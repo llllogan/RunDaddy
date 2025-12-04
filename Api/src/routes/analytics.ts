@@ -2012,6 +2012,10 @@ function buildPickEntryBreakdownAverageChange(
   const current = ordered[ordered.length - 1];
   const previous = ordered[ordered.length - 2];
 
+  if (!current || !previous) {
+    return null;
+  }
+
   return buildPercentageChange(current.average, previous.average);
 }
 
