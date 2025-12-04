@@ -341,7 +341,7 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     timezoneContext.timeZone,
   );
   const extremes = buildPickEntryBreakdownExtremes(points);
-  const { change: percentageChange, delta: periodDelta } = buildPickEntryBreakdownChange(
+  const { delta: periodDelta } = buildPickEntryBreakdownChange(
     breakdownRequest.aggregation,
     dailyTotals,
     timezoneContext.now,
@@ -355,6 +355,7 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     dailyTotals,
     timezoneContext.timeZone,
   );
+  const percentageChange = buildPickEntryBreakdownAverageChange(averages);
 
   const availableFilters = buildPickEntryBreakdownAvailableFilters(
     rows,
@@ -1998,6 +1999,20 @@ function buildPickEntryBreakdownChange(
   const delta = currentTotal - previousTotal;
 
   return { change, delta };
+}
+
+function buildPickEntryBreakdownAverageChange(
+  averages: PickEntryBreakdownAverage[],
+): PickEntryBreakdownPercentageChange {
+  if (averages.length < 2) {
+    return null;
+  }
+
+  const ordered = [...averages].sort((a, b) => a.start.localeCompare(b.start));
+  const current = ordered[ordered.length - 1];
+  const previous = ordered[ordered.length - 2];
+
+  return buildPercentageChange(current.average, previous.average);
 }
 
 function sumRangeTotals(
