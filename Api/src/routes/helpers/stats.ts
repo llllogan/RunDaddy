@@ -39,7 +39,7 @@ export function buildPercentageChange(currentTotal: number, previousTotal: numbe
   }
 
   const percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
-  const trend =
+  const trend: 'up' | 'down' | 'neutral' =
     percentageChange > 0.5 ? 'up' : percentageChange < -0.5 ? 'down' : 'neutral';
 
   return {
