@@ -23,7 +23,26 @@ struct AnalyticsView: View {
             List {
                 Section("Picks") {
                     SkuBreakdownChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .background(cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(Color(.separator).opacity(0.25))
+                        )
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
+                    BreakdownExtremaBento(
+                        highMark: chartsViewModel.skuBreakdownHighMark,
+                        lowMark: chartsViewModel.skuBreakdownLowMark,
+                        aggregation: chartsViewModel.skuBreakdownAggregation,
+                        timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
+                    )
+                    .padding(.top, 12)
+                    .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
                 Section("Packing Pace") {
                     PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
@@ -58,5 +77,70 @@ struct AnalyticsView: View {
                 chartsViewModel.updateSession(newSession)
             }
         }
+    }
+
+    private var cardBackground: some ShapeStyle {
+        Color(.secondarySystemGroupedBackground)
+    }
+}
+
+private struct BreakdownExtremaBento: View {
+    let highMark: PickEntryBreakdown.Extremum?
+    let lowMark: PickEntryBreakdown.Extremum?
+    let aggregation: PickEntryBreakdown.Aggregation
+    let timeZoneIdentifier: String
+
+    private var items: [BentoItem] {
+        [
+            extremumCard(
+                title: "High",
+                extremum: highMark,
+                symbolName: "arrow.up.to.line",
+                tint: .green,
+                isProminent: false
+            ),
+            extremumCard(
+                title: "Low",
+                extremum: lowMark,
+                symbolName: "arrow.down.to.line",
+                tint: .orange,
+                isProminent: false
+            ),
+        ]
+    }
+
+    var body: some View {
+        StaggeredBentoGrid(items: items, columnCount: 2)
+            .listRowSeparator(.hidden)
+    }
+
+    private func extremumCard(
+        title: String,
+        extremum: PickEntryBreakdown.Extremum?,
+        symbolName: String,
+        tint: Color,
+        isProminent: Bool
+    ) -> BentoItem {
+        guard let extremum else {
+            return BentoItem(
+                title: title,
+                value: "No data",
+                symbolName: symbolName,
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            title: title,
+            value: BreakdownExtremumFormatter.valueText(for: extremum),
+            subtitle: BreakdownExtremumFormatter.subtitle(
+                for: extremum,
+                aggregation: aggregation,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            symbolName: symbolName,
+            symbolTint: tint,
+            isProminent: isProminent
+        )
     }
 }
