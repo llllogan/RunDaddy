@@ -382,6 +382,13 @@ struct PickEntryBreakdown: Equatable {
         }
     }
 
+    struct PercentageChange: Equatable {
+        let value: Double
+        let trend: String
+    }
+
+    typealias PeriodDelta = Int
+
     struct Extremum: Equatable {
         let label: String
         let start: Date
@@ -430,6 +437,8 @@ struct PickEntryBreakdown: Equatable {
     let rangeEnd: String
     let points: [Point]
     let weekAverages: [WeekAverage]
+    let percentageChange: PercentageChange?
+    let periodDelta: PeriodDelta?
     let highMark: Extremum?
     let lowMark: Extremum?
     let filters: Filters
@@ -1272,6 +1281,13 @@ private struct PickEntryBreakdownResponse: Decodable {
         let average: Double
     }
 
+    struct PercentageChange: Decodable {
+        let value: Double
+        let trend: String
+    }
+
+    typealias PeriodDelta = Int
+
     struct Extremum: Decodable {
         let label: String
         let start: String
@@ -1314,6 +1330,8 @@ private struct PickEntryBreakdownResponse: Decodable {
     let availableFilters: AvailableFilters
     let points: [Point]
     let averages: [Average]
+    let percentageChange: PercentageChange?
+    let periodDelta: PeriodDelta?
     let highMark: Extremum?
     let lowMark: Extremum?
 
@@ -1350,6 +1368,10 @@ private struct PickEntryBreakdownResponse: Decodable {
                     average: max(average.average, 0)
                 )
             },
+            percentageChange: percentageChange.map { change in
+                PickEntryBreakdown.PercentageChange(value: change.value, trend: change.trend)
+            },
+            periodDelta: periodDelta,
             highMark: highMark.map { mark in
                 PickEntryBreakdown.Extremum(
                     label: mark.label,

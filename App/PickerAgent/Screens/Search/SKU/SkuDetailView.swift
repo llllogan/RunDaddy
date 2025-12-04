@@ -98,7 +98,7 @@ struct SkuDetailView: View {
 
                         if let skuStats {
                             SkuPerformanceBento(
-                                percentageChange: skuStats.percentageChange,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: skuStats.bestMachine,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: { bestMachine in
@@ -114,7 +114,7 @@ struct SkuDetailView: View {
                             .listRowSeparator(.hidden)
                         } else if !isLoadingStats {
                             SkuPerformanceBento(
-                                percentageChange: nil,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: nil,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: nil,

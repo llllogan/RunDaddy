@@ -370,7 +370,7 @@ private extension String {
 }
 
 struct SearchLocationPerformanceBento: View {
-    let percentageChange: SkuPercentageChange?
+    let percentageChange: PickEntryBreakdown.PercentageChange?
     let machineSalesShare: [LocationMachineSalesShare]
     let machines: [LocationMachine]
     let selectedPeriod: SkuPeriod?
@@ -529,7 +529,7 @@ struct SearchLocationPerformanceBento: View {
         StaggeredBentoGrid(items: items, columnCount: 2)
     }
 
-    private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
+    private func formatPercentageChange(_ change: PickEntryBreakdown.PercentageChange?) -> String {
         guard let change = change else { return "No data" }
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
     }

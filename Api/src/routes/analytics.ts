@@ -14,6 +14,7 @@ import type { TimezoneDayRange } from '../lib/timezone.js';
 import { AuthContext } from '../types/enums.js';
 import { resolveCompanyTimezone } from './helpers/timezone.js';
 import { formatAppDate, formatAppExclusiveRange } from './helpers/app-dates.js';
+import { buildPercentageChange, buildPeriodRange } from './helpers/stats.js';
 
 const LOOKBACK_DEFAULT = 30;
 const LOOKBACK_MIN = 7;
@@ -340,6 +341,12 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     timezoneContext.timeZone,
   );
   const extremes = buildPickEntryBreakdownExtremes(points);
+  const { change: percentageChange, delta: periodDelta } = buildPickEntryBreakdownChange(
+    breakdownRequest.aggregation,
+    dailyTotals,
+    timezoneContext.now,
+    timezoneContext.timeZone,
+  );
 
   const averages = buildPickEntryBreakdownAverages(
     breakdownRequest.aggregation,
@@ -380,6 +387,8 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     availableFilters,
     points,
     averages,
+    percentageChange,
+    periodDelta,
     highMark: extremes.high,
     lowMark: extremes.low,
     chartBuckets: breakdownWindow.buckets.map((b) => ({
@@ -814,6 +823,13 @@ type PickEntryBreakdownExtremum = {
   end: string;
   totalItems: number;
 };
+
+type PickEntryBreakdownPercentageChange = {
+  value: number;
+  trend: 'up' | 'down' | 'neutral';
+} | null;
+
+type PickEntryBreakdownPeriodDelta = number | null;
 
 type PickEntryBreakdownAvailableFilters = {
   sku: Array<{ id: string; displayName: string }>;
@@ -1959,6 +1975,39 @@ function buildPickEntryBreakdownExtremes(
     high: mapPoint(high),
     low: mapPoint(low),
   };
+}
+
+function buildPickEntryBreakdownChange(
+  aggregation: PickEntryAggregation,
+  dailyTotals: Map<string, number>,
+  reference: Date,
+  timeZone: string,
+): { change: PickEntryBreakdownPercentageChange; delta: PickEntryBreakdownPeriodDelta } {
+  const periodRange = buildPeriodRange(aggregation, reference, timeZone);
+  const periodDurationMs = periodRange.end.getTime() - periodRange.start.getTime();
+  if (periodDurationMs <= 0) {
+    return { change: null, delta: null };
+  }
+
+  const currentTotal = sumRangeTotals(periodRange.start, periodRange.end, dailyTotals, timeZone);
+  const previousStart = new Date(periodRange.start.getTime() - periodDurationMs);
+  const previousEnd = periodRange.start;
+  const previousTotal = sumRangeTotals(previousStart, previousEnd, dailyTotals, timeZone);
+
+  const change = buildPercentageChange(currentTotal, previousTotal);
+  const delta = currentTotal - previousTotal;
+
+  return { change, delta };
+}
+
+function sumRangeTotals(
+  start: Date,
+  end: Date,
+  dailyTotals: Map<string, number>,
+  timeZone: string,
+): number {
+  const labels = buildDayLabelsForRange(start, end, timeZone);
+  return labels.reduce((sum, label) => sum + Math.max(dailyTotals.get(label) ?? 0, 0), 0);
 }
 
 function buildDailyTotalsFromRows(

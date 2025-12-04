@@ -176,7 +176,7 @@ struct SkuInfoBento: View {
 }
 
 struct SkuPerformanceBento: View {
-    let percentageChange: SkuPercentageChange?
+    let percentageChange: PickEntryBreakdown.PercentageChange?
     let bestMachine: SkuBestMachine?
     let selectedPeriod: SkuPeriod?
     let onBestMachineTap: ((SkuBestMachine) -> Void)?
@@ -251,7 +251,7 @@ struct SkuPerformanceBento: View {
         StaggeredBentoGrid(items: items, columnCount: 2)
     }
 
-    private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
+    private func formatPercentageChange(_ change: PickEntryBreakdown.PercentageChange?) -> String {
         guard let change = change else { return "No Data" }
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
     }

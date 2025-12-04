@@ -29,6 +29,8 @@ class ChartsViewModel: ObservableObject {
     @Published var skuBreakdownAggregation: PickEntryBreakdown.Aggregation = .week
     @Published var skuBreakdownShowBars: Int = PickEntryBreakdown.Aggregation.week.defaultBars
     @Published var skuBreakdownWeekAverages: [PickEntryBreakdown.WeekAverage] = []
+    @Published var skuBreakdownPercentageChange: PickEntryBreakdown.PercentageChange?
+    @Published var skuBreakdownPeriodDelta: PickEntryBreakdown.PeriodDelta?
     @Published var skuBreakdownTimeZone = TimeZone.current.identifier
     @Published var skuBreakdownHighMark: PickEntryBreakdown.Extremum?
     @Published var skuBreakdownLowMark: PickEntryBreakdown.Extremum?
@@ -213,6 +215,8 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownShowBars = response.showBars
             skuBreakdownPoints = response.points
             skuBreakdownWeekAverages = response.weekAverages
+            skuBreakdownPercentageChange = response.percentageChange
+            skuBreakdownPeriodDelta = response.periodDelta
             skuBreakdownHighMark = response.highMark
             skuBreakdownLowMark = response.lowMark
             skuBreakdownFocus = response.chartItemFocus
@@ -223,6 +227,8 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownPercentageChange = nil
+            skuBreakdownPeriodDelta = nil
             skuBreakdownHighMark = nil
             skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
@@ -231,6 +237,8 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownPercentageChange = nil
+            skuBreakdownPeriodDelta = nil
             skuBreakdownHighMark = nil
             skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
@@ -239,6 +247,8 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownPercentageChange = nil
+            skuBreakdownPeriodDelta = nil
             skuBreakdownHighMark = nil
             skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])

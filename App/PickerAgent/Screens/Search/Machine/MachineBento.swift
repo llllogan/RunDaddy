@@ -158,6 +158,7 @@ struct MachinePerformanceBento: View {
     let lowMark: PickEntryBreakdown.Extremum?
     let aggregation: PickEntryBreakdown.Aggregation
     let timeZoneIdentifier: String
+    let percentageChange: PickEntryBreakdown.PercentageChange?
 
     private var cards: [BentoItem] {
         [
@@ -171,10 +172,10 @@ struct MachinePerformanceBento: View {
     private var packTrendCard: BentoItem {
         BentoItem(
             title: "Pack Trend",
-            value: formatPercentageChange(stats?.percentageChange),
-            subtitle: formatTrendSubtitle(stats?.percentageChange?.trend, period: selectedPeriod),
-            symbolName: trendSymbol(stats?.percentageChange?.trend),
-            symbolTint: trendColor(stats?.percentageChange?.trend),
+            value: formatPercentageChange(percentageChange),
+            subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
+            symbolName: trendSymbol(percentageChange?.trend),
+            symbolTint: trendColor(percentageChange?.trend),
             isProminent: true
         )
     }
@@ -228,7 +229,7 @@ struct MachinePerformanceBento: View {
         StaggeredBentoGrid(items: cards, columnCount: 2)
     }
 
-    private func formatPercentageChange(_ change: SkuPercentageChange?) -> String {
+    private func formatPercentageChange(_ change: PickEntryBreakdown.PercentageChange?) -> String {
         guard let change = change else { return "No data" }
         return String(format: "%@%.1f%%", change.value >= 0 ? "+" : "", change.value)
     }

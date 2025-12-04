@@ -111,7 +111,7 @@ struct SearchLocationDetailView: View {
 
                         if let stats = locationStats {
                             SearchLocationPerformanceBento(
-                                percentageChange: stats.percentageChange,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 machineSalesShare: stats.machineSalesShare ?? [],
                                 machines: location.machines ?? [],
                                 selectedPeriod: selectedPeriod,
@@ -126,7 +126,7 @@ struct SearchLocationDetailView: View {
                             .listRowSeparator(.hidden)
                         } else if !isLoadingStats {
                             SearchLocationPerformanceBento(
-                                percentageChange: nil,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 machineSalesShare: [],
                                 machines: location.machines ?? [],
                                 selectedPeriod: selectedPeriod,

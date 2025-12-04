@@ -102,7 +102,8 @@ struct MachineDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -115,7 +116,8 @@ struct MachineDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
+                                percentageChange: chartsViewModel.skuBreakdownPercentageChange
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
