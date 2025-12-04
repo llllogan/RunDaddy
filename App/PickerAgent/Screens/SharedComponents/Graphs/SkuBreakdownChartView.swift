@@ -61,7 +61,7 @@ struct SkuBreakdownChartView: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
-                    Text("Picks per ")
+                    Text("Items per ")
                     Menu {
                         ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
                             Button {

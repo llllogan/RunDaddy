@@ -9,7 +9,7 @@ enum BreakdownExtremumFormatter {
 
     static func valueText(for extremum: PickEntryBreakdown.Extremum) -> String {
         let formatted = numberFormatter.string(from: NSNumber(value: extremum.totalItems)) ?? "\(extremum.totalItems)"
-        return "\(formatted) picks"
+        return "\(formatted) items"
     }
 
     static func subtitle(
