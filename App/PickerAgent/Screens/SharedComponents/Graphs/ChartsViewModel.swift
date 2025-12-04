@@ -30,6 +30,8 @@ class ChartsViewModel: ObservableObject {
     @Published var skuBreakdownShowBars: Int = PickEntryBreakdown.Aggregation.week.defaultBars
     @Published var skuBreakdownWeekAverages: [PickEntryBreakdown.WeekAverage] = []
     @Published var skuBreakdownTimeZone = TimeZone.current.identifier
+    @Published var skuBreakdownHighMark: PickEntryBreakdown.Extremum?
+    @Published var skuBreakdownLowMark: PickEntryBreakdown.Extremum?
     @Published var skuBreakdownFocus = PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: nil, locationId: nil)
     @Published var skuBreakdownFilters = PickEntryBreakdown.Filters(skuIds: [], machineIds: [], locationIds: [])
     @Published var skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
@@ -211,6 +213,8 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownShowBars = response.showBars
             skuBreakdownPoints = response.points
             skuBreakdownWeekAverages = response.weekAverages
+            skuBreakdownHighMark = response.highMark
+            skuBreakdownLowMark = response.lowMark
             skuBreakdownFocus = response.chartItemFocus
             skuBreakdownFilters = response.filters
             skuBreakdownAvailableFilters = response.availableFilters
@@ -219,18 +223,24 @@ class ChartsViewModel: ObservableObject {
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownHighMark = nil
+            skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
         } catch let analyticsError as AnalyticsServiceError {
             skuBreakdownError = analyticsError.localizedDescription
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownHighMark = nil
+            skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
         } catch {
             skuBreakdownError = "We couldn't load SKU breakdown data right now."
             skuBreakdownPoints = []
             skuBreakdownWeekAverages = []
             skuBreakdownTimeZone = TimeZone.current.identifier
+            skuBreakdownHighMark = nil
+            skuBreakdownLowMark = nil
             skuBreakdownAvailableFilters = PickEntryBreakdown.AvailableFilters(sku: [], machine: [], location: [])
         }
 

@@ -103,7 +103,11 @@ struct SkuDetailView: View {
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: { bestMachine in
                                     navigateToMachineDetail(bestMachine)
-                                }
+                                },
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -113,7 +117,11 @@ struct SkuDetailView: View {
                                 percentageChange: nil,
                                 bestMachine: nil,
                                 selectedPeriod: selectedPeriod,
-                                onBestMachineTap: nil
+                                onBestMachineTap: nil,
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)

@@ -115,7 +115,11 @@ struct SearchLocationDetailView: View {
                                 machineSalesShare: stats.machineSalesShare ?? [],
                                 machines: location.machines ?? [],
                                 selectedPeriod: selectedPeriod,
-                                onMachineTap: { navigateToMachineDetail($0) }
+                                onMachineTap: { navigateToMachineDetail($0) },
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -128,7 +132,11 @@ struct SearchLocationDetailView: View {
                                 selectedPeriod: selectedPeriod,
                                 onMachineTap: location.machines?.isEmpty == false ? { machine in
                                     navigateToMachineDetail(machine)
-                                } : nil
+                                } : nil,
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)

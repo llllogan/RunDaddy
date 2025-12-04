@@ -98,7 +98,11 @@ struct MachineDetailView: View {
                                 selectedPeriod: selectedPeriod,
                                 onBestSkuTap: { bestSku in
                                     navigateToSkuDetail(bestSku)
-                                }
+                                },
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -107,7 +111,11 @@ struct MachineDetailView: View {
                             MachinePerformanceBento(
                                 stats: nil,
                                 selectedPeriod: selectedPeriod,
-                                onBestSkuTap: nil
+                                onBestSkuTap: nil,
+                                highMark: chartsViewModel.skuBreakdownHighMark,
+                                lowMark: chartsViewModel.skuBreakdownLowMark,
+                                aggregation: chartsViewModel.skuBreakdownAggregation,
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)

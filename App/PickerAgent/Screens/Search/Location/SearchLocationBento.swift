@@ -375,11 +375,17 @@ struct SearchLocationPerformanceBento: View {
     let machines: [LocationMachine]
     let selectedPeriod: SkuPeriod?
     let onMachineTap: ((LocationMachine) -> Void)?
+    let highMark: PickEntryBreakdown.Extremum?
+    let lowMark: PickEntryBreakdown.Extremum?
+    let aggregation: PickEntryBreakdown.Aggregation
+    let timeZoneIdentifier: String
 
     private var items: [BentoItem] {
         [
             packTrendCard,
-            shareOfSalesCard
+            shareOfSalesCard,
+            highMarkCard,
+            lowMarkCard
         ]
     }
 
@@ -416,6 +422,26 @@ struct SearchLocationPerformanceBento: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             )
+        )
+    }
+
+    private var highMarkCard: BentoItem {
+        extremumCard(
+            title: "High",
+            extremum: highMark,
+            symbolName: "arrow.up.to.line",
+            tint: .green,
+            isProminent: false
+        )
+    }
+
+    private var lowMarkCard: BentoItem {
+        extremumCard(
+            title: "Low",
+            extremum: lowMark,
+            symbolName: "arrow.down.to.line",
+            tint: .orange,
+            isProminent: false
         )
     }
 
@@ -541,6 +567,36 @@ struct SearchLocationPerformanceBento: View {
         default:
             return .gray
         }
+    }
+
+    private func extremumCard(
+        title: String,
+        extremum: PickEntryBreakdown.Extremum?,
+        symbolName: String,
+        tint: Color,
+        isProminent: Bool
+    ) -> BentoItem {
+        guard let extremum else {
+            return BentoItem(
+                title: title,
+                value: "No data",
+                symbolName: symbolName,
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            title: title,
+            value: BreakdownExtremumFormatter.valueText(for: extremum),
+            subtitle: BreakdownExtremumFormatter.subtitle(
+                for: extremum,
+                aggregation: aggregation,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            symbolName: symbolName,
+            symbolTint: tint,
+            isProminent: isProminent
+        )
     }
 }
 

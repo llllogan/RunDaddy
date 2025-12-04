@@ -382,6 +382,13 @@ struct PickEntryBreakdown: Equatable {
         }
     }
 
+    struct Extremum: Equatable {
+        let label: String
+        let start: Date
+        let end: Date
+        let totalItems: Int
+    }
+
     struct Filters: Equatable {
         let skuIds: [String]
         let machineIds: [String]
@@ -423,6 +430,8 @@ struct PickEntryBreakdown: Equatable {
     let rangeEnd: String
     let points: [Point]
     let weekAverages: [WeekAverage]
+    let highMark: Extremum?
+    let lowMark: Extremum?
     let filters: Filters
     let availableFilters: AvailableFilters
     let chartItemFocus: ChartItemFocus
@@ -1263,6 +1272,13 @@ private struct PickEntryBreakdownResponse: Decodable {
         let average: Double
     }
 
+    struct Extremum: Decodable {
+        let label: String
+        let start: String
+        let end: String
+        let totalItems: Int
+    }
+
     struct FilterOption: Decodable {
         let id: String
         let displayName: String
@@ -1298,6 +1314,8 @@ private struct PickEntryBreakdownResponse: Decodable {
     let availableFilters: AvailableFilters
     let points: [Point]
     let averages: [Average]
+    let highMark: Extremum?
+    let lowMark: Extremum?
 
     func toDomain() -> PickEntryBreakdown {
         PickEntryBreakdown(
@@ -1330,6 +1348,22 @@ private struct PickEntryBreakdownResponse: Decodable {
                     weekEnd: AnalyticsDateParser.date(from: average.end, timeZoneIdentifier: timeZone),
                     dates: average.dates.map { AnalyticsDateParser.date(from: $0, timeZoneIdentifier: timeZone) },
                     average: max(average.average, 0)
+                )
+            },
+            highMark: highMark.map { mark in
+                PickEntryBreakdown.Extremum(
+                    label: mark.label,
+                    start: AnalyticsDateParser.date(from: mark.start, timeZoneIdentifier: timeZone),
+                    end: AnalyticsDateParser.date(from: mark.end, timeZoneIdentifier: timeZone),
+                    totalItems: max(mark.totalItems, 0)
+                )
+            },
+            lowMark: lowMark.map { mark in
+                PickEntryBreakdown.Extremum(
+                    label: mark.label,
+                    start: AnalyticsDateParser.date(from: mark.start, timeZoneIdentifier: timeZone),
+                    end: AnalyticsDateParser.date(from: mark.end, timeZoneIdentifier: timeZone),
+                    totalItems: max(mark.totalItems, 0)
                 )
             },
             filters: PickEntryBreakdown.Filters(

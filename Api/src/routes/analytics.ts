@@ -339,6 +339,7 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     breakdownRequest.breakdownBy,
     timezoneContext.timeZone,
   );
+  const extremes = buildPickEntryBreakdownExtremes(points);
 
   const averages = buildPickEntryBreakdownAverages(
     breakdownRequest.aggregation,
@@ -379,6 +380,8 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
     availableFilters,
     points,
     averages,
+    highMark: extremes.high,
+    lowMark: extremes.low,
     chartBuckets: breakdownWindow.buckets.map((b) => ({
       key: b.key,
       start: b.start.toISOString(),
@@ -803,6 +806,13 @@ type PickEntryBreakdownAverage = {
   end: string;
   dates: string[];
   average: number;
+};
+
+type PickEntryBreakdownExtremum = {
+  label: string;
+  start: string;
+  end: string;
+  totalItems: number;
 };
 
 type PickEntryBreakdownAvailableFilters = {
@@ -1905,6 +1915,50 @@ function buildPickEntryBreakdownPoints(
       items,
     };
   });
+}
+
+function buildPickEntryBreakdownExtremes(
+  points: PickEntryBreakdownPoint[],
+): { high: PickEntryBreakdownExtremum | null; low: PickEntryBreakdownExtremum | null } {
+  let high: { point: PickEntryBreakdownPoint; index: number } | null = null;
+  let low: { point: PickEntryBreakdownPoint; index: number } | null = null;
+
+  points.forEach((point, index) => {
+    if (point.totalItems <= 0) {
+      return;
+    }
+
+    if (
+      !high ||
+      point.totalItems > high.point.totalItems ||
+      (point.totalItems === high.point.totalItems && index < high.index)
+    ) {
+      high = { point, index };
+    }
+
+    if (
+      !low ||
+      point.totalItems < low.point.totalItems ||
+      (point.totalItems === low.point.totalItems && index < low.index)
+    ) {
+      low = { point, index };
+    }
+  });
+
+  const mapPoint = (entry: { point: PickEntryBreakdownPoint } | null): PickEntryBreakdownExtremum | null =>
+    entry
+      ? {
+          label: entry.point.xValue,
+          start: entry.point.start,
+          end: entry.point.end,
+          totalItems: entry.point.totalItems,
+        }
+      : null;
+
+  return {
+    high: mapPoint(high),
+    low: mapPoint(low),
+  };
 }
 
 function buildDailyTotalsFromRows(

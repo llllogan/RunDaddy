@@ -154,11 +154,17 @@ struct MachinePerformanceBento: View {
     let stats: MachineStatsResponse?
     let selectedPeriod: SkuPeriod
     let onBestSkuTap: ((MachineBestSku) -> Void)?
+    let highMark: PickEntryBreakdown.Extremum?
+    let lowMark: PickEntryBreakdown.Extremum?
+    let aggregation: PickEntryBreakdown.Aggregation
+    let timeZoneIdentifier: String
 
     private var cards: [BentoItem] {
         [
             packTrendCard,
-            bestSkuCard
+            bestSkuCard,
+            highMarkCard,
+            lowMarkCard
         ]
     }
 
@@ -195,6 +201,26 @@ struct MachinePerformanceBento: View {
             symbolTint: .teal,
             onTap: { onBestSkuTap?(bestSku) },
             showsChevron: true
+        )
+    }
+
+    private var highMarkCard: BentoItem {
+        extremumCard(
+            title: "High",
+            extremum: highMark,
+            symbolName: "arrow.up.to.line",
+            tint: .green,
+            isProminent: false
+        )
+    }
+
+    private var lowMarkCard: BentoItem {
+        extremumCard(
+            title: "Low",
+            extremum: lowMark,
+            symbolName: "arrow.down.to.line",
+            tint: .orange,
+            isProminent: false
         )
     }
 
@@ -240,5 +266,35 @@ struct MachinePerformanceBento: View {
         default:
             return .gray
         }
+    }
+
+    private func extremumCard(
+        title: String,
+        extremum: PickEntryBreakdown.Extremum?,
+        symbolName: String,
+        tint: Color,
+        isProminent: Bool
+    ) -> BentoItem {
+        guard let extremum else {
+            return BentoItem(
+                title: title,
+                value: "No data",
+                symbolName: symbolName,
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            title: title,
+            value: BreakdownExtremumFormatter.valueText(for: extremum),
+            subtitle: BreakdownExtremumFormatter.subtitle(
+                for: extremum,
+                aggregation: aggregation,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            symbolName: symbolName,
+            symbolTint: tint,
+            isProminent: isProminent
+        )
     }
 }
