@@ -21,6 +21,7 @@ Users
 | Morgan Hart                | morgan.hart+seed@rundaddy.test    | SeedDataPass!123*     | Pulse Logistics Collective (OWNER)                        |
 | Casey Nguyen               | casey.nguyen+seed@rundaddy.test   | SeedDataPass!123*     | None                                                      |
 | Skyler Lopez               | skyler.lopez+seed@rundaddy.test   | SeedDataPass!123*     | None                                                      |
+| Lighthouse Admin           | lighthouse@admin.com              | SeedDataPass!123*     | None (account role LIGHTHOUSE)                            |
 +----------------------------+-----------------------------------+-----------------------+-----------------------------------------------------------+
 * Passwords overrideable via APP_STORE_TEST_PASSWORD or SEED_USER_PASSWORD.
 */
@@ -544,6 +545,13 @@ const EXTRA_USERS = [
     lastName: 'Lopez',
     email: 'skyler.lopez+seed@rundaddy.test',
     phone: '555-0404',
+  },
+  {
+    firstName: 'Lighthouse',
+    lastName: 'Admin',
+    email: 'lighthouse@admin.com',
+    phone: '555-0505',
+    accountRole: AccountRole.LIGHTHOUSE,
   },
 ];
 
@@ -1229,7 +1237,7 @@ async function seedExtraUsers() {
   for (const user of EXTRA_USERS) {
     await upsertUser({
       ...user,
-      accountRole: null,
+      accountRole: user.accountRole ?? null,
     });
   }
 }
