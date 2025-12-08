@@ -1,6 +1,6 @@
 import type { CookieOptions, Response } from 'express';
 import { z } from 'zod';
-import { AuthContext, UserRole } from '../../types/enums.js';
+import { AccountRole, AuthContext, UserRole } from '../../types/enums.js';
 
 export const registerSchema = z.object({
   companyName: z.string().min(2),
@@ -40,6 +40,8 @@ export type SessionUser = {
   firstName: string;
   lastName: string;
   role: UserRole;
+  accountRole?: AccountRole | null;
+  lighthouse?: boolean;
   phone?: string | null;
   platformAdmin: boolean;
 };
@@ -110,6 +112,8 @@ export const respondWithSession = (
       firstName: data.user.firstName,
       lastName: data.user.lastName,
       role: data.user.role,
+      accountRole: data.user.accountRole ?? null,
+      lighthouse: data.user.lighthouse ?? false,
       phone: data.user.phone ?? null,
       platformAdmin: data.user.platformAdmin,
     },

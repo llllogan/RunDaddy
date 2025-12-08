@@ -16,6 +16,12 @@ export const UserRole = {
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
+export const AccountRole = {
+  LIGHTHOUSE: 'LIGHTHOUSE',
+} as const;
+
+export type AccountRole = typeof AccountRole[keyof typeof AccountRole];
+
 export const AuthContext = {
   WEB: 'WEB',
   APP: 'APP',

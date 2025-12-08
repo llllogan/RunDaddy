@@ -9,38 +9,26 @@ Companies
 | Metro Snacks Co.              | Business      | taylor.kent+seed@rundaddy.test       | Australia/Brisbane    |
 | River City Logistics          | Business      | jordan.blake+seed@rundaddy.test      | Australia/Brisbane    |
 | Pulse Logistics Collective    | Individual    | morgan.hart+seed@rundaddy.test       | Australia/Brisbane    |
-| Picker Agent Admin            | Enterprise 10 | admin@pickeragent.app                | Australia/Brisbane    |
 +-------------------------------+---------------+--------------------------------------+------------------------+
 
 Users
-+----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
-| Name                       | Email                             | Password               | Memberships                                               |
-+----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
-| App Store Testing Account  | appstore-testing@apple.com        | AppleTestingOnly!123*  | Apple (OWNER)                                             |
-| Taylor Kent                | taylor.kent+seed@rundaddy.test    | SeedDataPass!123*      | Metro Snacks Co. (OWNER); River City Logistics (PICKER)   |
-| Jordan Blake               | jordan.blake+seed@rundaddy.test   | SeedDataPass!123*      | River City Logistics (OWNER)                              |
-| Morgan Hart                | morgan.hart+seed@rundaddy.test    | SeedDataPass!123*      | Pulse Logistics Collective (OWNER)                        |
-| Casey Nguyen               | casey.nguyen+seed@rundaddy.test   | SeedDataPass!123*      | None                                                      |
-| Skyler Lopez               | skyler.lopez+seed@rundaddy.test   | SeedDataPass!123*      | None                                                      |
-| Platform Admin             | admin@pickeragent.app             | AdminPortalPass!123*   | Picker Agent Admin (GOD)                                  |
-+----------------------------+-----------------------------------+------------------------+-----------------------------------------------------------+
-* Passwords overrideable via APP_STORE_TEST_PASSWORD, SEED_USER_PASSWORD, or PLATFORM_ADMIN_PASSWORD.
++----------------------------+-----------------------------------+-----------------------+-----------------------------------------------------------+
+| Name                       | Email                             | Password              | Memberships                                               |
++----------------------------+-----------------------------------+-----------------------+-----------------------------------------------------------+
+| App Store Testing Account  | appstore-testing@apple.com        | AppleTestingOnly!123* | Apple (OWNER)                                             |
+| Taylor Kent                | taylor.kent+seed@rundaddy.test    | SeedDataPass!123*     | Metro Snacks Co. (OWNER); River City Logistics (PICKER)   |
+| Jordan Blake               | jordan.blake+seed@rundaddy.test   | SeedDataPass!123*     | River City Logistics (OWNER)                              |
+| Morgan Hart                | morgan.hart+seed@rundaddy.test    | SeedDataPass!123*     | Pulse Logistics Collective (OWNER)                        |
+| Casey Nguyen               | casey.nguyen+seed@rundaddy.test   | SeedDataPass!123*     | None                                                      |
+| Skyler Lopez               | skyler.lopez+seed@rundaddy.test   | SeedDataPass!123*     | None                                                      |
++----------------------------+-----------------------------------+-----------------------+-----------------------------------------------------------+
+* Passwords overrideable via APP_STORE_TEST_PASSWORD or SEED_USER_PASSWORD.
 */
 
-import { RunStatus, UserRole } from '@prisma/client';
+import { AccountRole, RunStatus, UserRole } from '@prisma/client';
 import type { Location, MachineType, SKU } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword } from '../lib/password.js';
-import {
-  PLATFORM_ADMIN_COMPANY_ID,
-  PLATFORM_ADMIN_COMPANY_NAME,
-  PLATFORM_ADMIN_EMAIL,
-  PLATFORM_ADMIN_FIRST_NAME,
-  PLATFORM_ADMIN_LAST_NAME,
-  PLATFORM_ADMIN_PHONE,
-  PLATFORM_ADMIN_TIME_ZONE,
-  PLATFORM_ADMIN_PASSWORD,
-} from '../config/platform-admin.js';
 import { TIER_IDS, TIER_SEED_DATA } from '../config/tiers.js';
 
 const BRISBANE_TIME_ZONE = 'Australia/Brisbane';
@@ -725,14 +713,14 @@ async function upsertUser({
   firstName,
   lastName,
   phone,
-  role = UserRole.PICKER,
+  accountRole = null,
   password = DEFAULT_SEED_PASSWORD,
 }: {
   email: string;
   firstName: string;
   lastName: string;
   phone?: string | null;
-  role?: UserRole;
+  accountRole?: AccountRole | null;
   password?: string;
 }) {
   const hashedPassword = await hashUserPassword(password);
@@ -742,16 +730,16 @@ async function upsertUser({
       firstName,
       lastName,
       phone: toNullable(phone),
-      role,
       password: hashedPassword,
+      role: accountRole ?? null,
     },
     create: {
       email,
       firstName,
       lastName,
       phone: toNullable(phone),
-      role,
       password: hashedPassword,
+      role: accountRole ?? null,
     },
   });
 
@@ -1076,7 +1064,6 @@ async function seedAppleTesting() {
     firstName: 'App Store',
     lastName: 'Testing Account',
     phone: 'TESTING-APPLE',
-    role: UserRole.OWNER,
     password: APP_STORE_TEST_PASSWORD,
   });
 
@@ -1120,7 +1107,6 @@ async function seedCompanyData() {
       firstName: config.owner.firstName,
       lastName: config.owner.lastName,
       phone: config.owner.phone ?? null,
-      role: UserRole.OWNER,
     });
     const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
     await ensureDefaultMembership(owner.id, membership.id);
@@ -1201,7 +1187,6 @@ async function seedTrendScenarioCompany() {
     firstName: TREND_SCENARIO_COMPANY.owner.firstName,
     lastName: TREND_SCENARIO_COMPANY.owner.lastName,
     phone: TREND_SCENARIO_COMPANY.owner.phone ?? null,
-    role: UserRole.OWNER,
   });
   const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
   await ensureDefaultMembership(owner.id, membership.id);
@@ -1244,44 +1229,9 @@ async function seedExtraUsers() {
   for (const user of EXTRA_USERS) {
     await upsertUser({
       ...user,
-      role: UserRole.PICKER,
+      accountRole: null,
     });
   }
-}
-
-async function seedPlatformAdminWorkspace() {
-  console.log('Configuring platform admin workspace...');
-  const company = await prisma.company.upsert({
-    where: { id: PLATFORM_ADMIN_COMPANY_ID },
-    update: {
-      name: PLATFORM_ADMIN_COMPANY_NAME,
-      timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
-      tierId: TIER_IDS.ENTERPRISE_10,
-    },
-    create: {
-      id: PLATFORM_ADMIN_COMPANY_ID,
-      name: PLATFORM_ADMIN_COMPANY_NAME,
-      timeZone: toNullable(PLATFORM_ADMIN_TIME_ZONE),
-      tierId: TIER_IDS.ENTERPRISE_10,
-    },
-  });
-
-  const user = await upsertUser({
-    email: PLATFORM_ADMIN_EMAIL,
-    firstName: PLATFORM_ADMIN_FIRST_NAME,
-    lastName: PLATFORM_ADMIN_LAST_NAME,
-    phone: PLATFORM_ADMIN_PHONE,
-    role: UserRole.GOD,
-    password: PLATFORM_ADMIN_PASSWORD,
-  });
-
-  const membership = await ensureMembership(user.id, company.id, UserRole.GOD);
-
-  if (!user.defaultMembershipId) {
-    await ensureDefaultMembership(user.id, membership.id);
-  }
-
-  console.log(`Platform admin company "${company.name}" ready for ${user.email}`);
 }
 
 async function main() {
@@ -1292,7 +1242,6 @@ async function main() {
   await seedCompanyData();
   await seedTrendScenarioCompany();
   await seedExtraUsers();
-  await seedPlatformAdminWorkspace();
   console.log('Seed data completed.');
 }
 

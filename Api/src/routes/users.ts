@@ -265,7 +265,6 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
       firstName,
       lastName,
       phone: phone ?? null,
-      role,
     },
   });
 
@@ -371,9 +370,6 @@ router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) =>
   }
   if (parsed.data.password) {
     userUpdates.password = await hashPassword(parsed.data.password);
-  }
-  if (parsed.data.role && isCompanyManager(req.auth.role)) {
-    userUpdates.role = parsed.data.role;
   }
 
   const membershipUpdates: Record<string, unknown> = {};

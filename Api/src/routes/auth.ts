@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
-import { AuthContext, UserRole } from '../types/enums.js';
+import { AccountRole, AuthContext, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken, verifyAccessToken } from '../lib/tokens.js';
@@ -23,6 +23,9 @@ import {
 } from './helpers/auth.js';
 
 const router = Router();
+const FALLBACK_ROLE = UserRole.PICKER;
+const deriveSessionRole = (membershipRole: UserRole | null | undefined, isLighthouse: boolean) =>
+  isLighthouse ? UserRole.OWNER : membershipRole ?? FALLBACK_ROLE;
 
 // Creates a new user account without a company, returning initial session tokens.
 router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
@@ -48,7 +51,6 @@ router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
       firstName: userFirstName,
       lastName: userLastName,
       phone: userPhone ?? null,
-      role: UserRole.PICKER,
     },
   });
 
@@ -56,7 +58,7 @@ router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
     userId: user.id,
     companyId: null, // No company for standalone accounts
     email: user.email,
-    role: user.role,
+    role: FALLBACK_ROLE,
     context: AuthContext.APP,
   });
 
@@ -77,7 +79,9 @@ router.post('/signup', setLogConfig({ level: 'minimal' }), async (req, res) => {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: FALLBACK_ROLE,
+        accountRole: (user.role as AccountRole | null | undefined) ?? null,
+        lighthouse: false,
         phone: user.phone,
         platformAdmin: false,
       },
@@ -116,7 +120,6 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
       firstName: userFirstName,
       lastName: userLastName,
       phone: userPhone ?? null,
-      role: UserRole.OWNER,
     },
   });
   const membership = await prisma.membership.create({
@@ -157,6 +160,8 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
         firstName: user.firstName,
         lastName: user.lastName,
         role: membership.role,
+        accountRole: (user.role as AccountRole | null | undefined) ?? null,
+        lighthouse: false,
         phone: user.phone,
         platformAdmin: false,
       },
@@ -206,6 +211,8 @@ router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
   };
 
   const loadedMemberships = (user.memberships ?? []) as LoadedMembership[];
+  const accountRole = (user.role as AccountRole | null | undefined) ?? null;
+  const isLighthouse = accountRole === AccountRole.LIGHTHOUSE;
 
   const memberships: MembershipSummary[] = loadedMemberships.map((membership) => ({
     id: membership.id,
@@ -213,6 +220,69 @@ router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
     role: membership.role as UserRole,
     company: { id: membership.company.id, name: membership.company.name },
   }));
+
+  if (isLighthouse) {
+    let companySummary: { id: string; name: string } | null = null;
+
+    if (companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true, name: true },
+      });
+
+      if (!company) {
+        return res.status(404).json({ error: 'Company not found' });
+      }
+
+      companySummary = { id: company.id, name: company.name };
+    }
+
+    const tokens = createTokenPair({
+      userId: user.id,
+      companyId: companySummary?.id ?? null,
+      email: user.email,
+      role: UserRole.OWNER,
+      context,
+      lighthouse: true,
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    });
+
+    const companies = await prisma.company.findMany({
+      where: { id: { not: PLATFORM_ADMIN_COMPANY_ID } },
+      select: { id: true, name: true, location: true, timeZone: true },
+      orderBy: { name: 'asc' },
+    });
+
+    return respondWithSession(
+      res,
+      buildSessionPayload(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: UserRole.OWNER,
+          accountRole,
+          lighthouse: true,
+          phone: user.phone,
+          platformAdmin: false,
+        },
+        companySummary,
+        tokens,
+        null,
+      ),
+      200,
+      { companies },
+    );
+  }
 
   const platformAdmin = loadedMemberships.some(
     (member) => member.companyId === PLATFORM_ADMIN_COMPANY_ID && member.role === UserRole.GOD,
@@ -230,7 +300,7 @@ router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
       userId: user.id,
       companyId: null,
       email: user.email,
-      role: user.role,
+      role: FALLBACK_ROLE,
       context,
     });
 
@@ -251,7 +321,9 @@ router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
+          role: FALLBACK_ROLE,
+          accountRole,
+          lighthouse: false,
           phone: user.phone,
           platformAdmin: false,
         },
@@ -411,17 +483,17 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
         return res.status(401).json({ error: 'Account not available' });
       }
 
-      const allowedRoles = getAllowedRolesForContext(payload.context);
-      if (!allowedRoles.has(user.role)) {
-        return res.status(403).json({ error: 'User role not permitted for this client' });
-      }
+      const accountRole = (user.role as AccountRole | null | undefined) ?? null;
+      const isLighthouse = accountRole === AccountRole.LIGHTHOUSE || Boolean(payload.lighthouse);
+      const sessionRole = deriveSessionRole(null, isLighthouse);
 
       const tokens = createTokenPair({
         userId: user.id,
         companyId: null,
         email: user.email,
-        role: user.role,
+        role: sessionRole,
         context: payload.context,
+        lighthouse: isLighthouse,
       });
 
       await prisma.$transaction([
@@ -447,7 +519,9 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            role: user.role,
+            role: sessionRole,
+            accountRole,
+            lighthouse: isLighthouse,
             phone: user.phone,
             platformAdmin,
           },
@@ -479,6 +553,8 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
     }
 
     const membershipRecord = user.memberships[0]!;
+    const accountRole = (user.role as AccountRole | null | undefined) ?? null;
+    const isLighthouse = accountRole === AccountRole.LIGHTHOUSE || Boolean(payload.lighthouse);
     const membership: MembershipSummary = {
       id: membershipRecord.id,
       companyId: membershipRecord.companyId,
@@ -495,8 +571,9 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
       userId: user.id,
       companyId: membership.companyId,
       email: user.email,
-      role: membership.role,
+      role: deriveSessionRole(membership.role, isLighthouse),
       context: payload.context,
+      lighthouse: isLighthouse,
     });
 
     await prisma.$transaction([
@@ -522,7 +599,9 @@ router.post('/refresh', setLogConfig({ level: 'minimal' }), async (req, res) => 
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: membership.role,
+          role: deriveSessionRole(membership.role, isLighthouse),
+          accountRole,
+          lighthouse: isLighthouse,
           phone: user.phone,
           platformAdmin,
         },
@@ -550,6 +629,70 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
   const { companyId, context, persist } = parsed.data;
   const targetContext = context ?? req.auth.context ?? AuthContext.WEB;
   const allowedRoles = getAllowedRolesForContext(targetContext);
+  const isLighthouse = Boolean(req.auth.lighthouse);
+
+  if (isLighthouse) {
+    const lighthouseUser = await prisma.user.findUnique({
+      where: { id: req.auth.userId },
+      select: {
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!lighthouseUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, name: true },
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const tokens = createTokenPair({
+      userId: req.auth.userId,
+      companyId: company.id,
+      email: req.auth.email,
+      role: UserRole.OWNER,
+      context: targetContext,
+      lighthouse: true,
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: req.auth.userId,
+        tokenId: tokens.refreshTokenId,
+        expiresAt: tokens.refreshTokenExpiresAt,
+        context: tokens.context,
+      },
+    });
+
+    return respondWithSession(
+      res,
+      buildSessionPayload(
+        {
+          id: req.auth.userId,
+          email: req.auth.email,
+          firstName: lighthouseUser.firstName,
+          lastName: lighthouseUser.lastName,
+          role: UserRole.OWNER,
+          accountRole: (lighthouseUser.role as AccountRole | null | undefined) ?? AccountRole.LIGHTHOUSE,
+          lighthouse: true,
+          phone: lighthouseUser.phone,
+          platformAdmin: false,
+        },
+        { id: company.id, name: company.name },
+        tokens,
+        null,
+      ),
+    );
+  }
 
     const membershipRecord = await prisma.membership.findUnique({
     where: {
@@ -566,6 +709,7 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
           email: true,
           firstName: true,
           lastName: true,
+          role: true,
           phone: true,
           defaultMembershipId: true,
         },
@@ -587,12 +731,14 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
     role: membershipRecord.role,
     company: { id: membershipRecord.company.id, name: membershipRecord.company.name },
   };
+  const accountRole = (membershipRecord.user.role as AccountRole | null | undefined) ?? null;
+  const sessionRole = deriveSessionRole(membership.role, false);
 
   const tokens = createTokenPair({
     userId: membershipRecord.user.id,
     companyId: membership.companyId,
     email: membershipRecord.user.email,
-    role: membership.role,
+    role: sessionRole,
     context: targetContext,
   });
 
@@ -632,16 +778,18 @@ router.post('/switch-company', authenticate, setLogConfig({ level: 'minimal' }),
 
   return respondWithSession(
     res,
-    buildSessionPayload(
-      {
-        id: membershipRecord.user.id,
-        email: membershipRecord.user.email,
-        firstName: membershipRecord.user.firstName,
-        lastName: membershipRecord.user.lastName,
-        role: membership.role,
-        phone: membershipRecord.user.phone,
-        platformAdmin,
-      },
+      buildSessionPayload(
+        {
+          id: membershipRecord.user.id,
+          email: membershipRecord.user.email,
+          firstName: membershipRecord.user.firstName,
+          lastName: membershipRecord.user.lastName,
+          role: sessionRole,
+          accountRole,
+          lighthouse: false,
+          phone: membershipRecord.user.phone,
+          platformAdmin,
+        },
       { id: membership.company.id, name: membership.company.name },
       tokens,
       platformAdminCompanyId,
@@ -661,6 +809,74 @@ router.post('/logout', setLogConfig({ level: 'minimal' }), (req, res) => {
 router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const auth = req.auth as NonNullable<typeof req.auth>;
+  const isLighthouse = Boolean(auth.lighthouse);
+
+  if (isLighthouse) {
+    const user = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const companies = await prisma.company.findMany({
+      where: { id: { not: PLATFORM_ADMIN_COMPANY_ID } },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        timeZone: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const currentCompanyRecord = auth.companyId
+      ? companies.find((company) => company.id === auth.companyId)
+      : null;
+    const currentCompany = currentCompanyRecord
+      ? {
+          id: currentCompanyRecord.id,
+          name: currentCompanyRecord.name,
+          role: UserRole.OWNER,
+          location: currentCompanyRecord.location ?? null,
+          timeZone: currentCompanyRecord.timeZone ?? null,
+        }
+      : null;
+
+    return res.json({
+      companies: companies.map((company) => ({
+        id: company.id,
+        name: company.name,
+        role: UserRole.OWNER,
+        location: company.location ?? null,
+        timeZone: company.timeZone ?? null,
+      })),
+      currentCompany,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: UserRole.OWNER,
+        accountRole: (user.role as AccountRole | null | undefined) ?? null,
+        lighthouse: true,
+        phone: user.phone,
+        platformAdmin: false,
+      },
+      platformAdminCompanyId: null,
+    });
   }
 
   // Get all user memberships
@@ -714,7 +930,9 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: FALLBACK_ROLE,
+        accountRole: (user.role as AccountRole | null | undefined) ?? null,
+        lighthouse: false,
         phone: user.phone,
         platformAdmin: standalonePlatformAdmin,
       },
@@ -724,8 +942,7 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
 
   // Handle users with company memberships
   let currentCompany = null;
-  const auth = req.auth; // Store to avoid repeated optional chaining
-  if (auth && auth.companyId) {
+  if (auth.companyId) {
       const currentMembership = memberships.find(m => m.companyId === auth.companyId);
       if (currentMembership) {
         currentCompany = {
@@ -744,6 +961,12 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
     return res.status(500).json({ error: 'Unable to retrieve user data' });
   }
 
+  const baseMembership = memberships[0];
+  const sessionRole =
+    currentCompany && baseMembership
+      ? memberships.find((m) => m.companyId === currentCompany.id)?.role ?? baseMembership.role
+      : baseMembership?.role ?? FALLBACK_ROLE;
+
   return res.json({
     companies,
     currentCompany,
@@ -752,7 +975,9 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: currentCompany?.role ?? user.role,
+      role: sessionRole,
+      accountRole: (user.role as AccountRole | null | undefined) ?? null,
+      lighthouse: false,
       phone: user.phone,
       platformAdmin,
     },
@@ -805,14 +1030,14 @@ router.get('/profile/:userId', setLogConfig({ level: 'minimal' }), async (req, r
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      phone: user.phone,
-    });
+      return res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: FALLBACK_ROLE,
+        phone: user.phone,
+      });
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token', detail: (error as Error).message });
   }

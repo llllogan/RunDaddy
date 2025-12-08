@@ -1,4 +1,4 @@
-import type { AuthContext, UserRole } from './enums.js';
+import type { AuthContext, UserRole, AccountRole } from './enums.js';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -6,6 +6,8 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   context: AuthContext;
+  lighthouse?: boolean;
+  accountRole?: AccountRole | null;
 }
 
 declare global {

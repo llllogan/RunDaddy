@@ -33,7 +33,7 @@ router.get('/:companyId/features', authenticate, setLogConfig({ level: 'minimal'
     },
   });
 
-  if (!membership) {
+  if (!membership && !req.auth.lighthouse) {
     return res
       .status(403)
       .json({ error: 'Membership required to access company features' });
@@ -72,6 +72,10 @@ router.get('/:companyId/features', authenticate, setLogConfig({ level: 'minimal'
 // Generate invite code for a company
 router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
+    if (!req.auth) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { companyId } = req.params;
     const { role } = req.body;
     const userId = req.auth!.userId;
@@ -95,7 +99,7 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       }
     });
 
-    if (!membership) {
+    if (!membership && !req.auth.lighthouse) {
       return res.status(403).json({ error: 'Not authorized to create invites for this company' });
     }
 
@@ -144,6 +148,10 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
 // Get active invite codes for a company
 router.get('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
+    if (!req.auth) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { companyId } = req.params;
     const userId = req.auth!.userId;
 
@@ -156,7 +164,7 @@ router.get('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'mini
       }
     });
 
-    if (!membership) {
+    if (!membership && !req.auth.lighthouse) {
       return res.status(403).json({ error: 'Not authorized to view invites for this company' });
     }
 
@@ -264,7 +272,7 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
     const companySummary = activeMembership
       ? { id: activeMembership.company.id, name: activeMembership.company.name }
       : null;
-    const sessionRole = activeMembership?.role ?? user.role;
+    const sessionRole = activeMembership?.role ?? UserRole.PICKER;
 
     const tokens = createTokenPair({
       userId: user.id,
@@ -332,6 +340,10 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
 // Remove a member from a company (for admins/owners)
 router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
   try {
+    if (!req.auth) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { companyId, userId: targetUserId } = req.params;
     const currentUserId = req.auth!.userId;
 
@@ -344,7 +356,7 @@ router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level:
       }
     });
 
-    if (!adminMembership) {
+    if (!adminMembership && !req.auth.lighthouse) {
       return res.status(403).json({ error: 'Not authorized to remove members from this company' });
     }
 
@@ -411,6 +423,10 @@ router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level:
 });
 
 router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const { companyId } = req.params;
   const { timeZone } = req.body ?? {};
 
@@ -433,7 +449,7 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
     },
   });
 
-  if (!membership) {
+  if (!membership && !req.auth.lighthouse) {
     return res.status(403).json({ error: 'Not authorized to update this company' });
   }
 
@@ -447,7 +463,7 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
       company: {
         id: updated.id,
         name: updated.name,
-        role: membership.role,
+        role: membership?.role ?? UserRole.OWNER,
         location: updated.location ?? null,
         timeZone: updated.timeZone ?? null,
       },
@@ -459,6 +475,10 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
 });
 
 router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const { companyId } = req.params;
   const { location } = req.body ?? {};
 
@@ -486,7 +506,7 @@ router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minima
     },
   });
 
-  if (!membership) {
+  if (!membership && !req.auth.lighthouse) {
     return res.status(403).json({ error: 'Not authorized to update this company' });
   }
 
@@ -500,7 +520,7 @@ router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minima
       company: {
         id: updated.id,
         name: updated.name,
-        role: membership.role,
+        role: membership?.role ?? UserRole.OWNER,
         location: updated.location ?? null,
         timeZone: updated.timeZone ?? null,
       },

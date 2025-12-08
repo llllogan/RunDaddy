@@ -10,6 +10,7 @@ type BaseClaims = {
   email: string;
   role: UserRole;
   context: AuthContext;
+  lighthouse?: boolean;
 };
 
 export type AccessTokenClaims = BaseClaims & { exp?: number; iat?: number };
@@ -31,6 +32,7 @@ export interface TokenPayloadInput {
   email: string;
   role: UserRole;
   context: AuthContext;
+  lighthouse?: boolean;
 }
 
 const DEFAULT_ACCESS_DURATION = '15m';
@@ -110,6 +112,7 @@ export const createTokenPair = (input: TokenPayloadInput): TokenPair => {
     email: input.email,
     role: input.role,
     context: input.context,
+    ...(input.lighthouse ? { lighthouse: true } : {}),
   };
 
   const accessToken = sign(claims, accessSecret, {

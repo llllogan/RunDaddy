@@ -13,6 +13,10 @@ export const authorize = (allowedRoles: UserRole[]) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    if (req.auth.lighthouse) {
+      return next();
+    }
+
     // For now, we'll check the user's default role
     // In a more complex system, you might want to check company-specific roles
     if (!allowedRoles.includes(req.auth.role)) {

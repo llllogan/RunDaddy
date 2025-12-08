@@ -20,6 +20,10 @@ enum PackingSessionStatus {
   ABANDONED
 }
 
+enum AccountRole {
+  LIGHTHOUSE
+}
+
 enum UserRole {
   GOD
   ADMIN
@@ -38,7 +42,7 @@ model User {
   password  String
   firstName String
   lastName  String
-  role      UserRole   @default(PICKER)
+  role      AccountRole?
   phone     String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt

@@ -1,6 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import { verifyAccessToken } from '../lib/tokens.js';
 import { prisma } from '../lib/prisma.js';
+import { AccountRole, UserRole } from '../types/enums.js';
+
+const FALLBACK_ROLE = UserRole.PICKER;
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   let token: string | undefined;
@@ -21,6 +24,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     if (!payload.sub || !payload.context) {
       return res.status(401).json({ error: 'Invalid token payload' });
     }
+    const isLighthouse = Boolean((payload as Record<string, unknown>).lighthouse);
+    const payloadRole = (payload as Record<string, unknown>).role as UserRole | undefined;
 
     // Handle users without company memberships
     if (!payload.companyId) {
@@ -37,12 +42,37 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         return res.status(401).json({ error: 'User not found' });
       }
 
+      const accountRole = (user.role as AccountRole | null | undefined) ?? null;
       req.auth = {
         userId: user.id,
         email: user.email,
-        role: user.role,
+        role: payloadRole ?? (isLighthouse ? UserRole.OWNER : FALLBACK_ROLE),
         companyId: null,
         context: payload.context,
+        lighthouse: isLighthouse,
+        accountRole,
+      };
+      return next();
+    }
+
+    if (isLighthouse) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, role: true },
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.auth = {
+        userId: user.id,
+        email: user.email,
+        role: payloadRole ?? UserRole.OWNER,
+        companyId: payload.companyId,
+        context: payload.context,
+        lighthouse: true,
+        accountRole: (user.role as AccountRole | null | undefined) ?? null,
       };
       return next();
     }
@@ -62,6 +92,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
           select: {
             id: true,
             email: true,
+            role: true,
           },
         },
       },
@@ -84,9 +115,11 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       req.auth = {
         userId: fallbackUser.id,
         email: fallbackUser.email,
-        role: fallbackUser.role,
+        role: payloadRole ?? FALLBACK_ROLE,
         companyId: null,
         context: payload.context,
+        lighthouse: false,
+        accountRole: (fallbackUser.role as AccountRole | null | undefined) ?? null,
       };
       return next();
     }
@@ -97,6 +130,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       role: membership.role,
       companyId: membership.companyId,
       context: payload.context,
+      lighthouse: false,
+      accountRole: (membership.user.role as AccountRole | null | undefined) ?? null,
     };
     return next();
   } catch (error) {
