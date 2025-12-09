@@ -22,6 +22,7 @@ protocol AnalyticsServicing {
         lookbackDays: Int,
         credentials: AuthCredentials
     ) async throws -> [DashboardMomentumSnapshot.MachineSlice]
+    func fetchWeeklyPickChanges(credentials: AuthCredentials) async throws -> WeeklyPickChangeSeries
     func fetchPickEntryBreakdown(
         aggregation: PickEntryBreakdown.Aggregation,
         focus: PickEntryBreakdown.ChartItemFocus,
@@ -312,6 +313,27 @@ struct DashboardMomentumSnapshot: Equatable {
     let machinePickTotals: [MachineSlice]
     let machineTouches: [MachineTouchPoint]
     let analytics: AnalyticsSummary
+}
+
+struct WeeklyPickChangeSeries: Equatable {
+    struct Point: Identifiable, Equatable {
+        let weekStart: Date
+        let weekEnd: Date
+        let totalItems: Int
+        let percentageChange: Double
+
+        var id: Date { weekStart }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let rangeStart: String
+    let rangeEnd: String
+    let points: [Point]
+
+    var hasValues: Bool {
+        points.contains { $0.totalItems > 0 || abs($0.percentageChange) > 0.01 }
+    }
 }
 
 struct PickEntryBreakdown: Equatable {
@@ -812,6 +834,41 @@ final class AnalyticsService: AnalyticsServicing {
         }
     }
 
+    func fetchWeeklyPickChanges(credentials: AuthCredentials) async throws -> WeeklyPickChangeSeries {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("analytics")
+        url.appendPathComponent("pick-entries")
+        url.appendPathComponent("week-change")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AnalyticsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw AnalyticsServiceError.noCompanyAccess
+            }
+            throw AnalyticsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        do {
+            let payload = try decoder.decode(WeeklyPickChangeResponse.self, from: data)
+            return payload.toDomain()
+        } catch {
+            throw AnalyticsServiceError.unableToDecode
+        }
+    }
+
 }
 
 private enum AnalyticsDateParser {
@@ -901,6 +958,67 @@ private struct DailyInsightsResponse: Decodable {
                     end: AnalyticsDateParser.date(from: point.end, timeZoneIdentifier: timeZone),
                     totalItems: max(point.totalItems, 0),
                     itemsPacked: max(point.itemsPacked, 0)
+                )
+            }
+        )
+    }
+}
+
+private struct WeeklyPickChangeResponse: Decodable {
+    struct Week: Decodable {
+        let weekStart: String
+        let weekEnd: String
+        let totalItems: Int
+        let percentageChange: Double
+
+        private enum CodingKeys: String, CodingKey {
+            case weekStart
+            case weekEnd
+            case totalItems
+            case percentageChange
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            weekStart = try container.decode(String.self, forKey: .weekStart)
+            weekEnd = try container.decode(String.self, forKey: .weekEnd)
+
+            if let intValue = try? container.decode(Int.self, forKey: .totalItems) {
+                totalItems = max(intValue, 0)
+            } else if let doubleValue = try? container.decode(Double.self, forKey: .totalItems) {
+                totalItems = max(Int(doubleValue.rounded()), 0)
+            } else {
+                totalItems = 0
+            }
+
+            if let doubleValue = try? container.decode(Double.self, forKey: .percentageChange) {
+                percentageChange = doubleValue
+            } else if let intValue = try? container.decode(Int.self, forKey: .percentageChange) {
+                percentageChange = Double(intValue)
+            } else {
+                percentageChange = 0
+            }
+        }
+    }
+
+    let generatedAt: Date
+    let timeZone: String
+    let rangeStart: String
+    let rangeEnd: String
+    let weeks: [Week]
+
+    func toDomain() -> WeeklyPickChangeSeries {
+        WeeklyPickChangeSeries(
+            generatedAt: generatedAt,
+            timeZone: timeZone,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            points: weeks.map { week in
+                WeeklyPickChangeSeries.Point(
+                    weekStart: AnalyticsDateParser.date(from: week.weekStart, timeZoneIdentifier: timeZone),
+                    weekEnd: AnalyticsDateParser.date(from: week.weekEnd, timeZoneIdentifier: timeZone),
+                    totalItems: week.totalItems,
+                    percentageChange: week.percentageChange
                 )
             }
         )

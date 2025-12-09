@@ -46,6 +46,10 @@ class ChartsViewModel: ObservableObject {
     @Published var machineTouches: [DashboardMomentumSnapshot.MachineTouchPoint] = []
     @Published var isLoadingMachineTouches = false
     @Published var machineTouchesError: String?
+    @Published var weeklyPickChanges: [WeeklyPickChangeSeries.Point] = []
+    @Published var isLoadingWeeklyPickChanges = false
+    @Published var weeklyPickChangesError: String?
+    @Published var weeklyPickChangeTimeZone = TimeZone.current.identifier
 
     private var session: AuthSession
     private let analyticsService: AnalyticsServicing
@@ -75,7 +79,16 @@ class ChartsViewModel: ObservableObject {
             aggregation: skuBreakdownAggregation,
             showBars: skuBreakdownShowBars
         )
-        _ = await (insightsTask, topLocationsTask, topSkusTask, comparisonsTask, machineTotalsTask, skuBreakdownTask)
+        async let weeklyChangeTask: Void = loadWeeklyPickChanges()
+        _ = await (
+            insightsTask,
+            topLocationsTask,
+            topSkusTask,
+            comparisonsTask,
+            machineTotalsTask,
+            skuBreakdownTask,
+            weeklyChangeTask
+        )
     }
 
     func loadDailyInsights() async {
@@ -326,6 +339,32 @@ class ChartsViewModel: ObservableObject {
 
     func refreshPeriodComparisons() async {
         await loadPeriodComparisons()
+    }
+
+    func loadWeeklyPickChanges() async {
+        isLoadingWeeklyPickChanges = true
+        weeklyPickChangesError = nil
+
+        do {
+            let response = try await analyticsService.fetchWeeklyPickChanges(credentials: session.credentials)
+            weeklyPickChangeTimeZone = response.timeZone
+            weeklyPickChanges = response.points
+        } catch let authError as AuthError {
+            weeklyPickChangesError = authError.localizedDescription
+            weeklyPickChanges = []
+        } catch let analyticsError as AnalyticsServiceError {
+            weeklyPickChangesError = analyticsError.localizedDescription
+            weeklyPickChanges = []
+        } catch {
+            weeklyPickChangesError = "We couldn't load weekly change data right now."
+            weeklyPickChanges = []
+        }
+
+        isLoadingWeeklyPickChanges = false
+    }
+
+    func refreshWeeklyPickChanges() async {
+        await loadWeeklyPickChanges()
     }
 
     func loadMachinePickTotals() async {

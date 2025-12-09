@@ -46,6 +46,7 @@ const PICK_ENTRY_BREAKDOWN_SHOW_BARS = {
   quarter: 4,
 } as const;
 const PICK_ENTRY_BREAKDOWN_MAX_BARS = 30;
+const WEEKLY_PICK_CHANGE_WEEKS = 30;
 
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
@@ -187,6 +188,11 @@ type MachinePickTotalRow = {
   machine_id: string | null;
   machine_code: string | null;
   machine_description: string | null;
+  total_items: bigint | number | string | null;
+};
+
+type WeeklyPickTotalRow = {
+  week_start: string | Date | null;
   total_items: bigint | number | string | null;
 };
 
@@ -399,6 +405,33 @@ router.post('/pick-entries/breakdown', setLogConfig({ level: 'minimal' }), async
       xValue: b.xValue,
       dayLabels: b.dayLabels,
     })),
+  });
+});
+
+router.get('/pick-entries/week-change', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  const context = await buildTimezoneContext(req, res);
+  if (!context) {
+    return;
+  }
+
+  const series = await buildWeeklyPickChangeSeries(
+    context.companyId,
+    context.timeZone,
+    context.now,
+    WEEKLY_PICK_CHANGE_WEEKS,
+  );
+
+  const responseRange = formatAppExclusiveRange(
+    { start: series.rangeStart, end: series.rangeEnd },
+    context.timeZone,
+  );
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    timeZone: context.timeZone,
+    rangeStart: responseRange.start,
+    rangeEnd: responseRange.end,
+    weeks: series.points,
   });
 });
 
@@ -1172,6 +1205,34 @@ async function fetchDailyRows(companyId: string, lookbackDays: number, timeZone:
   );
 }
 
+async function fetchWeeklyPickTotals(
+  companyId: string,
+  timeZone: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+) {
+  return prisma.$queryRaw<WeeklyPickTotalRow[]>(
+    Prisma.sql`
+      SELECT
+        DATE_FORMAT(
+          DATE_SUB(
+            CONVERT_TZ(scheduledFor, 'UTC', ${timeZone}),
+            INTERVAL WEEKDAY(CONVERT_TZ(scheduledFor, 'UTC', ${timeZone})) DAY
+          ),
+          '%Y-%m-%d'
+        ) AS week_start,
+        SUM(count) AS total_items
+      FROM v_pick_entry_details
+      WHERE companyId = ${companyId}
+        AND scheduledFor IS NOT NULL
+        AND scheduledFor >= ${rangeStart}
+        AND scheduledFor < ${rangeEnd}
+      GROUP BY week_start
+      ORDER BY week_start ASC
+    `,
+  );
+}
+
 async function fetchLocationMachineRows(companyId: string, rangeStart: Date, rangeEnd: Date) {
   return prisma.$queryRaw<LocationMachineRow[]>(
     Prisma.sql`
@@ -1584,6 +1645,71 @@ function buildWeekAverages(
         average: Number(average.toFixed(2)),
       };
     });
+}
+
+type WeeklyPickChangePoint = {
+  weekStart: string;
+  weekEnd: string;
+  totalItems: number;
+  percentageChange: number;
+};
+
+type WeeklyPickChangeSeries = {
+  rangeStart: Date;
+  rangeEnd: Date;
+  points: WeeklyPickChangePoint[];
+};
+
+async function buildWeeklyPickChangeSeries(
+  companyId: string,
+  timeZone: string,
+  reference: Date,
+  weekCount: number,
+): Promise<WeeklyPickChangeSeries> {
+  const totalWeeks = Math.max(weekCount, 1);
+  const currentWeekStart = getIsoWeekStart(timeZone, reference);
+  const firstWeekStart = new Date(currentWeekStart.getTime() - (totalWeeks - 1) * WEEK_IN_MS);
+  const rangeEnd = new Date(currentWeekStart.getTime() + WEEK_IN_MS);
+
+  const weeklyRows = await fetchWeeklyPickTotals(companyId, timeZone, firstWeekStart, rangeEnd);
+  const totalsByWeek = new Map<string, number>();
+  for (const row of weeklyRows) {
+    const key =
+      typeof row.week_start === 'string'
+        ? row.week_start
+        : formatDateInTimezone(row.week_start ?? firstWeekStart, timeZone);
+    totalsByWeek.set(key, Math.max(toNumber(row.total_items ?? 0), 0));
+  }
+
+  const points: WeeklyPickChangePoint[] = [];
+  let previousTotal: number | null = null;
+
+  for (let index = 0; index < totalWeeks; index += 1) {
+    const start = new Date(firstWeekStart.getTime() + index * WEEK_IN_MS);
+    const end = new Date(start.getTime() + WEEK_IN_MS);
+    const { start: startLabel, end: endLabel } = formatAppExclusiveRange(
+      { start, end },
+      timeZone,
+    );
+    const weekKey = formatDateInTimezone(start, timeZone);
+    const totalItems = totalsByWeek.get(weekKey) ?? 0;
+    const change = previousTotal === null ? null : buildPercentageChange(totalItems, previousTotal);
+
+    points.push({
+      weekStart: startLabel,
+      weekEnd: endLabel,
+      totalItems,
+      percentageChange: change?.value ?? 0,
+    });
+
+    previousTotal = totalItems;
+  }
+
+  return {
+    rangeStart: firstWeekStart,
+    rangeEnd,
+    points,
+  };
 }
 
 function parsePickEntryBreakdownRequest(body: unknown): PickEntryBreakdownRequest {

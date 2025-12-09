@@ -237,6 +237,7 @@ struct MachineTouchesLineChart: View {
                             y: .value("Machines", point.totalMachines)
                         )
                         .foregroundStyle(.purple)
+                        .symbolSize(18)
                     }
 
                     ForEach(completedTrendPoints) { point in

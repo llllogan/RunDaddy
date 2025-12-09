@@ -46,6 +46,11 @@ struct AnalyticsView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
+                Section("Week-over-week Change") {
+                    WeeklyPickChangeChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                        .padding(.top, 10)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
                 Section("Total Machines Stocked Per Week") {
                     MachineTouchesChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .padding(.top, 10)
