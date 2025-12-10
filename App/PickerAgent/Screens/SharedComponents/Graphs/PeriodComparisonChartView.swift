@@ -39,14 +39,17 @@ struct PeriodComparisonChartView: View {
             header
             Group {
                 if viewModel.isLoadingPeriodComparisons && viewModel.packPeriodComparisons.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.packPeriodComparisonsError {
                     errorView(message: error)
                 } else if chartEntries.isEmpty {
                     emptyStateView
                 } else {
-                    chart
-                    progressSummary
+                    VStack(alignment: .leading, spacing: 16) {
+                        chart
+                        progressSummary
+                    }
+                    .chartLoadingOverlay(isPresented: viewModel.isLoadingPeriodComparisons)
                 }
             }
         }
@@ -151,15 +154,6 @@ struct PeriodComparisonChartView: View {
                 }
             }
         }
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-            Spacer()
-        }
-        .frame(height: 120)
     }
 
     private func errorView(message: String) -> some View {

@@ -69,8 +69,7 @@ struct SkuBreakdownChartView: View {
             }
 
             if viewModel.isLoadingSkuBreakdown && orderedPoints.isEmpty {
-                ProgressView("Loading")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ChartLoadingView(height: 220)
             } else if let error = viewModel.skuBreakdownError {
                 Text(error)
                     .font(.footnote)
@@ -90,6 +89,7 @@ struct SkuBreakdownChartView: View {
                     showLegend: !shouldHideLegend,
                     maxHeight: 220
                 )
+                .chartLoadingOverlay(isPresented: viewModel.isLoadingSkuBreakdown)
             }
         }
         .padding()

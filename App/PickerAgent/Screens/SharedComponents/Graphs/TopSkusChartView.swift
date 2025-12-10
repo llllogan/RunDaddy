@@ -75,15 +75,16 @@ struct TopSkusChartView: View {
 
             Group {
                 if viewModel.isLoadingTopSkus && currentSkus.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.topSkusError {
                     errorView(message: error)
                 } else if currentSkus.isEmpty {
                     emptyStateView
                 } else if let stats {
                     chart(for: stats)
+                        .chartLoadingOverlay(isPresented: viewModel.isLoadingTopSkus)
                 } else {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 }
             }
         }
@@ -193,16 +194,6 @@ struct TopSkusChartView: View {
             AxisMarks(position: .leading)
         }
         .frame(height: max(220, Double(stats.skus.count) * 32.0 + 80))
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-            Spacer()
-        }
-        .frame(height: 160)
     }
 
     private func errorView(message: String) -> some View {

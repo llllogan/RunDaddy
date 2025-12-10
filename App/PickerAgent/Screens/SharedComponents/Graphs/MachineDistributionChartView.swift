@@ -26,13 +26,14 @@ struct MachineDistributionChartView: View {
 
             Group {
                 if viewModel.isLoadingMachinePickTotals && viewModel.machinePickTotals.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.machinePickTotalsError {
                     errorView(message: error)
                 } else if viewModel.machinePickTotals.isEmpty {
                     emptyStateView
                 } else {
                     chartAndLegend
+                        .chartLoadingOverlay(isPresented: viewModel.isLoadingMachinePickTotals)
                 }
             }
         }
@@ -60,16 +61,6 @@ struct MachineDistributionChartView: View {
         .chartLegend(position: .trailing, alignment: .center)
         .frame(height: 240)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-            Spacer()
-        }
-        .frame(height: 140)
     }
 
     private func errorView(message: String) -> some View {
@@ -116,13 +107,14 @@ struct MachineTouchesChartView: View {
 
             Group {
                 if viewModel.isLoadingMachineTouches && viewModel.machineTouches.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.machineTouchesError {
                     errorView(message: error)
                 } else if viewModel.machineTouches.isEmpty {
                     emptyStateView
                 } else {
                     MachineTouchesLineChart(points: viewModel.machineTouches)
+                        .chartLoadingOverlay(isPresented: viewModel.isLoadingMachineTouches)
                 }
             }
         }
@@ -139,16 +131,6 @@ struct MachineTouchesChartView: View {
                 await viewModel.refreshMachinePickTotals()
             }
         }
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-            Spacer()
-        }
-        .frame(height: 140)
     }
 
     private func errorView(message: String) -> some View {

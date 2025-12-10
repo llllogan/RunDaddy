@@ -62,13 +62,14 @@ struct TopLocationsChartView: View {
 
             Group {
                 if viewModel.isLoadingTopLocations && viewModel.topLocations.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.topLocationsError {
                     errorView(message: error)
                 } else if viewModel.topLocations.isEmpty {
                     emptyStateView
                 } else {
                     chart
+                        .chartLoadingOverlay(isPresented: viewModel.isLoadingTopLocations)
                 }
             }
         }
@@ -152,16 +153,6 @@ struct TopLocationsChartView: View {
         }
         .frame(height: 240)
         .padding(.top)
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-            Spacer()
-        }
-        .frame(height: 120)
     }
 
     private func errorView(message: String) -> some View {

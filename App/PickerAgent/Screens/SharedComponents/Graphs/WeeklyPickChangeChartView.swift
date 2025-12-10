@@ -69,13 +69,14 @@ struct WeeklyPickChangeChartView: View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
                 if viewModel.isLoadingWeeklyPickChanges && viewModel.weeklyPickChanges.isEmpty {
-                    loadingView
+                    ChartLoadingView(height: 220)
                 } else if let error = viewModel.weeklyPickChangesError {
                     errorView(message: error)
                 } else if orderedPoints.isEmpty {
                     emptyStateView
                 } else {
                     chartContent
+                        .chartLoadingOverlay(isPresented: viewModel.isLoadingWeeklyPickChanges)
                 }
             }
         }
@@ -168,16 +169,6 @@ struct WeeklyPickChangeChartView: View {
             .frame(height: 220)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var loadingView: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-            Spacer()
-        }
-        .frame(height: 140)
     }
 
     private func errorView(message: String) -> some View {
