@@ -59,12 +59,12 @@ const DEFAULT_MACHINE_TYPE_NAME =
   })();
 
 const SKU_SEED_DATA = [
-  { code: 'SKU-PBAR-ALM', name: 'Protein Bar', type: 'Almond', category: 'confection' },
-  { code: 'SKU-CHIPS-SEA', name: 'Chips', type: 'Sea Salt', category: 'confection' },
-  { code: 'SKU-COFF-COLD', name: 'Cold Brew', type: 'Can', category: 'beverage' },
-  { code: 'SKU-JUICE-CIT', name: 'Sparkling Juice', type: 'Bottle', category: 'beverage' },
-  { code: 'SKU-ENERGY-MIX', name: 'Trail Mix', type: 'Original', category: 'confection' },
-  { code: 'SKU-TEA-HERBAL', name: 'Herbal Tea', type: 'Unsweetened', category: 'beverage' },
+  { code: 'SKU-PBAR-ALM', name: 'Protein Bar', type: 'Almond', category: 'confection', weight: 55 },
+  { code: 'SKU-CHIPS-SEA', name: 'Chips', type: 'Sea Salt', category: 'confection', weight: 50 },
+  { code: 'SKU-COFF-COLD', name: 'Cold Brew', type: 'Can', category: 'beverage', weight: 330 },
+  { code: 'SKU-JUICE-CIT', name: 'Sparkling Juice', type: 'Bottle', category: 'beverage', weight: 375 },
+  { code: 'SKU-ENERGY-MIX', name: 'Trail Mix', type: 'Original', category: 'confection', weight: 85 },
+  { code: 'SKU-TEA-HERBAL', name: 'Herbal Tea', type: 'Unsweetened', category: 'beverage', weight: 500 },
 ];
 
 type CoilSeedConfig = {
@@ -506,78 +506,45 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   },
 ];
 
-const METRO_SALES_HISTORY: MetroSalesRunConfig[] = [
-  {
-    daysFromToday: -7,
-    hour: 9,
-    demandMultiplier: 0.78,
-    rotationOffset: 0,
-    minLocations: 3,
-    secondaryMinLocations: 2,
-    secondaryRotationOffset: 0,
-    secondaryDemandMultiplier: 0.55,
-  },
-  {
-    daysFromToday: -14,
-    hour: 10,
-    demandMultiplier: 0.62,
-    rotationOffset: 1,
-    minLocations: 2,
-    secondaryMinLocations: 2,
-    secondaryRotationOffset: 2,
-    secondaryDemandMultiplier: 0.45,
-  },
-  {
-    daysFromToday: -21,
-    hour: 9,
-    demandMultiplier: 0.94,
-    rotationOffset: 2,
-    minLocations: 4,
-    secondaryMinLocations: 3,
-  },
-  {
-    daysFromToday: -28,
-    hour: 8,
-    demandMultiplier: 0.55,
-    rotationOffset: 3,
-    minLocations: 2,
-    secondaryMinLocations: 3,
-    secondaryRotationOffset: 1,
-  },
-  {
-    daysFromToday: -35,
-    hour: 10,
-    demandMultiplier: 1.05,
-    rotationOffset: 0,
-    minLocations: 4,
-    secondaryMinLocations: 3,
-  },
-  {
-    daysFromToday: -42,
-    hour: 9,
-    demandMultiplier: 0.72,
-    rotationOffset: 2,
-    minLocations: 3,
-    secondaryMinLocations: 2,
-  },
-  {
-    daysFromToday: -49,
-    hour: 11,
-    demandMultiplier: 1.08,
-    rotationOffset: 1,
-    minLocations: 4,
-    secondaryMinLocations: 3,
-    secondaryRotationOffset: 1,
-  },
-  {
-    daysFromToday: -56,
-    hour: 9,
-    demandMultiplier: 0.86,
-    rotationOffset: 3,
-    minLocations: 3,
-    secondaryMinLocations: 2,
-  },
-];
+// Gradual week-over-week growth with occasional softer weeks to mirror a real operation.
+const METRO_WEEKS_TO_SEED = 30;
+
+function clampMultiplier(value: number) {
+  return Math.max(0.45, Math.min(1.08, Number(value.toFixed(2))));
+}
+
+// Gradual week-over-week growth with periodic soft dips to mimic real operations.
+const METRO_SALES_HISTORY: MetroSalesRunConfig[] = buildMetroSalesHistory();
+
+function buildMetroSalesHistory(): MetroSalesRunConfig[] {
+  const weeks: MetroSalesRunConfig[] = [];
+  const softDipWeeks = new Set([4, 9, 13, 18, 23, 27]); // Introduce occasional negative weeks.
+
+  for (let index = 0; index < METRO_WEEKS_TO_SEED; index += 1) {
+    const weeksAgo = index + 1;
+    const seasonalPulse = ((index % 6) - 2) * 0.01; // Mild oscillation to avoid a flat line.
+    const steadyLift = index * 0.018; // Long-term upward trend.
+    const base = 0.58 + steadyLift + seasonalPulse;
+    const dip = softDipWeeks.has(index) ? -0.06 : 0;
+    const demandMultiplier = clampMultiplier(base + dip);
+    const secondaryMultiplier = clampMultiplier(demandMultiplier * 0.78);
+    const minLocations = Math.min(5, 2 + Math.floor(index / 6));
+    const secondaryMinLocations = Math.max(2, minLocations - 1);
+
+    weeks.push({
+      daysFromToday: -7 * weeksAgo,
+      hour: 8 + (index % 3),
+      demandMultiplier,
+      rotationOffset: index % 4,
+      minLocations,
+      secondaryMinLocations,
+      secondaryRotationOffset: (index + 1) % 4,
+      secondaryDemandMultiplier: secondaryMultiplier,
+    });
+  }
+
+  return weeks;
+}
 
 const TREND_SCENARIO_COMPANY = {
   name: 'Pulse Logistics Collective',
@@ -719,12 +686,14 @@ async function seedSkus() {
         name: sku.name,
         type: sku.type,
         category: sku.category,
+        weight: toNullable(sku.weight),
       },
       create: {
         code: sku.code,
         name: sku.name,
         type: sku.type,
         category: sku.category,
+        weight: toNullable(sku.weight),
       },
     });
     skuCache.set(record.code, record);
@@ -1183,7 +1152,7 @@ function buildMetroPickSeeds(
   weekIndex: number,
 ): PickEntrySeed[] {
   return coilItems.map((coilItem, coilIndex) => {
-    const weeklyPulse = ((weekIndex % 3) - 1) * 0.08;
+    const weeklyPulse = ((weekIndex % 3) - 1) * 0.04;
     const machineDrift = ((coilItem.machineCode.length + coilIndex) % 5 - 2) * 0.03;
     const adjustedMultiplier = Math.max(
       0.35,

@@ -159,7 +159,6 @@ struct SkuInfoBento: View {
             id: "sku-info-weight",
             title: "Weight",
             value: formattedWeight(weight),
-            subtitle: "Per unit",
             symbolName: "scalemass",
             symbolTint: .orange,
             isProminent: true
