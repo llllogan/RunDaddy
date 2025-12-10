@@ -46,7 +46,7 @@ struct AnalyticsView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
-                Section("Week-over-week Change") {
+                Section("Week-over-week Growth") {
                     WeeklyPickChangeChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
                         .padding(.top, 10)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

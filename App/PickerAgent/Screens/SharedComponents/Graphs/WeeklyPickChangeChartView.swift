@@ -40,6 +40,22 @@ struct WeeklyPickChangeChartView: View {
         return -padded...padded
     }
 
+    private var positivePoints: [WeeklyPickChangeSeries.Point] {
+        orderedPoints.filter { $0.percentageChange >= 0 }
+    }
+
+    private var negativePoints: [WeeklyPickChangeSeries.Point] {
+        orderedPoints.filter { $0.percentageChange < 0 }
+    }
+
+    private var chartStart: Date? {
+        orderedPoints.first?.weekStart
+    }
+
+    private var chartEnd: Date? {
+        orderedPoints.last?.weekEnd ?? orderedPoints.last?.weekStart
+    }
+
     private var latestChangeText: String {
         guard let latest = orderedPoints.last else {
             return "No recent data"
@@ -92,21 +108,39 @@ struct WeeklyPickChangeChartView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 4]))
                     .foregroundStyle(.secondary)
 
+                if let start = chartStart, let end = chartEnd {
+                    RectangleMark(
+                        xStart: .value("Range Start", start),
+                        xEnd: .value("Range End", end),
+                        yStart: .value("Zero", 0),
+                        yEnd: .value("Positive", yDomain.upperBound)
+                    )
+                    .foregroundStyle(Color.green.opacity(0.16))
+
+                    RectangleMark(
+                        xStart: .value("Range Start", start),
+                        xEnd: .value("Range End", end),
+                        yStart: .value("Zero", 0),
+                        yEnd: .value("Negative", yDomain.lowerBound)
+                    )
+                    .foregroundStyle(Color.red.opacity(0.16))
+                }
+
                 ForEach(orderedPoints) { point in
                     LineMark(
                         x: .value("Week", point.weekStart),
                         y: .value("Change", point.percentageChange)
                     )
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(.teal)
-                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineJoin: .round))
+                    .foregroundStyle(.gray)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineJoin: .round))
 
                     PointMark(
                         x: .value("Week", point.weekStart),
                         y: .value("Change", point.percentageChange)
                     )
-                    .foregroundStyle(.teal)
-                    .symbolSize(18)
+                    .foregroundStyle(.gray)
+                    .symbolSize(16)
                 }
             }
             .chartYScale(domain: yDomain)
