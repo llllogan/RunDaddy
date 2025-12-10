@@ -36,7 +36,7 @@ struct MachineDistributionChartView: View {
                 }
             }
         }
-        .padding()
+        .padding(.horizontal)
         .task {
             await viewModel.loadMachinePickTotals()
         }
@@ -205,9 +205,10 @@ struct MachineTouchesLineChart: View {
     }
 
     private var yDomain: ClosedRange<Double> {
-        let padding: Double = 1
+        let range = max(maxValue - minValue, 1)
+        let padding = max(0.4, range * 0.1)
         let lower = max(0, minValue - padding)
-        let upper = max(minValue + (padding * 2), maxValue + padding)
+        let upper = max(maxValue + padding, lower + 1)
         return lower...upper
     }
 

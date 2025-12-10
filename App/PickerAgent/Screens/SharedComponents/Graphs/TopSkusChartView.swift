@@ -86,8 +86,6 @@ struct TopSkusChartView: View {
                     loadingView
                 }
             }
-
-            footer
         }
         .padding()
         .task {
@@ -195,18 +193,6 @@ struct TopSkusChartView: View {
             AxisMarks(position: .leading)
         }
         .frame(height: max(220, Double(stats.skus.count) * 32.0 + 80))
-    }
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let stats {
-                if stats.totalPicked > 0 {
-                    Text("Total picked: \(stats.totalPicked)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
     }
 
     private var loadingView: some View {
