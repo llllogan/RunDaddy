@@ -611,7 +611,14 @@ const TREND_SCENARIO_PICK_CONFIG: Record<'lastWeek' | 'thisWeek', TrendPickNeed[
   ],
 };
 
-const EXTRA_USERS = [
+const EXTRA_USERS: Array<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  accountRole?: AccountRole | null;
+  password?: string;
+}> = [
   {
     firstName: 'Casey',
     lastName: 'Nguyen',
