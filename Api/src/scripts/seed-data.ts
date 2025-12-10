@@ -40,6 +40,7 @@ const APP_STORE_TEST_PASSWORD = process.env.APP_STORE_TEST_PASSWORD ?? 'AppleTes
 const APP_STORE_TIME_ZONE = BRISBANE_TIME_ZONE;
 const APP_STORE_TIER_ID = TIER_IDS.ENTERPRISE_10;
 const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!123';
+const METRO_COMPANY_NAME = 'Metro Snacks Co.';
 const MIN_RUN_LOCATIONS = 4;
 
 const MACHINE_TYPE_SEED_DATA = [
@@ -101,6 +102,17 @@ type CompanySeedConfig = {
     phone?: string;
   };
   locations: LocationSeedConfig[];
+};
+
+type MetroSalesRunConfig = {
+  daysFromToday: number;
+  hour: number;
+  demandMultiplier: number;
+  rotationOffset?: number;
+  minLocations?: number;
+  secondaryMinLocations?: number;
+  secondaryRotationOffset?: number;
+  secondaryDemandMultiplier?: number;
 };
 
 const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
@@ -212,7 +224,7 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
 
 const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   {
-    name: 'Metro Snacks Co.',
+    name: METRO_COMPANY_NAME,
     timeZone: BRISBANE_TIME_ZONE,
     tierId: TIER_IDS.BUSINESS,
     owner: {
@@ -347,6 +359,32 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
           },
         ],
       },
+      {
+        name: 'Harbor Innovation Hub',
+        address: '42 River St, Mackay QLD 4740, Australia',
+        machines: [
+          {
+            code: 'METRO-HARB-01',
+            description: 'Harbor Snack Pilot',
+            machineType: 'AMS Sensit 3',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 15 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 13 },
+            ],
+          },
+          {
+            code: 'METRO-HARB-02',
+            description: 'Harbor Beverage Cooler',
+            machineType: 'DN BevMax 4',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 11 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
+            ],
+          },
+        ],
+      },
     ],
   },
   {
@@ -468,6 +506,79 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
   },
 ];
 
+const METRO_SALES_HISTORY: MetroSalesRunConfig[] = [
+  {
+    daysFromToday: -7,
+    hour: 9,
+    demandMultiplier: 0.78,
+    rotationOffset: 0,
+    minLocations: 3,
+    secondaryMinLocations: 2,
+    secondaryRotationOffset: 0,
+    secondaryDemandMultiplier: 0.55,
+  },
+  {
+    daysFromToday: -14,
+    hour: 10,
+    demandMultiplier: 0.62,
+    rotationOffset: 1,
+    minLocations: 2,
+    secondaryMinLocations: 2,
+    secondaryRotationOffset: 2,
+    secondaryDemandMultiplier: 0.45,
+  },
+  {
+    daysFromToday: -21,
+    hour: 9,
+    demandMultiplier: 0.94,
+    rotationOffset: 2,
+    minLocations: 4,
+    secondaryMinLocations: 3,
+  },
+  {
+    daysFromToday: -28,
+    hour: 8,
+    demandMultiplier: 0.55,
+    rotationOffset: 3,
+    minLocations: 2,
+    secondaryMinLocations: 3,
+    secondaryRotationOffset: 1,
+  },
+  {
+    daysFromToday: -35,
+    hour: 10,
+    demandMultiplier: 1.05,
+    rotationOffset: 0,
+    minLocations: 4,
+    secondaryMinLocations: 3,
+  },
+  {
+    daysFromToday: -42,
+    hour: 9,
+    demandMultiplier: 0.72,
+    rotationOffset: 2,
+    minLocations: 3,
+    secondaryMinLocations: 2,
+  },
+  {
+    daysFromToday: -49,
+    hour: 11,
+    demandMultiplier: 1.08,
+    rotationOffset: 1,
+    minLocations: 4,
+    secondaryMinLocations: 3,
+    secondaryRotationOffset: 1,
+  },
+  {
+    daysFromToday: -56,
+    hour: 9,
+    demandMultiplier: 0.86,
+    rotationOffset: 3,
+    minLocations: 3,
+    secondaryMinLocations: 2,
+  },
+];
+
 const TREND_SCENARIO_COMPANY = {
   name: 'Pulse Logistics Collective',
   timeZone: BRISBANE_TIME_ZONE,
@@ -545,13 +656,6 @@ const EXTRA_USERS = [
     lastName: 'Lopez',
     email: 'skyler.lopez+seed@rundaddy.test',
     phone: '555-0404',
-  },
-  {
-    firstName: 'Lighthouse',
-    lastName: 'Admin',
-    email: 'lighthouse@admin.com',
-    phone: '555-0505',
-    accountRole: AccountRole.LIGHTHOUSE,
   },
 ];
 
@@ -982,6 +1086,12 @@ async function ensureRunWithLocations({
   });
 }
 
+async function resetCompanyRuns(companyId: string) {
+  await prisma.run.deleteMany({
+    where: { companyId },
+  });
+}
+
 async function ensurePickEntries(runId: string, coilItems: CoilItemSeedInfo[]) {
   await prisma.pickEntry.deleteMany({ where: { runId } });
   if (!coilItems.length) {
@@ -1063,6 +1173,113 @@ async function seedPickEntriesWithConfig(runId: string, entries: PickEntrySeed[]
   });
 }
 
+function clampNeed(par: number, proposedNeed: number) {
+  return Math.max(1, Math.min(proposedNeed, par));
+}
+
+function buildMetroPickSeeds(
+  coilItems: CoilItemSeedInfo[],
+  baseMultiplier: number,
+  weekIndex: number,
+): PickEntrySeed[] {
+  return coilItems.map((coilItem, coilIndex) => {
+    const weeklyPulse = ((weekIndex % 3) - 1) * 0.08;
+    const machineDrift = ((coilItem.machineCode.length + coilIndex) % 5 - 2) * 0.03;
+    const adjustedMultiplier = Math.max(
+      0.35,
+      Math.min(1.1, baseMultiplier + weeklyPulse + machineDrift),
+    );
+    const proposedNeed = Math.round(coilItem.par * adjustedMultiplier);
+    const need = clampNeed(coilItem.par, proposedNeed);
+    const current = Math.max(coilItem.par - need, 0);
+    return makePickEntrySeed(coilItem, need, current);
+  });
+}
+
+async function seedMetroSalesHistory(
+  companyId: string,
+  locationDetails: LocationSeedResult[],
+) {
+  if (!locationDetails.length) {
+    return;
+  }
+
+  const totalLocations = locationDetails.length;
+  const locationIds = locationDetails.map((detail) => detail.location.id);
+
+  for (const [index, runConfig] of METRO_SALES_HISTORY.entries()) {
+    const minLocations = Math.max(
+      2,
+      Math.min(totalLocations, runConfig.minLocations ?? MIN_RUN_LOCATIONS),
+    );
+    const rotationOffset = runConfig.rotationOffset ?? (index % totalLocations);
+
+    const runLocations = selectRunLocations(locationDetails, rotationOffset, minLocations);
+    const runLocationIds = runLocations.map((detail) => detail.location.id);
+    const scheduledFor = scheduleForDay(runConfig.daysFromToday, runConfig.hour);
+
+    const run = await ensureRunWithLocations({
+      companyId,
+      scheduledFor,
+      locationIds: runLocationIds,
+    });
+
+    await prisma.run.update({
+      where: { id: run.id },
+      data: {
+        status: RunStatus.READY,
+        pickingStartedAt: new Date(scheduledFor.getTime() + 20 * 60 * 1000),
+        pickingEndedAt: new Date(scheduledFor.getTime() + 2 * 60 * 60 * 1000),
+      },
+    });
+
+    const pickSeeds = buildMetroPickSeeds(
+      runLocations.flatMap((detail) => detail.coilItems),
+      runConfig.demandMultiplier,
+      index,
+    );
+    await seedPickEntriesWithConfig(run.id, pickSeeds);
+
+    const secondaryMinLocations = Math.max(
+      2,
+      Math.min(
+        totalLocations,
+        runConfig.secondaryMinLocations ??
+          Math.max(2, Math.min(totalLocations, minLocations + (index % 2 === 0 ? -1 : 1))),
+      ),
+    );
+    const secondaryRotation =
+      runConfig.secondaryRotationOffset ?? ((rotationOffset + 1) % Math.max(totalLocations, 1));
+    const secondaryLocations = selectRunLocations(
+      locationDetails,
+      secondaryRotation,
+      secondaryMinLocations,
+    );
+    const secondaryScheduledFor = scheduleForDay(runConfig.daysFromToday + 2, runConfig.hour + 1);
+    const secondaryRun = await ensureRunWithLocations({
+      companyId,
+      scheduledFor: secondaryScheduledFor,
+      locationIds: secondaryLocations.map((detail) => detail.location.id),
+    });
+
+    await prisma.run.update({
+      where: { id: secondaryRun.id },
+      data: {
+        status: RunStatus.READY,
+        pickingStartedAt: new Date(secondaryScheduledFor.getTime() + 15 * 60 * 1000),
+        pickingEndedAt: new Date(secondaryScheduledFor.getTime() + 90 * 60 * 1000),
+      },
+    });
+
+    const secondaryPickSeeds = buildMetroPickSeeds(
+      secondaryLocations.flatMap((detail) => detail.coilItems),
+      runConfig.secondaryDemandMultiplier ?? Math.max(0.4, runConfig.demandMultiplier * 0.7),
+      index + 1,
+    );
+    await seedPickEntriesWithConfig(secondaryRun.id, secondaryPickSeeds);
+  }
+}
+
 async function seedAppleTesting() {
   console.log('Creating Apple testing workspace...');
   const company = await ensureCompany(APP_STORE_COMPANY_NAME, APP_STORE_TIER_ID, APP_STORE_TIME_ZONE);
@@ -1119,6 +1336,10 @@ async function seedCompanyData() {
     const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
     await ensureDefaultMembership(owner.id, membership.id);
 
+    if (config.name === METRO_COMPANY_NAME) {
+      await resetCompanyRuns(company.id);
+    }
+
     const locationDetails: LocationSeedResult[] = [];
     for (const locationConfig of config.locations) {
       locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
@@ -1149,6 +1370,10 @@ async function seedCompanyData() {
       tomorrowRun.id,
       tomorrowLocations.flatMap((detail) => detail.coilItems),
     );
+
+    if (config.name === METRO_COMPANY_NAME) {
+      await seedMetroSalesHistory(company.id, locationDetails);
+    }
 
     seeded.push({ company, owner, locations: locationDetails.map((detail) => detail.location) });
     console.log(`Seeded company "${company.name}" with owner ${owner.firstName} ${owner.lastName}`);

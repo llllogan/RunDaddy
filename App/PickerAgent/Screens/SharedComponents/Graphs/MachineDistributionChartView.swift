@@ -198,10 +198,21 @@ struct MachineTouchesLineChart: View {
         let maxTotal = orderedPoints.map(\.totalMachines).max() ?? 0
         return max(Double(maxTotal), 1)
     }
-    
+
     private var minValue: Double {
         let minTotal = orderedPoints.map(\.totalMachines).min() ?? 0
-        return min(Double(minTotal), 1)
+        return max(Double(minTotal), 1)
+    }
+
+    private var yDomain: ClosedRange<Double> {
+        let padding: Double = 1
+        let lower = max(0, minValue - padding)
+        let upper = max(minValue + (padding * 2), maxValue + padding)
+        return lower...upper
+    }
+
+    private var baseline: Double {
+        yDomain.lowerBound
     }
 
     private static let isoCalendar = Calendar(identifier: .iso8601)
@@ -218,14 +229,15 @@ struct MachineTouchesLineChart: View {
                     ForEach(orderedPoints) { point in
                         AreaMark(
                             x: .value("Week", point.weekStart),
-                            y: .value("Machines", point.totalMachines)
+                            yStart: .value("Baseline", baseline),
+                            yEnd: .value("Machines", Double(point.totalMachines))
                         )
                         .interpolationMethod(.monotone)
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [
-                                    .purple.opacity(0.24),
-                                    .purple.opacity(0.05)
+                                    .purple.opacity(0.32),
+                                    .purple.opacity(0.12)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -254,7 +266,11 @@ struct MachineTouchesLineChart: View {
                 }
                 .chartLegend(.hidden)
                 .chartYAxis {
-                    AxisMarks(position: .trailing)
+                    AxisMarks(position: .trailing) { value in
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel()
+                    }
                 }
                 .chartXAxis {
                     AxisMarks(values: orderedPoints.map { $0.weekStart }) { value in
@@ -266,7 +282,7 @@ struct MachineTouchesLineChart: View {
                         }
                     }
                 }
-                .chartYScale(domain: minValue...maxValue)
+                .chartYScale(domain: yDomain)
                 .frame(height: 170)
                 .chartOverlay { proxy in
                     GeometryReader { geometry in

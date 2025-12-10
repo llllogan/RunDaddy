@@ -40,14 +40,6 @@ struct WeeklyPickChangeChartView: View {
         return -padded...padded
     }
 
-    private var positivePoints: [WeeklyPickChangeSeries.Point] {
-        orderedPoints.filter { $0.percentageChange >= 0 }
-    }
-
-    private var negativePoints: [WeeklyPickChangeSeries.Point] {
-        orderedPoints.filter { $0.percentageChange < 0 }
-    }
-
     private var latestChangeText: String {
         guard let latest = orderedPoints.last else {
             return "No recent data"
@@ -99,38 +91,6 @@ struct WeeklyPickChangeChartView: View {
                 RuleMark(y: .value("No change", 0))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 4]))
                     .foregroundStyle(.secondary)
-
-                ForEach(positivePoints) { point in
-                    AreaMark(
-                        x: .value("Week", point.weekStart),
-                        yStart: .value("Zero", 0),
-                        yEnd: .value("Change", point.percentageChange)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal.opacity(0.26), .teal.opacity(0.06)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                }
-
-                ForEach(negativePoints) { point in
-                    AreaMark(
-                        x: .value("Week", point.weekStart),
-                        yStart: .value("Zero", 0),
-                        yEnd: .value("Change", point.percentageChange)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal.opacity(0.26), .teal.opacity(0.06)],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                    )
-                }
 
                 ForEach(orderedPoints) { point in
                     LineMark(
