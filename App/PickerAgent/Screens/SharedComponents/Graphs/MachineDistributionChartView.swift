@@ -126,7 +126,8 @@ struct MachineTouchesChartView: View {
                 }
             }
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.vertical, 8)
         .task {
             await viewModel.loadMachinePickTotals()
         }
