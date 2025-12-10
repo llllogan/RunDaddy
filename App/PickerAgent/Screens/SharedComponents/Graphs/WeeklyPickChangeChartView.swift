@@ -164,7 +164,7 @@ struct WeeklyPickChangeChartView: View {
                 AxisMarks(values: xAxisValues) { value in
                     if let date = value.as(Date.self) {
                         AxisGridLine()
-                        AxisValueLabel {
+                        AxisValueLabel(centered: false, anchor: .topTrailing) {
                             Text(Self.weekLabel(for: date))
                                 .font(.caption2)
                         }
