@@ -32,6 +32,7 @@ struct SearchLocationInfoBento: View {
         if let hoursDisplay, let onConfigureHours {
             cards.append(
                 BentoItem(
+                    id: "location-info-hours",
                     title: "Hours",
                     value: "",
                     symbolName: "clock",
@@ -59,6 +60,7 @@ struct SearchLocationInfoBento: View {
 
         cards.append(
             BentoItem(
+                id: "location-info-last-packed",
                 title: lastPackedTitle,
                 value: lastPackedValue,
                 symbolName: "clock.arrow.circlepath",
@@ -98,6 +100,7 @@ struct SearchLocationInfoBento: View {
 
     private var addressCard: BentoItem {
         BentoItem(
+            id: "location-info-address",
             title: "Address",
             value: addressValue,
             symbolName: "mappin.circle",
@@ -391,6 +394,7 @@ struct SearchLocationPerformanceBento: View {
 
     private var packTrendCard: BentoItem {
         BentoItem(
+            id: "location-perf-pack-trend",
             title: "Pack Trend",
             value: formatPercentageChange(percentageChange),
             subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
@@ -402,6 +406,7 @@ struct SearchLocationPerformanceBento: View {
 
     private var shareOfSalesCard: BentoItem {
         BentoItem(
+            id: "location-perf-share-of-sales",
             title: "Share of Sales",
             value: "",
             symbolName: "building.2",
@@ -578,6 +583,7 @@ struct SearchLocationPerformanceBento: View {
     ) -> BentoItem {
         guard let extremum else {
             return BentoItem(
+                id: "location-perf-\(title.lowercased())",
                 title: title,
                 value: "No data",
                 symbolName: symbolName,
@@ -586,6 +592,7 @@ struct SearchLocationPerformanceBento: View {
         }
 
         return BentoItem(
+            id: "location-perf-\(title.lowercased())",
             title: title,
             value: BreakdownExtremumFormatter.valueText(for: extremum),
             subtitle: BreakdownExtremumFormatter.subtitle(

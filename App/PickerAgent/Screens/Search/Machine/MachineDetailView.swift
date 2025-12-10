@@ -80,6 +80,7 @@ struct MachineDetailView: View {
                             viewModel: chartsViewModel,
                             refreshTrigger: false,
                             showFilters: true,
+                            showAggregationControls: false,
                             focus: PickEntryBreakdown.ChartItemFocus(skuId: nil, machineId: machineId, locationId: nil),
                             onAggregationChange: { newAgg in
                                 selectedPeriod = SkuPeriod(aggregation: newAgg) ?? selectedPeriod
@@ -152,6 +153,28 @@ struct MachineDetailView: View {
         }
         .navigationDestination(item: $locationNavigationTarget) { target in
             SearchLocationDetailView(locationId: target.id, session: session)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
+                        Button {
+                            if let mapped = SkuPeriod(aggregation: aggregation) {
+                                selectedPeriod = mapped
+                            }
+                        } label: {
+                            HStack {
+                                Text(aggregation.displayName)
+                                if aggregation == chartsViewModel.skuBreakdownAggregation {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(selectedPeriod.displayName, systemImage: "calendar")
+                }
+            }
         }
     }
 

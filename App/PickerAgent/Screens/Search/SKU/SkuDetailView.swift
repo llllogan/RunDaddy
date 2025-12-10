@@ -82,6 +82,7 @@ struct SkuDetailView: View {
                             viewModel: chartsViewModel,
                             refreshTrigger: false,
                             showFilters: true,
+                            showAggregationControls: false,
                             focus: PickEntryBreakdown.ChartItemFocus(skuId: skuId, machineId: nil, locationId: nil),
                             onAggregationChange: { newAgg in
                                 if let mapped = SkuPeriod(aggregation: newAgg) {
@@ -155,6 +156,26 @@ struct SkuDetailView: View {
             MachineDetailView(machineId: target.id, session: session)
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
+                        Button {
+                            if let mapped = SkuPeriod(aggregation: aggregation) {
+                                selectedPeriod = mapped
+                            }
+                        } label: {
+                            HStack {
+                                Text(aggregation.displayName)
+                                if aggregation == chartsViewModel.skuBreakdownAggregation {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(selectedPeriod.displayName, systemImage: "calendar")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if isUpdatingWeight {
                     ProgressView()

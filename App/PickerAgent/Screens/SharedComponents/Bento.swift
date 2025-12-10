@@ -32,20 +32,12 @@ struct BentoCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(item.value)
-                        .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
-                        .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
-                        .lineLimit(item.allowsMultilineValue ? nil : 2)
-                        .multilineTextAlignment(.leading)
+                    valueText
 
                     Spacer(minLength: 8)
 
                     if let callout = item.callout, !callout.isEmpty {
-                        Text(callout)
-                            .font(item.isProminent ? .title3.weight(.semibold) : .headline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(item.allowsMultilineValue ? nil : 2)
-                            .multilineTextAlignment(.trailing)
+                        calloutText(callout)
                     }
                 }
             }
@@ -81,11 +73,49 @@ struct BentoCard: View {
         )
         .accessibilityElement(children: .combine)
     }
+
+    @ViewBuilder
+    private var valueText: some View {
+        let text = Text(item.value)
+            .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
+            .foregroundStyle(item.isProminent ? item.symbolTint : .primary)
+            .lineLimit(item.allowsMultilineValue ? nil : 2)
+            .multilineTextAlignment(.leading)
+
+        if isMostlyNumeric(item.value) {
+            text
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.35), value: item.value)
+        } else {
+            text
+        }
+    }
+
+    @ViewBuilder
+    private func calloutText(_ callout: String) -> some View {
+        let text = Text(callout)
+            .font(item.isProminent ? .title3.weight(.semibold) : .headline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(item.allowsMultilineValue ? nil : 2)
+            .multilineTextAlignment(.trailing)
+
+        if isMostlyNumeric(callout) {
+            text
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.35), value: callout)
+        } else {
+            text
+        }
+    }
+
+    private func isMostlyNumeric(_ text: String) -> Bool {
+        text.contains(where: \.isNumber)
+    }
 }
 
 
 struct BentoItem: Identifiable {
-    let id = UUID()
+    let id: String
     let title: String
     let value: String
     let callout: String?
@@ -98,7 +128,8 @@ struct BentoItem: Identifiable {
     let showsChevron: Bool
     let customContent: AnyView?
 
-    init(title: String,
+    init(id: String = UUID().uuidString,
+         title: String,
          value: String,
          callout: String? = nil,
          subtitle: String? = nil,
@@ -109,6 +140,7 @@ struct BentoItem: Identifiable {
          onTap: (() -> Void)? = nil,
          showsChevron: Bool = false,
          customContent: AnyView? = nil) {
+        self.id = id
         self.title = title
         self.value = value
         self.callout = callout

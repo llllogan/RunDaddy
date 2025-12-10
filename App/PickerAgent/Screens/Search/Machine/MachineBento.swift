@@ -28,6 +28,7 @@ struct MachineInfoBento: View {
         }
 
         return BentoItem(
+            id: "machine-info-details",
             title: "Details",
             value: displayName,
             symbolName: "building",
@@ -54,6 +55,7 @@ struct MachineInfoBento: View {
         let title = isFuture ? "Next Stocked" : "Last Stocked"
 
         return BentoItem(
+            id: "machine-info-last-stocked",
             title: title,
             value: formatStockedDate(stats?.lastStocked?.stockedAt),
             symbolName: "clock.arrow.circlepath",
@@ -64,6 +66,7 @@ struct MachineInfoBento: View {
 
     private var codeCard: BentoItem {
         BentoItem(
+            id: "machine-info-code",
             title: "Code",
             value: machine.code,
             symbolName: "barcode",
@@ -77,6 +80,7 @@ struct MachineInfoBento: View {
         let hasLocationLink = (machine.location?.id.isEmpty == false)
 
         return BentoItem(
+            id: "machine-info-location",
             title: "Location",
             value: locationName,
             subtitle: address,
@@ -171,6 +175,7 @@ struct MachinePerformanceBento: View {
 
     private var packTrendCard: BentoItem {
         BentoItem(
+            id: "machine-perf-pack-trend",
             title: "Pack Trend",
             value: formatPercentageChange(percentageChange),
             subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
@@ -183,6 +188,7 @@ struct MachinePerformanceBento: View {
     private var bestSkuCard: BentoItem {
         guard let stats, let bestSku = stats.bestSku else {
             return BentoItem(
+                id: "machine-perf-best-sku",
                 title: "Best SKU",
                 value: "No data",
                 subtitle: "No SKU data yet",
@@ -195,6 +201,7 @@ struct MachinePerformanceBento: View {
         let subtitle = trimmedType.lowercased() == "general" || trimmedType.isEmpty ? bestSku.skuCode : trimmedType
 
         return BentoItem(
+            id: "machine-perf-best-sku",
             title: "Best SKU",
             value: bestSku.skuName.isEmpty ? bestSku.skuCode : bestSku.skuName,
             subtitle: subtitle,
@@ -278,6 +285,7 @@ struct MachinePerformanceBento: View {
     ) -> BentoItem {
         guard let extremum else {
             return BentoItem(
+                id: "machine-perf-\(title.lowercased())",
                 title: title,
                 value: "No data",
                 symbolName: symbolName,
@@ -286,6 +294,7 @@ struct MachinePerformanceBento: View {
         }
 
         return BentoItem(
+            id: "machine-perf-\(title.lowercased())",
             title: title,
             value: BreakdownExtremumFormatter.valueText(for: extremum),
             subtitle: BreakdownExtremumFormatter.subtitle(

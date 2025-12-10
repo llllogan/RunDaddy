@@ -160,6 +160,7 @@ private struct BreakdownExtremaBento: View {
             changeCard,
             deltaCard,
             extremumCard(
+                id: "analytics-high",
                 title: "High",
                 extremum: highMark,
                 symbolName: "arrow.up.to.line",
@@ -167,6 +168,7 @@ private struct BreakdownExtremaBento: View {
                 isProminent: false
             ),
             extremumCard(
+                id: "analytics-low",
                 title: "Low",
                 extremum: lowMark,
                 symbolName: "arrow.down.to.line",
@@ -183,12 +185,13 @@ private struct BreakdownExtremaBento: View {
 
     private var changeCard: BentoItem {
         guard let percentageChange else {
-            return BentoItem(
-                title: "Change",
-                value: "No data",
-                symbolName: "arrow.left.and.right",
-                symbolTint: .secondary
-            )
+        return BentoItem(
+            id: "analytics-change",
+            title: "Change",
+            value: "No data",
+            symbolName: "arrow.left.and.right",
+            symbolTint: .secondary
+        )
         }
 
         let isUp = percentageChange.trend == "up"
@@ -198,6 +201,7 @@ private struct BreakdownExtremaBento: View {
         let value = String(format: "%@%.1f%%", percentageChange.value >= 0 ? "+" : "", percentageChange.value)
 
         return BentoItem(
+            id: "analytics-change",
             title: "Change",
             value: value,
             symbolName: symbolName,
@@ -208,12 +212,13 @@ private struct BreakdownExtremaBento: View {
 
     private var deltaCard: BentoItem {
         guard let periodDelta else {
-            return BentoItem(
-                title: "Delta",
-                value: "No data",
-                symbolName: "plus.forwardslash.minus",
-                symbolTint: .secondary
-            )
+        return BentoItem(
+            id: "analytics-delta",
+            title: "Delta",
+            value: "No data",
+            symbolName: "plus.forwardslash.minus",
+            symbolTint: .secondary
+        )
         }
 
         let isPositive = periodDelta > 0
@@ -223,6 +228,7 @@ private struct BreakdownExtremaBento: View {
         let value = String(format: "%@%d", periodDelta >= 0 ? "+" : "", periodDelta)
 
         return BentoItem(
+            id: "analytics-delta",
             title: "Delta",
             value: value,
             symbolName: symbolName,
@@ -232,6 +238,7 @@ private struct BreakdownExtremaBento: View {
     }
 
     private func extremumCard(
+        id: String,
         title: String,
         extremum: PickEntryBreakdown.Extremum?,
         symbolName: String,
@@ -240,6 +247,7 @@ private struct BreakdownExtremaBento: View {
     ) -> BentoItem {
         guard let extremum else {
             return BentoItem(
+                id: id,
                 title: title,
                 value: "No data",
                 symbolName: symbolName,
@@ -248,6 +256,7 @@ private struct BreakdownExtremaBento: View {
         }
 
         return BentoItem(
+            id: id,
             title: title,
             value: BreakdownExtremumFormatter.valueText(for: extremum),
             subtitle: BreakdownExtremumFormatter.subtitle(

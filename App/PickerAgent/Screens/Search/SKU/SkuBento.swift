@@ -17,7 +17,8 @@ struct SkuInfoBento: View {
         var cards: [BentoItem] = []
         
         cards.append(
-            BentoItem(title: "Details",
+            BentoItem(id: "sku-info-details",
+                      title: "Details",
                       value: sku.type,
                       symbolName: "tag",
                       symbolTint: .teal,
@@ -39,12 +40,13 @@ struct SkuInfoBento: View {
         
         if let mostRecentPick = mostRecentPick {
             cards.append(
-                BentoItem(title: lastPackedTitle,
+                BentoItem(id: "sku-info-last-packed",
+                          title: lastPackedTitle,
                           value: formatDate(mostRecentPick.pickedAt),
                           symbolName: "clock",
                           symbolTint: .indigo,
                           allowsMultilineValue: true)
-            )
+        )
         }
         
 //        cards.append(
@@ -57,7 +59,8 @@ struct SkuInfoBento: View {
         cards.append(weightCard)
         
         cards.append(
-            BentoItem(title: "Cheese Tub",
+            BentoItem(id: "sku-info-cheese",
+                      title: "Cheese Tub",
                       value: sku.isCheeseAndCrackers ? "Enabled" : "Disabled",
                       subtitle: "Tap to toggle",
                       symbolName: sku.isCheeseAndCrackers ? "square.fill" : "square.fill",
@@ -144,6 +147,7 @@ struct SkuInfoBento: View {
     private var weightCard: BentoItem {
         guard let weight = sku.weight else {
             return BentoItem(
+                id: "sku-info-weight",
                 title: "Weight",
                 value: "Not set",
                 symbolName: "scalemass",
@@ -152,6 +156,7 @@ struct SkuInfoBento: View {
         }
 
         return BentoItem(
+            id: "sku-info-weight",
             title: "Weight",
             value: formattedWeight(weight),
             subtitle: "Per unit",
@@ -196,6 +201,7 @@ struct SkuPerformanceBento: View {
 
     private var packTrendCard: BentoItem {
         BentoItem(
+            id: "sku-perf-pack-trend",
             title: "Pack Trend",
             value: formatPercentageChange(percentageChange),
             subtitle: formatTrendSubtitle(percentageChange?.trend, period: selectedPeriod),
@@ -208,6 +214,7 @@ struct SkuPerformanceBento: View {
     private var bestMachineCard: BentoItem {
         guard let bestMachine else {
             return BentoItem(
+                id: "sku-perf-best-machine",
                 title: "Best Machine",
                 value: "No data",
                 subtitle: "No machine data yet",
@@ -217,6 +224,7 @@ struct SkuPerformanceBento: View {
         }
 
         return BentoItem(
+            id: "sku-perf-best-machine",
             title: "Best Machine",
             value: (bestMachine.machineName?.isEmpty == false ? bestMachine.machineName : nil) ?? bestMachine.machineCode,
             subtitle: bestMachine.locationName ?? bestMachine.machineCode,
@@ -300,6 +308,7 @@ struct SkuPerformanceBento: View {
     ) -> BentoItem {
         guard let extremum else {
             return BentoItem(
+                id: "sku-perf-\(title.lowercased())",
                 title: title,
                 value: "No data",
                 symbolName: symbolName,
@@ -308,6 +317,7 @@ struct SkuPerformanceBento: View {
         }
 
         return BentoItem(
+            id: "sku-perf-\(title.lowercased())",
             title: title,
             value: BreakdownExtremumFormatter.valueText(for: extremum),
             subtitle: BreakdownExtremumFormatter.subtitle(
