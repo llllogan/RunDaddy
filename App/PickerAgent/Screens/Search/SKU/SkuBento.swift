@@ -12,9 +12,24 @@ struct SkuInfoBento: View {
     let isUpdatingCheeseStatus: Bool
     let onToggleCheeseStatus: () -> Void
     let mostRecentPick: MostRecentPick?
+    let labelColour: Binding<Color>
+    let isLabelColourEnabled: Bool
+    let isUpdatingLabelColour: Bool
+    let onToggleLabelColour: (Bool) -> Void
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
+        
+        if let mostRecentPick = mostRecentPick {
+            cards.append(
+                BentoItem(id: "sku-info-last-packed",
+                          title: lastPackedTitle,
+                          value: formatDate(mostRecentPick.pickedAt),
+                          symbolName: "clock",
+                          symbolTint: .indigo,
+                          allowsMultilineValue: true)
+            )
+        }
         
         cards.append(
             BentoItem(id: "sku-info-details",
@@ -37,17 +52,6 @@ struct SkuInfoBento: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))
         )
-        
-        if let mostRecentPick = mostRecentPick {
-            cards.append(
-                BentoItem(id: "sku-info-last-packed",
-                          title: lastPackedTitle,
-                          value: formatDate(mostRecentPick.pickedAt),
-                          symbolName: "clock",
-                          symbolTint: .indigo,
-                          allowsMultilineValue: true)
-        )
-        }
         
 //        cards.append(
 //            BentoItem(title: "Code",
@@ -83,6 +87,8 @@ struct SkuInfoBento: View {
                         }
                     ))
         )
+        
+        cards.append(labelColourCard)
         
         return cards
     }
@@ -177,6 +183,69 @@ struct SkuInfoBento: View {
         formatter.maximumFractionDigits = 3
         return formatter
     }()
+
+    private var labelColourCard: BentoItem {
+        BentoItem(
+            id: "sku-info-label-colour",
+            title: "Label Colour",
+            value: isLabelColourEnabled ? (labelColourHex ?? "Enabled") : "Disabled",
+            symbolName: "paintpalette",
+            symbolTint: isLabelColourEnabled ? labelColour.wrappedValue : .secondary,
+            isProminent: true,
+            customContent: AnyView(
+                VStack(alignment: .leading) {
+                    
+                    if isUpdatingLabelColour {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Saving colour...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if isLabelColourEnabled {
+                        HStack(alignment: .center) {
+//                            RoundedRectangle(cornerRadius: 16)
+//                                .fill(labelColour.wrappedValue)
+//                                .frame(width: 70, height: 32)
+//                                .overlay(
+//                                    RoundedRectangle(cornerRadius: 16)
+//                                        .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
+//                                )
+
+//                            VStack(alignment: .leading, spacing: 4) {
+//                                Text("Selected")
+//                                    .font(.subheadline.weight(.semibold))
+//                                Text(labelColourHex ?? "Custom")
+//                                    .font(.caption)
+//                                    .foregroundColor(.secondary)
+//                            }
+//                            Spacer()
+                            ColorPicker("Pick Colour", selection: labelColour, supportsOpacity: false)
+                                .labelsHidden()
+                            
+                            Text(labelColourHex ?? "Custom")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    Toggle(isOn: Binding(
+                        get: { isLabelColourEnabled },
+                        set: { isOn in onToggleLabelColour(isOn) }
+                    )) {
+                        Text("")
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: labelColour.wrappedValue))
+                }
+                .padding(.bottom, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        )
+    }
+
+    private var labelColourHex: String? {
+        ColorCodec.hexString(from: labelColour.wrappedValue)
+    }
 }
 
 struct SkuPerformanceBento: View {

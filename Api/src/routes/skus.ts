@@ -23,6 +23,7 @@ import {
 type SkuStatsPeriod = StatsPeriod;
 
 const router = Router();
+const HEX_COLOUR_REGEX = /^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 router.use(authenticate);
 
@@ -92,6 +93,7 @@ router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), 
     code: updatedSku.code,
     name: updatedSku.name,
     type: updatedSku.type,
+    labelColour: updatedSku.labelColour,
     isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
   });
 });
@@ -167,6 +169,7 @@ router.patch('/:skuId/count-pointer', setLogConfig({ level: 'minimal' }), async 
     code: updatedSku.code,
     name: updatedSku.name,
     type: updatedSku.type,
+    labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
   });
 });
@@ -225,6 +228,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
     category: sku.category,
     weight: sku.weight,
     isCheeseAndCrackers: sku.isCheeseAndCrackers,
+    labelColour: sku.labelColour,
     countNeededPointer: sku.countNeededPointer,
   });
 });
@@ -299,6 +303,94 @@ router.patch('/:skuId/weight', setLogConfig({ level: 'minimal' }), async (req, r
     type: updatedSku.type,
     category: updatedSku.category,
     weight: updatedSku.weight,
+    labelColour: updatedSku.labelColour,
+    countNeededPointer: updatedSku.countNeededPointer,
+    isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
+  });
+});
+
+// Update SKU label colour
+router.patch('/:skuId/label-colour', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { skuId } = req.params;
+  if (!skuId) {
+    return res.status(400).json({ error: 'SKU ID is required' });
+  }
+
+  const { labelColour } = req.body;
+  if (labelColour === undefined) {
+    return res.status(400).json({ error: 'labelColour is required (set null to clear)' });
+  }
+  if (labelColour !== null && typeof labelColour !== 'string') {
+    return res.status(400).json({ error: 'labelColour must be a hex colour string or null' });
+  }
+
+  let normalizedLabelColour: string | null = null;
+  if (typeof labelColour === 'string') {
+    const trimmed = labelColour.trim();
+    const hexValue = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+
+    if (!HEX_COLOUR_REGEX.test(hexValue)) {
+      return res.status(400).json({
+        error: 'labelColour must be a 6 or 8 character hex string (e.g. #FFD60AFF)',
+      });
+    }
+
+    const paddedHex = hexValue.length === 6 ? `${hexValue}FF` : hexValue;
+    normalizedLabelColour = `#${paddedHex.toUpperCase()}`;
+  }
+
+  const sku = await prisma.sKU.findFirst({
+    where: { id: skuId },
+    include: {
+      coilItems: {
+        include: {
+          coil: {
+            include: {
+              machine: {
+                include: {
+                  company: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!sku) {
+    return res.status(404).json({ error: 'SKU not found' });
+  }
+
+  const belongsToCompany = sku.coilItems.some(
+    coilItem => coilItem.coil.machine?.companyId === req.auth!.companyId,
+  );
+
+  if (!belongsToCompany) {
+    return res.status(403).json({ error: 'SKU does not belong to your company' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const updatedSku = await prisma.sKU.update({
+    where: { id: skuId },
+    data: { labelColour: normalizedLabelColour },
+  });
+
+  return res.json({
+    id: updatedSku.id,
+    code: updatedSku.code,
+    name: updatedSku.name,
+    type: updatedSku.type,
+    category: updatedSku.category,
+    weight: updatedSku.weight,
+    labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
     isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
   });

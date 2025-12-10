@@ -17,6 +17,10 @@ struct SkuDetailView: View {
     @State private var weightUpdateError: String?
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
     @State private var effectiveRole: UserRole?
+    @State private var isUpdatingLabelColour = false
+    @State private var isLabelColourEnabled = false
+    @State private var selectedLabelColour: Color = .yellow
+    @State private var suppressLabelColourSync = false
     @StateObject private var chartsViewModel: ChartsViewModel
     
     private let skusService = SkusService()
@@ -56,7 +60,11 @@ struct SkuDetailView: View {
                             sku: sku,
                             isUpdatingCheeseStatus: isUpdatingCheeseStatus,
                             onToggleCheeseStatus: { toggleCheeseStatus() },
-                            mostRecentPick: skuStats.mostRecentPick
+                            mostRecentPick: skuStats.mostRecentPick,
+                            labelColour: $selectedLabelColour,
+                            isLabelColourEnabled: isLabelColourEnabled,
+                            isUpdatingLabelColour: isUpdatingLabelColour,
+                            onToggleLabelColour: { isOn in toggleLabelColour(isOn) }
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -152,6 +160,10 @@ struct SkuDetailView: View {
                 }
             }
         }
+        .onChange(of: selectedLabelColour) { _, newValue in
+            guard isLabelColourEnabled, !suppressLabelColourSync, !isUpdatingLabelColour else { return }
+            Task { await persistLabelColour(newValue) }
+        }
         .navigationDestination(item: $machineNavigationTarget) { target in
             MachineDetailView(machineId: target.id, session: session)
         }
@@ -210,33 +222,47 @@ struct SkuDetailView: View {
         )
     }
     
-    private func loadSkuDetails() async {
+    private func loadSkuDetails(shouldRefreshStats: Bool = true) async {
         do {
-            sku = try await skusService.getSku(id: skuId)
-            isLoading = false
-            
-            // Load stats after SKU details are loaded
-            await loadSkuStats()
+            let fetchedSku = try await skusService.getSku(id: skuId)
+            await MainActor.run {
+                sku = fetchedSku
+                isLoading = false
+                syncLabelColourState(with: fetchedSku)
+            }
+
+            if shouldRefreshStats {
+                await loadSkuStats()
+            }
         } catch {
-            errorMessage = error.localizedDescription
-            isLoading = false
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                isLoading = false
+            }
         }
     }
     
     private func loadSkuStats() async {
-        isLoadingStats = true
+        await MainActor.run {
+            isLoadingStats = true
+        }
         do {
-            skuStats = try await skusService.getSkuStats(
+            let stats = try await skusService.getSkuStats(
                 id: skuId,
                 period: selectedPeriod,
                 locationId: nil,
                 machineId: nil
             )
+            await MainActor.run {
+                skuStats = stats
+            }
         } catch {
             // Don't show error for stats failure, just log it
             print("Failed to load SKU stats: \(error)")
         }
-        isLoadingStats = false
+        await MainActor.run {
+            isLoadingStats = false
+        }
     }
 
     private func toggleCheeseStatus() {
@@ -258,6 +284,81 @@ struct SkuDetailView: View {
             }
             isUpdatingCheeseStatus = false
         }
+    }
+
+    private func toggleLabelColour(_ isEnabled: Bool) {
+        isLabelColourEnabled = isEnabled
+        Task {
+            await persistLabelColour(isEnabled ? selectedLabelColour : nil)
+        }
+    }
+
+    private func persistLabelColour(_ color: Color?) async {
+        if isUpdatingLabelColour {
+            return
+        }
+
+        await MainActor.run {
+            isUpdatingLabelColour = true
+        }
+
+        let hexString = color.flatMap { ColorCodec.hexString(from: $0) }
+
+        do {
+            try await skusService.updateLabelColour(id: skuId, labelColourHex: hexString)
+            await MainActor.run {
+                isLabelColourEnabled = color != nil
+                if color == nil {
+                    selectedLabelColour = .yellow
+                }
+                updateLocalSkuLabelColour(hexString)
+            }
+        } catch {
+            print("Failed to update label colour: \(error)")
+            await loadSkuDetails(shouldRefreshStats: false)
+        }
+
+        await MainActor.run {
+            isUpdatingLabelColour = false
+        }
+    }
+
+    private func updateLocalSkuLabelColour(_ hexString: String?) {
+        suppressLabelColourSync = true
+
+        if let currentSku = sku {
+            sku = SKU(
+                id: currentSku.id,
+                code: currentSku.code,
+                name: currentSku.name,
+                type: currentSku.type,
+                category: currentSku.category,
+                weight: currentSku.weight,
+                labelColour: hexString,
+                countNeededPointer: currentSku.countNeededPointer,
+                isCheeseAndCrackers: currentSku.isCheeseAndCrackers
+            )
+        }
+
+        if let hexString, let color = ColorCodec.color(fromHex: hexString) {
+            selectedLabelColour = color
+        } else if !isLabelColourEnabled {
+            selectedLabelColour = .yellow
+        }
+
+        suppressLabelColourSync = false
+    }
+
+    private func syncLabelColourState(with sku: SKU) {
+        suppressLabelColourSync = true
+        if let colour = ColorCodec.color(fromHex: sku.labelColour) {
+            selectedLabelColour = colour
+            isLabelColourEnabled = true
+        } else {
+            selectedLabelColour = .yellow
+            isLabelColourEnabled = false
+        }
+        suppressLabelColourSync = false
     }
 
     private func openWeightEditor() {
@@ -307,7 +408,7 @@ struct SkuDetailView: View {
 
         do {
             try await skusService.updateWeight(id: skuId, weight: parsed)
-            await loadSkuDetails()
+            await loadSkuDetails(shouldRefreshStats: false)
             await MainActor.run {
                 isShowingWeightAlert = false
             }
