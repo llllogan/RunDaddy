@@ -362,11 +362,61 @@ struct PickEntryBarChart: View {
         }
     }
 
+    private var highestBarValue: Double {
+        chartPoints.map { Double($0.totalItems) }.max() ?? 0
+    }
+
     private var maxYValue: Double {
-        let maxValue = chartPoints.map { Double($0.totalItems) }.max() ?? 1
         let maxOverlay = weekAverageOverlays.map(\.average).max() ?? 0
-        let ceiling = max(maxValue, maxOverlay)
+        let ceiling = max(highestBarValue, maxOverlay)
         return max(ceiling * 1.15, 1)
+    }
+
+    private var yAxisValues: [Double] {
+        let maxOverlay = weekAverageOverlays.map(\.average).max() ?? 0
+        let baseMax = max(highestBarValue, maxOverlay, 1)
+        let step = max(1, niceStep(for: baseMax))
+        var values = stride(from: 0.0, through: maxYValue, by: step).map { $0 }
+
+        if highestBarValue > 0 {
+            values.append(highestBarValue)
+        }
+
+        values.sort()
+        var deduped: [Double] = []
+        for value in values {
+            let isHighestBarTick = abs(value - highestBarValue) < 0.0001
+            let tooCloseToHighestBar = !isHighestBarTick && highestBarValue > 0 && abs(value - highestBarValue) < step * 0.35
+            if tooCloseToHighestBar {
+                continue
+            }
+            if let last = deduped.last, abs(last - value) < max(step * 0.1, 0.0001) {
+                continue
+            }
+            deduped.append(value)
+        }
+
+        return deduped
+    }
+
+    private func niceStep(for maxValue: Double, targetTickCount: Int = 5) -> Double {
+        guard maxValue > 0 else { return 1 }
+        let rawStep = maxValue / Double(max(targetTickCount - 1, 1))
+        let exponent = pow(10.0, floor(log10(rawStep)))
+        let fraction = rawStep / exponent
+
+        let niceFraction: Double
+        if fraction < 1.5 {
+            niceFraction = 1
+        } else if fraction < 3 {
+            niceFraction = 2
+        } else if fraction < 7 {
+            niceFraction = 5
+        } else {
+            niceFraction = 10
+        }
+
+        return niceFraction * exponent
     }
 
     private func axisLabel(for point: ChartPoint) -> String {
@@ -448,7 +498,7 @@ struct PickEntryBarChart: View {
         .chartXVisibleDomain(length: Double(visibleCount))
         .chartScrollPosition(x: $scrollPosition)
         .chartYAxis {
-            AxisMarks(position: .leading)
+            AxisMarks(position: .leading, values: yAxisValues)
         }
         .chartXAxis {
             AxisMarks(values: axisValues) { value in
