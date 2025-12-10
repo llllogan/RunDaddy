@@ -218,7 +218,7 @@ struct MachineTouchesLineChart: View {
     private static let isoCalendar = Calendar(identifier: .iso8601)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading) {
             if orderedPoints.isEmpty {
                 Text("Machine activity will appear once picks start landing each week.")
                     .font(.subheadline.weight(.semibold))

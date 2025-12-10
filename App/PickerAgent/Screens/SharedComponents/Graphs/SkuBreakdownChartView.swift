@@ -12,6 +12,7 @@ struct SkuBreakdownChartView: View {
     let refreshTrigger: Bool
     @ObservedObject private var viewModel: ChartsViewModel
     private let showFilters: Bool
+    private let showAggregationControls: Bool
     private let focus: PickEntryBreakdown.ChartItemFocus?
     private let onAggregationChange: ((PickEntryBreakdown.Aggregation) -> Void)?
     @State private var selectedAggregation: PickEntryBreakdown.Aggregation
@@ -23,6 +24,7 @@ struct SkuBreakdownChartView: View {
         viewModel: ChartsViewModel,
         refreshTrigger: Bool = false,
         showFilters: Bool = false,
+        showAggregationControls: Bool = true,
         focus: PickEntryBreakdown.ChartItemFocus? = nil,
         onAggregationChange: ((PickEntryBreakdown.Aggregation) -> Void)? = nil,
         applyPadding: Bool = true
@@ -30,6 +32,7 @@ struct SkuBreakdownChartView: View {
         self.refreshTrigger = refreshTrigger
         _viewModel = ObservedObject(wrappedValue: viewModel)
         self.showFilters = showFilters
+        self.showAggregationControls = showAggregationControls
         self.focus = focus
         self.onAggregationChange = onAggregationChange
         _selectedAggregation = State(initialValue: viewModel.skuBreakdownAggregation)
@@ -59,31 +62,7 @@ struct SkuBreakdownChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Text("Items per ")
-                    Menu {
-                        ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
-                            Button {
-                                selectedAggregation = aggregation
-                                viewModel.updateSkuBreakdownAggregation(aggregation)
-                            } label: {
-                                HStack {
-                                    Text(aggregation.displayName)
-                                    if aggregation == selectedAggregation {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        filterChip(label: selectedAggregation.displayName)
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            }
+            aggregationHeader
 
             if showFilters {
                 filterControls
@@ -150,6 +129,37 @@ struct SkuBreakdownChartView: View {
             machineIds: availableFilters.machine.isEmpty ? [] : (selectedMachineFilter.map { [$0] } ?? []),
             locationIds: availableFilters.location.isEmpty ? [] : (selectedLocationFilter.map { [$0] } ?? [])
         )
+    }
+
+    @ViewBuilder
+    private var aggregationHeader: some View {
+        if showAggregationControls {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("Items per ")
+                    Menu {
+                        ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
+                            Button {
+                                selectedAggregation = aggregation
+                                viewModel.updateSkuBreakdownAggregation(aggregation)
+                            } label: {
+                                HStack {
+                                    Text(aggregation.displayName)
+                                    if aggregation == selectedAggregation {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterChip(label: selectedAggregation.displayName)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+            }
+        }
     }
 
     private var filterControls: some View {

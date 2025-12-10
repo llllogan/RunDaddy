@@ -12,17 +12,24 @@ struct AnalyticsView: View {
     
     @State private var chartRefreshTrigger = false
     @StateObject private var chartsViewModel: ChartsViewModel
+    @State private var selectedAggregation: PickEntryBreakdown.Aggregation
 
     init(session: AuthSession) {
         self.session = session
-        _chartsViewModel = StateObject(wrappedValue: ChartsViewModel(session: session))
+        let viewModel = ChartsViewModel(session: session)
+        _chartsViewModel = StateObject(wrappedValue: viewModel)
+        _selectedAggregation = State(initialValue: viewModel.skuBreakdownAggregation)
     }
     
     var body: some View {
         NavigationStack {
             List {
                 Section("Items Stocked") {
-                    SkuBreakdownChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    SkuBreakdownChartView(
+                        viewModel: chartsViewModel,
+                        refreshTrigger: chartRefreshTrigger,
+                        showAggregationControls: false
+                    )
                         .background(cardBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .overlay(
@@ -61,7 +68,11 @@ struct AnalyticsView: View {
 //                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 //                }
                 Section("Top Locations") {
-                    TopLocationsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    TopLocationsChartView(
+                        viewModel: chartsViewModel,
+                        refreshTrigger: chartRefreshTrigger,
+                        showRangePicker: false
+                    )
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 
                 }
@@ -77,8 +88,36 @@ struct AnalyticsView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Analytics")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
+                            Button {
+                                applyAggregation(aggregation)
+                            } label: {
+                                HStack {
+                                    Text(aggregation.displayName)
+                                    if aggregation == selectedAggregation {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(selectedAggregation.displayName, systemImage: "calendar")
+                    }
+                }
+            }
             .refreshable {
                 chartRefreshTrigger.toggle()
+            }
+            .onChange(of: chartsViewModel.skuBreakdownAggregation, initial: true) { _, newValue in
+                if selectedAggregation != newValue {
+                    selectedAggregation = newValue
+                }
+                if chartsViewModel.topLocationsLookbackDays != newValue.baseDays {
+                    chartsViewModel.updateTopLocationsLookbackDays(newValue.baseDays)
+                }
             }
             .onChange(of: session, initial: false) { _, newSession in
                 chartsViewModel.updateSession(newSession)
@@ -88,6 +127,24 @@ struct AnalyticsView: View {
 
     private var cardBackground: some ShapeStyle {
         Color(.secondarySystemGroupedBackground)
+    }
+
+    private func applyAggregation(_ aggregation: PickEntryBreakdown.Aggregation) {
+        guard aggregation != selectedAggregation ||
+                chartsViewModel.topLocationsLookbackDays != aggregation.baseDays ||
+                chartsViewModel.skuBreakdownAggregation != aggregation else {
+            return
+        }
+
+        selectedAggregation = aggregation
+
+        if chartsViewModel.skuBreakdownAggregation != aggregation {
+            chartsViewModel.updateSkuBreakdownAggregation(aggregation)
+        }
+
+        if chartsViewModel.topLocationsLookbackDays != aggregation.baseDays {
+            chartsViewModel.updateTopLocationsLookbackDays(aggregation.baseDays)
+        }
     }
 }
 

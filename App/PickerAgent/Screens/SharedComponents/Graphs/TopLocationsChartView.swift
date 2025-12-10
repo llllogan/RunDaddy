@@ -12,6 +12,7 @@ struct TopLocationsChartView: View {
     @ObservedObject private var viewModel: ChartsViewModel
     let refreshTrigger: Bool
     @State private var selectedRange: RangeOption
+    private let showRangePicker: Bool
 
     enum RangeOption: Int, CaseIterable, Identifiable {
         case week = 7
@@ -29,9 +30,10 @@ struct TopLocationsChartView: View {
         }
     }
 
-    init(viewModel: ChartsViewModel, refreshTrigger: Bool = false) {
+    init(viewModel: ChartsViewModel, refreshTrigger: Bool = false, showRangePicker: Bool = true) {
         self._viewModel = ObservedObject(wrappedValue: viewModel)
         self.refreshTrigger = refreshTrigger
+        self.showRangePicker = showRangePicker
         _selectedRange = State(initialValue: .month)
     }
 
@@ -91,29 +93,33 @@ struct TopLocationsChartView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 2) {
-            Text("Totals for the last ")
-            Menu {
-                ForEach(RangeOption.allCases) { range in
-                    Button {
-                        selectedRange = range
-                        viewModel.updateTopLocationsLookbackDays(range.rawValue)
-                    } label: {
-                        HStack {
-                            Text(range.label)
-                            if range == selectedRange {
-                                Image(systemName: "checkmark")
+        Group {
+            if showRangePicker {
+                HStack(spacing: 2) {
+                    Text("Totals for the last ")
+                    Menu {
+                        ForEach(RangeOption.allCases) { range in
+                            Button {
+                                selectedRange = range
+                                viewModel.updateTopLocationsLookbackDays(range.rawValue)
+                            } label: {
+                                HStack {
+                                    Text(range.label)
+                                    if range == selectedRange {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
                             }
                         }
+                    } label: {
+                        filterChip(label: selectedRange.label)
                     }
+                    .foregroundStyle(.secondary)
                 }
-            } label: {
-                filterChip(label: selectedRange.label)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
             }
-            .foregroundStyle(.secondary)
         }
-        .font(.subheadline)
-        .foregroundStyle(.primary)
     }
 
     @ViewBuilder
@@ -145,6 +151,7 @@ struct TopLocationsChartView: View {
             }
         }
         .frame(height: 240)
+        .padding(.top)
     }
 
     private var loadingView: some View {
