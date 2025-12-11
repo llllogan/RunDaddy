@@ -26,7 +26,7 @@ struct RunLocationOverviewBento: View {
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
     let onAddChocolateBoxTap: (() -> Void)?
-    let cheeseItems: [RunDetail.PickItem]
+    let freshChestItems: [RunDetail.PickItem]
     let onLocationTap: (() -> Void)?
     let onMachineTap: ((RunDetail.Machine) -> Void)?
 
@@ -35,7 +35,7 @@ struct RunLocationOverviewBento: View {
          viewModel: RunDetailViewModel,
          onChocolateBoxesTap: (() -> Void)? = nil,
          onAddChocolateBoxTap: (() -> Void)? = nil,
-         cheeseItems: [RunDetail.PickItem] = [],
+         freshChestItems: [RunDetail.PickItem] = [],
          onLocationTap: (() -> Void)? = nil,
          onMachineTap: ((RunDetail.Machine) -> Void)? = nil) {
         self.summary = summary
@@ -43,7 +43,7 @@ struct RunLocationOverviewBento: View {
         self.viewModel = viewModel
         self.onChocolateBoxesTap = onChocolateBoxesTap
         self.onAddChocolateBoxTap = onAddChocolateBoxTap
-        self.cheeseItems = cheeseItems
+        self.freshChestItems = freshChestItems
         self.onLocationTap = onLocationTap
         self.onMachineTap = onMachineTap
     }
@@ -84,18 +84,18 @@ struct RunLocationOverviewBento: View {
         }
         
         cards.append(
-            BentoItem(title: "Cheese Items",
+            BentoItem(title: "Fresh Chest Items",
                       value: "",
-                      subtitle: cheeseItems.count == 0 ? "No cheese products" : "",
-                      symbolName: "list.bullet.clipboard",
-                      symbolTint: .yellow,
-                      isProminent: cheeseItems.count > 0,
+                      subtitle: freshChestItems.count == 0 ? "No fresh products" : "",
+                      symbolName: "leaf.fill",
+                      symbolTint: Theme.freshChestTint,
+                      isProminent: freshChestItems.count > 0,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 4) {
-                            if !cheeseItems.isEmpty {
-                                ForEach(cheeseSkuChips) { chip in
+                            if !freshChestItems.isEmpty {
+                                ForEach(freshSkuChips) { chip in
                                     HStack(spacing: 5) {
-                                        Image(systemName: "rectangle.fill")
+                                        Image(systemName: "leaf.fill")
                                             .font(.caption2.weight(.bold))
                                             .foregroundColor(chip.colour)
                                         Text(chip.label)
@@ -199,18 +199,18 @@ struct RunLocationOverviewBento: View {
         return cards
     }
 
-    private var cheeseSkuChips: [CheeseChip] {
-        let grouped = Dictionary(grouping: cheeseItems) { item -> String? in
-            guard let sku = item.sku, sku.isCheeseAndCrackers else { return nil }
+    private var freshSkuChips: [FreshChip] {
+        let grouped = Dictionary(grouping: freshChestItems) { item -> String? in
+            guard let sku = item.sku, sku.isFreshOrFrozen else { return nil }
             return sku.id
         }
 
-        let chips = grouped.compactMap { key, items -> CheeseChip? in
+        let chips = grouped.compactMap { key, items -> FreshChip? in
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
-            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? Theme.freshChestTint
             let label = sku.type
-            return CheeseChip(id: key, label: label, count: count, colour: colour)
+            return FreshChip(id: key, label: label, count: count, colour: colour)
         }
 
         return chips.sorted { lhs, rhs in
@@ -354,7 +354,7 @@ struct RunLocationOverviewBento: View {
     }
 }
 
-private struct CheeseChip: Identifiable, Equatable {
+private struct FreshChip: Identifiable, Equatable {
     let id: String
     let label: String
     let count: Int

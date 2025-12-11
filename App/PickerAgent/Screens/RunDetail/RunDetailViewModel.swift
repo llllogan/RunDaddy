@@ -89,7 +89,7 @@ struct RunLocationDetail: Equatable {
     }
 }
 
-struct CheeseSkuChip: Identifiable, Equatable {
+struct FreshChestSkuChip: Identifiable, Equatable {
     let id: String
     let label: String
     let count: Int
@@ -321,18 +321,18 @@ final class RunDetailViewModel: ObservableObject {
         )
     }
 
-    var runCheeseChips: [CheeseSkuChip] {
+    var runFreshChestChips: [FreshChestSkuChip] {
         let grouped = Dictionary(grouping: detail?.pickItems ?? []) { item -> String? in
-            guard let sku = item.sku, sku.isCheeseAndCrackers else { return nil }
+            guard let sku = item.sku, sku.isFreshOrFrozen else { return nil }
             return sku.id
         }
 
-        let chips = grouped.compactMap { key, items -> CheeseSkuChip? in
+        let chips = grouped.compactMap { key, items -> FreshChestSkuChip? in
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
-            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? Theme.freshChestTint
             let label = sku.type
-            return CheeseSkuChip(id: key, label: label, count: count, colour: colour)
+            return FreshChestSkuChip(id: key, label: label, count: count, colour: colour)
         }
 
         return chips.sorted { lhs, rhs in
@@ -380,28 +380,28 @@ final class RunDetailViewModel: ObservableObject {
         locationContextsByID[sectionID]?.pickItems.count ?? 0
     }
 
-    func cheeseItemCount(for sectionID: String) -> Int {
+    func freshChestItemCount(for sectionID: String) -> Int {
         guard let context = locationContextsByID[sectionID] else { return 0 }
         return context.pickItems.reduce(into: 0) { total, item in
-            guard item.sku?.isCheeseAndCrackers == true else { return }
+            guard item.sku?.isFreshOrFrozen == true else { return }
             total += max(item.count, 0)
         }
     }
 
-    func cheeseSkuChips(for sectionID: String) -> [CheeseSkuChip] {
+    func freshChestSkuChips(for sectionID: String) -> [FreshChestSkuChip] {
         guard let context = locationContextsByID[sectionID] else { return [] }
 
         let grouped = Dictionary(grouping: context.pickItems) { item -> String? in
-            guard let sku = item.sku, sku.isCheeseAndCrackers else { return nil }
+            guard let sku = item.sku, sku.isFreshOrFrozen else { return nil }
             return sku.id
         }
 
-        let chips = grouped.compactMap { key, items -> CheeseSkuChip? in
+        let chips = grouped.compactMap { key, items -> FreshChestSkuChip? in
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
-            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? Theme.freshChestTint
             let label = RunDetailViewModel.buildMonogram(from: sku.type)
-            return CheeseSkuChip(id: key, label: label, count: count, colour: colour)
+            return FreshChestSkuChip(id: key, label: label, count: count, colour: colour)
         }
 
         return chips.sorted { lhs, rhs in

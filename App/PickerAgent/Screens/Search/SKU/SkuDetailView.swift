@@ -10,7 +10,7 @@ struct SkuDetailView: View {
     @State private var isLoadingStats = true
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
-    @State private var isUpdatingCheeseStatus = false
+    @State private var isUpdatingFreshStatus = false
     @State private var isUpdatingWeight = false
     @State private var isShowingWeightAlert = false
     @State private var weightInputText = ""
@@ -58,8 +58,8 @@ struct SkuDetailView: View {
                     if let skuStats = skuStats {
                         SkuInfoBento(
                             sku: sku,
-                            isUpdatingCheeseStatus: isUpdatingCheeseStatus,
-                            onToggleCheeseStatus: { toggleCheeseStatus() },
+                            isUpdatingFreshStatus: isUpdatingFreshStatus,
+                            onToggleFreshStatus: { toggleFreshStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
                             labelColour: $selectedLabelColour,
                             isLabelColourEnabled: isLabelColourEnabled,
@@ -267,24 +267,24 @@ struct SkuDetailView: View {
         }
     }
 
-    private func toggleCheeseStatus() {
+    private func toggleFreshStatus() {
         guard let sku = sku else { return }
         
-        isUpdatingCheeseStatus = true
+        isUpdatingFreshStatus = true
         Task {
             do {
-                try await skusService.updateCheeseStatus(
+                try await skusService.updateFreshStatus(
                     id: sku.id,
-                    isCheeseAndCrackers: !sku.isCheeseAndCrackers
+                    isFreshOrFrozen: !sku.isFreshOrFrozen
                 )
                 
                 // Refresh SKU details to get updated status
                 await loadSkuDetails()
             } catch {
                 // Could show error alert here
-                print("Failed to update cheese status: \(error)")
+                print("Failed to update fresh chest status: \(error)")
             }
-            isUpdatingCheeseStatus = false
+            isUpdatingFreshStatus = false
         }
     }
 
@@ -338,7 +338,7 @@ struct SkuDetailView: View {
                 weight: currentSku.weight,
                 labelColour: hexString,
                 countNeededPointer: currentSku.countNeededPointer,
-                isCheeseAndCrackers: currentSku.isCheeseAndCrackers
+                isFreshOrFrozen: currentSku.isFreshOrFrozen
             )
         }
 

@@ -1712,7 +1712,7 @@ type PickItemPayload = {
     category: string | null;
     weight: number | null;
     labelColour: string | null;
-    isCheeseAndCrackers: boolean;
+    isFreshOrFrozen: boolean;
   };
   machine: MachinePayload | null;
   location: LocationPayload | null;
@@ -1892,7 +1892,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             category: entry.coilItem.sku.category,
             weight: entry.coilItem.sku.weight,
             labelColour: entry.coilItem.sku.labelColour,
-            isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+            isFreshOrFrozen: entry.coilItem.sku.isFreshOrFrozen,
           }
         : null,
       machine: serializedMachine,
@@ -2003,7 +2003,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
               category: entry.coilItem.sku.category,
               weight: entry.coilItem.sku.weight,
               labelColour: entry.coilItem.sku.labelColour,
-              isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+              isFreshOrFrozen: entry.coilItem.sku.isFreshOrFrozen,
             }
           : null,
       },

@@ -33,6 +33,11 @@ enum Theme {
         .red.opacity(0.90)
     }
     
+    /// Accent color for fresh/frozen items (formerly cheese tub)
+    static var freshChestTint: Color {
+        Color(red: 0.08, green: 0.45, blue: 0.28)
+    }
+    
     static var packingSessionBackground: Color {
         Color(UIColor { traitCollection in
             traitCollection.userInterfaceStyle == .dark ? .systemGray4 : .systemGray5

@@ -99,14 +99,14 @@ struct PackingSessionTestSheet: View {
                         
                     } label: {
                         HStack {
-                            // This should add this SKU to the cheese tub
-                            // This is the state of the SKU not being in the cheese tub (is cheese and crackers)
-                            // THere should be another state for is in the cheese tub, and pressing this button should toggle that field
-                            Label("Cheese Tub", systemImage: "plus.circle.fill")
+                            // This should add this SKU to the fresh chest
+                            // This is the state of the SKU not being in the fresh chest (isFreshOrFrozen is false)
+                            // There should be another state for items already in the fresh chest, and pressing this button should toggle that field
+                            Label("Fresh Chest", systemImage: "leaf.fill")
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .tint(.yellow)
+                    .tint(Theme.freshChestTint)
                     .buttonStyle(.borderedProminent)
                 }
             }
@@ -169,7 +169,7 @@ struct PackingSessionTestSheet: View {
 //                        
 //                    } label: {
 //                        HStack {
-//                            Label("Cheese Tub", systemImage: "plus.circle.fill")
+//                            Label("Fresh Chest", systemImage: "leaf.fill")
 //                            Spacer()
 //                        }
 //                        .frame(maxWidth: .infinity)

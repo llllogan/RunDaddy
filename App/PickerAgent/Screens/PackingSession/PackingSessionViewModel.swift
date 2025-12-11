@@ -36,7 +36,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var showingChocolateBoxesSheet = false
     @Published var showingCountPointerSheet = false
     @Published var selectedPickItemForCountPointer: RunDetail.PickItem?
-    @Published var selectedPickItemForCheese: RunDetail.PickItem?
+    @Published var selectedPickItemForFreshChest: RunDetail.PickItem?
     @Published var updatingPickIds: Set<String> = []
     @Published var updatingSkuIds: Set<String> = []
     @Published private(set) var runDetail: RunDetail?
@@ -753,23 +753,23 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
     
-    // MARK: - Cheese Status Management
-    func toggleCheeseStatus(_ pickItem: RunDetail.PickItem) async {
+    // MARK: - Fresh Chest Status Management
+    func toggleFreshStatus(_ pickItem: RunDetail.PickItem) async {
         guard let skuId = pickItem.sku?.id else { return }
         
         updatingSkuIds.insert(skuId)
         
-        let newCheeseStatus = !(pickItem.sku?.isCheeseAndCrackers ?? false)
+        let newFreshStatus = !(pickItem.sku?.isFreshOrFrozen ?? false)
         
         do {
-            try await service.updateSkuCheeseStatus(
+            try await service.updateSkuFreshStatus(
                 skuId: skuId,
-                isCheeseAndCrackers: newCheeseStatus,
+                isFreshOrFrozen: newFreshStatus,
                 credentials: session.credentials
             )
             await refreshRunDetail()
         } catch {
-            print("Failed to update SKU cheese status: \(error)")
+            print("Failed to update SKU fresh chest status: \(error)")
         }
         
         updatingSkuIds.remove(skuId)

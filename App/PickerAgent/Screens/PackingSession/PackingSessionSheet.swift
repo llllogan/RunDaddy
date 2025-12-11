@@ -259,16 +259,16 @@ struct PackingSessionSheet: View {
                     skuType: viewModel.currentPickItem?.sku?.type,
                     progressInfo: progressInfo(for: command),
                     chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
-                    isCheeseAndCrackers: viewModel.currentPickItem?.sku?.isCheeseAndCrackers ?? false,
+                    isFreshOrFrozen: viewModel.currentPickItem?.sku?.isFreshOrFrozen ?? false,
                     canAddChocolateBox: viewModel.currentMachine != nil,
-                    canToggleCheese: viewModel.currentPickItem != nil,
+                    canToggleFreshStatus: viewModel.currentPickItem != nil,
                     onAddChocolateBoxTap: viewModel.currentMachine != nil ? {
                         beginAddChocolateBoxFlow()
                     } : nil,
-                    onToggleCheeseTap: viewModel.currentPickItem != nil ? {
+                    onToggleFreshTap: viewModel.currentPickItem != nil ? {
                         if let pickItem = viewModel.currentPickItem {
                             Task {
-                                await viewModel.toggleCheeseStatus(pickItem)
+                                await viewModel.toggleFreshStatus(pickItem)
                             }
                         }
                     } : nil,
@@ -433,11 +433,11 @@ fileprivate struct CurrentCommandView: View {
     let skuType: String?
     let progressInfo: PackingInstructionProgress
     let chocolateBoxNumbers: [Int]
-    let isCheeseAndCrackers: Bool
+    let isFreshOrFrozen: Bool
     let canAddChocolateBox: Bool
-    let canToggleCheese: Bool
+    let canToggleFreshStatus: Bool
     let onAddChocolateBoxTap: (() -> Void)?
-    let onToggleCheeseTap: (() -> Void)?
+    let onToggleFreshTap: (() -> Void)?
     let onChangeInputFieldTap: (() -> Void)?
 
     private var coilCount: Int {
@@ -541,12 +541,12 @@ fileprivate struct CurrentCommandView: View {
         machineCompletionInfo != nil
     }
 
-    private var cheeseButtonTitle: String {
-        isCheeseAndCrackers ? "Remove Cheese Tub" : "Cheese Tub"
+    private var freshChestButtonTitle: String {
+        isFreshOrFrozen ? "Remove from Fresh Chest" : "Add to Fresh Chest"
     }
 
-    private var cheeseButtonTint: Color {
-        isCheeseAndCrackers ? .orange : .yellow
+    private var freshChestButtonTint: Color {
+        Theme.freshChestTint
     }
 
     private var progressCard: some View {
@@ -639,16 +639,16 @@ fileprivate struct CurrentCommandView: View {
     }
 
 
-    private var cheeseButton: some View {
+    private var freshChestButton: some View {
         Button {
-            onToggleCheeseTap?()
+            onToggleFreshTap?()
         } label: {
-            Text(cheeseButtonTitle)
+            Label(freshChestButtonTitle, systemImage: "leaf.fill")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(cheeseButtonTint)
-        .disabled(onToggleCheeseTap == nil || shouldDisableAccessoryButtons)
+        .tint(freshChestButtonTint)
+        .disabled(onToggleFreshTap == nil || !canToggleFreshStatus || shouldDisableAccessoryButtons)
     }
 
     private var addChocolateBoxButton: some View {
@@ -659,7 +659,7 @@ fileprivate struct CurrentCommandView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(onAddChocolateBoxTap == nil || shouldDisableAccessoryButtons)
+        .disabled(onAddChocolateBoxTap == nil || !canAddChocolateBox || shouldDisableAccessoryButtons)
     }
 
     private var changeInputFieldButton: some View {
@@ -679,12 +679,12 @@ fileprivate struct CurrentCommandView: View {
         if layout == .stacked {
             HStack(spacing: 8) {
                 addChocolateBoxButton
-                cheeseButton
+                freshChestButton
             }
         } else {
             VStack(spacing: 8) {
                 addChocolateBoxButton
-                cheeseButton
+                freshChestButton
             }
         }
     }
@@ -703,7 +703,7 @@ fileprivate struct CurrentCommandView: View {
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
-                        cheeseButton
+                        freshChestButton
                         wideChocolateBoxCard
                         addChocolateBoxButton
                     }

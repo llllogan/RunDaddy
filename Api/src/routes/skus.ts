@@ -27,8 +27,8 @@ const HEX_COLOUR_REGEX = /^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 router.use(authenticate);
 
-// Update SKU isCheeseAndCrackers field
-router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), async (req, res) => {
+// Update SKU isFreshOrFrozen field
+router.patch('/:skuId/fresh-or-frozen', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -38,9 +38,9 @@ router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), 
     return res.status(400).json({ error: 'SKU ID is required' });
   }
 
-  const { isCheeseAndCrackers } = req.body;
-  if (typeof isCheeseAndCrackers !== 'boolean') {
-    return res.status(400).json({ error: 'isCheeseAndCrackers must be a boolean' });
+  const { isFreshOrFrozen } = req.body;
+  if (typeof isFreshOrFrozen !== 'boolean') {
+    return res.status(400).json({ error: 'isFreshOrFrozen must be a boolean' });
   }
 
   const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
@@ -58,7 +58,7 @@ router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), 
 
   const updatedSku = await prisma.sKU.update({
     where: { id: skuId },
-    data: { isCheeseAndCrackers },
+    data: { isFreshOrFrozen },
   });
 
   return res.json({
@@ -67,7 +67,7 @@ router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), 
     name: updatedSku.name,
     type: updatedSku.type,
     labelColour: updatedSku.labelColour,
-    isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
+    isFreshOrFrozen: updatedSku.isFreshOrFrozen,
   });
 });
 
@@ -146,7 +146,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
     type: skuResult.sku.type,
     category: skuResult.sku.category,
     weight: skuResult.sku.weight,
-    isCheeseAndCrackers: skuResult.sku.isCheeseAndCrackers,
+    isFreshOrFrozen: skuResult.sku.isFreshOrFrozen,
     labelColour: skuResult.sku.labelColour,
     countNeededPointer: skuResult.sku.countNeededPointer,
   });
@@ -201,7 +201,7 @@ router.patch('/:skuId/weight', setLogConfig({ level: 'minimal' }), async (req, r
     weight: updatedSku.weight,
     labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
-    isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
+    isFreshOrFrozen: updatedSku.isFreshOrFrozen,
   });
 });
 
@@ -265,7 +265,7 @@ router.patch('/:skuId/label-colour', setLogConfig({ level: 'minimal' }), async (
     weight: updatedSku.weight,
     labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
-    isCheeseAndCrackers: updatedSku.isCheeseAndCrackers,
+    isFreshOrFrozen: updatedSku.isFreshOrFrozen,
   });
 });
 

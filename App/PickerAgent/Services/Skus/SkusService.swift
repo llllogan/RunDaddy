@@ -8,7 +8,7 @@ protocol SkusServicing {
         locationId: String?,
         machineId: String?
     ) async throws -> SkuStatsResponse
-    func updateCheeseStatus(id: String, isCheeseAndCrackers: Bool) async throws
+    func updateFreshStatus(id: String, isFreshOrFrozen: Bool) async throws
     func updateWeight(id: String, weight: Double?) async throws
     func updateLabelColour(id: String, labelColourHex: String?) async throws
 }
@@ -113,7 +113,7 @@ final class SkusService: SkusServicing {
         return try decoder.decode(SkuStatsResponse.self, from: data)
     }
     
-    func updateCheeseStatus(id: String, isCheeseAndCrackers: Bool) async throws {
+    func updateFreshStatus(id: String, isFreshOrFrozen: Bool) async throws {
         guard let credentials = credentialStore.loadCredentials() else {
             throw AuthError.unauthorized
         }
@@ -121,7 +121,7 @@ final class SkusService: SkusServicing {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("skus")
         url.appendPathComponent(id)
-        url.appendPathComponent("cheese-and-crackers")
+        url.appendPathComponent("fresh-or-frozen")
         
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
@@ -129,7 +129,7 @@ final class SkusService: SkusServicing {
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let body = ["isCheeseAndCrackers": isCheeseAndCrackers]
+        let body = ["isFreshOrFrozen": isFreshOrFrozen]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (_, response) = try await urlSession.data(for: request)

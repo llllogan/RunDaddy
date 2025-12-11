@@ -174,7 +174,7 @@ model SKU {
   weight              Float?
   labelColour         String?
   countNeededPointer  String?  @default("total")
-  isCheeseAndCrackers Boolean  @default(false)
+  isFreshOrFrozen     Boolean  @default(false)
 
   company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   coilItems CoilItem[]

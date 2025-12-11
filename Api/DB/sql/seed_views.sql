@@ -46,7 +46,7 @@ SELECT
   sku.code          AS sku_code,
   sku.name          AS sku_name,
   sku.type          AS sku_type,
-  sku.isCheeseAndCrackers AS sku_is_cheese_and_crackers
+  sku.isFreshOrFrozen AS sku_is_fresh_or_frozen
 FROM `Coil` coil
 JOIN `Machine` mach ON mach.id = coil.machineId
 LEFT JOIN `CoilItem` ci ON ci.coilId = coil.id
@@ -191,7 +191,7 @@ SELECT
   sku.name as sku_name,
   sku.type as sku_type,
   sku.category as sku_category,
-  sku.isCheeseAndCrackers as sku_is_cheese_and_crackers
+  sku.isFreshOrFrozen as sku_is_fresh_or_frozen
 FROM PickEntry pe
 JOIN Run r ON r.id = pe.runId
 JOIN Company c ON c.id = r.companyId

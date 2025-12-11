@@ -22,7 +22,7 @@ protocol RunsServicing {
     func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
     func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
     func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws
-    func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws
+    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
     func createPackingSession(for runId: String, categories: [String?]?, credentials: AuthCredentials) async throws -> PackingSession
@@ -224,7 +224,7 @@ struct RunDetail: Equatable {
         let category: String?
         let weight: Double?
         let labelColour: String?
-        let isCheeseAndCrackers: Bool
+        let isFreshOrFrozen: Bool
         let countNeededPointer: String?
     }
 
@@ -827,11 +827,11 @@ final class RunsService: RunsServicing {
         }
     }
     
-    func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws {
+    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("skus")
         url.appendPathComponent(skuId)
-        url.appendPathComponent("cheese-and-crackers")
+        url.appendPathComponent("fresh-or-frozen")
 
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
@@ -839,7 +839,7 @@ final class RunsService: RunsServicing {
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = ["isCheeseAndCrackers": isCheeseAndCrackers]
+        let body = ["isFreshOrFrozen": isFreshOrFrozen]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await urlSession.data(for: request)
@@ -1352,7 +1352,7 @@ private struct RunDetailResponse: Decodable {
         let category: String?
         let weight: Double?
         let labelColour: String?
-        let isCheeseAndCrackers: Bool
+        let isFreshOrFrozen: Bool
         let countNeededPointer: String?
 
         func toSku() -> RunDetail.Sku {
@@ -1364,7 +1364,7 @@ private struct RunDetailResponse: Decodable {
                 category: category,
                 weight: weight,
                 labelColour: labelColour,
-                isCheeseAndCrackers: isCheeseAndCrackers,
+                isFreshOrFrozen: isFreshOrFrozen,
                 countNeededPointer: countNeededPointer
             )
         }

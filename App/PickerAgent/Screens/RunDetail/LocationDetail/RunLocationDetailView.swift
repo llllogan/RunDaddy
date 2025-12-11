@@ -60,9 +60,9 @@ struct RunLocationDetailView: View {
         )
     }
     
-    private var cheeseItems: [RunDetail.PickItem] {
+    private var freshChestItems: [RunDetail.PickItem] {
         detail.pickItems.filter { pickItem in
-            pickItem.sku?.isCheeseAndCrackers == true
+            pickItem.sku?.isFreshOrFrozen == true
         }
     }
 
@@ -135,7 +135,7 @@ struct RunLocationDetailView: View {
                     onAddChocolateBoxTap: {
                         activeSheet = .addChocolateBox
                     },
-                    cheeseItems: cheeseItems,
+                    freshChestItems: freshChestItems,
                     onLocationTap: {
                         navigateToSearchLocation()
                     },
@@ -222,12 +222,15 @@ struct RunLocationDetailView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
                                 Task {
-                                    await toggleCheeseStatus(pickItem)
+                                    await toggleFreshStatus(pickItem)
                                 }
                             } label: {
-                                Label(pickItem.sku?.isCheeseAndCrackers == true ? "Remove Cheese" : "Cheese Tub", systemImage: pickItem.sku?.isCheeseAndCrackers == true ? "minus.circle" : "plus.circle")
+                                Label(
+                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove Fresh Chest" : "Fresh Chest",
+                                    systemImage: "leaf.fill"
+                                )
                             }
-                            .tint(pickItem.sku?.isCheeseAndCrackers == true ? .orange : .yellow)
+                            .tint(Theme.freshChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                             
                             Button {
                                 selectedPickItemForCountPointer = pickItem
@@ -361,23 +364,23 @@ struct RunLocationDetailView: View {
         }
     }
     
-    private func toggleCheeseStatus(_ pickItem: RunDetail.PickItem) async {
+    private func toggleFreshStatus(_ pickItem: RunDetail.PickItem) async {
         guard let skuId = pickItem.sku?.id else { return }
         
         updatingSkuIds.insert(skuId)
         
-        let newCheeseStatus = !(pickItem.sku?.isCheeseAndCrackers ?? false)
+        let newFreshStatus = !(pickItem.sku?.isFreshOrFrozen ?? false)
         
         do {
-            try await service.updateSkuCheeseStatus(
+            try await service.updateSkuFreshStatus(
                 skuId: skuId,
-                isCheeseAndCrackers: newCheeseStatus,
+                isFreshOrFrozen: newFreshStatus,
                 credentials: session.credentials
             )
             await onPickStatusChanged()
         } catch {
             // Handle error - could show an alert
-            print("Failed to update SKU cheese status: \(error)")
+            print("Failed to update SKU fresh chest status: \(error)")
         }
         
         _ = await MainActor.run {
@@ -708,11 +711,12 @@ struct PickEntryRow: View {
                         )
                     }
 
-                    if pickItem.sku?.isCheeseAndCrackers == true {
+                    if pickItem.sku?.isFreshOrFrozen == true {
                         InfoChip(
-                            text: "Cheese Tub",
-                            colour: Color.yellow.opacity(0.15),
-                            foregroundColour: Color.yellow
+                            text: "Fresh Chest",
+                            colour: Theme.freshChestTint.opacity(0.2),
+                            foregroundColour: Theme.freshChestTint,
+                            icon: "leaf.fill"
                         )
                     }
                 }
@@ -784,7 +788,7 @@ private func colorForCategoryChip(_ category: String) -> Color {
         category: "Snacks",
         weight: nil,
         labelColour: nil,
-        isCheeseAndCrackers: false,
+        isFreshOrFrozen: false,
         countNeededPointer: "total"
     )
 

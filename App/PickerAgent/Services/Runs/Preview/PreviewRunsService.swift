@@ -56,7 +56,7 @@ struct PreviewRunsService: RunsServicing {
             category: "Snacks",
             weight: 55,
             labelColour: nil,
-            isCheeseAndCrackers: false,
+            isFreshOrFrozen: false,
             countNeededPointer: "total"
         )
         let skuDrink = RunDetail.Sku(
@@ -67,7 +67,7 @@ struct PreviewRunsService: RunsServicing {
             category: "Drinks",
             weight: 330,
             labelColour: nil,
-            isCheeseAndCrackers: false,
+            isFreshOrFrozen: false,
             countNeededPointer: "par"
         )
         let skuCheese = RunDetail.Sku(
@@ -78,7 +78,7 @@ struct PreviewRunsService: RunsServicing {
             category: "Snacks",
             weight: nil,
             labelColour: "#FFD60AFF",
-            isCheeseAndCrackers: true,
+            isFreshOrFrozen: true,
             countNeededPointer: "current"
         )
 
@@ -180,7 +180,7 @@ struct PreviewRunsService: RunsServicing {
         // Preview does nothing
     }
     
-    func updateSkuCheeseStatus(skuId: String, isCheeseAndCrackers: Bool, credentials: AuthCredentials) async throws {
+    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
     

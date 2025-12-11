@@ -64,7 +64,7 @@ type SkuSeed = {
   type: string;
   category: string;
   weight?: number;
-  isCheeseAndCrackers?: boolean;
+  isFreshOrFrozen?: boolean;
   labelColour?: string;
 };
 
@@ -81,7 +81,7 @@ const SKU_SEED_DATA: SkuSeed[] = [
     type: 'Sharp Cheddar Pack',
     category: 'snack',
     weight: 48,
-    isCheeseAndCrackers: true,
+    isFreshOrFrozen: true,
   },
   {
     code: 'SKU-CHEESE-GOUDA',
@@ -89,7 +89,7 @@ const SKU_SEED_DATA: SkuSeed[] = [
     type: 'Smoked Gouda Pack',
     category: 'snack',
     weight: 50,
-    isCheeseAndCrackers: true,
+    isFreshOrFrozen: true,
   },
 ];
 
@@ -731,7 +731,7 @@ async function seedSkus() {
       type: sku.type,
       category: sku.category,
       weight: toNullable(sku.weight),
-      isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
+      isFreshOrFrozen: Boolean(sku.isFreshOrFrozen),
       labelColour: toNullable(sku.labelColour),
     };
 
@@ -792,8 +792,8 @@ async function getSkuForCompany(code: string, companyId: string) {
   const type = template?.type ?? seedDefinition?.type ?? 'General';
   const category = template?.category ?? seedDefinition?.category ?? null;
   const weight = template?.weight ?? seedDefinition?.weight ?? null;
-  const isCheeseAndCrackers =
-    template?.isCheeseAndCrackers ?? Boolean(seedDefinition?.isCheeseAndCrackers);
+  const isFreshOrFrozen =
+    template?.isFreshOrFrozen ?? Boolean(seedDefinition?.isFreshOrFrozen);
   const labelColour = template?.labelColour ?? seedDefinition?.labelColour ?? null;
 
   const created = await prisma.sKU.create({
@@ -803,7 +803,7 @@ async function getSkuForCompany(code: string, companyId: string) {
       type,
       category,
       weight: toNullable(weight),
-      isCheeseAndCrackers,
+      isFreshOrFrozen,
       labelColour: toNullable(labelColour),
       company: {
         connect: { id: companyId },

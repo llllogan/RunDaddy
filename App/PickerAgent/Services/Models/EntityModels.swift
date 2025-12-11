@@ -40,5 +40,5 @@ struct SKU: Codable, Identifiable {
     let weight: Double?
     let labelColour: String?
     let countNeededPointer: String?
-    let isCheeseAndCrackers: Bool
+    let isFreshOrFrozen: Bool
 }
