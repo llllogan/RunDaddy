@@ -599,11 +599,14 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
       Prisma.sql`
         SELECT id, code, name, type, category
         FROM SKU
-        WHERE code LIKE ${searchTerm} 
-           OR name LIKE ${searchTerm} 
-           OR type LIKE ${searchTerm} 
-           OR category LIKE ${searchTerm}
-        ORDER BY code ASC
+        WHERE companyId = ${context.companyId}
+          AND (
+            code LIKE ${searchTerm} 
+            OR name LIKE ${searchTerm} 
+            OR type LIKE ${searchTerm} 
+            OR category LIKE ${searchTerm}
+          )
+        ORDER BY name ASC, code ASC
         LIMIT 10
       `,
     ),
@@ -1458,21 +1461,23 @@ async function fetchTopPackedSkus(
   return prisma.$queryRaw<SearchSuggestionSkuRow[]>(
     Prisma.sql`
       SELECT
-        sku_id,
-        sku_code,
-        sku_name,
-        sku_type,
-        sku_category AS category,
-        SUM(count) AS total_packed
-      FROM v_pick_entry_details
-      WHERE companyId = ${companyId}
-        AND is_picked
-        AND pickedAt IS NOT NULL
-        AND pickedAt >= ${rangeStart}
-        AND pickedAt < ${rangeEnd}
-      GROUP BY sku_id, sku_code, sku_name, sku_type, sku_category
-      HAVING SUM(count) > 0
-      ORDER BY total_packed DESC, sku_code ASC
+        details.sku_id,
+        details.sku_code,
+        details.sku_name,
+        details.sku_type,
+        details.sku_category AS category,
+        SUM(details.count) AS total_packed
+      FROM v_pick_entry_details AS details
+      JOIN SKU AS sku ON sku.id = details.sku_id
+      WHERE details.companyId = ${companyId}
+        AND sku.companyId = ${companyId}
+        AND details.is_picked
+        AND details.pickedAt IS NOT NULL
+        AND details.pickedAt >= ${rangeStart}
+        AND details.pickedAt < ${rangeEnd}
+      GROUP BY details.sku_id, details.sku_code, details.sku_name, details.sku_type, details.sku_category
+      HAVING SUM(details.count) > 0
+      ORDER BY total_packed DESC, details.sku_code ASC
       LIMIT ${Prisma.raw(String(limit))}
     `,
   );

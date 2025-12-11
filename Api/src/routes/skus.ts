@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, type SKU } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
@@ -43,38 +43,11 @@ router.patch('/:skuId/cheese-and-crackers', setLogConfig({ level: 'minimal' }), 
     return res.status(400).json({ error: 'isCheeseAndCrackers must be a boolean' });
   }
 
-  // Find the SKU to ensure it exists and get company info
-  const sku = await prisma.sKU.findFirst({
-    where: {
-      id: skuId,
-    },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: {
-                include: {
-                  company: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  // Check if the SKU belongs to the user's company through any coil item
-  const belongsToCompany = sku.coilItems.some(coilItem => 
-    coilItem.coil.machine?.companyId === req.auth!.companyId
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
@@ -119,38 +92,11 @@ router.patch('/:skuId/count-pointer', setLogConfig({ level: 'minimal' }), async 
     return res.status(400).json({ error: 'countNeededPointer must be one of: current, par, need, forecast, total' });
   }
 
-  // Find the SKU to ensure it exists and get company info
-  const sku = await prisma.sKU.findFirst({
-    where: {
-      id: skuId,
-    },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: {
-                include: {
-                  company: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  // Check if the SKU belongs to the user's company through any coil item
-  const belongsToCompany = sku.coilItems.some(coilItem => 
-    coilItem.coil.machine?.companyId === req.auth!.companyId
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
@@ -185,51 +131,24 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.status(400).json({ error: 'SKU ID is required' });
   }
 
-  // Find SKU to ensure it exists and belongs to user's company
-  const sku = await prisma.sKU.findFirst({
-    where: {
-      id: skuId,
-    },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: {
-                include: {
-                  company: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  // Check if SKU belongs to user's company through any coil item
-  const belongsToCompany = sku.coilItems.some(coilItem => 
-    coilItem.coil.machine?.companyId === req.auth!.companyId
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
   return res.json({
-    id: sku.id,
-    code: sku.code,
-    name: sku.name,
-    type: sku.type,
-    category: sku.category,
-    weight: sku.weight,
-    isCheeseAndCrackers: sku.isCheeseAndCrackers,
-    labelColour: sku.labelColour,
-    countNeededPointer: sku.countNeededPointer,
+    id: skuResult.sku.id,
+    code: skuResult.sku.code,
+    name: skuResult.sku.name,
+    type: skuResult.sku.type,
+    category: skuResult.sku.category,
+    weight: skuResult.sku.weight,
+    isCheeseAndCrackers: skuResult.sku.isCheeseAndCrackers,
+    labelColour: skuResult.sku.labelColour,
+    countNeededPointer: skuResult.sku.countNeededPointer,
   });
 });
 
@@ -254,34 +173,11 @@ router.patch('/:skuId/weight', setLogConfig({ level: 'minimal' }), async (req, r
     }
   }
 
-  const sku = await prisma.sKU.findFirst({
-    where: { id: skuId },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: {
-                include: {
-                  company: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  const belongsToCompany = sku.coilItems.some(
-    coilItem => coilItem.coil.machine?.companyId === req.auth!.companyId,
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
@@ -343,34 +239,11 @@ router.patch('/:skuId/label-colour', setLogConfig({ level: 'minimal' }), async (
     normalizedLabelColour = `#${paddedHex.toUpperCase()}`;
   }
 
-  const sku = await prisma.sKU.findFirst({
-    where: { id: skuId },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: {
-                include: {
-                  company: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  const belongsToCompany = sku.coilItems.some(
-    coilItem => coilItem.coil.machine?.companyId === req.auth!.companyId,
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
@@ -407,8 +280,6 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     return res.status(400).json({ error: 'SKU ID is required' });
   }
 
-
-
   if (!req.auth!.companyId) {
     return res.status(403).json({ error: 'User must belong to a company' });
   }
@@ -416,30 +287,11 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
   const now = new Date();
   const timeZone: string = await resolveCompanyTimezone(req.auth!.companyId);
 
-  const sku = await prisma.sKU.findUnique({
-    where: { id: skuId },
-    include: {
-      coilItems: {
-        include: {
-          coil: {
-            include: {
-              machine: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!sku) {
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
     return res.status(404).json({ error: 'SKU not found' });
   }
-
-  const belongsToCompany = sku.coilItems.some(coilItem =>
-    coilItem.coil.machine?.companyId === req.auth!.companyId
-  );
-
-  if (!belongsToCompany) {
+  if (skuResult.status === 'forbidden') {
     return res.status(403).json({ error: 'SKU does not belong to your company' });
   }
 
@@ -885,6 +737,47 @@ async function getSkuBestMachine(
     locationName: row.locationName,
     totalPacks: Number(row.totalPicked),
   };
+}
+
+type SkuAccessResult =
+  | { status: 'ok'; sku: SKU }
+  | { status: 'not_found' }
+  | { status: 'forbidden' };
+
+async function getSkuForCompany(skuId: string, companyId: string | null): Promise<SkuAccessResult> {
+  if (!companyId) {
+    return { status: 'forbidden' };
+  }
+
+  const sku = await prisma.sKU.findUnique({
+    where: { id: skuId },
+  });
+
+  if (!sku) {
+    return { status: 'not_found' };
+  }
+
+  if (sku.companyId) {
+    return sku.companyId === companyId ? { status: 'ok', sku } : { status: 'forbidden' };
+  }
+
+  const linkedToCompany = await prisma.coilItem.findFirst({
+    where: {
+      skuId,
+      coil: {
+        machine: {
+          companyId,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!linkedToCompany) {
+    return { status: 'forbidden' };
+  }
+
+  return { status: 'ok', sku };
 }
 
 function buildMachineFilterSql(locationFilter: string | null, machineFilter: string | null) {

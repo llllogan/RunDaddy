@@ -22,7 +22,8 @@ final class SearchService: SearchServicing {
     }
     
     func search(query: String) async throws -> SearchResponse {
-        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
             throw SearchServiceError.emptyQuery
         }
         
@@ -36,7 +37,7 @@ final class SearchService: SearchServicing {
         
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "q", value: query)
+            URLQueryItem(name: "q", value: trimmedQuery)
         ]
         let resolvedURL = components?.url ?? url
         

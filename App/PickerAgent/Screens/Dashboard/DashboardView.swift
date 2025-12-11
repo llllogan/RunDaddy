@@ -573,7 +573,7 @@ struct DashboardView: View {
                     guard activeQuery == searchText.trimmingCharacters(in: .whitespacesAndNewlines) else {
                         return
                     }
-                    searchResults = response.results
+                    searchResults = sortedSearchResults(response.results, for: activeQuery)
                     isSearching = false
                 }
             } catch {
@@ -586,6 +586,46 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    private func sortedSearchResults(_ results: [SearchResult], for query: String) -> [SearchResult] {
+        guard shouldPrioritizeSkus(query: query) else {
+            return results
+        }
+
+        let priorities: [String: Int] = [
+            "sku": 0,
+            "machine": 1,
+            "location": 2,
+        ]
+
+        return results.sorted { lhs, rhs in
+            let lhsPriority = priorities[lhs.type.lowercased()] ?? 3
+            let rhsPriority = priorities[rhs.type.lowercased()] ?? 3
+
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private func shouldPrioritizeSkus(query: String) -> Bool {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedQuery.isEmpty else {
+            return false
+        }
+
+        if normalizedQuery.hasPrefix("sku") {
+            return true
+        }
+
+        if normalizedQuery.contains("-") {
+            return true
+        }
+
+        return normalizedQuery.rangeOfCharacter(from: .decimalDigits) != nil
     }
 }
 

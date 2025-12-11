@@ -86,6 +86,7 @@ model Company {
   locations      Location[]
   machines       Machine[]
   inviteCodes    InviteCode[]
+  skus           SKU[]
   tier           TierConsts @relation(fields: [tierId], references: [id], onDelete: Restrict)
 
   @@index([tierId])
@@ -165,7 +166,8 @@ model CoilItem {
 
 model SKU {
   id                  String   @id @default(cuid())
-  code                String   @unique
+  companyId           String?
+  code                String
   name                String
   type                String
   category            String?
@@ -174,7 +176,12 @@ model SKU {
   countNeededPointer  String?  @default("total")
   isCheeseAndCrackers Boolean  @default(false)
 
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   coilItems CoilItem[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([code])
 }
 
 model Run {

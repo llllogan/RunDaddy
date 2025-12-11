@@ -298,7 +298,9 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
     return created;
   };
 
-  const ensureSku = async (sku: ParsedCoilItem['sku']): Promise<{ id: string; countNeededPointer?: string | null }> => {
+  const ensureSku = async (
+    sku: ParsedCoilItem['sku'],
+  ): Promise<{ id: string; countNeededPointer?: string | null }> => {
     const code = sku.code?.trim();
     if (!code) {
       throw new RunImportError('Encountered a SKU without a code in the workbook.');
@@ -307,11 +309,19 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
     if (skuCache.has(key)) {
       return skuCache.get(key)!;
     }
-    const existing = await tx.sKU.findUnique({
-      where: { code },
+    const existing = await tx.sKU.findFirst({
+      where: {
+        code,
+        OR: [{ companyId }, { companyId: null }],
+      },
     });
     if (existing) {
       const updates: Prisma.SKUUpdateInput = {};
+      if (!existing.companyId) {
+        updates.company = {
+          connect: { id: companyId },
+        };
+      }
       const name = sku.name?.trim() || null;
       if (name && existing.name !== name) {
         updates.name = name;
@@ -341,6 +351,9 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
         name: sku.name?.trim() || code,
         type: sku.type?.trim() || 'General',
         category: sku.category?.trim() || null,
+        company: {
+          connect: { id: companyId },
+        },
       },
     });
     skuCache.set(key, created);

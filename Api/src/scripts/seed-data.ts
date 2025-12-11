@@ -58,7 +58,17 @@ const DEFAULT_MACHINE_TYPE_NAME =
     throw new Error('At least one machine type seed entry is required.');
   })();
 
-const SKU_SEED_DATA = [
+type SkuSeed = {
+  code: string;
+  name: string;
+  type: string;
+  category: string;
+  weight?: number;
+  isCheeseAndCrackers?: boolean;
+  labelColour?: string;
+};
+
+const SKU_SEED_DATA: SkuSeed[] = [
   { code: 'SKU-PBAR-ALM', name: 'Protein Bar', type: 'Almond', category: 'confection', weight: 55 },
   { code: 'SKU-CHIPS-SEA', name: 'Chips', type: 'Sea Salt', category: 'confection', weight: 50 },
   { code: 'SKU-COFF-COLD', name: 'Cold Brew', type: 'Can', category: 'beverage', weight: 330 },
@@ -657,6 +667,8 @@ const EXTRA_USERS: Array<{
 
 const machineTypeCache = new Map<string, MachineType>();
 const skuCache = new Map<string, SKU>();
+const skuCacheKey = (code: string, companyId?: string | null) =>
+  `${companyId ?? 'global'}:${code.toLowerCase()}`;
 
 type CoilItemSeedInfo = {
   id: string;
@@ -709,27 +721,30 @@ async function seedMachineTypes() {
 
 async function seedSkus() {
   for (const sku of SKU_SEED_DATA) {
-    const record = await prisma.sKU.upsert({
-      where: { code: sku.code },
-      update: {
-        name: sku.name,
-        type: sku.type,
-        category: sku.category,
-        weight: toNullable(sku.weight),
-        isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
-        labelColour: toNullable(sku.labelColour),
-      },
-      create: {
-        code: sku.code,
-        name: sku.name,
-        type: sku.type,
-        category: sku.category,
-        weight: toNullable(sku.weight),
-        isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
-        labelColour: toNullable(sku.labelColour),
-      },
+    const existing = await prisma.sKU.findFirst({
+      where: { code: sku.code, companyId: null },
     });
-    skuCache.set(record.code, record);
+
+    const data = {
+      code: sku.code,
+      name: sku.name,
+      type: sku.type,
+      category: sku.category,
+      weight: toNullable(sku.weight),
+      isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
+      labelColour: toNullable(sku.labelColour),
+    };
+
+    const record = existing
+      ? await prisma.sKU.update({
+          where: { id: existing.id },
+          data,
+        })
+      : await prisma.sKU.create({
+          data,
+        });
+
+    skuCache.set(skuCacheKey(record.code, record.companyId), record);
   }
 }
 
@@ -757,19 +772,47 @@ async function seedTierConsts() {
   }
 }
 
-async function getSkuByCode(code: string) {
-  const cached = skuCache.get(code);
+async function getSkuForCompany(code: string, companyId: string) {
+  const cacheKey = skuCacheKey(code, companyId);
+  const cached = skuCache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const sku = await prisma.sKU.findFirst({ where: { code } });
-  if (!sku) {
-    throw new Error(`SKU with code "${code}" is not seeded.`);
+  const existing = await prisma.sKU.findFirst({ where: { code, companyId } });
+  if (existing) {
+    skuCache.set(cacheKey, existing);
+    return existing;
   }
 
-  skuCache.set(code, sku);
-  return sku;
+  const template = await prisma.sKU.findFirst({ where: { code, companyId: null } });
+  const seedDefinition = SKU_SEED_DATA.find((entry) => entry.code === code);
+
+  const name = template?.name ?? seedDefinition?.name ?? code;
+  const type = template?.type ?? seedDefinition?.type ?? 'General';
+  const category = template?.category ?? seedDefinition?.category ?? null;
+  const weight = template?.weight ?? seedDefinition?.weight ?? null;
+  const isCheeseAndCrackers =
+    template?.isCheeseAndCrackers ?? Boolean(seedDefinition?.isCheeseAndCrackers);
+  const labelColour = template?.labelColour ?? seedDefinition?.labelColour ?? null;
+
+  const created = await prisma.sKU.create({
+    data: {
+      code,
+      name,
+      type,
+      category,
+      weight: toNullable(weight),
+      isCheeseAndCrackers,
+      labelColour: toNullable(labelColour),
+      company: {
+        connect: { id: companyId },
+      },
+    },
+  });
+
+  skuCache.set(cacheKey, created);
+  return created;
 }
 
 const scheduleForDay = (daysFromToday: number, hour = 9) => {
@@ -1013,7 +1056,7 @@ async function ensureLocationWithEquipment(
 
     for (const coilConfig of machineConfig.coils) {
       const coil = await ensureCoil(machine.id, coilConfig.code);
-      const sku = await getSkuByCode(coilConfig.skuCode);
+      const sku = await getSkuForCompany(coilConfig.skuCode, companyId);
       const coilItem = await ensureCoilItem(coil.id, sku.id, coilConfig.par);
       coilItems.push({
         id: coilItem.id,
