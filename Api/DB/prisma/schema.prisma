@@ -227,6 +227,7 @@ model PickEntry {
   coilItemId String
   packingSessionId String?
   count      Int
+  override   Int?
   current    Int?
   par        Int?
   need       Int?

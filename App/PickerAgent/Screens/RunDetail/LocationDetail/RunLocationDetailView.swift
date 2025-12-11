@@ -285,6 +285,9 @@ struct RunLocationDetailView: View {
                         await updateCountPointer(pickItem, newPointer: newPointer)
                     }
                 },
+                onOverrideSaved: { overrideValue in
+                    await updateOverrideCount(pickItem, newOverride: overrideValue)
+                },
                 viewModel: viewModel
             )
             .presentationDetents([.large])
@@ -443,6 +446,29 @@ struct RunLocationDetailView: View {
         }
     }
     
+    private func updateOverrideCount(_ pickItem: RunDetail.PickItem, newOverride: Int?) async {
+        updatingPickIds.insert(pickItem.id)
+        
+        do {
+            try await service.updatePickEntryOverride(
+                runId: runId,
+                pickId: pickItem.id,
+                overrideCount: newOverride,
+                credentials: session.credentials
+            )
+            await onPickStatusChanged()
+            await MainActor.run {
+                selectedPickItemForCountPointer = nil
+            }
+        } catch {
+            print("Failed to update pick override: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+        }
+    }
+    
     private var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
@@ -535,7 +561,12 @@ struct CountPointerSelectionSheet: View {
     let pickItem: RunDetail.PickItem
     let onDismiss: () -> Void
     let onPointerSelected: (String) -> Void
+    let onOverrideSaved: (Int?) async -> Void
     @ObservedObject var viewModel: RunDetailViewModel
+    
+    @State private var overrideInput: String = ""
+    @State private var isSavingOverride = false
+    @State private var overrideError: String?
     
     private let countPointers = [
         ("current", "Current", "Current inventory count"),
@@ -545,10 +576,27 @@ struct CountPointerSelectionSheet: View {
         ("total", "Total", "Total count")
     ]
     
+    private var latestPickItem: RunDetail.PickItem {
+        viewModel.detail?.pickItems.first { $0.id == pickItem.id } ?? pickItem
+    }
+    
     private var currentSelection: String {
-        // Find the updated pickItem from the refreshed data
-        let updatedPickItem = viewModel.detail?.pickItems.first { $0.id == pickItem.id }
-        return updatedPickItem?.sku?.countNeededPointer ?? pickItem.sku?.countNeededPointer ?? "total"
+        latestPickItem.sku?.countNeededPointer ?? "total"
+    }
+    
+    private var currentOverride: Int? {
+        latestPickItem.overrideCount
+    }
+    
+    private var defaultPointerCount: Int? {
+        let pointerKey = latestPickItem.sku?.countNeededPointer ?? "total"
+        return latestPickItem.countForPointer(pointerKey) ?? latestPickItem.count
+    }
+    
+    private var parsedOverride: Int? {
+        let trimmed = overrideInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return Int(trimmed)
     }
     
     var body: some View {
@@ -558,28 +606,98 @@ struct CountPointerSelectionSheet: View {
                     ForEach(countPointers, id: \.0) { pointer in
                         CountPointerRow(
                             pointer: pointer,
-                            currentCount: pickItem.countForPointer(pointer.0),
+                            currentCount: latestPickItem.countForPointer(pointer.0),
                             isSelected: pointer.0 == currentSelection
                         ) {
-                            onPointerSelected(pointer.0)
+                            if !isSavingOverride {
+                                onPointerSelected(pointer.0)
+                            }
                         }
                     }
                 } header: {
                     Text("Select Count Source")
                 } footer: {
-                    Text("Choose which field determines the needed count for this item.")
+                    Text("Choose which field determines the needed count for this SKU.")
+                }
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Override count", text: $overrideInput)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        if let defaultPointerCount {
+                            Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        if let overrideError {
+                            Text(overrideError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Manual Override")
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle(pickItem.sku?.name ?? "Unknown SKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        onDismiss()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if currentOverride != nil {
+                        Button("Clear Override") {
+                            clearOverride()
+                        }
+                        .disabled(isSavingOverride)
                     }
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    let hasTypedOverride = parsedOverride != nil
+                    Button(hasTypedOverride ? "Save" : "Done") {
+                        if hasTypedOverride {
+                            saveOverride()
+                        } else {
+                            onDismiss()
+                        }
+                    }
+                    .disabled(isSavingOverride)
+                }
             }
+        }
+        .onAppear {
+            overrideInput = currentOverride.map(String.init) ?? ""
+        }
+        .onChange(of: currentOverride) { _, newValue in
+            overrideInput = newValue.map(String.init) ?? ""
+        }
+    }
+    
+    private func saveOverride() {
+        overrideError = nil
+        
+        guard let resolved = parsedOverride, resolved >= 0 else {
+            overrideError = "Enter a whole number 0 or greater."
+            return
+        }
+        
+        Task {
+            isSavingOverride = true
+            defer { isSavingOverride = false }
+            await onOverrideSaved(resolved)
+        }
+    }
+    
+    private func clearOverride() {
+        Task {
+            isSavingOverride = true
+            defer { isSavingOverride = false }
+            await onOverrideSaved(nil)
+            overrideInput = ""
         }
     }
 }
@@ -732,10 +850,18 @@ struct PickEntryRow: View {
             
             Spacer()
             
-            Text("\(pickItem.count)")
-                .font(.title)
-                .fontWeight(.semibold)
-                .fontDesign(.rounded)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(pickItem.count)")
+                    .font(.title)
+                    .fontWeight(.semibold)
+                    .fontDesign(.rounded)
+                if pickItem.hasOverride {
+                    Text("Override")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                }
+            }
         }
     }
 }
@@ -799,8 +925,8 @@ private func colorForCategoryChip(_ category: String) -> Color {
         countNeededPointer: "total"
     )
 
-    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
-    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
+    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
+    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
 
     let section = RunLocationSection(
         id: location.id,

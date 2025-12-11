@@ -800,6 +800,28 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         updatingSkuIds.remove(skuId)
     }
     
+    func updateOverride(_ pickItem: RunDetail.PickItem, overrideValue: Int?) async {
+        updatingPickIds.insert(pickItem.id)
+        
+        do {
+            try await service.updatePickEntryOverride(
+                runId: runId,
+                pickId: pickItem.id,
+                overrideCount: overrideValue,
+                credentials: session.credentials
+            )
+            await loadAudioCommands()
+            await MainActor.run {
+                selectedPickItemForCountPointer = nil
+                showingCountPointerSheet = false
+            }
+        } catch {
+            print("Failed to update pick override: \(error)")
+        }
+        
+        updatingPickIds.remove(pickItem.id)
+    }
+    
     // MARK: - Chocolate Boxes Management
     func createChocolateBox(number: Int, machineId: String) async throws {
         do {

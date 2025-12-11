@@ -164,6 +164,7 @@ SELECT
   pe.runId,
   pe.coilItemId,
   pe.count,
+  pe.override,
   pe.current,
   pe.par,
   pe.need,

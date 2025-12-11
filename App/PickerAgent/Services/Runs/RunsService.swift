@@ -15,6 +15,7 @@ protocol RunsServicing {
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
+    func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
@@ -243,6 +244,7 @@ struct RunDetail: Equatable {
     struct PickItem: Identifiable, Equatable {
         let id: String
         let count: Int
+        let overrideCount: Int?
         let current: Int?
         let par: Int?
         let need: Int?
@@ -261,6 +263,10 @@ struct RunDetail: Equatable {
                 return false
             }
             return !packedId.isEmpty
+        }
+
+        var hasOverride: Bool {
+            overrideCount != nil
         }
         
         func countForPointer(_ pointer: String) -> Int? {
@@ -567,6 +573,40 @@ final class RunsService: RunsServicing {
             "pickIds": normalizedPickIds,
             "isPicked": isPicked
         ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.pickItemNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+        url.appendPathComponent(pickId)
+        url.appendPathComponent("override")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = ["override": overrideCount as Any? ?? NSNull()]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await urlSession.data(for: request)
@@ -1392,6 +1432,7 @@ private struct RunDetailResponse: Decodable {
     struct PickItem: Decodable {
         let id: String
         let count: Int
+        let overrideCount: Int?
         let current: Int?
         let par: Int?
         let need: Int?
@@ -1405,12 +1446,32 @@ private struct RunDetailResponse: Decodable {
         let machine: Machine?
         let location: Location?
         let packingSessionId: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case id
+            case count
+            case overrideCount = "override"
+            case current
+            case par
+            case need
+            case forecast
+            case total
+            case isPicked
+            case pickedAt
+            case coilItem
+            case coil
+            case sku
+            case machine
+            case location
+            case packingSessionId
+        }
 
         func toPickItem() -> RunDetail.PickItem {
             let coilDomain = coil.toCoil()
             return RunDetail.PickItem(
                 id: id,
                 count: count,
+                overrideCount: overrideCount,
                 current: current,
                 par: par,
                 need: need,

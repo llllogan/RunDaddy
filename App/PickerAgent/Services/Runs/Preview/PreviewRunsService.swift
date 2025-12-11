@@ -82,9 +82,9 @@ struct PreviewRunsService: RunsServicing {
             countNeededPointer: "current"
         )
 
-        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
-        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
-        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, current: 11, par: 15, need: 9, forecast: 10, total: 18, isPicked: true, pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown, packingSessionId: nil)
+        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
+        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
+        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, overrideCount: nil, current: 11, par: 15, need: 9, forecast: 10, total: 18, isPicked: true, pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown, packingSessionId: nil)
 
         let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
         let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)
@@ -131,6 +131,10 @@ struct PreviewRunsService: RunsServicing {
     }
     
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
+    func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
     

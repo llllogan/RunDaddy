@@ -141,6 +141,9 @@ struct PackingSessionSheet: View {
                             await viewModel.updateCountPointer(pickItem, newPointer: newPointer)
                         }
                     },
+                    onOverrideSaved: { overrideValue in
+                        await viewModel.updateOverride(pickItem, overrideValue: overrideValue)
+                    },
                     viewModel: RunDetailViewModel(runId: runId, session: session, service: viewModel.service)
                 )
                 .presentationDetents([.medium])
@@ -542,7 +545,7 @@ fileprivate struct CurrentCommandView: View {
     }
 
     private var freshChestButtonTitle: String {
-        isFreshOrFrozen ? "Remove from Fresh Chest" : "Add to Fresh Chest"
+        isFreshOrFrozen ? "Remove Fresh" : "Add to Fresh"
     }
 
     private var freshChestButtonTint: Color {

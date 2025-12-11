@@ -65,6 +65,10 @@ const startPackingSessionSchema = z.object({
   categories: z.array(z.string().trim().min(1).nullable()).optional(),
 });
 
+const updatePickOverrideSchema = z.object({
+  override: z.number().int().min(0).nullable(),
+});
+
 async function updateRunCompletionStatus(runId: string) {
   const [run, unpickedCount, totalCount] = await prisma.$transaction([
     prisma.run.findUnique({
@@ -706,34 +710,7 @@ router.get('/:runId/audio-commands', setLogConfig({ level: 'minimal' }), async (
         const coil = firstEntry.coilItem.coil;
         
         if (sku) {
-          // Calculate total count for this SKU group
-          const countPointer = sku.countNeededPointer || 'total';
-          let totalCount = 0;
-          
-          entries.forEach(entry => {
-            let count = entry.count; // fallback to stored count
-            
-            switch (countPointer.toLowerCase()) {
-              case 'current':
-                count = entry.current ?? entry.count;
-                break;
-              case 'par':
-                count = entry.par ?? entry.count;
-                break;
-              case 'need':
-                count = entry.need ?? entry.count;
-                break;
-              case 'forecast':
-                count = entry.forecast ?? entry.count;
-                break;
-              case 'total':
-              default:
-                count = entry.total ?? entry.count;
-                break;
-            }
-            
-            totalCount += count;
-          });
+          const totalCount = entries.reduce((acc, entry) => acc + resolvePickEntryCount(entry), 0);
           
           const skuName = sku.name || 'Unknown item';
           const skuCode = sku.code || '';
@@ -1255,6 +1232,67 @@ router.patch('/:runId/picks/status', async (req, res) => {
   });
 });
 
+router.patch('/:runId/picks/:pickId/override', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update pick overrides' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const parsed = updatePickOverrideSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const pickEntry = run.pickEntries.find((entry) => entry.id === pickId);
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  const overrideValue = parsed.data.override;
+  const fallbackCount =
+    pickEntry.total ??
+    pickEntry.need ??
+    pickEntry.forecast ??
+    pickEntry.par ??
+    pickEntry.current ??
+    pickEntry.count;
+  const nextCount = overrideValue === null ? resolvePointerCount(pickEntry, fallbackCount) : overrideValue;
+
+  const updated = await prisma.pickEntry.update({
+    where: { id: pickEntry.id },
+    data: {
+      override: overrideValue,
+      count: nextCount,
+    },
+    select: {
+      id: true,
+      runId: true,
+      count: true,
+      override: true,
+    },
+  });
+
+  return res.json({
+    id: updated.id,
+    runId: updated.runId,
+    count: updated.count,
+    override: updated.override,
+  });
+});
+
 // Delete a pick entry from a run
 router.delete('/:runId/picks/:pickId', async (req, res) => {
   if (!req.auth) {
@@ -1687,6 +1725,7 @@ type MachinePayload = {
 type PickItemPayload = {
   id: string;
   count: number;
+  override: number | null;
   current: number | null;
   par: number | null;
   need: number | null;
@@ -1737,6 +1776,7 @@ type RunDetailPayload = {
   pickEntries: Array<{
     id: string;
     count: number;
+    override: number | null;
     current: number | null;
     par: number | null;
     need: number | null;
@@ -1768,6 +1808,51 @@ type RunDetailPayload = {
     machine: MachinePayload | null;
   }>;
   locationOrders: LocationOrderPayload[];
+};
+
+type PickEntryCountSource = {
+  count: number;
+  override: number | null;
+  current: number | null;
+  par: number | null;
+  need: number | null;
+  forecast: number | null;
+  total: number | null;
+  coilItem: {
+    sku: {
+      countNeededPointer: string | null;
+    } | null;
+  };
+};
+
+const hasOverrideValue = (value: number | null | undefined): value is number =>
+  value !== null && value !== undefined;
+
+const resolvePointerCount = (entry: PickEntryCountSource, fallbackCount?: number): number => {
+  const pointer = (entry.coilItem.sku?.countNeededPointer || 'total').toLowerCase();
+  const safeFallback = fallbackCount ?? entry.count;
+
+  switch (pointer) {
+    case 'current':
+      return entry.current ?? safeFallback;
+    case 'par':
+      return entry.par ?? safeFallback;
+    case 'need':
+      return entry.need ?? safeFallback;
+    case 'forecast':
+      return entry.forecast ?? safeFallback;
+    case 'total':
+    default:
+      return entry.total ?? safeFallback;
+  }
+};
+
+const resolvePickEntryCount = (entry: PickEntryCountSource): number => {
+  if (hasOverrideValue(entry.override)) {
+    return entry.override;
+  }
+
+  return resolvePointerCount(entry);
 };
 
 function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
@@ -1840,32 +1925,12 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     const serializedMachine = serializeMachine(machine);
     const serializedLocation = machine ? serializeLocation(machine.location) : null;
 
-    // Determine count based on SKU's countNeededPointer
-    const countPointer = entry.coilItem.sku?.countNeededPointer || 'total';
-    let calculatedCount = entry.count; // fallback to stored count
-
-    switch (countPointer.toLowerCase()) {
-      case 'current':
-        calculatedCount = entry.current ?? entry.count;
-        break;
-      case 'par':
-        calculatedCount = entry.par ?? entry.count;
-        break;
-      case 'need':
-        calculatedCount = entry.need ?? entry.count;
-        break;
-      case 'forecast':
-        calculatedCount = entry.forecast ?? entry.count;
-        break;
-      case 'total':
-      default:
-        calculatedCount = entry.total ?? entry.count;
-        break;
-    }
+    const calculatedCount = resolvePickEntryCount(entry);
 
     return {
       id: entry.id,
       count: calculatedCount,
+      override: entry.override ?? null,
       current: entry.current,
       par: entry.par,
       need: entry.need,
@@ -1951,33 +2016,13 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     locations: Array.from(locationsById.values()),
     machines: Array.from(machinesById.values()),
     pickItems,
-    pickEntries: run.pickEntries.map((entry) => {
-      // Determine count based on SKU's countNeededPointer
-      const countPointer = entry.coilItem.sku?.countNeededPointer || 'total';
-      let calculatedCount = entry.count; // fallback to stored count
-
-      switch (countPointer.toLowerCase()) {
-        case 'current':
-          calculatedCount = entry.current ?? entry.count;
-          break;
-        case 'par':
-          calculatedCount = entry.par ?? entry.count;
-          break;
-        case 'need':
-          calculatedCount = entry.need ?? entry.count;
-          break;
-        case 'forecast':
-          calculatedCount = entry.forecast ?? entry.count;
-          break;
-        case 'total':
-        default:
-          calculatedCount = entry.total ?? entry.count;
-          break;
-      }
+  pickEntries: run.pickEntries.map((entry) => {
+      const calculatedCount = resolvePickEntryCount(entry);
 
       return {
         id: entry.id,
         count: calculatedCount,
+        override: entry.override ?? null,
         current: entry.current,
         par: entry.par,
         need: entry.need,
