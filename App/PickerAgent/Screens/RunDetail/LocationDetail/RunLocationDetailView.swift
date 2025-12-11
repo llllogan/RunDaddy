@@ -783,6 +783,7 @@ private func colorForCategoryChip(_ category: String) -> Color {
         type: "Snack",
         category: "Snacks",
         weight: nil,
+        labelColour: nil,
         isCheeseAndCrackers: false,
         countNeededPointer: "total"
     )

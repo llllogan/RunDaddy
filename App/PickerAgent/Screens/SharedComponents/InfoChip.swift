@@ -15,6 +15,7 @@ struct InfoChip: View {
     let colour: Color?
     let foregroundColour: Color?
     let icon: String?
+    let iconColour: Color?
     
     init(
         title: String? = nil,
@@ -22,7 +23,8 @@ struct InfoChip: View {
         text: String? = nil,
         colour: Color? = nil,
         foregroundColour: Color? = nil,
-        icon: String? = nil
+        icon: String? = nil,
+        iconColour: Color? = nil
     ) {
         self.title = title
         self.date = date
@@ -30,31 +32,35 @@ struct InfoChip: View {
         self.colour = colour
         self.foregroundColour = foregroundColour
         self.icon = icon
+        self.iconColour = iconColour
     }
 
     var body: some View {
+        let resolvedIconColour = iconColour ?? foregroundColour ?? .secondary
+        let resolvedTextColour: Color = iconColour == nil ? resolvedIconColour : (foregroundColour ?? .secondary)
+
         HStack(spacing: 4) {
             if let icon = icon {
                 Image(systemName: icon)
                     .font(.caption2)
-                    .foregroundStyle(foregroundColour ?? .secondary)
+                    .foregroundStyle(resolvedIconColour)
             }
             
             if let title = title {
                 Text(title.uppercased())
                     .font(.caption2.bold())
-                    .foregroundStyle(foregroundColour ?? .secondary)
+                    .foregroundStyle(resolvedTextColour)
             }
             
             if let text = text {
                 Text(text)
-                    .foregroundStyle(foregroundColour ?? .secondary)
+                    .foregroundStyle(resolvedTextColour)
                     .font(.caption2.bold())
                 
             } else if let date = date {
                 Text(date.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
-                    .foregroundStyle(foregroundColour ?? .secondary)
+                    .foregroundStyle(resolvedTextColour)
             }
         }
         .padding(.horizontal, 10)

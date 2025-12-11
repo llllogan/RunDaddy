@@ -55,6 +55,7 @@ struct PreviewRunsService: RunsServicing {
             type: "Snack",
             category: "Snacks",
             weight: 55,
+            labelColour: nil,
             isCheeseAndCrackers: false,
             countNeededPointer: "total"
         )
@@ -65,6 +66,7 @@ struct PreviewRunsService: RunsServicing {
             type: "Beverage",
             category: "Drinks",
             weight: 330,
+            labelColour: nil,
             isCheeseAndCrackers: false,
             countNeededPointer: "par"
         )
@@ -75,6 +77,7 @@ struct PreviewRunsService: RunsServicing {
             type: "Snack",
             category: "Snacks",
             weight: nil,
+            labelColour: "#FFD60AFF",
             isCheeseAndCrackers: true,
             countNeededPointer: "current"
         )

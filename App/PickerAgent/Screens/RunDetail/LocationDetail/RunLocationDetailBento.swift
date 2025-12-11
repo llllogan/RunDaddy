@@ -82,6 +82,34 @@ struct RunLocationOverviewBento: View {
                           symbolTint: .green)
             )
         }
+        
+        cards.append(
+            BentoItem(title: "Cheese Items",
+                      value: "",
+                      subtitle: cheeseItems.count == 0 ? "No cheese products" : "",
+                      symbolName: "list.bullet.clipboard",
+                      symbolTint: .yellow,
+                      isProminent: cheeseItems.count > 0,
+                      customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !cheeseItems.isEmpty {
+                                FlowLayout(spacing: 8) {
+                                    ForEach(cheeseSkuChips) { chip in
+                                        InfoChip(
+                                            title: chip.label,
+                                            text: "\(chip.count)",
+                                            colour: Color(.systemGray5),
+                                            foregroundColour: Color.secondary,
+                                            icon: "rectangle.fill",
+                                            iconColour: chip.colour
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
+        )
 
         cards.append(
             BentoItem(title: "Machines",
@@ -125,49 +153,14 @@ struct RunLocationOverviewBento: View {
 //            )
 //        }
 
-        cards.append(
-            BentoItem(title: "Remaining",
-                      value: "\(summary.remainingCoils)",
-                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
-                      symbolName: "cart",
-                      symbolTint: .pink,
-                      isProminent: summary.remainingCoils > 0)
-        )
-        
-        cards.append(
-            BentoItem(title: "Cheese Items",
-                      value: "",
-                      subtitle: cheeseItems.count == 0 ? "No cheese products" : "",
-                      symbolName: "list.bullet.clipboard",
-                      symbolTint: .yellow,
-                      isProminent: cheeseItems.count > 0,
-                      customContent: AnyView(
-                        VStack(alignment: .leading, spacing: 4) {
-                            if !cheeseItems.isEmpty {
-                                let groupedCheeseItems = Dictionary(grouping: cheeseItems) { item in
-                                    item.sku?.type ?? "Unknown SKU"
-                                }
-                                
-                                ForEach(Array(groupedCheeseItems.keys.sorted()), id: \.self) { skuType in
-                                    let items = groupedCheeseItems[skuType] ?? []
-                                    let totalCount = items.reduce(0) { $0 + $1.count }
-                                    
-                                    HStack {
-                                        Text(skuType)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text("\(totalCount)")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                      ))
-        )
+//        cards.append(
+//            BentoItem(title: "Remaining",
+//                      value: "\(summary.remainingCoils)",
+//                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
+//                      symbolName: "cart",
+//                      symbolTint: .pink,
+//                      isProminent: summary.remainingCoils > 0)
+//        )
         
         cards.append(
             BentoItem(title: "Chocolate Boxes",
@@ -200,6 +193,48 @@ struct RunLocationOverviewBento: View {
         )
 
         return cards
+    }
+
+    private var cheeseSkuChips: [CheeseChip] {
+        let grouped = Dictionary(grouping: cheeseItems) { item -> String? in
+            guard let sku = item.sku, sku.isCheeseAndCrackers else { return nil }
+            return sku.id
+        }
+
+        let chips = grouped.compactMap { key, items -> CheeseChip? in
+            guard let key, let sku = items.first?.sku else { return nil }
+            let count = items.reduce(0) { $0 + max($1.count, 0) }
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
+            let label = monogram(for: sku.type)
+            return CheeseChip(id: key, label: label, count: count, colour: colour)
+        }
+
+        return chips.sorted { lhs, rhs in
+            lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        }
+    }
+
+    private func monogram(for type: String) -> String {
+        let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "??"
+        }
+
+        let words = trimmed
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+
+        if words.count >= 2 {
+            return words.prefix(2).map { word in
+                word.prefix(1).uppercased()
+            }.joined()
+        }
+
+        if let firstWord = words.first, firstWord.count >= 2 {
+            return firstWord.prefix(2).uppercased()
+        }
+
+        return String(words.first?.prefix(1).uppercased() ?? "?")
     }
 
     @ViewBuilder
@@ -336,4 +371,11 @@ struct RunLocationOverviewBento: View {
             .padding(.vertical, 2)
             .padding(.horizontal, 4)
     }
+}
+
+private struct CheeseChip: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let count: Int
+    let colour: Color
 }

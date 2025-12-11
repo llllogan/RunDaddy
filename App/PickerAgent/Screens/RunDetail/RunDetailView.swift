@@ -537,7 +537,7 @@ private extension RunDetailView {
     private func locationRow(for section: RunLocationSection) -> some View {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
-        let cheeseItemQuantity = viewModel.cheeseItemCount(for: section.id)
+        let cheeseSkuChips = viewModel.cheeseSkuChips(for: section.id)
         let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
         let locationDetail = viewModel.locationDetail(for: section.id)
         let machines = locationDetail?.machines ?? []
@@ -559,7 +559,7 @@ private extension RunDetailView {
                     LocationSummaryRow(
                         section: section,
                         machines: machines,
-                        cheeseItemQuantity: cheeseItemQuantity,
+                        cheeseSkuChips: cheeseSkuChips,
                         chocolateBoxLabel: chocolateBoxesLabel,
                         isProcessing: isDeleting
                     )
@@ -569,7 +569,7 @@ private extension RunDetailView {
                 LocationSummaryRow(
                     section: section,
                     machines: machines,
-                    cheeseItemQuantity: cheeseItemQuantity,
+                    cheeseSkuChips: cheeseSkuChips,
                     chocolateBoxLabel: chocolateBoxesLabel,
                     isProcessing: isDeleting
                 )
@@ -604,7 +604,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
     var machines: [RunDetail.Machine] = []
-    var cheeseItemQuantity: Int = 0
+    var cheeseSkuChips: [CheeseSkuChip] = []
     var chocolateBoxLabel: String? = nil
     var isProcessing = false
 
@@ -627,7 +627,7 @@ private struct LocationSummaryRow: View {
                 } else {
                     InfoChip(text: "All Packed", colour: .green.opacity(0.15), foregroundColour: .green)
                 }
-                
+
                 ForEach(machineTypeChips) { chip in
                     InfoChip(
                         text: chip.label,
@@ -637,12 +637,14 @@ private struct LocationSummaryRow: View {
                     )
                 }
 
-                if cheeseItemQuantity > 0 {
+                ForEach(cheeseSkuChips) { chip in
                     InfoChip(
-                        text: "\(cheeseItemQuantity)",
-                        colour: Color.yellow.opacity(0.15),
-                        foregroundColour: Color.yellow,
-                        icon: "rectangle.fill"
+                        title: chip.label,
+                        text: "\(chip.count)",
+                        colour: Color(.systemGray5),
+                        foregroundColour: Color.secondary,
+                        icon: "rectangle.fill",
+                        iconColour: chip.colour
                     )
                 }
 

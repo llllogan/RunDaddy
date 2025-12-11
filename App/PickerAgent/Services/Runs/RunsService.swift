@@ -223,6 +223,7 @@ struct RunDetail: Equatable {
         let type: String
         let category: String?
         let weight: Double?
+        let labelColour: String?
         let isCheeseAndCrackers: Bool
         let countNeededPointer: String?
     }
@@ -1350,6 +1351,7 @@ private struct RunDetailResponse: Decodable {
         let type: String
         let category: String?
         let weight: Double?
+        let labelColour: String?
         let isCheeseAndCrackers: Bool
         let countNeededPointer: String?
 
@@ -1361,6 +1363,7 @@ private struct RunDetailResponse: Decodable {
                 type: type,
                 category: category,
                 weight: weight,
+                labelColour: labelColour,
                 isCheeseAndCrackers: isCheeseAndCrackers,
                 countNeededPointer: countNeededPointer
             )

@@ -1711,6 +1711,7 @@ type PickItemPayload = {
     type: string;
     category: string | null;
     weight: number | null;
+    labelColour: string | null;
     isCheeseAndCrackers: boolean;
   };
   machine: MachinePayload | null;
@@ -1890,6 +1891,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
             type: entry.coilItem.sku.type,
             category: entry.coilItem.sku.category,
             weight: entry.coilItem.sku.weight,
+            labelColour: entry.coilItem.sku.labelColour,
             isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
           }
         : null,
@@ -1984,27 +1986,28 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
         isPicked: !!entry.isPicked,
         pickedAt: entry.pickedAt,
         packingSessionId: entry.packingSessionId,
-        coilItem: {
-          id: entry.coilItem.id,
-          par: entry.coilItem.par,
-          coil: {
-            id: entry.coilItem.coil.id,
-            code: entry.coilItem.coil.code,
-            machine: serializeMachine(entry.coilItem.coil.machine),
-          },
-          sku: entry.coilItem.sku
-            ? {
-                id: entry.coilItem.sku.id,
-                code: entry.coilItem.sku.code,
-                name: entry.coilItem.sku.name,
-                type: entry.coilItem.sku.type,
-                category: entry.coilItem.sku.category,
-                weight: entry.coilItem.sku.weight,
-                isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
-              }
-            : null,
+      coilItem: {
+        id: entry.coilItem.id,
+        par: entry.coilItem.par,
+        coil: {
+          id: entry.coilItem.coil.id,
+          code: entry.coilItem.coil.code,
+          machine: serializeMachine(entry.coilItem.coil.machine),
         },
-      };
+        sku: entry.coilItem.sku
+          ? {
+              id: entry.coilItem.sku.id,
+              code: entry.coilItem.sku.code,
+              name: entry.coilItem.sku.name,
+              type: entry.coilItem.sku.type,
+              category: entry.coilItem.sku.category,
+              weight: entry.coilItem.sku.weight,
+              labelColour: entry.coilItem.sku.labelColour,
+              isCheeseAndCrackers: entry.coilItem.sku.isCheeseAndCrackers,
+            }
+          : null,
+      },
+    };
     }),
     packers: Array.from(packersById.values()).sort((first, second) => {
       const normalizedName = (packer: { firstName: string | null; lastName: string | null; email: string | null; id: string }) => {

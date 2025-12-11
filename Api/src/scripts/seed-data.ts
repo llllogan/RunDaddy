@@ -65,6 +65,22 @@ const SKU_SEED_DATA = [
   { code: 'SKU-JUICE-CIT', name: 'Sparkling Juice', type: 'Bottle', category: 'beverage', weight: 375 },
   { code: 'SKU-ENERGY-MIX', name: 'Trail Mix', type: 'Original', category: 'confection', weight: 85 },
   { code: 'SKU-TEA-HERBAL', name: 'Herbal Tea', type: 'Unsweetened', category: 'beverage', weight: 500 },
+  {
+    code: 'SKU-CHEESE-CHED',
+    name: 'Cheese & Crackers',
+    type: 'Sharp Cheddar Pack',
+    category: 'snack',
+    weight: 48,
+    isCheeseAndCrackers: true,
+  },
+  {
+    code: 'SKU-CHEESE-GOUDA',
+    name: 'Cheese & Crackers',
+    type: 'Smoked Gouda Pack',
+    category: 'snack',
+    weight: 50,
+    isCheeseAndCrackers: true,
+  },
 ];
 
 type CoilSeedConfig = {
@@ -128,6 +144,8 @@ const APPLE_LOCATION_CONFIG: LocationSeedConfig[] = [
           { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 12 },
           { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 16 },
           { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 14 },
+          { code: 'D1', skuCode: 'SKU-CHEESE-CHED', par: 10 },
+          { code: 'D2', skuCode: 'SKU-CHEESE-GOUDA', par: 10 },
         ],
       },
       {
@@ -246,6 +264,8 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 18 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 20 },
+              { code: 'D1', skuCode: 'SKU-CHEESE-CHED', par: 12 },
+              { code: 'D2', skuCode: 'SKU-CHEESE-GOUDA', par: 12 },
             ],
           },
           {
@@ -410,6 +430,8 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
+              { code: 'D1', skuCode: 'SKU-CHEESE-CHED', par: 11 },
+              { code: 'D2', skuCode: 'SKU-CHEESE-GOUDA', par: 11 },
             ],
           },
           {
@@ -694,6 +716,8 @@ async function seedSkus() {
         type: sku.type,
         category: sku.category,
         weight: toNullable(sku.weight),
+        isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
+        labelColour: toNullable(sku.labelColour),
       },
       create: {
         code: sku.code,
@@ -701,6 +725,8 @@ async function seedSkus() {
         type: sku.type,
         category: sku.category,
         weight: toNullable(sku.weight),
+        isCheeseAndCrackers: Boolean(sku.isCheeseAndCrackers),
+        labelColour: toNullable(sku.labelColour),
       },
     });
     skuCache.set(record.code, record);

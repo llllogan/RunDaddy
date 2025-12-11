@@ -204,22 +204,6 @@ struct SkuInfoBento: View {
                         }
                     } else if isLabelColourEnabled {
                         HStack(alignment: .center) {
-//                            RoundedRectangle(cornerRadius: 16)
-//                                .fill(labelColour.wrappedValue)
-//                                .frame(width: 70, height: 32)
-//                                .overlay(
-//                                    RoundedRectangle(cornerRadius: 16)
-//                                        .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
-//                                )
-
-//                            VStack(alignment: .leading, spacing: 4) {
-//                                Text("Selected")
-//                                    .font(.subheadline.weight(.semibold))
-//                                Text(labelColourHex ?? "Custom")
-//                                    .font(.caption)
-//                                    .foregroundColor(.secondary)
-//                            }
-//                            Spacer()
                             ColorPicker("Pick Colour", selection: labelColour, supportsOpacity: false)
                                 .labelsHidden()
                             
@@ -235,7 +219,7 @@ struct SkuInfoBento: View {
                     )) {
                         Text("")
                     }
-                    .toggleStyle(SwitchToggleStyle(tint: labelColour.wrappedValue))
+//                    .toggleStyle(SwitchToggleStyle(tint: labelColour.wrappedValue))
                 }
                 .padding(.bottom, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
