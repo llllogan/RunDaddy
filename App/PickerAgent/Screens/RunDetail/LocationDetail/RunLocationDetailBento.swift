@@ -84,7 +84,7 @@ struct RunLocationOverviewBento: View {
         }
         
         cards.append(
-            BentoItem(title: "Fresh Chest Items",
+            BentoItem(title: "Fresh Items",
                       value: "",
                       subtitle: freshChestItems.count == 0 ? "No fresh products" : "",
                       symbolName: "leaf.fill",

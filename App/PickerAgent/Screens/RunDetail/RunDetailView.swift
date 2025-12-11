@@ -642,8 +642,6 @@ private struct LocationSummaryRow: View {
                     InfoChip(
                         title: chip.label,
                         text: "\(chip.count)",
-                        colour: Theme.freshChestTint.opacity(0.15),
-                        foregroundColour: Theme.freshChestTint,
                         icon: "leaf.fill",
                         iconColour: chip.colour
                     )

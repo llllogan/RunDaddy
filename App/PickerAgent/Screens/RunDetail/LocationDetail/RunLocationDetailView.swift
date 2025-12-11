@@ -221,13 +221,20 @@ struct RunLocationDetailView: View {
                         .disabled(isUpdatingPick)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
+                                
+                            } label: {
+                                Label("Substitute", systemImage: "rectangle.2.swap")
+                            }
+                            .tint(.indigo)
+                            
+                            Button {
                                 Task {
                                     await toggleFreshStatus(pickItem)
                                 }
                             } label: {
                                 Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove Fresh Chest" : "Fresh Chest",
-                                    systemImage: "leaf.fill"
+                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove" : "Fresh Chest",
+                                    systemImage: pickItem.sku?.isFreshOrFrozen == true ? "leaf.fill" : "plus.circle"
                                 )
                             }
                             .tint(Theme.freshChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
@@ -235,7 +242,7 @@ struct RunLocationDetailView: View {
                             Button {
                                 selectedPickItemForCountPointer = pickItem
                             } label: {
-                                Label("Change Input Field", systemImage: "square.and.pencil")
+                                Label("Edit Count", systemImage: "square.and.pencil")
                             }
                             .tint(.blue)
                             
