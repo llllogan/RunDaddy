@@ -91,19 +91,23 @@ struct RunLocationOverviewBento: View {
                       symbolTint: .yellow,
                       isProminent: cheeseItems.count > 0,
                       customContent: AnyView(
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 4) {
                             if !cheeseItems.isEmpty {
-                                FlowLayout(spacing: 8) {
-                                    ForEach(cheeseSkuChips) { chip in
-                                        InfoChip(
-                                            title: chip.label,
-                                            text: "\(chip.count)",
-                                            colour: Color(.systemGray5),
-                                            foregroundColour: Color.secondary,
-                                            icon: "rectangle.fill",
-                                            iconColour: chip.colour
-                                        )
+                                ForEach(cheeseSkuChips) { chip in
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "rectangle.fill")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundColor(chip.colour)
+                                        Text(chip.label)
+                                            .font(.footnote)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text("\(chip.count)")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.secondary)
                                     }
+                                    .padding(.vertical, 2)
                                 }
                             }
                         }
@@ -205,36 +209,13 @@ struct RunLocationOverviewBento: View {
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
             let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
-            let label = monogram(for: sku.type)
+            let label = sku.type
             return CheeseChip(id: key, label: label, count: count, colour: colour)
         }
 
         return chips.sorted { lhs, rhs in
             lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
         }
-    }
-
-    private func monogram(for type: String) -> String {
-        let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "??"
-        }
-
-        let words = trimmed
-            .components(separatedBy: .whitespaces)
-            .filter { !$0.isEmpty }
-
-        if words.count >= 2 {
-            return words.prefix(2).map { word in
-                word.prefix(1).uppercased()
-            }.joined()
-        }
-
-        if let firstWord = words.first, firstWord.count >= 2 {
-            return firstWord.prefix(2).uppercased()
-        }
-
-        return String(words.first?.prefix(1).uppercased() ?? "?")
     }
 
     @ViewBuilder

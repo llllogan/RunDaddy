@@ -321,6 +321,25 @@ final class RunDetailViewModel: ObservableObject {
         )
     }
 
+    var runCheeseChips: [CheeseSkuChip] {
+        let grouped = Dictionary(grouping: detail?.pickItems ?? []) { item -> String? in
+            guard let sku = item.sku, sku.isCheeseAndCrackers else { return nil }
+            return sku.id
+        }
+
+        let chips = grouped.compactMap { key, items -> CheeseSkuChip? in
+            guard let key, let sku = items.first?.sku else { return nil }
+            let count = items.reduce(0) { $0 + max($1.count, 0) }
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
+            let label = sku.type
+            return CheeseSkuChip(id: key, label: label, count: count, colour: colour)
+        }
+
+        return chips.sorted { lhs, rhs in
+            lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        }
+    }
+
     var pendingPickItems: [RunDetail.PickItem] {
         detail?.pendingPickItems ?? []
     }
@@ -381,7 +400,7 @@ final class RunDetailViewModel: ObservableObject {
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
             let colour = ColorCodec.color(fromHex: sku.labelColour) ?? .yellow
-            let label = monogram(for: sku.type)
+            let label = RunDetailViewModel.buildMonogram(from: sku.type)
             return CheeseSkuChip(id: key, label: label, count: count, colour: colour)
         }
 
@@ -390,7 +409,7 @@ final class RunDetailViewModel: ObservableObject {
         }
     }
 
-    private func monogram(for type: String) -> String {
+    static func buildMonogram(from type: String) -> String {
         let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             return "??"

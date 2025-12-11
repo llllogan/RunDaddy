@@ -11,6 +11,7 @@ struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
     let pendingItemsTap: () -> Void
+    let cheeseChips: [CheeseSkuChip]
 
     private var packers: [RunDetail.Packer] {
         viewModel.detail?.packers ?? []
@@ -191,6 +192,38 @@ struct RunOverviewBento: View {
                       onTap: pendingItemsTap,
                       showsChevron: true)
         )
+
+        if !cheeseChips.isEmpty {
+            cards.append(
+                BentoItem(
+                    title: "Cheese Tub",
+                    value: "",
+                    symbolName: "tray.full",
+                    symbolTint: .yellow,
+                    isProminent: true,
+                    customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(cheeseChips) { chip in
+                                HStack(spacing: 5) {
+                                    Image(systemName: "rectangle.fill")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundColor(chip.colour)
+                                    Text(chip.label)
+                                        .font(.footnote)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(chip.count)")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    )
+                )
+            )
+        }
         
         cards.append(totalWeightCard)
         

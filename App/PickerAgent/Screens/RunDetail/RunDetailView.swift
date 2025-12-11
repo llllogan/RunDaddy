@@ -61,7 +61,8 @@ struct RunDetailView: View {
                             viewModel: viewModel,
                             pendingItemsTap: {
                                 showingPendingEntries = true
-                            }
+                            },
+                            cheeseChips: viewModel.runCheeseChips
                         )
                             .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
