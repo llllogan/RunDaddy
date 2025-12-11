@@ -382,13 +382,15 @@ struct SearchLocationPerformanceBento: View {
     let lowMark: PickEntryBreakdown.Extremum?
     let aggregation: PickEntryBreakdown.Aggregation
     let timeZoneIdentifier: String
+    let firstSeen: String?
 
     private var items: [BentoItem] {
         [
             packTrendCard,
             shareOfSalesCard,
             highMarkCard,
-            lowMarkCard
+            lowMarkCard,
+            firstSeenCard
         ]
     }
 
@@ -447,6 +449,29 @@ struct SearchLocationPerformanceBento: View {
             symbolName: "arrow.down.to.line",
             tint: .orange,
             isProminent: false
+        )
+    }
+
+    private var firstSeenCard: BentoItem {
+        guard let firstSeen,
+              let firstSeenDate = parseDate(firstSeen) else {
+            return BentoItem(
+                id: "location-perf-first-seen",
+                title: "First Seen",
+                value: "No data",
+                symbolName: "calendar.badge.clock",
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            id: "location-perf-first-seen",
+            title: "First Seen",
+            value: formatRelativeDay(from: firstSeenDate),
+            subtitle: SearchLocationPerformanceBento.weekdayFormatter.string(from: firstSeenDate),
+            symbolName: "calendar.badge.clock",
+            symbolTint: .blue,
+            allowsMultilineValue: true
         )
     }
 
@@ -510,6 +535,53 @@ struct SearchLocationPerformanceBento: View {
     private func machineShareValue(for machine: LocationMachine) -> Double {
         machineShareLookup[machine.id]?.percentage ?? 0
     }
+
+    private func parseDate(_ string: String) -> Date? {
+        if let date = SearchLocationPerformanceBento.isoFormatter.date(from: string) {
+            return date
+        }
+        return SearchLocationPerformanceBento.basicIsoFormatter.date(from: string)
+    }
+
+    private func formatRelativeDay(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        return SearchLocationPerformanceBento.dayMonthFormatter.string(from: date)
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let basicIsoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let dayMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM"
+        formatter.locale = Locale.current
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        formatter.locale = Locale.current
+        return formatter
+    }()
 
     private var machinesBySalesShare: [LocationMachine] {
         machines.sorted { first, second in

@@ -11,6 +11,7 @@ struct MachineStatsResponse: Codable {
     let percentageChange: SkuPercentageChange?
     let bestSku: MachineBestSku?
     let lastStocked: MachineLastStocked?
+    let firstSeen: String?
     let points: [MachineStatsPoint]
 }
 

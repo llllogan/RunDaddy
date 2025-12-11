@@ -40,6 +40,7 @@ struct SkuStatsResponse: Codable {
     let progress: SkuStatsProgress
     let percentageChange: SkuPercentageChange?
     let bestMachine: SkuBestMachine?
+    let firstSeen: String?
     let points: [SkuStatsPoint]
     let mostRecentPick: MostRecentPick?
     let filters: SkuStatsFilters

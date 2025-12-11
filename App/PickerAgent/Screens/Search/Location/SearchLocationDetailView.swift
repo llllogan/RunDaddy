@@ -120,7 +120,8 @@ struct SearchLocationDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
+                                firstSeen: stats.firstSeen
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -137,7 +138,8 @@ struct SearchLocationDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
+                                firstSeen: nil
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)

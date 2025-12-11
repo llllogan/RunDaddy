@@ -221,10 +221,11 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
 
   const percentageChange = buildPercentageChange(currentAverage, previousAverage);
 
-  const [bestMachine, bestSku, lastPacked] = await Promise.all([
+  const [bestMachine, bestSku, lastPacked, firstSeen] = await Promise.all([
     getLocationBestMachine(locationId, req.auth.companyId, periodStart, periodEnd),
     getLocationBestSku(locationId, req.auth.companyId, periodStart, periodEnd),
     getLocationLastPacked(locationId, req.auth.companyId),
+    getLocationFirstSeen(locationId, req.auth.companyId),
   ]);
 
   const responseRange = formatAppExclusiveRange(
@@ -238,6 +239,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
         pickedAt: formatAppIsoDate(lastPacked.pickedAt),
       }
     : null;
+  const formattedFirstSeen = firstSeen ? formatAppIsoDate(firstSeen) : null;
 
   return res.json({
     generatedAt: new Date().toISOString(),
@@ -253,6 +255,7 @@ router.get('/:locationId/stats', setLogConfig({ level: 'minimal' }), async (req,
     },
     percentageChange,
     lastPacked: formattedLastPacked,
+    firstSeen: formattedFirstSeen,
     bestMachine,
     bestSku,
     machineSalesShare,
@@ -665,6 +668,26 @@ async function getLocationLastPacked(locationId: string, companyId: string) {
     machineCode: row.machineCode,
     machineName: row.machineDescription,
   };
+}
+
+async function getLocationFirstSeen(locationId: string, companyId: string) {
+  const result = await prisma.$queryRaw<Array<{
+    firstSeenAt: Date | null;
+  }>>(
+    Prisma.sql`
+      SELECT 
+        scheduledFor AS firstSeenAt
+      FROM v_pick_entry_details
+      WHERE location_id = ${locationId}
+        AND scheduledFor IS NOT NULL
+        AND companyId = ${companyId}
+      ORDER BY scheduledFor ASC
+      LIMIT 1
+    `,
+  );
+
+  const [row] = result;
+  return row?.firstSeenAt ?? null;
 }
 
 export const locationsRouter = router;

@@ -363,18 +363,11 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     previousBucketCount > 0 ? previousTotal / previousBucketCount : previousTotal;
 
   const percentageChange = buildPercentageChange(currentAverage, previousAverage);
-  const bestMachine = await getSkuBestMachine(
-    skuId,
-    req.auth!.companyId,
-    locationFilter,
-    machineFilter,
-  );
-  const mostRecentPick = await getMostRecentPick(
-    skuId,
-    req.auth!.companyId,
-    locationFilter,
-    machineFilter,
-  );
+  const [bestMachine, mostRecentPick, firstSeen] = await Promise.all([
+    getSkuBestMachine(skuId, req.auth!.companyId, locationFilter, machineFilter),
+    getMostRecentPick(skuId, req.auth!.companyId, locationFilter, machineFilter),
+    getSkuFirstSeen(skuId, req.auth!.companyId),
+  ]);
 
   const responseRange = formatAppExclusiveRange(
     { start: periodStart, end: periodEnd },
@@ -387,6 +380,7 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
         pickedAt: formatAppIsoDate(mostRecentPick.pickedAt),
       }
     : null;
+  const formattedFirstSeen = firstSeen ? formatAppIsoDate(firstSeen) : null;
 
   return res.json({
     generatedAt: new Date().toISOString(),
@@ -403,6 +397,7 @@ router.get('/:skuId/stats', setLogConfig({ level: 'minimal' }), async (req, res)
     percentageChange,
     bestMachine,
     points,
+    firstSeen: formattedFirstSeen,
     mostRecentPick: formattedMostRecentPick,
     filters: {
       locationId: locationFilter,
@@ -466,6 +461,26 @@ async function getMostRecentPick(
     locationName: row.locationName || 'Unknown',
     runId: row.runId,
   };
+}
+
+async function getSkuFirstSeen(skuId: string, companyId: string) {
+  const result = await prisma.$queryRaw<Array<{
+    firstSeenAt: Date | null;
+  }>>(
+    Prisma.sql`
+      SELECT 
+        scheduledFor AS firstSeenAt
+      FROM v_pick_entry_details
+      WHERE sku_id = ${skuId}
+        AND scheduledFor IS NOT NULL
+        AND companyId = ${companyId}
+      ORDER BY scheduledFor ASC
+      LIMIT 1
+    `
+  );
+
+  const [row] = result;
+  return row?.firstSeenAt ?? null;
 }
 
 type ChartRow = {

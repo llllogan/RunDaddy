@@ -10,6 +10,7 @@ struct LocationStatsResponse: Codable {
     let progress: LocationStatsProgress
     let percentageChange: SkuPercentageChange?
     let lastPacked: LocationLastPacked?
+    let firstSeen: String?
     let bestMachine: LocationBestMachine?
     let bestSku: LocationBestSku?
     let machineSalesShare: [LocationMachineSalesShare]?
