@@ -14,7 +14,7 @@ struct NoteRowView: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 8) {
+            FlowLayout(spacing: 8) {
                 InfoChip(
                     title: nil,
                     text: note.target.targetDisplayLabel,
@@ -32,7 +32,6 @@ struct NoteRowView: View {
                         icon: "infinity"
                     )
                 }
-
             }
         }
         .padding(.vertical, 6)
@@ -43,6 +42,7 @@ private extension NoteTarget {
     var targetDisplayLabel: String {
         switch type {
         case .machine:
+            // Only surface the machine description (carried in subtitle)
             if let subtitle = subtitle, !subtitle.isEmpty {
                 return subtitle
             }

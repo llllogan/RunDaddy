@@ -202,9 +202,13 @@ final class RunNotesViewModel: ObservableObject {
         for item in detail.pickItems {
             guard let sku = item.sku, !seen.contains(sku.id) else { continue }
             seen.insert(sku.id)
-            let subtitleParts = [sku.name, sku.type, sku.category].compactMap { value in
-                let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-                return (trimmed?.isEmpty == false) ? trimmed : nil
+            let subtitleParts = [
+                sku.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                Self.normalizedSkuType(sku.type)
+            ].compactMap { value -> String? in
+                guard let value else { return nil }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
             }
             let subtitle = subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: " • ")
             options.append(
@@ -223,9 +227,6 @@ final class RunNotesViewModel: ObservableObject {
             seen.insert(machine.id)
             let subtitleParts = [
                 machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
-                machine.machineType?.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                machine.location?.name?.trimmingCharacters(in: .whitespacesAndNewlines) ??
-                    machine.location?.address?.trimmingCharacters(in: .whitespacesAndNewlines),
             ].compactMap { part -> String? in
                 if let part, !part.isEmpty {
                     return part
@@ -263,6 +264,15 @@ final class RunNotesViewModel: ObservableObject {
         return options.sorted { lhs, rhs in
             lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
         }
+    }
+
+    private static func normalizedSkuType(_ raw: String?) -> String? {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased() == "general" {
+            return nil
+        }
+        return trimmed
     }
 }
 

@@ -669,9 +669,10 @@ private extension DashboardView {
             destination: CompanyNotesView(session: session) { updatedCount in
                 viewModel.recentNotesCount = updatedCount
             },
-            isActive: $showingCompanyNotes,
-            label: { EmptyView() }
-        )
+            isActive: $showingCompanyNotes
+        ) {
+            EmptyView()
+        }
         .hidden()
     }
 }

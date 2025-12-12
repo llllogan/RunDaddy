@@ -343,14 +343,12 @@ function resolveTarget(note: NoteWithRelations) {
     const locationLabel =
       note.machine.location?.name?.trim() || note.machine.location?.address?.trim() || null;
     const description = note.machine.description?.trim();
-    const typeName = note.machine.machineType?.name?.trim();
-    const parts = [description, typeName, locationLabel].filter(Boolean);
 
     return {
       type: 'machine' as const,
       id: note.machine.id,
       label: note.machine.code,
-      subtitle: parts.length > 0 ? parts.join(' • ') : null,
+      subtitle: description && description.length > 0 ? description : null,
     };
   }
 
