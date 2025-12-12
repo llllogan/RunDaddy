@@ -168,11 +168,6 @@ struct DashboardView: View {
             await momentumViewModel.loadSnapshot(force: true)
             await momentumViewModel.loadPickEntryBreakdown(force: true)
         }
-        .navigationDestination(isPresented: $showingCompanyNotes) {
-            CompanyNotesView(session: session) { updatedCount in
-                viewModel.recentNotesCount = updatedCount
-            }
-        }
         .sheet(isPresented: $isShowingProfile) {
             ProfileView(
                 isPresentedAsSheet: true,
@@ -229,6 +224,7 @@ struct DashboardView: View {
         .navigationTitle(searchDisplayState == .dashboard ? "Hi \(session.profile.firstName)" : "Search")
         .navigationSubtitle(searchDisplayState == .dashboard ? navigationSubtitleText : "")
         .navigationBarTitleDisplayMode(.inline)
+        .background(notesNavigationLink)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -664,6 +660,19 @@ struct DashboardView: View {
         }
 
         return normalizedQuery.rangeOfCharacter(from: .decimalDigits) != nil
+    }
+}
+
+private extension DashboardView {
+    var notesNavigationLink: some View {
+        NavigationLink(
+            destination: CompanyNotesView(session: session) { updatedCount in
+                viewModel.recentNotesCount = updatedCount
+            },
+            isActive: $showingCompanyNotes,
+            label: { EmptyView() }
+        )
+        .hidden()
     }
 }
 

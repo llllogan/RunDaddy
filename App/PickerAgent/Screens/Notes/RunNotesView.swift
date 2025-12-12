@@ -26,17 +26,23 @@ struct RunNotesView: View {
 
     var body: some View {
         List {
-            Section {
-                if viewModel.isLoading && viewModel.notes.isEmpty {
+            if viewModel.isLoading && viewModel.notes.isEmpty {
+                Section {
                     LoadingNotesRow(message: "Loading notes…")
-                } else if viewModel.notes.isEmpty {
+                }
+            } else if viewModel.notes.isEmpty {
+                Section {
                     Text("No notes have been added to this run yet.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
-                } else {
-                    ForEach(viewModel.notes) { note in
-                        NoteRowView(note: note)
+                }
+            } else {
+                ForEach(viewModel.groupedNotes, id: \.dateLabel) { group in
+                    Section(group.dateLabel) {
+                        ForEach(group.notes) { note in
+                            NoteRowView(note: note)
+                        }
                     }
                 }
             }
@@ -119,6 +125,7 @@ final class RunNotesViewModel: ObservableObject {
             notes = response.notes
             total = response.total
             errorMessage = nil
+            regroup()
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -153,6 +160,7 @@ final class RunNotesViewModel: ObservableObject {
             notes.insert(note, at: 0)
             total += 1
             errorMessage = nil
+            regroup()
             return note
         } catch {
             if let authError = error as? AuthError {
@@ -164,6 +172,24 @@ final class RunNotesViewModel: ObservableObject {
             }
             return nil
         }
+    }
+
+    var groupedNotes: [NoteDayGroup] = []
+
+    private func regroup() {
+        let grouped = Dictionary(grouping: notes) { note in
+            note.createdAt.formatted(date: .abbreviated, time: .omitted)
+        }
+
+        groupedNotes = grouped
+            .map { key, value in
+                NoteDayGroup(dateLabel: key, notes: value.sorted { $0.createdAt > $1.createdAt }) }
+            .sorted { lhs, rhs in
+                guard let lhsDate = lhs.notes.first?.createdAt, let rhsDate = rhs.notes.first?.createdAt else {
+                    return lhs.dateLabel > rhs.dateLabel
+                }
+                return lhsDate > rhsDate
+            }
     }
 
     private static func buildTagOptions(from detail: RunDetail?) -> [NoteTagOption] {
@@ -238,6 +264,12 @@ final class RunNotesViewModel: ObservableObject {
             lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
         }
     }
+}
+
+struct NoteDayGroup: Identifiable {
+    let id = UUID()
+    let dateLabel: String
+    let notes: [Note]
 }
 
 private struct RunNoteComposer: View {
