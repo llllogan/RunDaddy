@@ -424,7 +424,7 @@ function resolveTarget(note: NoteWithRelations) {
       type: 'sku' as const,
       id: note.sku.id,
       label: note.sku.code,
-      subtitle: buildSkuSubtitle(note.sku.name, note.sku.type, note.sku.category),
+      subtitle: buildSkuSubtitle(note.sku.name, note.sku.type, null),
     };
   }
 
