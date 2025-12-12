@@ -72,7 +72,8 @@ struct SearchLocationDetailView: View {
                             bestSku: stats.bestSku,
                             hoursDisplay: hoursDisplay,
                             onConfigureHours: { showingScheduleSheet = true },
-                            canConfigureHours: canConfigureHours
+                            canConfigureHours: canConfigureHours,
+                            firstSeen: stats.firstSeen
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading stats...")
@@ -120,8 +121,7 @@ struct SearchLocationDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
-                                firstSeen: stats.firstSeen
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -138,8 +138,7 @@ struct SearchLocationDetailView: View {
                                 highMark: chartsViewModel.skuBreakdownHighMark,
                                 lowMark: chartsViewModel.skuBreakdownLowMark,
                                 aggregation: chartsViewModel.skuBreakdownAggregation,
-                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
-                                firstSeen: nil
+                                timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone
                             )
                             .listRowInsets(.init(top: 10, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)

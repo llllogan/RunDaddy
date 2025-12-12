@@ -7,10 +7,10 @@ struct MachineInfoBento: View {
 
     private var cards: [BentoItem] {
         [
-            detailsCard,
             lastStockedCard,
-            codeCard,
-            locationCard
+            detailsCard,
+            locationCard,
+            firstSeenCard
         ]
     }
 
@@ -42,7 +42,9 @@ struct MachineInfoBento: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
 
-                    InfoChip(text: chipText)
+                    InfoChip(text: chipText, icon: "tray.2.fill")
+                    
+                    InfoChip(text: machine.code, icon: "barcode")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             )
@@ -64,16 +66,6 @@ struct MachineInfoBento: View {
         )
     }
 
-    private var codeCard: BentoItem {
-        BentoItem(
-            id: "machine-info-code",
-            title: "Code",
-            value: machine.code,
-            symbolName: "barcode",
-            symbolTint: .blue
-        )
-    }
-
     private var locationCard: BentoItem {
         let locationName = machine.location?.name ?? "Unassigned"
         let address = machine.location?.address ?? "No address on file"
@@ -89,6 +81,29 @@ struct MachineInfoBento: View {
             allowsMultilineValue: true,
             onTap: hasLocationLink ? { navigateToLocationDetail() } : nil,
             showsChevron: hasLocationLink
+        )
+    }
+
+    private var firstSeenCard: BentoItem {
+        guard let firstSeen = stats?.firstSeen,
+              let firstSeenDate = parseDate(firstSeen) else {
+            return BentoItem(
+                id: "machine-info-first-seen",
+                title: "First Seen",
+                value: "No data",
+                symbolName: "calendar.badge.clock",
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            id: "machine-info-first-seen",
+            title: "First Seen",
+            value: formatRelativeDay(from: firstSeenDate),
+            subtitle: MachineInfoBento.weekdayFormatter.string(from: firstSeenDate),
+            symbolName: "calendar.badge.clock",
+            symbolTint: .blue,
+            allowsMultilineValue: true
         )
     }
 
@@ -152,6 +167,12 @@ struct MachineInfoBento: View {
         formatter.dateFormat = "d MMM"
         return formatter
     }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
 }
 
 struct MachinePerformanceBento: View {
@@ -163,15 +184,13 @@ struct MachinePerformanceBento: View {
     let aggregation: PickEntryBreakdown.Aggregation
     let timeZoneIdentifier: String
     let percentageChange: PickEntryBreakdown.PercentageChange?
-    let firstSeen: String?
 
     private var cards: [BentoItem] {
         [
             packTrendCard,
             bestSkuCard,
             highMarkCard,
-            lowMarkCard,
-            firstSeenCard
+            lowMarkCard
         ]
     }
 
@@ -309,74 +328,4 @@ struct MachinePerformanceBento: View {
             isProminent: isProminent
         )
     }
-
-    private var firstSeenCard: BentoItem {
-        guard let firstSeen,
-              let firstSeenDate = parseDate(firstSeen) else {
-            return BentoItem(
-                id: "machine-perf-first-seen",
-                title: "First Seen",
-                value: "No data",
-                symbolName: "calendar.badge.clock",
-                symbolTint: .secondary
-            )
-        }
-
-        return BentoItem(
-            id: "machine-perf-first-seen",
-            title: "First Seen",
-            value: formatRelativeDay(from: firstSeenDate),
-            subtitle: MachinePerformanceBento.weekdayFormatter.string(from: firstSeenDate),
-            symbolName: "calendar.badge.clock",
-            symbolTint: .blue,
-            allowsMultilineValue: true
-        )
-    }
-
-    private func parseDate(_ string: String) -> Date? {
-        if let date = MachinePerformanceBento.isoFormatter.date(from: string) {
-            return date
-        }
-        return MachinePerformanceBento.basicIsoFormatter.date(from: string)
-    }
-
-    private func formatRelativeDay(from date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "Today"
-        }
-        if calendar.isDateInYesterday(date) {
-            return "Yesterday"
-        }
-        if calendar.isDateInTomorrow(date) {
-            return "Tomorrow"
-        }
-        return MachinePerformanceBento.dayMonthFormatter.string(from: date)
-    }
-
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private static let basicIsoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    private static let dayMonthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        formatter.locale = Locale.current
-        return formatter
-    }()
-
-    private static let weekdayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        formatter.locale = Locale.current
-        return formatter
-    }()
 }
