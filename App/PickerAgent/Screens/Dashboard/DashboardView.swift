@@ -90,7 +90,7 @@ struct DashboardView: View {
         return BentoItem(
             title: "Notes",
             value: value,
-            subtitle: "Today + yesterday",
+            subtitle: "View Notes",
             symbolName: "note.text",
             symbolTint: .purple,
             isProminent: true,

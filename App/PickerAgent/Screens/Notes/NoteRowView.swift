@@ -2,6 +2,12 @@ import SwiftUI
 
 struct NoteRowView: View {
     let note: Note
+    let runDate: Date?
+
+    init(note: Note, runDate: Date? = nil) {
+        self.note = note
+        self.runDate = runDate
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -24,17 +30,27 @@ struct NoteRowView: View {
                     iconColour: note.target.type.tint
                 )
 
-                if note.scope == .persistent {
+                if let runDateText {
                     InfoChip(
-                        text: "Persistent",
-                        colour: Color.orange.opacity(0.14),
-                        foregroundColour: .orange,
-                        icon: "infinity"
+                        title: "For run",
+                        text: runDateText,
+                        colour: Color.blue.opacity(0.14),
+                        foregroundColour: .blue,
+                        icon: "calendar",
+                        iconColour: .blue
                     )
                 }
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private var runDateText: String? {
+        guard note.scope == .run, let runDate else {
+            return nil
+        }
+
+        return runDate.formatted(date: .abbreviated, time: .omitted)
     }
 }
 

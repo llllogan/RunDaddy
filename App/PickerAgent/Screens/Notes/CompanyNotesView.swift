@@ -29,11 +29,19 @@ struct CompanyNotesView: View {
     let onNotesUpdated: ((Int) -> Void)?
     @State private var composerIntent: NoteComposerIntent?
 
-    init(session: AuthSession, notesService: NotesServicing? = nil, onNotesUpdated: ((Int) -> Void)? = nil) {
+    init(
+        session: AuthSession,
+        notesService: NotesServicing? = nil,
+        searchService: SearchServicing? = nil,
+        runsService: RunsServicing? = nil,
+        onNotesUpdated: ((Int) -> Void)? = nil
+    ) {
         _viewModel = StateObject(
             wrappedValue: CompanyNotesViewModel(
                 session: session,
-                notesService: notesService
+                notesService: notesService,
+                searchService: searchService,
+                runsService: runsService
             )
         )
         self.onNotesUpdated = onNotesUpdated
@@ -54,29 +62,12 @@ struct CompanyNotesView: View {
                 }
             } else {
                 ForEach(viewModel.groupedNotes, id: \.dateLabel) { group in
-                    Section(group.dateLabel) {
-                        ForEach(group.notes) { note in
-                            NoteRowView(note: note)
-                                .contentShape(Rectangle())
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button {
-                                        composerIntent = .edit(note)
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                    .tint(.blue)
-
-                                    Button(role: .destructive) {
-                                        Task {
-                                            _ = await viewModel.delete(note: note)
-                                            onNotesUpdated?(viewModel.total)
-                                        }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                        }
-                    }
+                    CompanyNotesSection(
+                        group: group,
+                        runDates: viewModel.runDates,
+                        onEdit: { note in composerIntent = .edit(note) },
+                        onDelete: { note in handleDelete(note) }
+                    )
                 }
             }
         }
@@ -121,6 +112,44 @@ struct CompanyNotesView: View {
             )
         }
     }
+
+    private func handleDelete(_ note: Note) {
+        Task {
+            _ = await viewModel.delete(note: note)
+            onNotesUpdated?(viewModel.total)
+        }
+    }
+}
+
+private struct CompanyNotesSection: View {
+    let group: NoteDayGroup
+    let runDates: [String: Date]
+    let onEdit: (Note) -> Void
+    let onDelete: (Note) -> Void
+
+    var body: some View {
+        Section(group.dateLabel) {
+            ForEach(group.notes) { note in
+                NoteRowView(note: note, runDate: runDate(for: note))
+                    .contentShape(Rectangle())
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button { onEdit(note) } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+
+                        Button(role: .destructive) { onDelete(note) } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+            }
+        }
+    }
+
+    private func runDate(for note: Note) -> Date? {
+        guard let runId = note.runId else { return nil }
+        return runDates[runId]
+    }
 }
 
 @MainActor
@@ -135,20 +164,33 @@ final class CompanyNotesViewModel: ObservableObject {
     @Published var tagSuggestions: [NoteTagOption] = []
     @Published var tagResults: [NoteTagOption] = []
     @Published private(set) var groupedNotes: [NoteDayGroup] = []
+    @Published private(set) var runDates: [String: Date] = [:]
 
     let session: AuthSession
     private let notesService: NotesServicing
     private let searchService: SearchServicing
+    private let runsService: RunsServicing
+    private var failedRunIds = Set<String>()
 
-    init(session: AuthSession, notesService: NotesServicing? = nil, searchService: SearchServicing? = nil) {
+    init(
+        session: AuthSession,
+        notesService: NotesServicing? = nil,
+        searchService: SearchServicing? = nil,
+        runsService: RunsServicing? = nil
+    ) {
         self.session = session
         self.notesService = notesService ?? NotesService()
         self.searchService = searchService ?? SearchService()
+        self.runsService = runsService ?? RunsService()
     }
 
     func loadNotes(force: Bool = false) async {
         if isLoading && !force {
             return
+        }
+
+        if force {
+            failedRunIds.removeAll()
         }
 
         isLoading = true
@@ -165,6 +207,7 @@ final class CompanyNotesViewModel: ObservableObject {
             total = response.total
             errorMessage = nil
             regroup()
+            await loadRunDates(for: response.notes)
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -323,6 +366,24 @@ final class CompanyNotesViewModel: ObservableObject {
                 }
                 return lhsDate > rhsDate
             }
+    }
+
+    private func loadRunDates(for notes: [Note]) async {
+        let uniqueRunIds = Set(notes.compactMap { $0.runId })
+        let pendingRunIds = uniqueRunIds.filter { runId in
+            runDates[runId] == nil && !failedRunIds.contains(runId)
+        }
+
+        guard !pendingRunIds.isEmpty else { return }
+
+        for runId in pendingRunIds {
+            do {
+                let detail = try await runsService.fetchRunDetail(withId: runId, credentials: session.credentials)
+                runDates[runId] = detail.runDate
+            } catch {
+                failedRunIds.insert(runId)
+            }
+        }
     }
 }
 

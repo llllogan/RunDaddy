@@ -62,29 +62,12 @@ struct RunNotesView: View {
                 }
             } else {
                 ForEach(viewModel.groupedNotes, id: \.dateLabel) { group in
-                    Section(group.dateLabel) {
-                        ForEach(group.notes) { note in
-                            NoteRowView(note: note)
-                                .contentShape(Rectangle())
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button {
-                                        composerIntent = .edit(note)
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                    .tint(.blue)
-
-                                    Button(role: .destructive) {
-                                        Task {
-                                            _ = await viewModel.delete(note: note)
-                                            onNotesUpdated?(viewModel.total)
-                                        }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                        }
-                    }
+                    RunNotesSection(
+                        group: group,
+                        runDate: viewModel.runDate,
+                        onEdit: { note in composerIntent = .edit(note) },
+                        onDelete: { note in handleDelete(note) }
+                    )
                 }
             }
         }
@@ -129,6 +112,13 @@ struct RunNotesView: View {
             )
         }
     }
+
+    private func handleDelete(_ note: Note) {
+        Task {
+            _ = await viewModel.delete(note: note)
+            onNotesUpdated?(viewModel.total)
+        }
+    }
 }
 
 @MainActor
@@ -141,6 +131,7 @@ final class RunNotesViewModel: ObservableObject {
     @Published private(set) var isDeleting = false
 
     let runId: String
+    let runDate: Date?
     let tagOptions: [NoteTagOption]
 
     let session: AuthSession
@@ -153,6 +144,7 @@ final class RunNotesViewModel: ObservableObject {
         notesService: NotesServicing? = nil
     ) {
         self.runId = runId
+        self.runDate = runDetail?.runDate
         self.session = session
         self.notesService = notesService ?? NotesService()
         self.tagOptions = RunNotesViewModel.buildTagOptions(from: runDetail)
@@ -392,6 +384,48 @@ struct NoteDayGroup: Identifiable {
     let id = UUID()
     let dateLabel: String
     let notes: [Note]
+}
+
+private struct RunNotesSection: View {
+    let group: NoteDayGroup
+    let runDate: Date?
+    let onEdit: (Note) -> Void
+    let onDelete: (Note) -> Void
+
+    var body: some View {
+        Section(group.dateLabel) {
+            ForEach(group.notes) { note in
+                RunNoteRow(
+                    note: note,
+                    runDate: runDate,
+                    onEdit: { onEdit(note) },
+                    onDelete: { onDelete(note) }
+                )
+            }
+        }
+    }
+}
+
+private struct RunNoteRow: View {
+    let note: Note
+    let runDate: Date?
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        NoteRowView(note: note, runDate: runDate)
+            .contentShape(Rectangle())
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(action: onEdit) {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .tint(.blue)
+
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                }
+        }
+    }
 }
 
 private struct RunNoteComposer: View {

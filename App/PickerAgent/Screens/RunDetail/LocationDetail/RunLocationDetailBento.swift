@@ -95,7 +95,7 @@ struct RunLocationOverviewBento: View {
                             if !freshChestItems.isEmpty {
                                 ForEach(freshSkuChips) { chip in
                                     HStack(spacing: 5) {
-                                        Image(systemName: "leaf.fill")
+                                        Image(systemName: "circle.fill")
                                             .font(.caption2.weight(.bold))
                                             .foregroundColor(chip.colour)
                                         Text(chip.label)

@@ -198,7 +198,7 @@ struct RunOverviewBento: View {
             BentoItem(
                 title: "Notes",
                 value: noteCountDisplay,
-                subtitle: "Run + persistent",
+                subtitle: "View Notes",
                 symbolName: "note.text",
                 symbolTint: .purple,
                 isProminent: true,
@@ -219,7 +219,7 @@ struct RunOverviewBento: View {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(freshChestChips) { chip in
                                 HStack(spacing: 5) {
-                                    Image(systemName: "leaf.fill")
+                                    Image(systemName: "circle.fill")
                                         .font(.caption2.weight(.bold))
                                         .foregroundColor(chip.colour)
                                     Text(chip.label)
