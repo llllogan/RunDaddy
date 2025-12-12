@@ -43,19 +43,18 @@ struct RunNotesView: View {
                     Section(group.dateLabel) {
                         ForEach(group.notes) { note in
                             NoteRowView(note: note)
+                                .contentShape(Rectangle())
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    if viewModel.canManageNotes {
-                                        Button("Edit") {
-                                            editingNote = note
-                                            showingComposer = true
-                                        }
-                                        .tint(.blue)
+                                    Button("Edit") {
+                                        editingNote = note
+                                        showingComposer = true
+                                    }
+                                    .tint(.blue)
 
-                                        Button("Delete", role: .destructive) {
-                                            Task {
-                                                _ = await viewModel.delete(note: note)
-                                                onNotesUpdated?(viewModel.total)
-                                            }
+                                    Button("Delete", role: .destructive) {
+                                        Task {
+                                            _ = await viewModel.delete(note: note)
+                                            onNotesUpdated?(viewModel.total)
                                         }
                                     }
                                 }
@@ -128,14 +127,6 @@ final class RunNotesViewModel: ObservableObject {
         self.session = session
         self.notesService = notesService ?? NotesService()
         self.tagOptions = RunNotesViewModel.buildTagOptions(from: runDetail)
-    }
-
-    var canManageNotes: Bool {
-        guard let rawRole = session.profile.role?.uppercased(),
-              let role = UserRole(rawValue: rawRole) else {
-            return false
-        }
-        return role == .admin || role == .owner || role == .god
     }
 
     func loadNotes(force: Bool = false) async {

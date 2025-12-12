@@ -87,10 +87,6 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!isCompanyManager(req.auth.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
-  }
-
   if (!req.auth.companyId) {
     return res.status(403).json({ error: 'Company membership required to access notes' });
   }
@@ -263,10 +259,6 @@ router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =>
     return res.status(403).json({ error: 'Company membership required to update notes' });
   }
 
-  if (!isCompanyManager(req.auth.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
-  }
-
   const noteId = req.params.noteId?.trim();
   if (!noteId) {
     return res.status(400).json({ error: 'Note ID is required' });
@@ -340,10 +332,6 @@ router.delete('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =
 
   if (!req.auth.companyId) {
     return res.status(403).json({ error: 'Company membership required to delete notes' });
-  }
-
-  if (!isCompanyManager(req.auth.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
   }
 
   const noteId = req.params.noteId?.trim();
