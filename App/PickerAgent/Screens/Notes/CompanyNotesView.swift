@@ -1,11 +1,33 @@
 import SwiftUI
 import Combine
 
+private enum NoteComposerIntent: Identifiable {
+    case add
+    case edit(Note)
+
+    var id: String {
+        switch self {
+        case .add:
+            return "add"
+        case .edit(let note):
+            return "edit-\(note.id)"
+        }
+    }
+
+    var note: Note? {
+        switch self {
+        case .add:
+            return nil
+        case .edit(let note):
+            return note
+        }
+    }
+}
+
 struct CompanyNotesView: View {
     @StateObject private var viewModel: CompanyNotesViewModel
     let onNotesUpdated: ((Int) -> Void)?
-    @State private var showingComposer = false
-    @State private var editingNote: Note? = nil
+    @State private var composerIntent: NoteComposerIntent?
 
     init(session: AuthSession, notesService: NotesServicing? = nil, onNotesUpdated: ((Int) -> Void)? = nil) {
         _viewModel = StateObject(
@@ -37,17 +59,20 @@ struct CompanyNotesView: View {
                             NoteRowView(note: note)
                                 .contentShape(Rectangle())
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button("Edit") {
-                                        editingNote = note
-                                        showingComposer = true
+                                    Button {
+                                        composerIntent = .edit(note)
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
                                     }
                                     .tint(.blue)
 
-                                    Button("Delete", role: .destructive) {
+                                    Button(role: .destructive) {
                                         Task {
                                             _ = await viewModel.delete(note: note)
                                             onNotesUpdated?(viewModel.total)
                                         }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
                                     }
                                 }
                         }
@@ -61,7 +86,7 @@ struct CompanyNotesView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    showingComposer = true
+                    composerIntent = .add
                 } label: {
                     Label("Add Note", systemImage: "plus")
                 }
@@ -77,19 +102,23 @@ struct CompanyNotesView: View {
         .onChange(of: viewModel.total) { _, newValue in
             onNotesUpdated?(newValue)
         }
-        .sheet(isPresented: $showingComposer) {
+        .sheet(item: $composerIntent) { intent in
             CompanyNoteComposer(
                 viewModel: viewModel,
-                isPresented: $showingComposer,
-                editingNote: editingNote,
+                isPresented: Binding(
+                    get: { composerIntent != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            composerIntent = nil
+                        }
+                    }
+                ),
+                editingNote: intent.note,
                 onNoteSaved: {
-                    editingNote = nil
+                    composerIntent = nil
                     onNotesUpdated?(viewModel.total)
                 }
             )
-            .onDisappear {
-                editingNote = nil
-            }
         }
     }
 }
