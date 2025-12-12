@@ -446,6 +446,8 @@ private struct RunNoteComposer: View {
     }
 
     var body: some View {
+        let isEditing = editingNote != nil
+
         NavigationStack {
             List {
                 Section("Note") {
@@ -466,45 +468,47 @@ private struct RunNoteComposer: View {
                     }
                 }
 
-                Section("Apply to") {
-                    TextField("Search SKUs, machines, or locations", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
+                if !isEditing {
+                    Section("Apply to") {
+                        TextField("Search SKUs, machines, or locations", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
 
-                    if viewModel.tagOptions.isEmpty {
-                        Text("Tags are unavailable until the run details finish loading.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 4)
-                    } else if filteredTags.isEmpty {
-                        Text("No tags match your search.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 4)
-                    } else {
-                        ForEach(filteredTags) { option in
-                            Button {
-                                selectedTag = option
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(option.label)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
+                        if viewModel.tagOptions.isEmpty {
+                            Text("Tags are unavailable until the run details finish loading.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        } else if filteredTags.isEmpty {
+                            Text("No tags match your search.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        } else {
+                            ForEach(filteredTags) { option in
+                                Button {
+                                    selectedTag = option
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(option.label)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
 
-                                        if let subtitle = option.subtitle {
-                                            Text(subtitle)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                            if let subtitle = option.subtitle {
+                                                Text(subtitle)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        Spacer()
+                                        if selectedTag?.id == option.id {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.green)
                                         }
                                     }
-                                    Spacer()
-                                    if selectedTag?.id == option.id {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
-                                    }
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }

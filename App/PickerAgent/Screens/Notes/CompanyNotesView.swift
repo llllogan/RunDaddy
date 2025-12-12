@@ -374,6 +374,8 @@ private struct CompanyNoteComposer: View {
     }
 
     var body: some View {
+        let isEditing = editingNote != nil
+
         NavigationStack {
             List {
                 Section("Note") {
@@ -394,60 +396,62 @@ private struct CompanyNoteComposer: View {
                     }
                 }
 
-                Section("Apply to") {
-                    TextField("Search SKUs, machines, or locations", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: searchText) { _, newValue in
-                            searchTask?.cancel()
-                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard trimmed.count >= 2 else {
-                                viewModel.clearSearchResults()
-                                return
-                            }
+                if !isEditing {
+                    Section("Apply to") {
+                        TextField("Search SKUs, machines, or locations", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
+                            .onChange(of: searchText) { _, newValue in
+                                searchTask?.cancel()
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard trimmed.count >= 2 else {
+                                    viewModel.clearSearchResults()
+                                    return
+                                }
 
-                            searchTask = Task {
-                                try? await Task.sleep(nanoseconds: 300_000_000)
-                                await viewModel.searchTags(matching: trimmed)
-                            }
-                        }
-
-                    if visibleTags.isEmpty {
-                        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 4)
-                        } else {
-                            Text("No tags match your search yet.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 4)
-                        }
-                    } else {
-                        ForEach(visibleTags) { option in
-                            Button {
-                                selectedTag = option
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(option.label)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-
-                                        if let subtitle = option.subtitle {
-                                            Text(subtitle)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    if selectedTag?.id == option.id {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
-                                    }
+                                searchTask = Task {
+                                    try? await Task.sleep(nanoseconds: 300_000_000)
+                                    await viewModel.searchTags(matching: trimmed)
                                 }
                             }
-                            .buttonStyle(.plain)
+
+                        if visibleTags.isEmpty {
+                            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            } else {
+                                Text("No tags match your search yet.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            }
+                        } else {
+                            ForEach(visibleTags) { option in
+                                Button {
+                                    selectedTag = option
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(option.label)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+
+                                            if let subtitle = option.subtitle {
+                                                Text(subtitle)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        Spacer()
+                                        if selectedTag?.id == option.id {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.green)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
