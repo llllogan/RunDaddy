@@ -55,6 +55,7 @@ model User {
   createdInvites InviteCode[] @relation("InviteCreator")
   usedInvites    InviteCode[] @relation("InviteUsedBy")
   packingSessions PackingSession[]
+  notes Note[] @relation("NoteAuthors")
 }
 
 model Membership {
@@ -87,6 +88,7 @@ model Company {
   machines       Machine[]
   inviteCodes    InviteCode[]
   skus           SKU[]
+  notes          Note[]
   tier           TierConsts @relation(fields: [tierId], references: [id], onDelete: Restrict)
 
   @@index([tierId])
@@ -112,6 +114,7 @@ model Location {
   company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   machines Machine[]
   locationOrders RunLocationOrder[]
+  notes    Note[]
 
   @@index([companyId])
 }
@@ -129,6 +132,7 @@ model Machine {
   location      Location?   @relation(fields: [locationId], references: [id], onDelete: SetNull)
   coils         Coil[]
   chocolateBoxes ChocolateBox[]
+  notes         Note[]
 
   @@unique([companyId, code])
   @@index([code])
@@ -178,6 +182,7 @@ model SKU {
 
   company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   coilItems CoilItem[]
+  notes     Note[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -200,6 +205,7 @@ model Run {
   chocolateBoxes ChocolateBox[]
   locationOrders RunLocationOrder[]
   packingSessions PackingSession[]
+  notes           Note[]
 
   @@index([runnerId])
   @@index([companyId])
@@ -322,4 +328,30 @@ model TierConsts {
   canBreakDownRun Boolean @default(false)
 
   companies Company[]
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  companyId  String
+  runId      String?
+  skuId      String?
+  machineId  String?
+  locationId String?
+  body       String
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  run      Run?    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sku      SKU?    @relation(fields: [skuId], references: [id], onDelete: SetNull)
+  machine  Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  author   User?    @relation("NoteAuthors", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([runId])
+  @@index([skuId])
+  @@index([machineId])
+  @@index([locationId])
+  @@index([createdAt])
 }

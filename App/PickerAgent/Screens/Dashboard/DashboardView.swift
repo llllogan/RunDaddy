@@ -31,6 +31,7 @@ struct DashboardView: View {
     @State private var suggestionsErrorMessage: String?
     @State private var searchDisplayState: SearchDisplayState = .dashboard
     @State private var notifications: [InAppNotification] = []
+    @State private var showingCompanyNotes = false
     private let searchService = SearchService()
     @State private var searchDebounceTask: Task<Void, Never>?
 
@@ -73,6 +74,30 @@ struct DashboardView: View {
             symbolName: "flag.checkered",
             symbolTint: Color.green,
             isProminent: true
+        )
+    }
+
+    private var notesBentoItem: BentoItem {
+        let value: String
+        if let count = viewModel.recentNotesCount {
+            value = "\(count)"
+        } else if viewModel.isLoading {
+            value = "…"
+        } else {
+            value = "0"
+        }
+
+        return BentoItem(
+            title: "Notes",
+            value: value,
+            subtitle: "Today + yesterday",
+            symbolName: "note.text",
+            symbolTint: .purple,
+            isProminent: true,
+            onTap: {
+                showingCompanyNotes = true
+            },
+            showsChevron: true
         )
     }
 
@@ -142,6 +167,11 @@ struct DashboardView: View {
             await viewModel.loadRuns(force: true)
             await momentumViewModel.loadSnapshot(force: true)
             await momentumViewModel.loadPickEntryBreakdown(force: true)
+        }
+        .navigationDestination(isPresented: $showingCompanyNotes) {
+            CompanyNotesView(session: session) { updatedCount in
+                viewModel.recentNotesCount = updatedCount
+            }
         }
         .sheet(isPresented: $isShowingProfile) {
             ProfileView(
@@ -414,6 +444,14 @@ struct DashboardView: View {
                 } else {
                     EmptyStateRow(message: "Momentum data will appear once this week's picks get underway.")
                 }
+            }
+        }
+
+        if hasCompany {
+            Section("Notes") {
+                StaggeredBentoGrid(items: [notesBentoItem], columnCount: 1)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
             }
         }
     }

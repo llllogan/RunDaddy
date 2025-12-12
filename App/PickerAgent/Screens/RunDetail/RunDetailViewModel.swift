@@ -110,6 +110,7 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var companyLocation: String?
     @Published private(set) var currentMembershipRole: String?
     @Published private(set) var locationSchedules: [String: LocationSchedule] = [:]
+    @Published var noteCount: Int?
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -120,6 +121,7 @@ final class RunDetailViewModel: ObservableObject {
     private let companyService: CompanyServicing
     private let authService: AuthServicing
     private let locationsService: LocationsServicing
+    private let notesService: NotesServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
     var pendingUnassignedPickItems: [RunDetail.PickItem] {
@@ -133,7 +135,8 @@ final class RunDetailViewModel: ObservableObject {
         service: RunsServicing,
         companyService: CompanyServicing? = nil,
         authService: AuthServicing? = nil,
-        locationsService: LocationsServicing? = nil
+        locationsService: LocationsServicing? = nil,
+        notesService: NotesServicing? = nil
     ) {
         self.runId = runId
         self.session = session
@@ -141,6 +144,7 @@ final class RunDetailViewModel: ObservableObject {
         self.companyService = companyService ?? CompanyService()
         self.authService = authService ?? AuthService()
         self.locationsService = locationsService ?? LocationsService()
+        self.notesService = notesService ?? NotesService()
     }
 
     func load(force: Bool = false) async {
@@ -172,6 +176,9 @@ final class RunDetailViewModel: ObservableObject {
             self.currentMembershipRole = companyContext.role
             rebuildLocationData(from: detail)
             await refreshLocationSchedules(from: detail.locations)
+            Task {
+                await self.loadRunNoteCount()
+            }
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -186,6 +193,7 @@ final class RunDetailViewModel: ObservableObject {
             locationContextsByID = [:]
             locationOrders = []
             locationSchedules = [:]
+            noteCount = nil
         }
 
         isLoading = false
@@ -242,7 +250,7 @@ final class RunDetailViewModel: ObservableObject {
             }
         }
     }
-    
+
     func startPackingSession(categories: [String?]?) async throws -> PackingSession {
         let session = try await service.createPackingSession(for: runId, categories: categories, credentials: session.credentials)
         activePackingSessionId = session.id
@@ -587,6 +595,21 @@ final class RunDetailViewModel: ObservableObject {
         
         if packedCoils >= totalCoils && detail?.status != "READY" {
             await updateRunStatus(to: "READY")
+        }
+    }
+
+    func loadRunNoteCount() async {
+        do {
+            let response = try await notesService.fetchNotes(
+                runId: runId,
+                includePersistentForRun: true,
+                recentDays: nil,
+                limit: 1,
+                credentials: session.credentials
+            )
+            noteCount = response.total
+        } catch {
+            noteCount = nil
         }
     }
 

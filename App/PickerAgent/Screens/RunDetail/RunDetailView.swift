@@ -23,6 +23,7 @@ struct RunDetailView: View {
     @State private var locationPendingDeletion: RunLocationSection?
     @State private var deletingLocationIDs: Set<String> = []
     @State private var notifications: [InAppNotification] = []
+    @State private var showingRunNotes = false
     
     // Check if run is 100% complete
     private var isRunComplete: Bool {
@@ -62,6 +63,9 @@ struct RunDetailView: View {
                             pendingItemsTap: {
                                 showingPendingEntries = true
                             },
+                            notesTap: {
+                                showingRunNotes = true
+                            },
                             freshChestChips: viewModel.runFreshChestChips
                         )
                             .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
@@ -98,6 +102,16 @@ struct RunDetailView: View {
                 runId: viewModel.detail?.id ?? viewModel.runId,
                 session: viewModel.session,
                 service: viewModel.service
+            )
+        }
+        .navigationDestination(isPresented: $showingRunNotes) {
+            RunNotesView(
+                runId: viewModel.detail?.id ?? viewModel.runId,
+                session: viewModel.session,
+                runDetail: viewModel.detail,
+                onNotesUpdated: { updatedCount in
+                    viewModel.noteCount = updatedCount
+                }
             )
         }
         .task {

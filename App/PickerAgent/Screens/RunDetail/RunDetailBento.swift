@@ -11,6 +11,7 @@ struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
     let pendingItemsTap: () -> Void
+    let notesTap: () -> Void
     let freshChestChips: [FreshChestSkuChip]
 
     private var packers: [RunDetail.Packer] {
@@ -192,6 +193,19 @@ struct RunOverviewBento: View {
                       onTap: pendingItemsTap,
                       showsChevron: true)
         )
+        
+        cards.append(
+            BentoItem(
+                title: "Notes",
+                value: noteCountDisplay,
+                subtitle: "Run + persistent",
+                symbolName: "note.text",
+                symbolTint: .purple,
+                isProminent: true,
+                onTap: notesTap,
+                showsChevron: true
+            )
+        )
 
         if !freshChestChips.isEmpty {
             cards.append(
@@ -228,6 +242,13 @@ struct RunOverviewBento: View {
         cards.append(totalWeightCard)
         
         return cards
+    }
+    
+    private var noteCountDisplay: String {
+        if let count = viewModel.noteCount {
+            return "\(count)"
+        }
+        return viewModel.isLoading ? "…" : "—"
     }
 
     var body: some View {

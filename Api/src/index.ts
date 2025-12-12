@@ -15,6 +15,7 @@ import { analyticsRouter } from './routes/analytics.js';
 import { adminRouter } from './routes/admin.js';
 import { machinesRouter } from './routes/machines.js';
 import { locationsRouter } from './routes/locations.js';
+import { notesRouter } from './routes/notes.js';
 
 const app = express();
 const defaultOrigins = ['http://localhost:4200'];
@@ -55,6 +56,7 @@ app.use('/api/invite-codes', inviteCodesRouter);
 app.use('/api/companies', companyRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/notes', notesRouter);
 
 if (process.env.NODE_ENV !== 'production') {
   const { debugRouter } = await import('./routes/debug.js');
