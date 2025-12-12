@@ -5,6 +5,7 @@ struct RunNotesView: View {
     @StateObject private var viewModel: RunNotesViewModel
     let onNotesUpdated: ((Int) -> Void)?
     @State private var showingComposer = false
+    @State private var editingNote: Note? = nil
 
     init(
         runId: String,
@@ -42,6 +43,22 @@ struct RunNotesView: View {
                     Section(group.dateLabel) {
                         ForEach(group.notes) { note in
                             NoteRowView(note: note)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    if viewModel.canManageNotes {
+                                        Button("Edit") {
+                                            editingNote = note
+                                            showingComposer = true
+                                        }
+                                        .tint(.blue)
+
+                                        Button("Delete", role: .destructive) {
+                                            Task {
+                                                _ = await viewModel.delete(note: note)
+                                                onNotesUpdated?(viewModel.total)
+                                            }
+                                        }
+                                    }
+                                }
                         }
                     }
                 }
@@ -73,10 +90,15 @@ struct RunNotesView: View {
             RunNoteComposer(
                 viewModel: viewModel,
                 isPresented: $showingComposer,
+                editingNote: editingNote,
                 onNoteSaved: {
+                    editingNote = nil
                     onNotesUpdated?(viewModel.total)
                 }
             )
+            .onDisappear {
+                editingNote = nil
+            }
         }
     }
 }
@@ -88,11 +110,12 @@ final class RunNotesViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published var errorMessage: String?
+    @Published private(set) var isDeleting = false
 
     let runId: String
     let tagOptions: [NoteTagOption]
 
-    private let session: AuthSession
+    let session: AuthSession
     private let notesService: NotesServicing
 
     init(
@@ -105,6 +128,14 @@ final class RunNotesViewModel: ObservableObject {
         self.session = session
         self.notesService = notesService ?? NotesService()
         self.tagOptions = RunNotesViewModel.buildTagOptions(from: runDetail)
+    }
+
+    var canManageNotes: Bool {
+        guard let rawRole = session.profile.role?.uppercased(),
+              let role = UserRole(rawValue: rawRole) else {
+            return false
+        }
+        return role == .admin || role == .owner || role == .god
     }
 
     func loadNotes(force: Bool = false) async {
@@ -171,6 +202,67 @@ final class RunNotesViewModel: ObservableObject {
                 errorMessage = "We couldn't save this note. Please try again."
             }
             return nil
+        }
+    }
+
+    func update(note: Note, body: String, tag: NoteTagOption) async -> Note? {
+        if isSaving {
+            return nil
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            let request = UpdateNoteRequest(
+                body: trimmedBody,
+                targetType: tag.type,
+                targetId: tag.id
+            )
+            let updated = try await notesService.updateNote(noteId: note.id, request: request, credentials: session.credentials)
+            if let index = notes.firstIndex(where: { $0.id == note.id }) {
+                notes[index] = updated
+            }
+            regroup()
+            errorMessage = nil
+            return updated
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let notesError = error as? NotesServiceError {
+                errorMessage = notesError.localizedDescription
+            } else {
+                errorMessage = "We couldn't save this note. Please try again."
+            }
+            return nil
+        }
+    }
+
+    func delete(note: Note) async -> Bool {
+        if isDeleting {
+            return false
+        }
+
+        isDeleting = true
+        defer { isDeleting = false }
+
+        do {
+            try await notesService.deleteNote(noteId: note.id, credentials: session.credentials)
+            notes.removeAll { $0.id == note.id }
+            total = max(total - 1, 0)
+            regroup()
+            return true
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let notesError = error as? NotesServiceError {
+                errorMessage = notesError.localizedDescription
+            } else {
+                errorMessage = "We couldn't delete this note. Please try again."
+            }
+            return false
         }
     }
 
@@ -285,20 +377,47 @@ struct NoteDayGroup: Identifiable {
 private struct RunNoteComposer: View {
     @ObservedObject var viewModel: RunNotesViewModel
     @Binding var isPresented: Bool
+    let editingNote: Note?
     let onNoteSaved: () -> Void
 
-    @State private var bodyText = ""
+    @State private var bodyText: String
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
+    @State private var searchTask: Task<Void, Never>?
+
+    init(
+        viewModel: RunNotesViewModel,
+        isPresented: Binding<Bool>,
+        editingNote: Note?,
+        onNoteSaved: @escaping () -> Void
+    ) {
+        self.viewModel = viewModel
+        self._isPresented = isPresented
+        self.editingNote = editingNote
+        self.onNoteSaved = onNoteSaved
+        _bodyText = State(initialValue: editingNote?.body ?? "")
+        if let editingNote {
+            let initialTag = NoteTagOption(
+                id: editingNote.target.id,
+                type: editingNote.target.type,
+                label: editingNote.target.label,
+                subtitle: editingNote.target.subtitle
+            )
+            _selectedTag = State(initialValue: initialTag)
+        } else {
+            _selectedTag = State(initialValue: nil)
+        }
+    }
 
     private var filteredTags: [NoteTagOption] {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else {
             return viewModel.tagOptions
         }
 
         return viewModel.tagOptions.filter { option in
-            option.label.localizedCaseInsensitiveContains(searchText)
-                || (option.subtitle?.localizedCaseInsensitiveContains(searchText) == true)
+            option.label.localizedCaseInsensitiveContains(trimmedSearch)
+                || (option.subtitle?.localizedCaseInsensitiveContains(trimmedSearch) == true)
         }
     }
 
@@ -379,7 +498,7 @@ private struct RunNoteComposer: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Add Note")
+            .navigationTitle(editingNote == nil ? "Add Note" : "Edit Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -392,13 +511,21 @@ private struct RunNoteComposer: View {
                     Button("Save") {
                         Task {
                             guard let tag = selectedTag else { return }
-                            let note = await viewModel.addNote(body: bodyText, tag: tag)
+                            let note: Note?
+                            if let editingNote {
+                                note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
+                            } else {
+                                note = await viewModel.addNote(body: bodyText, tag: tag)
+                            }
                             if note != nil {
                                 onNoteSaved()
                                 isPresented = false
                                 bodyText = ""
                                 searchText = ""
                                 selectedTag = nil
+                                if editingNote != nil {
+                                    // keep composer clean next open
+                                }
                             }
                         }
                     }

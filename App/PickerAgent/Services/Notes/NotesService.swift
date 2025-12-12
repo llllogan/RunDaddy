@@ -13,6 +13,17 @@ protocol NotesServicing {
         request: CreateNoteRequest,
         credentials: AuthCredentials
     ) async throws -> Note
+
+    func updateNote(
+        noteId: String,
+        request: UpdateNoteRequest,
+        credentials: AuthCredentials
+    ) async throws -> Note
+
+    func deleteNote(
+        noteId: String,
+        credentials: AuthCredentials
+    ) async throws
 }
 
 final class NotesService: NotesServicing {
@@ -115,6 +126,74 @@ final class NotesService: NotesServicing {
         }
 
         return try decoder.decode(Note.self, from: data)
+    }
+
+    func updateNote(
+        noteId: String,
+        request: UpdateNoteRequest,
+        credentials: AuthCredentials
+    ) async throws -> Note {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("notes")
+        url.appendPathComponent(noteId)
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PATCH"
+        urlRequest.httpShouldHandleCookies = true
+        urlRequest.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, response) = try await urlSession.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw NotesServiceError.notFound
+            }
+            if httpResponse.statusCode == 400 {
+                throw NotesServiceError.invalidRequest
+            }
+            throw NotesServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        return try decoder.decode(Note.self, from: data)
+    }
+
+    func deleteNote(
+        noteId: String,
+        credentials: AuthCredentials
+    ) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("notes")
+        url.appendPathComponent(noteId)
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.httpShouldHandleCookies = true
+        urlRequest.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await urlSession.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw NotesServiceError.notFound
+            }
+            throw NotesServiceError.serverError(code: httpResponse.statusCode)
+        }
     }
 }
 

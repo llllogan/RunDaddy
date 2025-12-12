@@ -39,6 +39,12 @@ struct CreateNoteRequest: Encodable {
     let targetId: String
 }
 
+struct UpdateNoteRequest: Encodable {
+    let body: String?
+    let targetType: NoteTargetType?
+    let targetId: String?
+}
+
 struct NoteTagOption: Identifiable, Equatable {
     let id: String
     let type: NoteTargetType

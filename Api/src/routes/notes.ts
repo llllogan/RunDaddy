@@ -7,6 +7,7 @@ import { setLogConfig } from '../middleware/logging.js';
 import { ensureRun } from './helpers/runs.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
+import { isCompanyManager } from './helpers/authorization.js';
 
 const router = Router();
 
@@ -20,6 +21,12 @@ const createNoteSchema = z.object({
   runId: z.string().cuid().optional().nullable(),
   targetType: z.enum(['sku', 'machine', 'location']),
   targetId: z.string().cuid(),
+});
+
+const updateNoteSchema = z.object({
+  body: z.string().trim().min(1).max(MAX_BODY_LENGTH).optional(),
+  targetType: z.enum(['sku', 'machine', 'location']).optional(),
+  targetId: z.string().cuid().optional(),
 });
 
 const listNotesSchema = z.object({
@@ -78,6 +85,10 @@ router.use(authenticate);
 router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
   }
 
   if (!req.auth.companyId) {
@@ -241,6 +252,116 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   });
 
   return res.status(201).json(serializeNote(created));
+});
+
+router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update notes' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
+  }
+
+  const noteId = req.params.noteId?.trim();
+  if (!noteId) {
+    return res.status(400).json({ error: 'Note ID is required' });
+  }
+
+  const parsed = updateNoteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const existing = await prisma.note.findUnique({
+    where: { id: noteId },
+    include: {
+      sku: true,
+      machine: { include: { location: true, machineType: true } },
+      location: true,
+    },
+  });
+
+  if (!existing || existing.companyId !== req.auth.companyId) {
+    return res.status(404).json({ error: 'Note not found' });
+  }
+
+  if (existing.runId) {
+    const run = await ensureRun(req.auth.companyId, existing.runId);
+    if (!run) {
+      return res.status(404).json({ error: 'Run not found' });
+    }
+    if (parsed.data.targetType && parsed.data.targetId) {
+      const runContext = buildRunContext(run);
+      if (!isTargetInRun(parsed.data.targetType, parsed.data.targetId, runContext)) {
+        return res.status(400).json({ error: 'Selected tag is not part of this run' });
+      }
+    }
+  }
+
+  let targetFieldUpdates: Prisma.NoteUpdateInput = {};
+  if (parsed.data.targetType && parsed.data.targetId) {
+    const target = await ensureTarget(req.auth.companyId, parsed.data.targetType, parsed.data.targetId);
+    if (!target) {
+      return res.status(404).json({ error: 'Target not found for this company' });
+    }
+
+    targetFieldUpdates = {
+      skuId: parsed.data.targetType === 'sku' ? parsed.data.targetId : null,
+      machineId: parsed.data.targetType === 'machine' ? parsed.data.targetId : null,
+      locationId: parsed.data.targetType === 'location' ? parsed.data.targetId : null,
+    };
+  }
+
+  const updated = await prisma.note.update({
+    where: { id: noteId },
+    data: {
+      body: parsed.data.body?.trim() ?? existing.body,
+      ...targetFieldUpdates,
+    },
+    include: {
+      sku: true,
+      machine: { include: { location: true, machineType: true } },
+      location: true,
+    },
+  });
+
+  return res.json(serializeNote(updated));
+});
+
+router.delete('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to delete notes' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to modify notes' });
+  }
+
+  const noteId = req.params.noteId?.trim();
+  if (!noteId) {
+    return res.status(400).json({ error: 'Note ID is required' });
+  }
+
+  const existing = await prisma.note.findUnique({
+    where: { id: noteId },
+    select: { id: true, companyId: true },
+  });
+
+  if (!existing || existing.companyId !== req.auth.companyId) {
+    return res.status(404).json({ error: 'Note not found' });
+  }
+
+  await prisma.note.delete({ where: { id: noteId } });
+  return res.status(204).send();
 });
 
 export const notesRouter = router;
