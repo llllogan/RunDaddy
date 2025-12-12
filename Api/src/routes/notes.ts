@@ -67,17 +67,19 @@ type RunNoteContext = {
   locationIds: Set<string>;
 };
 
+const noteInclude = {
+  sku: true,
+  machine: {
+    include: {
+      location: true,
+      machineType: true,
+    },
+  },
+  location: true,
+} satisfies Prisma.NoteInclude;
+
 type NoteWithRelations = Prisma.NoteGetPayload<{
-  include: {
-    sku: true;
-    machine: {
-      include: {
-        location: true;
-        machineType: true;
-      };
-    };
-    location: true;
-  };
+  include: typeof noteInclude;
 }>;
 
 router.use(authenticate);
@@ -98,7 +100,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
   const { runId, includePersistentForRun = true, recentDays, limit, timezone } = parsed.data;
   const companyId = req.auth.companyId;
-  const filters: Prisma.NoteWhereInput[] = [{ companyId }];
+  const filters: [Prisma.NoteWhereInput, ...Prisma.NoteWhereInput[]] = [{ companyId }];
 
   // Apply date window if requested (e.g., today + yesterday)
   if (recentDays) {
@@ -159,7 +161,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     filters.push({ OR: runFilters });
   }
 
-  const where = filters.length === 1 ? filters[0] : { AND: filters };
+  const where: Prisma.NoteWhereInput = filters.length === 1 ? filters[0] : { AND: filters };
   const take = Math.min(limit ?? DEFAULT_LIMIT, MAX_NOTES);
 
   const [total, notes] = await prisma.$transaction([
@@ -168,16 +170,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
       where,
       orderBy: { createdAt: 'desc' },
       take,
-      include: {
-        sku: true,
-        machine: {
-          include: {
-            location: true,
-            machineType: true,
-          },
-        },
-        location: true,
-      },
+      include: noteInclude,
     }),
   ]);
 
@@ -235,16 +228,7 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
       machineId: targetType === 'machine' ? targetId : null,
       locationId: targetType === 'location' ? targetId : null,
     },
-    include: {
-      sku: true,
-      machine: {
-        include: {
-          location: true,
-          machineType: true,
-        },
-      },
-      location: true,
-    },
+    include: noteInclude,
   });
 
   return res.status(201).json(serializeNote(created));
@@ -295,7 +279,7 @@ router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =>
     }
   }
 
-  let targetFieldUpdates: Prisma.NoteUpdateInput = {};
+  let targetFieldUpdates: Prisma.NoteUncheckedUpdateInput = {};
   if (parsed.data.targetType && parsed.data.targetId) {
     const target = await ensureTarget(req.auth.companyId, parsed.data.targetType, parsed.data.targetId);
     if (!target) {
@@ -315,11 +299,7 @@ router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =>
       body: parsed.data.body?.trim() ?? existing.body,
       ...targetFieldUpdates,
     },
-    include: {
-      sku: true,
-      machine: { include: { location: true, machineType: true } },
-      location: true,
-    },
+    include: noteInclude,
   });
 
   return res.json(serializeNote(updated));
