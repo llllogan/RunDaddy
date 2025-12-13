@@ -804,15 +804,25 @@ router.get('/stats', setLogConfig({ level: 'minimal' }), async (req, res) => {
   return res.json({ totalRuns, averageRunsPerDay });
 });
 
-// Get all runs for the company
+// Get all runs for the company (or all companies for lighthouse)
 router.get('/all', async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Return empty array for users without company
-  if (!req.auth.companyId) {
+  const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : null;
+
+  const isLighthouse = Boolean(req.auth.lighthouse);
+  const effectiveCompanyId = requestedCompanyId ?? req.auth.companyId ?? null;
+
+  // Require a specific company to scope runs
+  if (!effectiveCompanyId) {
     return res.json([]);
+  }
+
+  // Non-lighthouse users cannot switch companies via query params
+  if (!isLighthouse && effectiveCompanyId !== req.auth.companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { limit = 50, offset = 0 } = req.query;
@@ -837,7 +847,7 @@ router.get('/all', async (req, res) => {
         runner_last_name,
         location_count
       FROM v_run_daily_locations
-      WHERE company_id = ${req.auth.companyId}
+      WHERE company_id = ${effectiveCompanyId}
       ORDER BY scheduled_for DESC, run_created_at DESC
       LIMIT ${limitNum}
       OFFSET ${offsetNum}

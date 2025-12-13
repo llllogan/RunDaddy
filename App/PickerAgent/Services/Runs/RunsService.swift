@@ -381,12 +381,6 @@ final class RunsService: RunsServicing {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
-                // Check if this is a "no membership" error vs a real auth error
-                if let responseString = String(data: data, encoding: .utf8),
-                   responseString.contains("Membership") || responseString.contains("company") {
-                    // User has no company membership - return empty array instead of error
-                    return []
-                }
                 throw AuthError.unauthorized
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
@@ -429,7 +423,15 @@ final class RunsService: RunsServicing {
         url.appendPathComponent("runs")
         url.appendPathComponent("all")
 
-        var request = URLRequest(url: url)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        if let selectedCompanyId = UserDefaults.standard.string(forKey: "pickeragent_selected_company_id") {
+            var queryItems = components?.queryItems ?? []
+            queryItems.append(URLQueryItem(name: "companyId", value: selectedCompanyId))
+            components?.queryItems = queryItems
+        }
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
@@ -443,12 +445,6 @@ final class RunsService: RunsServicing {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
-                // Check if this is a "no membership" error vs a real auth error
-                if let responseString = String(data: data, encoding: .utf8),
-                   responseString.contains("Membership") || responseString.contains("company") {
-                    // User has no company membership - return empty array instead of error
-                    return []
-                }
                 throw AuthError.unauthorized
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)

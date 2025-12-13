@@ -25,6 +25,8 @@ class ProfileViewModel: ObservableObject {
     @Published var companyLocationAddress: String = ""
     @Published var isUpdatingLocation = false
     
+    private let selectedCompanyDefaultsKey = "pickeragent_selected_company_id"
+    
     let authService: AuthServicing
     private let inviteCodesService: InviteCodesServicing
     private let companyService = CompanyService()
@@ -55,6 +57,9 @@ class ProfileViewModel: ObservableObject {
                     companies = profile.companies
                     companyLocationAddress = profile.currentCompany?.location ?? ""
                     companyTimezoneIdentifier = profile.currentCompany?.timeZone ?? TimeZone.current.identifier
+                    if let companyId = profile.currentCompany?.id {
+                        UserDefaults.standard.set(companyId, forKey: selectedCompanyDefaultsKey)
+                    }
 
                     if let companyId = profile.currentCompany?.id {
                         Task {
@@ -158,6 +163,7 @@ class ProfileViewModel: ObservableObject {
         do {
             let updatedCredentials = try await authService.switchCompany(companyId: company.id, credentials: credentials)
             authService.store(credentials: updatedCredentials)
+            UserDefaults.standard.set(company.id, forKey: selectedCompanyDefaultsKey)
             loadUserInfo()
             return true
         } catch let switchError as SwitchCompanyError {
