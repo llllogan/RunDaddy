@@ -21,68 +21,66 @@ struct AllRunsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let message = viewModel.errorMessage {
-                    Section {
-                        ErrorStateRow(message: message)
-                    }
+        List {
+            if let message = viewModel.errorMessage {
+                Section {
+                    ErrorStateRow(message: message)
                 }
+            }
 
-                if viewModel.isLoading && viewModel.runsByDate.isEmpty {
-                    LoadingStateRow()
-                } else if viewModel.runsByDate.isEmpty {
-                    EmptyStateRow(message: "No runs found")
-                } else {
-                    ForEach(viewModel.runsByDate, id: \.date) { dateSection in
-                        Section(dateSection.headerText) {
-                            ForEach(dateSection.runs) { run in
-                                NavigationLink {
-                                    RunDetailView(runId: run.id, session: session)
+            if viewModel.isLoading && viewModel.runsByDate.isEmpty {
+                LoadingStateRow()
+            } else if viewModel.runsByDate.isEmpty {
+                EmptyStateRow(message: "No runs found")
+            } else {
+                ForEach(viewModel.runsByDate, id: \.date) { dateSection in
+                    Section(dateSection.headerText) {
+                        ForEach(dateSection.runs) { run in
+                            NavigationLink {
+                                RunDetailView(runId: run.id, session: session)
+                            } label: {
+                                RunRow(run: run, currentUserId: session.credentials.userID)
+                            }
+                            .disabled(deletingRunIds.contains(run.id))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    runToDelete = run
+                                    showingDeleteAlert = true
                                 } label: {
-                                    RunRow(run: run, currentUserId: session.credentials.userID)
+                                    Label("Delete", systemImage: "trash")
                                 }
-                                .disabled(deletingRunIds.contains(run.id))
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button {
-                                        runToDelete = run
-                                        showingDeleteAlert = true
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                    .tint(.red)
-                                }
+                                .tint(.red)
                             }
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("All Runs")
-            .task {
-                await viewModel.loadRuns()
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("All Runs")
+        .task {
+            await viewModel.loadRuns()
+        }
+        .refreshable {
+            await viewModel.loadRuns(force: true)
+        }
+        .alert("Delete Run", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {
+                runToDelete = nil
             }
-            .refreshable {
-                await viewModel.loadRuns(force: true)
-            }
-            .alert("Delete Run", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) {
-                    runToDelete = nil
-                }
-                Button("Delete", role: .destructive) {
-                    if let run = runToDelete {
-                        Task {
-                            await deleteRun(run)
-                        }
+            Button("Delete", role: .destructive) {
+                if let run = runToDelete {
+                    Task {
+                        await deleteRun(run)
                     }
                 }
-            } message: {
-                if let run = runToDelete {
-                    let locationText = run.locationCount == 1 ? "location" : "locations"
-                    Text("Are you sure you want to delete run with \(run.locationCount) \(locationText)? This action cannot be undone.")
-                } else {
-                    Text("Are you sure you want to delete this run? This action cannot be undone.")
-                }
+            }
+        } message: {
+            if let run = runToDelete {
+                let locationText = run.locationCount == 1 ? "location" : "locations"
+                Text("Are you sure you want to delete run with \(run.locationCount) \(locationText)? This action cannot be undone.")
+            } else {
+                Text("Are you sure you want to delete this run? This action cannot be undone.")
             }
         }
     }

@@ -240,6 +240,7 @@ struct RunDetailView: View {
                 }
             }
         }
+        .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showingCategorySheet) {
             PackingCategorySelectionSheet(
                 categories: categoryOptions,

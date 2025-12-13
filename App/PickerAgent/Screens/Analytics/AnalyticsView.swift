@@ -22,105 +22,103 @@ struct AnalyticsView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Items Stocked") {
-                    SkuBreakdownChartView(
-                        viewModel: chartsViewModel,
-                        refreshTrigger: chartRefreshTrigger,
-                        showAggregationControls: false
+        List {
+            Section("Items Stocked") {
+                SkuBreakdownChartView(
+                    viewModel: chartsViewModel,
+                    refreshTrigger: chartRefreshTrigger,
+                    showAggregationControls: false
+                )
+                    .background(cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color(.separator).opacity(0.25))
                     )
-                        .background(cardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(Color(.separator).opacity(0.25))
-                        )
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
-                    BreakdownExtremaBento(
-                        highMark: chartsViewModel.skuBreakdownHighMark,
-                        lowMark: chartsViewModel.skuBreakdownLowMark,
-                        aggregation: chartsViewModel.skuBreakdownAggregation,
-                        timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
-                        percentageChange: chartsViewModel.skuBreakdownPercentageChange,
-                        periodDelta: chartsViewModel.skuBreakdownPeriodDelta
-                    )
-                    .padding(.top, 12)
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-                Section("Week-over-week Growth") {
-                    WeeklyPickChangeChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .padding(.top, 10)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                }
-                Section("Total Machines Stocked Per Week") {
-                    MachineTouchesChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                }
+                BreakdownExtremaBento(
+                    highMark: chartsViewModel.skuBreakdownHighMark,
+                    lowMark: chartsViewModel.skuBreakdownLowMark,
+                    aggregation: chartsViewModel.skuBreakdownAggregation,
+                    timeZoneIdentifier: chartsViewModel.skuBreakdownTimeZone,
+                    percentageChange: chartsViewModel.skuBreakdownPercentageChange,
+                    periodDelta: chartsViewModel.skuBreakdownPeriodDelta
+                )
+                .padding(.top, 12)
+                .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+            Section("Week-over-week Growth") {
+                WeeklyPickChangeChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    .padding(.top, 10)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
+            Section("Total Machines Stocked Per Week") {
+                MachineTouchesChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
 //                Section("Packing Pace") {
 //                    PeriodComparisonChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
 //                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 //                }
-                Section("Top Locations") {
-                    TopLocationsChartView(
-                        viewModel: chartsViewModel,
-                        refreshTrigger: chartRefreshTrigger,
-                        showRangePicker: false
-                    )
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            Section("Top Locations") {
+                TopLocationsChartView(
+                    viewModel: chartsViewModel,
+                    refreshTrigger: chartRefreshTrigger,
+                    showRangePicker: false
+                )
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 
-                }
-                Section("Top SKUs") {
-                    TopSkusChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                }
+            }
+            Section("Top SKUs") {
+                TopSkusChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
 //                Section("Total Items vs Packed") {
 //                    DailyInsightsChartView(viewModel: chartsViewModel, refreshTrigger: chartRefreshTrigger)
 //                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
 //                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Analytics")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
-                            Button {
-                                applyAggregation(aggregation)
-                            } label: {
-                                HStack {
-                                    Text(aggregation.displayName)
-                                    if aggregation == selectedAggregation {
-                                        Image(systemName: "checkmark")
-                                    }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Analytics")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(PickEntryBreakdown.Aggregation.allCases) { aggregation in
+                        Button {
+                            applyAggregation(aggregation)
+                        } label: {
+                            HStack {
+                                Text(aggregation.displayName)
+                                if aggregation == selectedAggregation {
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
-                    } label: {
-                        Label(selectedAggregation.displayName, systemImage: "calendar")
                     }
+                } label: {
+                    Label(selectedAggregation.displayName, systemImage: "calendar")
                 }
             }
-            .refreshable {
-                chartRefreshTrigger.toggle()
+        }
+        .refreshable {
+            chartRefreshTrigger.toggle()
+        }
+        .onChange(of: chartsViewModel.skuBreakdownAggregation, initial: true) { _, newValue in
+            if selectedAggregation != newValue {
+                selectedAggregation = newValue
             }
-            .onChange(of: chartsViewModel.skuBreakdownAggregation, initial: true) { _, newValue in
-                if selectedAggregation != newValue {
-                    selectedAggregation = newValue
-                }
-                if chartsViewModel.topLocationsLookbackDays != newValue.baseDays {
-                    chartsViewModel.updateTopLocationsLookbackDays(newValue.baseDays)
-                }
+            if chartsViewModel.topLocationsLookbackDays != newValue.baseDays {
+                chartsViewModel.updateTopLocationsLookbackDays(newValue.baseDays)
             }
-            .onChange(of: session, initial: false) { _, newSession in
-                chartsViewModel.updateSession(newSession)
-            }
+        }
+        .onChange(of: session, initial: false) { _, newSession in
+            chartsViewModel.updateSession(newSession)
         }
     }
 

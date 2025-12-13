@@ -16,7 +16,7 @@ struct RootView: View {
             case .loading:
                 LoadingStateView()
             case let .authenticated(session):
-                DashboardView(session: session) {
+                MainTabView(session: session) {
                     authViewModel.logout()
                 }
             case .login:
