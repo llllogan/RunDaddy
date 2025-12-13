@@ -1,90 +1,184 @@
 import SwiftUI
 
-private enum SearchDisplayState {
-    case idle
-    case suggestions
-    case results
-}
-
 struct MainTabView: View {
-    enum Tab {
-        case runs
-        case analytics
-        case notes
-    }
-
     let session: AuthSession
     let logoutAction: () -> Void
 
-    @State private var selectedTab: Tab = .runs
+    @State private var isShowingProfile = false
+
+    var body: some View {
+        tabView
+        .sheet(isPresented: $isShowingProfile) {
+            ProfileView(
+                isPresentedAsSheet: true,
+                onDismiss: {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        isShowingProfile = false
+                    }
+                },
+                onLogout: logoutAction
+            )
+            .presentationDetents([.large])
+            .presentationCornerRadius(28)
+            .presentationDragIndicator(.visible)
+            .presentationCompactAdaptation(.fullScreenCover)
+        }
+    }
+}
+
+private extension MainTabView {
+    var tabView: some View {
+        TabView {
+            Tab("Runs", systemImage: "flag.checkered") {
+                RunsTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+            }
+
+            Tab("Analytics", systemImage: "chart.bar") {
+                AnalyticsTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+            }
+
+            Tab("Notes", systemImage: "note.text") {
+                NotesTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+            }
+
+            Tab(role: .search) {
+                SearchTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+            }
+        }
+    }
+}
+
+private struct RunsTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
+
+    var body: some View {
+        NavigationStack {
+            AllRunsView(session: session)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        profileButton
+                    }
+                }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
+    }
+}
+
+private struct AnalyticsTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
+
+    var body: some View {
+        NavigationStack {
+            AnalyticsView(session: session)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        profileButton
+                    }
+                }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
+    }
+}
+
+private struct NotesTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
+
+    var body: some View {
+        NavigationStack {
+            CompanyNotesView(session: session)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        profileButton
+                    }
+                }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
+    }
+}
+
+private struct SearchTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
 
     @State private var searchText = ""
     @State private var searchResults: [SearchResult] = []
     @State private var suggestions: [SearchResult] = []
-    @State private var isSearchPresented = false
     @State private var isSearching = false
     @State private var isLoadingSuggestions = false
     @State private var suggestionsErrorMessage: String?
-    @State private var searchDisplayState: SearchDisplayState = .idle
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var isShowingProfile = false
-
     private let searchService = SearchService()
+
+    private var isShowingSuggestions: Bool {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                TabView(selection: $selectedTab) {
-                    RunsTab(session: session)
-                        .tabItem {
-                            Label("Runs", systemImage: "flag.checkered")
-                        }
-                        .tag(Tab.runs)
-
-                    AnalyticsTab(session: session)
-                        .tabItem {
-                            Label("Analytics", systemImage: "chart.bar")
-                        }
-                        .tag(Tab.analytics)
-
-                    NotesTab(session: session)
-                        .tabItem {
-                            Label("Notes", systemImage: "note.text")
-                        }
-                        .tag(Tab.notes)
-                }
-                .toolbar {
-                    if searchDisplayState == .idle {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                                    isShowingProfile = true
-                                }
-                            } label: {
-                                Label("Profile", systemImage: "person.fill")
-                            }
-                        }
-                    }
-                }
-
-                if searchDisplayState != .idle {
-                    searchOverlay
+            List {
+                if isShowingSuggestions {
+                    suggestionsSection()
+                } else {
+                    searchResultsSection()
                 }
             }
-            .searchable(
-                text: $searchText,
-                isPresented: $isSearchPresented,
-                prompt: "Search locations, machines, SKUs..."
-            )
+            .listStyle(.insetGrouped)
+            .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    profileButton
+                }
+            }
+            .searchable(text: $searchText, prompt: "Search locations, machines, SKUs...")
             .onSubmit(of: .search) {
                 performSearch()
             }
             .onChange(of: searchText) { _, newValue in
                 handleSearchTextChange(newValue)
-            }
-            .onChange(of: isSearchPresented) { _, isPresented in
-                handleSearchPresentationChange(isPresented)
             }
             .onChange(of: suggestionsErrorMessage) { _, _ in
                 refreshNotifications()
@@ -95,66 +189,26 @@ struct MainTabView: View {
                 }
                 notifications.removeAll(where: { $0.id == notification.id })
             }
-            .sheet(isPresented: $isShowingProfile) {
-                ProfileView(
-                    isPresentedAsSheet: true,
-                    onDismiss: {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                            isShowingProfile = false
-                        }
-                    },
-                    onLogout: logoutAction
-                )
-                .presentationDetents([.large])
-                .presentationCornerRadius(28)
-                .presentationDragIndicator(.visible)
-                .presentationCompactAdaptation(.fullScreenCover)
+            .overlay {
+                if isSearching {
+                    ProgressView("Searching...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
+                }
+            }
+            .onAppear {
+                if suggestions.isEmpty {
+                    loadSuggestionsIfNeeded()
+                }
             }
             .onDisappear {
                 searchDebounceTask?.cancel()
             }
         }
     }
-}
-
-private extension MainTabView {
-    var searchOverlay: some View {
-        VStack {
-            List {
-                switch searchDisplayState {
-                case .results:
-                    searchResultsSection()
-                case .suggestions:
-                    suggestionsSection()
-                case .idle:
-                    EmptyView()
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Search")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismissSearch()
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground).ignoresSafeArea())
-        .overlay {
-            if isSearching {
-                ProgressView("Searching...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemBackground))
-            }
-        }
-        .transition(.opacity)
-    }
 
     @ViewBuilder
-    func searchResultsSection() -> some View {
+    private func searchResultsSection() -> some View {
         Section("Results") {
             if searchResults.isEmpty {
                 Text("No results found")
@@ -173,7 +227,7 @@ private extension MainTabView {
     }
 
     @ViewBuilder
-    func suggestionsSection() -> some View {
+    private func suggestionsSection() -> some View {
         Section("Suggestions") {
             if isLoadingSuggestions {
                 HStack(spacing: 12) {
@@ -201,36 +255,12 @@ private extension MainTabView {
     }
 
     private func handleSearchTextChange(_ newValue: String) {
-        if newValue.isEmpty {
+        if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             searchResults = []
-            searchDisplayState = isSearchPresented ? .suggestions : .idle
             searchDebounceTask?.cancel()
         } else {
-            searchDisplayState = .results
             scheduleDebouncedSearch(for: newValue)
         }
-    }
-
-    private func handleSearchPresentationChange(_ isPresented: Bool) {
-        if isPresented {
-            searchDisplayState = searchText.isEmpty ? .suggestions : .results
-            loadSuggestionsIfNeeded()
-        } else {
-            dismissSearch()
-        }
-    }
-
-    private func dismissSearch() {
-        searchDebounceTask?.cancel()
-        searchDebounceTask = nil
-        searchText = ""
-        searchResults = []
-        suggestions = []
-        suggestionsErrorMessage = nil
-        isSearchPresented = false
-        isSearching = false
-        isLoadingSuggestions = false
-        searchDisplayState = .idle
     }
 
     private func refreshNotifications() {
@@ -299,14 +329,12 @@ private extension MainTabView {
 
         guard !trimmedQuery.isEmpty else {
             searchResults = []
-            searchDisplayState = isSearchPresented ? .suggestions : .idle
             isSearching = false
             return
         }
 
         isSearching = true
         searchResults = []
-        searchDisplayState = .results
         let activeQuery = trimmedQuery
         Task {
             do {
@@ -396,29 +424,15 @@ private extension MainTabView {
             return ("magnifyingglass", .gray)
         }
     }
-}
 
-private struct RunsTab: View {
-    let session: AuthSession
-
-    var body: some View {
-        AllRunsView(session: session)
-    }
-}
-
-private struct AnalyticsTab: View {
-    let session: AuthSession
-
-    var body: some View {
-        AnalyticsView(session: session)
-    }
-}
-
-private struct NotesTab: View {
-    let session: AuthSession
-
-    var body: some View {
-        CompanyNotesView(session: session)
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
     }
 }
 

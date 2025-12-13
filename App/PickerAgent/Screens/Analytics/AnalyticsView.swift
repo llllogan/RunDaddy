@@ -183,13 +183,13 @@ private struct BreakdownExtremaBento: View {
 
     private var changeCard: BentoItem {
         guard let percentageChange else {
-        return BentoItem(
-            id: "analytics-change",
-            title: "Change",
-            value: "No data",
-            symbolName: "arrow.left.and.right",
-            symbolTint: .secondary
-        )
+            return BentoItem(
+                id: "analytics-change",
+                title: "Change",
+                value: "No data",
+                symbolName: "arrow.left.and.right",
+                symbolTint: .secondary
+            )
         }
 
         let isUp = percentageChange.trend == "up"
@@ -210,13 +210,13 @@ private struct BreakdownExtremaBento: View {
 
     private var deltaCard: BentoItem {
         guard let periodDelta else {
-        return BentoItem(
-            id: "analytics-delta",
-            title: "Delta",
-            value: "No data",
-            symbolName: "plus.forwardslash.minus",
-            symbolTint: .secondary
-        )
+            return BentoItem(
+                id: "analytics-delta",
+                title: "Delta",
+                value: "No data",
+                symbolName: "plus.forwardslash.minus",
+                symbolTint: .secondary
+            )
         }
 
         let isPositive = periodDelta > 0
