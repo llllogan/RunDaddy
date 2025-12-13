@@ -73,7 +73,7 @@ struct CompanyNotesView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Notes")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

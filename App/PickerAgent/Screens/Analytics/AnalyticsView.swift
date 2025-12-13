@@ -85,7 +85,7 @@ struct AnalyticsView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Analytics")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
