@@ -24,6 +24,7 @@ struct Note: Codable, Identifiable, Equatable {
     let runId: String?
     let createdAt: Date
     let scope: NoteScope
+    let authorName: String?
     let target: NoteTarget
 }
 

@@ -11,9 +11,21 @@ struct NoteRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(note.createdAt.formatted(date: .omitted, time: .shortened))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                if let authorLabel {
+                    Text(authorLabel)
+                        .font(.caption2.italic())
+                        .foregroundStyle(.secondary)
+                    
+                    Text("at")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(note.createdAt.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             Text(note.body)
                 .font(.body)
@@ -34,10 +46,9 @@ struct NoteRowView: View {
                     InfoChip(
                         title: "For run",
                         text: runDateText,
-                        colour: Color.blue.opacity(0.14),
-                        foregroundColour: .blue,
+                        colour: Color.orange.opacity(0.14),
+                        foregroundColour: .orange,
                         icon: "calendar",
-                        iconColour: .blue
                     )
                 }
             }
@@ -51,6 +62,11 @@ struct NoteRowView: View {
         }
 
         return runDate.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    private var authorLabel: String? {
+        let trimmed = note.authorName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

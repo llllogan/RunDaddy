@@ -76,6 +76,13 @@ const noteInclude = {
     },
   },
   location: true,
+  author: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
 } satisfies Prisma.NoteInclude;
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
@@ -414,6 +421,7 @@ function serializeNote(note: NoteWithRelations) {
     runId: note.runId,
     createdAt: note.createdAt,
     scope: note.runId ? 'run' as const : 'persistent' as const,
+    authorName: buildAuthorName(note.author),
     target,
   };
 }
@@ -464,4 +472,28 @@ function buildSkuSubtitle(name: string | null | undefined, type: string | null |
     parts.push(category.trim());
   }
   return parts.length ? parts.join(' • ') : null;
+}
+
+function buildAuthorName(
+  author: { firstName: string | null; lastName: string | null; email: string | null } | null | undefined
+) {
+  if (!author) {
+    return null;
+  }
+
+  const first = author.firstName?.trim() ?? '';
+  const last = author.lastName?.trim() ?? '';
+
+  if (first.length && last.length) {
+    return `${first} ${last}`;
+  }
+  if (first.length) {
+    return first;
+  }
+  if (last.length) {
+    return last;
+  }
+
+  const email = author.email?.trim();
+  return email && email.length ? email : null;
 }
