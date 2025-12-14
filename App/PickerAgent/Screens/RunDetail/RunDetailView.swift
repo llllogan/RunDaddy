@@ -57,20 +57,26 @@ struct RunDetailView: View {
             } else {
                 if let overview = viewModel.overview {
                     Section {
-                        RunOverviewBento(
-                            summary: overview,
-                            viewModel: viewModel,
-                            pendingItemsTap: {
-                                showingPendingEntries = true
-                            },
-                            notesTap: {
-                                showingRunNotes = true
-                            },
-                            coldChestChips: viewModel.runColdChestChips
-                        )
-                            .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                        VStack(spacing: 8) {
+                            RunOverviewBento(
+                                summary: overview,
+                                viewModel: viewModel,
+                                pendingItemsTap: {
+                                    showingPendingEntries = true
+                                },
+                                coldChestChips: viewModel.runColdChestChips
+                            )
+
+                            RunNotesBento(
+                                viewModel: viewModel,
+                                notesTap: {
+                                    showingRunNotes = true
+                                }
+                            )
+                        }
+                        .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     } header: {
                         Text("Run Overview")
                     }
@@ -110,7 +116,9 @@ struct RunDetailView: View {
                 session: viewModel.session,
                 runDetail: viewModel.detail,
                 onNotesUpdated: { updatedCount in
-                    viewModel.noteCount = updatedCount
+                    Task { @MainActor in
+                        await viewModel.loadRunNoteCounts(force: true)
+                    }
                 }
             )
         }

@@ -71,3 +71,15 @@ fastlane/test_output
 /Site/.env
 /Site/.env.local
 /Site/public/assets/env.js
+App/DerivedData/info.plist
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/865e1c7907789e08d18646faa966609a.xcbuilddata/attachments/2de6a04cdba79ed13580c47dfd70cc5f
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/865e1c7907789e08d18646faa966609a.xcbuilddata/attachments/8bba4233626f64a7ea772bb94a08a1a9
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/865e1c7907789e08d18646faa966609a.xcbuilddata/attachments/fd8314defc70a8778956f026c0ddfd19
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/PIFCache/project/PROJECT@v11_mod=d6b32120d76dcf6ef20f4f186971a9b3_hash=7ec0c0f04b4dabcfeaec6c1ea387b11bplugins=1OJSG6M1FOV3XYQCBH7Z29RZ0FPR9XDE1-json
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/PIFCache/target/TARGET@v11_hash=cf04141c8692a1bd79b02de830792483-json
+App/DerivedData/Build/Intermediates.noindex/XCBuildData/PIFCache/workspace/WORKSPACE@v11_hash=962c44b0281eddcfa740c7d0aaf0acfd_subobjects=07b7080c863fbba77c4795433cd63776-json
+App/DerivedData/Logs/Build/LogStoreManifest.plist
+App/DerivedData/Logs/Launch/LogStoreManifest.plist
+App/DerivedData/Logs/Localization/LogStoreManifest.plist
+App/DerivedData/Logs/Package/LogStoreManifest.plist
+App/DerivedData/Logs/Test/LogStoreManifest.plist

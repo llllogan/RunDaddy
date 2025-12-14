@@ -11,7 +11,6 @@ struct RunOverviewBento: View {
     let summary: RunOverviewSummary
     let viewModel: RunDetailViewModel
     let pendingItemsTap: () -> Void
-    let notesTap: () -> Void
     let coldChestChips: [ColdChestSkuChip]
 
     private var packers: [RunDetail.Packer] {
@@ -69,12 +68,6 @@ struct RunOverviewBento: View {
                                     HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "PICKING")
-                                    }
-                                }
-                                Button("Pending Cold") {
-                                    HapticsService.shared.statusChanged()
-                                    Task {
-                                        await viewModel.updateRunStatus(to: "PENDING_FRESH")
                                     }
                                 }
                                 Button("Ready") {
@@ -194,19 +187,6 @@ struct RunOverviewBento: View {
                       showsChevron: true)
         )
         
-        cards.append(
-            BentoItem(
-                title: "Notes",
-                value: noteCountDisplay,
-                subtitle: "View Notes",
-                symbolName: "note.text",
-                symbolTint: .purple,
-                isProminent: true,
-                onTap: notesTap,
-                showsChevron: true
-            )
-        )
-
         if !coldChestChips.isEmpty {
             cards.append(
                 BentoItem(
@@ -243,13 +223,6 @@ struct RunOverviewBento: View {
         
         return cards
     }
-    
-    private var noteCountDisplay: String {
-        if let count = viewModel.noteCount {
-            return "\(count)"
-        }
-        return viewModel.isLoading ? "…" : "—"
-    }
 
     var body: some View {
         StaggeredBentoGrid(items: items, columnCount: 2)
@@ -280,6 +253,59 @@ struct RunOverviewBento: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+}
+
+struct RunNotesBento: View {
+    let viewModel: RunDetailViewModel
+    let notesTap: () -> Void
+
+    private var runNotesValueText: String {
+        guard let count = viewModel.runNoteCount else {
+            return viewModel.isLoadingNoteCounts ? "…" : "—"
+        }
+
+        let label = count == 1 ? "note" : "notes"
+
+        guard let runDate = viewModel.detail?.runDate else {
+            return "\(count) \(label)"
+        }
+
+        let day = Calendar.current.component(.day, from: runDate)
+        let ordinal = RunNotesBento.ordinalFormatter.string(from: NSNumber(value: day)) ?? "\(day)"
+        return "\(count) \(label) for the \(ordinal)"
+    }
+
+    private var generalNotesCallout: String? {
+        guard let count = viewModel.generalNoteCount, count > 0 else {
+            return nil
+        }
+        return count == 1 ? "1 general note" : "\(count) general notes"
+    }
+
+    private var notesItem: BentoItem {
+        BentoItem(
+            title: "Notes",
+            value: runNotesValueText,
+            callout: generalNotesCallout,
+            subtitle: "View Notes",
+            symbolName: "note.text",
+            symbolTint: .purple,
+            isProminent: false,
+            onTap: notesTap,
+            showsChevron: true
+        )
+    }
+
+    var body: some View {
+        StaggeredBentoGrid(items: [notesItem], columnCount: 1)
+            .padding(.vertical, 2)
+    }
+
+    private static let ordinalFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
         return formatter
     }()
 }

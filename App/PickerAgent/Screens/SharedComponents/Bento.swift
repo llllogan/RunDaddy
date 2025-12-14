@@ -178,9 +178,23 @@ struct BentoItem: Identifiable {
 struct StaggeredBentoGrid: View {
     let items: [BentoItem]
     let columnCount: Int
+    
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    private var effectiveColumnCount: Int {
+        let baseCount = max(columnCount, 1)
+        guard !items.isEmpty else {
+            return baseCount
+        }
+
+        let shouldIncreaseColumns = horizontalSizeClass == .regular || verticalSizeClass == .compact
+        let desiredCount = shouldIncreaseColumns ? (baseCount + 1) : baseCount
+        return min(desiredCount, items.count)
+    }
 
     private var columns: [[BentoItem]] {
-        let safeCount = max(columnCount, 1)
+        let safeCount = max(effectiveColumnCount, 1)
         guard safeCount > 1 else {
             return [items]
         }

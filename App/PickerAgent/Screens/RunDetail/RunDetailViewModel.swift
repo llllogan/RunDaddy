@@ -110,7 +110,9 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var companyLocation: String?
     @Published private(set) var currentMembershipRole: String?
     @Published private(set) var locationSchedules: [String: LocationSchedule] = [:]
-    @Published var noteCount: Int?
+    @Published private(set) var runNoteCount: Int?
+    @Published private(set) var generalNoteCount: Int?
+    @Published private(set) var isLoadingNoteCounts = false
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -177,7 +179,7 @@ final class RunDetailViewModel: ObservableObject {
             rebuildLocationData(from: detail)
             await refreshLocationSchedules(from: detail.locations)
             Task {
-                await self.loadRunNoteCount()
+                await self.loadRunNoteCounts()
             }
         } catch {
             if let authError = error as? AuthError {
@@ -193,7 +195,8 @@ final class RunDetailViewModel: ObservableObject {
             locationContextsByID = [:]
             locationOrders = []
             locationSchedules = [:]
-            noteCount = nil
+            runNoteCount = nil
+            generalNoteCount = nil
         }
 
         isLoading = false
@@ -598,18 +601,39 @@ final class RunDetailViewModel: ObservableObject {
         }
     }
 
-    func loadRunNoteCount() async {
+    func loadRunNoteCounts(force: Bool = false) async {
+        if isLoadingNoteCounts && !force {
+            return
+        }
+
+        isLoadingNoteCounts = true
+        defer { isLoadingNoteCounts = false }
+
         do {
-            let response = try await notesService.fetchNotes(
+            async let runNotesTask = notesService.fetchNotes(
+                runId: runId,
+                includePersistentForRun: false,
+                recentDays: nil,
+                limit: 1,
+                credentials: session.credentials
+            )
+
+            async let totalNotesTask = notesService.fetchNotes(
                 runId: runId,
                 includePersistentForRun: true,
                 recentDays: nil,
                 limit: 1,
                 credentials: session.credentials
             )
-            noteCount = response.total
+
+            let runNotes = try await runNotesTask
+            let totalNotes = try await totalNotesTask
+
+            runNoteCount = runNotes.total
+            generalNoteCount = max(0, totalNotes.total - runNotes.total)
         } catch {
-            noteCount = nil
+            runNoteCount = nil
+            generalNoteCount = nil
         }
     }
 
