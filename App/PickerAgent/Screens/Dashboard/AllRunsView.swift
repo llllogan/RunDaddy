@@ -42,7 +42,6 @@ struct AllRunsView: View {
                         if dateSection.kind == .today || dateSection.kind == .tomorrow {
                             StaggeredBentoGrid(items: bentoItems(for: dateSection.runs), columnCount: 2)
                                 .padding(.vertical, 2)
-                                .padding(.horizontal, 4)
                                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)

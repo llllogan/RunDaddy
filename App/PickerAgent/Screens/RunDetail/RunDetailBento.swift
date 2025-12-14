@@ -254,7 +254,6 @@ struct RunOverviewBento: View {
     var body: some View {
         StaggeredBentoGrid(items: items, columnCount: 2)
             .padding(.vertical, 2)
-            .padding(.horizontal, 4)
     }
 
     private var totalWeightCard: BentoItem {
