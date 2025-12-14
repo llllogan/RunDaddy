@@ -46,6 +46,7 @@ struct RunLocationDetailView: View {
     
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
+    @State private var pickItemPendingSubstitution: RunDetail.PickItem?
     @State private var locationNavigationTarget: RunLocationDetailSearchNavigation?
     @State private var machineNavigationTarget: RunLocationDetailMachineNavigation?
 
@@ -221,7 +222,7 @@ struct RunLocationDetailView: View {
                         .disabled(isUpdatingPick)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
-                                
+                                pickItemPendingSubstitution = pickItem
                             } label: {
                                 Label("Substitute", systemImage: "rectangle.2.swap")
                             }
@@ -292,6 +293,15 @@ struct RunLocationDetailView: View {
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $pickItemPendingSubstitution) { pickItem in
+            SubstituteSkuSearchView(
+                pickItem: pickItem,
+                runId: runId,
+                session: session,
+                runsService: service,
+                onPickStatusChanged: onPickStatusChanged
+            )
         }
 
         .alert(item: $pickItemPendingDeletion) { pickItem in

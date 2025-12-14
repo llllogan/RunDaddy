@@ -567,6 +567,58 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return;
   }
 
+  const resultsRaw = req.query.results;
+  const parseResultsFilter = (
+    value: unknown,
+  ): { status: 'ok'; includeLocations: boolean; includeMachines: boolean; includeSkus: boolean } | { status: 'error' } => {
+    if (value === undefined) {
+      return { status: 'ok', includeLocations: true, includeMachines: true, includeSkus: true };
+    }
+
+    const inputs: string[] = [];
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === 'string') {
+          inputs.push(...entry.split(','));
+        }
+      }
+    } else if (typeof value === 'string') {
+      inputs.push(...value.split(','));
+    } else {
+      return { status: 'error' };
+    }
+
+    const normalized = inputs
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((item) => item.toUpperCase());
+
+    if (normalized.length === 0) {
+      return { status: 'error' };
+    }
+
+    const allowed = new Set(['LOCATION', 'MACHINE', 'SKU']);
+    for (const item of normalized) {
+      if (!allowed.has(item)) {
+        return { status: 'error' };
+      }
+    }
+
+    const requested = new Set(normalized);
+    return {
+      status: 'ok',
+      includeLocations: requested.has('LOCATION'),
+      includeMachines: requested.has('MACHINE'),
+      includeSkus: requested.has('SKU'),
+    };
+  };
+
+  const filter = parseResultsFilter(resultsRaw);
+  if (filter.status === 'error') {
+    res.status(400).json({ error: 'Invalid results filter. Use results=LOCATION,MACHINE,SKU' });
+    return;
+  }
+
   const query = req.query.q as string;
   if (!query || query.trim().length === 0) {
     res.status(400).json({ error: 'Search query is required' });
@@ -576,41 +628,47 @@ router.get('/search', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const searchTerm = `%${query.trim()}%`;
 
   const [locations, machines, skus] = await Promise.all([
-    prisma.$queryRaw<Array<{ id: string; name: string; address: string | null }>>(
-      Prisma.sql`
-        SELECT id, name, address
-        FROM Location
-        WHERE companyId = ${context.companyId}
-          AND (name LIKE ${searchTerm} OR address LIKE ${searchTerm})
-        ORDER BY name ASC
-        LIMIT 10
-      `,
-    ),
-    prisma.$queryRaw<Array<{ id: string; code: string; description: string | null }>>(
-      Prisma.sql`
-        SELECT id, code, description
-        FROM Machine
-        WHERE companyId = ${context.companyId}
-          AND (code LIKE ${searchTerm} OR description LIKE ${searchTerm})
-        ORDER BY code ASC
-        LIMIT 10
-      `,
-    ),
-    prisma.$queryRaw<Array<{ id: string; code: string; name: string; type: string; category: string | null }>>(
-      Prisma.sql`
-        SELECT id, code, name, type, category
-        FROM SKU
-        WHERE companyId = ${context.companyId}
-          AND (
-            code LIKE ${searchTerm} 
-            OR name LIKE ${searchTerm} 
-            OR type LIKE ${searchTerm} 
-            OR category LIKE ${searchTerm}
-          )
-        ORDER BY name ASC, code ASC
-        LIMIT 10
-      `,
-    ),
+    filter.includeLocations
+      ? prisma.$queryRaw<Array<{ id: string; name: string; address: string | null }>>(
+          Prisma.sql`
+            SELECT id, name, address
+            FROM Location
+            WHERE companyId = ${context.companyId}
+              AND (name LIKE ${searchTerm} OR address LIKE ${searchTerm})
+            ORDER BY name ASC
+            LIMIT 10
+          `,
+        )
+      : Promise.resolve([]),
+    filter.includeMachines
+      ? prisma.$queryRaw<Array<{ id: string; code: string; description: string | null }>>(
+          Prisma.sql`
+            SELECT id, code, description
+            FROM Machine
+            WHERE companyId = ${context.companyId}
+              AND (code LIKE ${searchTerm} OR description LIKE ${searchTerm})
+            ORDER BY code ASC
+            LIMIT 10
+          `,
+        )
+      : Promise.resolve([]),
+    filter.includeSkus
+      ? prisma.$queryRaw<Array<{ id: string; code: string; name: string; type: string; category: string | null }>>(
+          Prisma.sql`
+            SELECT id, code, name, type, category
+            FROM SKU
+            WHERE companyId = ${context.companyId}
+              AND (
+                code LIKE ${searchTerm} 
+                OR name LIKE ${searchTerm} 
+                OR type LIKE ${searchTerm} 
+                OR category LIKE ${searchTerm}
+              )
+            ORDER BY name ASC, code ASC
+            LIMIT 10
+          `,
+        )
+      : Promise.resolve([]),
   ]);
 
   const results = [

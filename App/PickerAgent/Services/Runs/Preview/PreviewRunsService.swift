@@ -137,6 +137,10 @@ struct PreviewRunsService: RunsServicing {
     func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
+
+    func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
     
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws {
         // Preview does nothing

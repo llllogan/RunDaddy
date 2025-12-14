@@ -70,6 +70,10 @@ const updatePickOverrideSchema = z.object({
   override: z.number().int().min(0).nullable(),
 });
 
+const substitutePickEntrySchema = z.object({
+  skuId: z.string().trim().min(1),
+});
+
 const runsQuerySchema = z.object({
   status: z.string().trim().optional(),
   startDayOffset: z.coerce.number().int().optional(),
@@ -1246,6 +1250,79 @@ router.patch('/:runId/picks/:pickId/override', setLogConfig({ level: 'minimal' }
     count: updated.count,
     override: updated.override,
   });
+});
+
+router.patch('/:runId/picks/:pickId/substitute', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to substitute pick SKUs' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const parsed = substitutePickEntrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const run = await ensureRun(req.auth.companyId, runId);
+  if (!run) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+
+  const pickEntry = run.pickEntries.find((entry) => entry.id === pickId);
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  const sku = await prisma.sKU.findFirst({
+    where: { id: parsed.data.skuId, companyId: req.auth.companyId },
+    select: { id: true },
+  });
+  if (!sku) {
+    return res.status(404).json({ error: 'SKU not found' });
+  }
+
+  if (pickEntry.coilItem.skuId === sku.id) {
+    return res.json({ id: pickEntry.id, runId: pickEntry.runId, coilItemId: pickEntry.coilItemId });
+  }
+
+  const nextCoilItem = await prisma.coilItem.upsert({
+    where: {
+      coilId_skuId: {
+        coilId: pickEntry.coilItem.coilId,
+        skuId: sku.id,
+      },
+    },
+    update: {},
+    create: {
+      coilId: pickEntry.coilItem.coilId,
+      skuId: sku.id,
+      par: pickEntry.coilItem.par,
+    },
+    select: { id: true },
+  });
+
+  try {
+    const updated = await prisma.pickEntry.update({
+      where: { id: pickEntry.id },
+      data: { coilItemId: nextCoilItem.id },
+      select: { id: true, runId: true, coilItemId: true },
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'A pick entry already exists for that coil and SKU.' });
+    }
+    throw error;
+  }
 });
 
 // Delete a pick entry from a run

@@ -16,6 +16,7 @@ protocol RunsServicing {
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
     func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws
+    func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
     func updateRunStatus(runId: String, status: String, credentials: AuthCredentials) async throws
@@ -626,6 +627,46 @@ final class RunsService: RunsServicing {
             }
             if httpResponse.statusCode == 404 {
                 throw RunsServiceError.pickItemNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+        url.appendPathComponent(pickId)
+        url.appendPathComponent("substitute")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = ["skuId": skuId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.pickItemNotFound
+            }
+            if httpResponse.statusCode == 403 {
+                throw RunsServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 409 {
+                throw RunsServiceError.pickEntryConflict
             }
             throw RunsServiceError.serverError(code: httpResponse.statusCode)
         }
@@ -1601,6 +1642,7 @@ enum RunsServiceError: LocalizedError {
     case serverError(code: Int)
     case runNotFound
     case pickItemNotFound
+    case pickEntryConflict
     case insufficientPermissions
     case roleAlreadyAssigned
     case chocolateBoxNumberExists
@@ -1617,6 +1659,8 @@ enum RunsServiceError: LocalizedError {
             return "We couldn't find details for that run. It may have been removed."
         case .pickItemNotFound:
             return "We couldn't find that pick entry. It may have already been removed."
+        case .pickEntryConflict:
+            return "A pick entry already exists for that coil and SKU."
         case .insufficientPermissions:
             return "You don't have permission to perform this action."
         case .roleAlreadyAssigned:

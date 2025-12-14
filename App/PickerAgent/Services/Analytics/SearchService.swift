@@ -1,6 +1,7 @@
 import Foundation
 
 protocol SearchServicing {
+    func search(query: String, results: [SearchResultFilter]?) async throws -> SearchResponse
     func search(query: String) async throws -> SearchResponse
     func fetchSuggestions(lookbackDays: Int?) async throws -> SearchResponse
 }
@@ -22,6 +23,10 @@ final class SearchService: SearchServicing {
     }
     
     func search(query: String) async throws -> SearchResponse {
+        try await search(query: query, results: nil)
+    }
+
+    func search(query: String, results: [SearchResultFilter]? = nil) async throws -> SearchResponse {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
             throw SearchServiceError.emptyQuery
@@ -36,9 +41,12 @@ final class SearchService: SearchServicing {
         url.appendPathComponent("search")
         
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: trimmedQuery)
-        ]
+        var queryItems = [URLQueryItem(name: "q", value: trimmedQuery)]
+        if let results, !results.isEmpty {
+            let value = results.map(\.rawValue).joined(separator: ",")
+            queryItems.append(URLQueryItem(name: "results", value: value))
+        }
+        components?.queryItems = queryItems
         let resolvedURL = components?.url ?? url
         
         var request = URLRequest(url: resolvedURL)
