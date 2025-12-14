@@ -13,14 +13,16 @@ struct BentoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: item.symbolName)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(item.symbolTint)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(item.symbolTint.opacity(0.18))
-                    )
+                if item.showsSymbol {
+                    Image(systemName: item.symbolName)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(item.symbolTint)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(item.symbolTint.opacity(0.18))
+                        )
+                }
                 Text(item.title.uppercased())
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -122,6 +124,7 @@ struct BentoItem: Identifiable {
     let subtitle: String?
     let symbolName: String
     let symbolTint: Color
+    let showsSymbol: Bool
     let isProminent: Bool
     let allowsMultilineValue: Bool
     let onTap: (() -> Void)?
@@ -135,6 +138,7 @@ struct BentoItem: Identifiable {
          subtitle: String? = nil,
          symbolName: String,
          symbolTint: Color,
+         showsSymbol: Bool = true,
          isProminent: Bool = false,
          allowsMultilineValue: Bool = false,
          onTap: (() -> Void)? = nil,
@@ -147,6 +151,7 @@ struct BentoItem: Identifiable {
         self.subtitle = subtitle
         self.symbolName = symbolName
         self.symbolTint = symbolTint
+        self.showsSymbol = showsSymbol
         self.isProminent = isProminent
         self.allowsMultilineValue = allowsMultilineValue
         self.onTap = onTap

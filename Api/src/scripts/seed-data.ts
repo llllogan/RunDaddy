@@ -1396,25 +1396,47 @@ async function seedCompanyData() {
       );
     }
 
-    const todayLocations = selectRunLocations(locationDetails, 0);
-    const tomorrowLocations = selectRunLocations(locationDetails, 2);
+    if (config.name === METRO_COMPANY_NAME) {
+      const metroTodayRuns = [
+        { dayOffset: 0, hour: 8, rotationOffset: 0 },
+        { dayOffset: 0, hour: 13, rotationOffset: 1 },
+      ];
+      const metroTomorrowRuns = [
+        { dayOffset: 1, hour: 8, rotationOffset: 2 },
+        { dayOffset: 1, hour: 10, rotationOffset: 3 },
+        { dayOffset: 1, hour: 14, rotationOffset: 0 },
+      ];
 
-    const todayRun = await ensureRunWithLocations({
-      companyId: company.id,
-      scheduledFor: scheduleForDay(0, 8),
-      locationIds: todayLocations.map((detail) => detail.location.id),
-    });
-    await ensurePickEntries(todayRun.id, todayLocations.flatMap((detail) => detail.coilItems));
+      for (const runConfig of [...metroTomorrowRuns, ...metroTodayRuns]) {
+        const runLocations = selectRunLocations(locationDetails, runConfig.rotationOffset);
+        const run = await ensureRunWithLocations({
+          companyId: company.id,
+          scheduledFor: scheduleForDay(runConfig.dayOffset, runConfig.hour),
+          locationIds: runLocations.map((detail) => detail.location.id),
+        });
+        await ensurePickEntries(run.id, runLocations.flatMap((detail) => detail.coilItems));
+      }
+    } else {
+      const todayLocations = selectRunLocations(locationDetails, 0);
+      const tomorrowLocations = selectRunLocations(locationDetails, 2);
 
-    const tomorrowRun = await ensureRunWithLocations({
-      companyId: company.id,
-      scheduledFor: scheduleForDay(1, 10),
-      locationIds: tomorrowLocations.map((detail) => detail.location.id),
-    });
-    await ensurePickEntries(
-      tomorrowRun.id,
-      tomorrowLocations.flatMap((detail) => detail.coilItems),
-    );
+      const todayRun = await ensureRunWithLocations({
+        companyId: company.id,
+        scheduledFor: scheduleForDay(0, 8),
+        locationIds: todayLocations.map((detail) => detail.location.id),
+      });
+      await ensurePickEntries(todayRun.id, todayLocations.flatMap((detail) => detail.coilItems));
+
+      const tomorrowRun = await ensureRunWithLocations({
+        companyId: company.id,
+        scheduledFor: scheduleForDay(1, 10),
+        locationIds: tomorrowLocations.map((detail) => detail.location.id),
+      });
+      await ensurePickEntries(
+        tomorrowRun.id,
+        tomorrowLocations.flatMap((detail) => detail.coilItems),
+      );
+    }
 
     if (config.name === METRO_COMPANY_NAME) {
       await seedMetroSalesHistory(company.id, locationDetails);

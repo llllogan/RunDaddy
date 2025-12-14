@@ -94,36 +94,44 @@ struct RunRow: View {
             Text("\(run.locationCount) \(run.locationCount > 1 ? "Locations" : "Location")")
                 .font(.headline)
                 .fontWeight(.semibold)
-            
-            FlowLayout(spacing: 6) {
-                InfoChip(text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
-
-                if isAssignedToCurrentUser {
-                    InfoChip(
-                        text: "Assigned to you",
-                        colour: Color.blue.opacity(0.15),
-                        foregroundColour: .blue
-                    )
-                }
-                
-                if !run.chocolateBoxes.isEmpty {
-                    InfoChip(
-                        text: run.chocolateBoxesDisplay,
-                        colour: Color.brown.opacity(0.15),
-                        foregroundColour: Color.brown,
-                        icon: "shippingbox.fill"
-                    )
-                }
-                
-                if let started = run.pickingStartedAt {
-                    InfoChip(title: "Started", date: started, colour: Color(.systemGray5), foregroundColour: .secondary)
-                }
-                if let ended = run.pickingEndedAt {
-                    InfoChip(title: "Ended", date: ended, colour: Color(.systemGray5), foregroundColour: .secondary)
-                }
-            }
+            RunSummaryInfoChips(run: run, currentUserId: currentUserId)
         }
         .padding(.vertical, 0)
+    }
+}
+
+struct RunSummaryInfoChips: View {
+    let run: RunSummary
+    let currentUserId: String?
+
+    var body: some View {
+        FlowLayout(spacing: 6) {
+            InfoChip(text: run.statusDisplay, colour: statusBackgroundColor, foregroundColour: statusForegroundColor)
+
+            if isAssignedToCurrentUser {
+                InfoChip(
+                    text: "Assigned to you",
+                    colour: Color.blue.opacity(0.15),
+                    foregroundColour: .blue
+                )
+            }
+
+            if !run.chocolateBoxes.isEmpty {
+                InfoChip(
+                    text: run.chocolateBoxesDisplay,
+                    colour: Color.brown.opacity(0.15),
+                    foregroundColour: Color.brown,
+                    icon: "shippingbox.fill"
+                )
+            }
+
+            if let started = run.pickingStartedAt {
+                InfoChip(title: "Started", date: started, colour: Color(.systemGray5), foregroundColour: .secondary)
+            }
+            if let ended = run.pickingEndedAt {
+                InfoChip(title: "Ended", date: ended, colour: Color(.systemGray5), foregroundColour: .secondary)
+            }
+        }
     }
 
     private var isAssignedToCurrentUser: Bool {

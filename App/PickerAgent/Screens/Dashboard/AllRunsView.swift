@@ -14,6 +14,7 @@ struct AllRunsView: View {
     @State private var showingDeleteAlert = false
     @State private var runToDelete: RunSummary?
     @State private var deletingRunIds: Set<String> = []
+    @State private var selectedRun: SelectedRunDestination?
     
     init(session: AuthSession) {
         self.session = session
@@ -35,21 +36,30 @@ struct AllRunsView: View {
             } else {
                 ForEach(viewModel.runsByDate, id: \.date) { dateSection in
                     Section(dateSection.headerText) {
-                        ForEach(dateSection.runs) { run in
-                            NavigationLink {
-                                RunDetailView(runId: run.id, session: session)
-                            } label: {
-                                RunRow(run: run, currentUserId: session.credentials.userID)
-                            }
-                            .disabled(deletingRunIds.contains(run.id))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button {
-                                    runToDelete = run
-                                    showingDeleteAlert = true
+                        if dateSection.kind == .today || dateSection.kind == .tomorrow {
+                            StaggeredBentoGrid(items: bentoItems(for: dateSection.runs), columnCount: 2)
+                                .padding(.vertical, 2)
+                                .padding(.horizontal, 4)
+                                .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        } else {
+                            ForEach(dateSection.runs) { run in
+                                NavigationLink {
+                                    RunDetailView(runId: run.id, session: session)
                                 } label: {
-                                    Label("Delete", systemImage: "trash")
+                                    RunRow(run: run, currentUserId: session.credentials.userID)
                                 }
-                                .tint(.red)
+                                .disabled(deletingRunIds.contains(run.id))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button {
+                                        runToDelete = run
+                                        showingDeleteAlert = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    .tint(.red)
+                                }
                             }
                         }
                     }
@@ -58,6 +68,9 @@ struct AllRunsView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("All Runs")
+        .navigationDestination(item: $selectedRun) { destination in
+            RunDetailView(runId: destination.id, session: session)
+        }
         .task {
             await viewModel.loadRuns()
         }
@@ -111,12 +124,58 @@ struct AllRunsView: View {
             deletingRunIds.remove(run.id)
         }
     }
+
+    private func bentoItems(for runs: [RunSummary]) -> [BentoItem] {
+        runs.map { run in
+            BentoItem(
+                id: "run-summary-\(run.id)",
+                title: "\(run.locationCount) \(run.locationCount == 1 ? "Location" : "Locations")",
+                value: "",
+                subtitle: "View Run",
+                symbolName: "flag.checkered",
+                symbolTint: .secondary,
+                showsSymbol: false,
+                allowsMultilineValue: true,
+                onTap: { selectedRun = SelectedRunDestination(id: run.id) },
+                showsChevron: true,
+                customContent: AnyView(
+                    RunSummaryInfoChips(run: run, currentUserId: session.credentials.userID)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                runToDelete = run
+                                showingDeleteAlert = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                )
+            )
+        }
+    }
 }
 
 private struct RunDateSection: Identifiable {
+    enum Kind: Equatable {
+        case today
+        case tomorrow
+        case other
+    }
+
     let id = UUID()
     let date: Date
     let runs: [RunSummary]
+
+    var kind: Kind {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return .today
+        }
+        if calendar.isDateInTomorrow(date) {
+            return .tomorrow
+        }
+        return .other
+    }
     
     var headerText: String {
         let calendar = Calendar.current
@@ -130,6 +189,10 @@ private struct RunDateSection: Identifiable {
             return date.formatted(.dateTime.month().day().weekday(.wide))
         }
     }
+}
+
+private struct SelectedRunDestination: Identifiable, Hashable {
+    let id: String
 }
 
 @MainActor
