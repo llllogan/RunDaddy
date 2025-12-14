@@ -74,7 +74,7 @@ struct AllRunsView: View {
         .task {
             await viewModel.loadRuns()
         }
-        .onChange(of: session) { newSession in
+        .onChange(of: session) { _, newSession in
             viewModel.resetForNewSession(newSession)
             Task { await viewModel.loadRuns(force: true) }
         }
@@ -131,10 +131,11 @@ struct AllRunsView: View {
                 id: "run-summary-\(run.id)",
                 title: "\(run.locationCount) \(run.locationCount == 1 ? "Location" : "Locations")",
                 value: "",
-                subtitle: "View Run",
+                subtitle: "View",
                 symbolName: "flag.checkered",
                 symbolTint: .secondary,
                 showsSymbol: false,
+                titleIsProminent: true,
                 allowsMultilineValue: true,
                 onTap: { selectedRun = SelectedRunDestination(id: run.id) },
                 showsChevron: true,

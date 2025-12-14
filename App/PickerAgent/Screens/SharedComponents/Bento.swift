@@ -23,9 +23,7 @@ struct BentoCard: View {
                                 .fill(item.symbolTint.opacity(0.18))
                         )
                 }
-                Text(item.title.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                titleText
             }
 
             if let customContent = item.customContent {
@@ -77,6 +75,19 @@ struct BentoCard: View {
     }
 
     @ViewBuilder
+    private var titleText: some View {
+        if item.titleIsProminent {
+            Text(item.title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
+        } else {
+            Text(item.title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
     private var valueText: some View {
         let text = Text(item.value)
             .font(item.isProminent ? .title2.weight(.semibold) : .title3.weight(.semibold))
@@ -125,6 +136,7 @@ struct BentoItem: Identifiable {
     let symbolName: String
     let symbolTint: Color
     let showsSymbol: Bool
+    let titleIsProminent: Bool
     let isProminent: Bool
     let allowsMultilineValue: Bool
     let onTap: (() -> Void)?
@@ -139,6 +151,7 @@ struct BentoItem: Identifiable {
          symbolName: String,
          symbolTint: Color,
          showsSymbol: Bool = true,
+         titleIsProminent: Bool = false,
          isProminent: Bool = false,
          allowsMultilineValue: Bool = false,
          onTap: (() -> Void)? = nil,
@@ -152,6 +165,7 @@ struct BentoItem: Identifiable {
         self.symbolName = symbolName
         self.symbolTint = symbolTint
         self.showsSymbol = showsSymbol
+        self.titleIsProminent = titleIsProminent
         self.isProminent = isProminent
         self.allowsMultilineValue = allowsMultilineValue
         self.onTap = onTap
