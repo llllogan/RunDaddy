@@ -6,11 +6,35 @@ struct MainTabView: View {
 
     @State private var isShowingProfile = false
 
+    private var requiresCompanyContext: Bool {
+        JwtPayload.companyId(from: session.credentials.accessToken) == nil
+    }
+
+    private var profileSheetPresented: Binding<Bool> {
+        Binding(
+            get: { isShowingProfile || requiresCompanyContext },
+            set: { newValue in
+                guard !requiresCompanyContext else {
+                    return
+                }
+                isShowingProfile = newValue
+            }
+        )
+    }
+
     var body: some View {
-        tabView
-        .sheet(isPresented: $isShowingProfile) {
+        ZStack {
+            if requiresCompanyContext {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
+            } else {
+                tabView
+            }
+        }
+        .sheet(isPresented: profileSheetPresented) {
             ProfileView(
                 isPresentedAsSheet: true,
+                showsDismissButton: !requiresCompanyContext,
                 onDismiss: {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
                         isShowingProfile = false
@@ -22,6 +46,12 @@ struct MainTabView: View {
             .presentationCornerRadius(28)
             .presentationDragIndicator(.visible)
             .presentationCompactAdaptation(.fullScreenCover)
+            .interactiveDismissDisabled(requiresCompanyContext)
+        }
+        .onChange(of: requiresCompanyContext, initial: false) { _, newValue in
+            if !newValue {
+                isShowingProfile = false
+            }
         }
     }
 }

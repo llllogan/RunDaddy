@@ -20,6 +20,7 @@ struct ProfileView: View {
     
     // Optional: For sheet presentation
     var isPresentedAsSheet: Bool = false
+    var showsDismissButton: Bool = true
     var onDismiss: (() -> Void)? = nil
     var onLogout: (() -> Void)? = nil
     
@@ -299,10 +300,12 @@ struct ProfileView: View {
             .toolbar {
                 if isPresentedAsSheet {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            onDismiss?()
-                        } label: {
-                            Label("Done", systemImage: "xmark")
+                        if showsDismissButton {
+                            Button {
+                                onDismiss?()
+                            } label: {
+                                Label("Done", systemImage: "xmark")
+                            }
                         }
                     }
                 }
