@@ -522,24 +522,7 @@ private struct RunNoteComposer: View {
                                 Button {
                                     selectedTag = option
                                 } label: {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(option.label)
-                                                .font(.headline)
-                                                .foregroundStyle(.primary)
-
-                                            if let subtitle = option.subtitle {
-                                                Text(subtitle)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                        Spacer()
-                                        if selectedTag?.id == option.id {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.green)
-                                        }
-                                    }
+                                    EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
                                 }
                                 .buttonStyle(.plain)
                             }

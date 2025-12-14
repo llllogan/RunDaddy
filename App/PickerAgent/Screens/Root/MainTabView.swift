@@ -249,10 +249,7 @@ private struct SearchTab: View {
             } else {
                 ForEach(searchResults) { result in
                     NavigationLink(destination: destinationView(for: result)) {
-                        SearchResultRow(
-                            result: result,
-                            icon: symbolDetails(for: result.type)
-                        )
+                        EntityResultRow(result: result)
                     }
                 }
             }
@@ -277,10 +274,7 @@ private struct SearchTab: View {
             } else {
                 ForEach(suggestions) { suggestion in
                     NavigationLink(destination: destinationView(for: suggestion)) {
-                        SearchResultRow(
-                            result: suggestion,
-                            icon: symbolDetails(for: suggestion.type)
-                        )
+                        EntityResultRow(result: suggestion)
                     }
                 }
             }
@@ -445,19 +439,6 @@ private struct SearchTab: View {
         }
     }
 
-    private func symbolDetails(for type: String) -> (systemName: String, color: Color) {
-        switch type.lowercased() {
-        case "machine":
-            return ("building", .purple)
-        case "sku":
-            return ("tag", .teal)
-        case "location":
-            return ("mappin.circle", .orange)
-        default:
-            return ("magnifyingglass", .gray)
-        }
-    }
-
     private var profileButton: some View {
         Button {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
@@ -466,78 +447,5 @@ private struct SearchTab: View {
         } label: {
             Label("Profile", systemImage: "person.fill")
         }
-    }
-}
-
-private struct SearchResultRow: View {
-    let result: SearchResult
-    let icon: (systemName: String, color: Color)
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon.systemName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(icon.color)
-                .frame(width: 36, height: 36)
-                .background(icon.color.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(primaryText)
-                    .font(.headline)
-                if let secondaryText, !secondaryText.isEmpty {
-                    Text(secondaryText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var primaryText: String {
-        switch result.type.lowercased() {
-        case "machine":
-            return result.subtitle.isEmpty ? result.title : result.subtitle
-        case "sku":
-            return skuName ?? (result.subtitle.isEmpty ? result.title : result.subtitle)
-        default:
-            return result.title
-        }
-    }
-
-    private var secondaryText: String? {
-        switch result.type.lowercased() {
-        case "machine":
-            return result.title
-        case "sku":
-            let detailText = skuDetails
-            var parts: [String] = []
-            if let detailText, !detailText.isEmpty {
-                parts.append(detailText)
-            }
-            if !result.title.isEmpty {
-                parts.append(result.title)
-            }
-            return parts.isEmpty ? nil : parts.joined(separator: " • ")
-        default:
-            return result.subtitle.isEmpty ? nil : result.subtitle
-        }
-    }
-
-    private var skuName: String? {
-        skuSubtitleComponents.first
-    }
-
-    private var skuDetails: String? {
-        let details = skuSubtitleComponents.dropFirst().joined(separator: " • ")
-        return details.isEmpty ? nil : details
-    }
-
-    private var skuSubtitleComponents: [String] {
-        result.subtitle
-            .split(separator: "•")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
     }
 }

@@ -237,7 +237,7 @@ struct ReorderLocationsSheet: View {
                 .listRowSeparator(.hidden)
 
                 HStack {
-                    Text("Shop → Shop")
+                    Text("Round Trip")
                     Spacer()
                     Text(travelDisplay(totalTravelSeconds))
                         .font(.body.weight(.semibold))
