@@ -23,7 +23,7 @@ protocol RunsServicing {
     func createChocolateBox(for runId: String, number: Int, machineId: String, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
     func updateChocolateBox(for runId: String, boxId: String, number: Int?, machineId: String?, credentials: AuthCredentials) async throws -> RunDetail.ChocolateBox
     func deleteChocolateBox(for runId: String, boxId: String, credentials: AuthCredentials) async throws
-    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws
+    func updateSkuColdChestStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws
     func updateSkuCountPointer(skuId: String, countNeededPointer: String, credentials: AuthCredentials) async throws
     func deleteRun(runId: String, credentials: AuthCredentials) async throws
     func createPackingSession(for runId: String, categories: [String?]?, credentials: AuthCredentials) async throws -> PackingSession
@@ -872,7 +872,7 @@ final class RunsService: RunsServicing {
         }
     }
     
-    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
+    func updateSkuColdChestStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("skus")
         url.appendPathComponent(skuId)

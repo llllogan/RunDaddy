@@ -66,7 +66,7 @@ struct RunDetailView: View {
                             notesTap: {
                                 showingRunNotes = true
                             },
-                            freshChestChips: viewModel.runFreshChestChips
+                            coldChestChips: viewModel.runColdChestChips
                         )
                             .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -553,7 +553,7 @@ private extension RunDetailView {
     private func locationRow(for section: RunLocationSection) -> some View {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
-        let freshChestSkuChips = viewModel.freshChestSkuChips(for: section.id)
+        let coldChestSkuChips = viewModel.coldChestSkuChips(for: section.id)
         let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
         let locationDetail = viewModel.locationDetail(for: section.id)
         let machines = locationDetail?.machines ?? []
@@ -575,7 +575,7 @@ private extension RunDetailView {
                     LocationSummaryRow(
                         section: section,
                         machines: machines,
-                        freshChestSkuChips: freshChestSkuChips,
+                        coldChestSkuChips: coldChestSkuChips,
                         chocolateBoxLabel: chocolateBoxesLabel,
                         isProcessing: isDeleting
                     )
@@ -585,7 +585,7 @@ private extension RunDetailView {
                 LocationSummaryRow(
                     section: section,
                     machines: machines,
-                    freshChestSkuChips: freshChestSkuChips,
+                    coldChestSkuChips: coldChestSkuChips,
                     chocolateBoxLabel: chocolateBoxesLabel,
                     isProcessing: isDeleting
                 )
@@ -620,7 +620,7 @@ private struct LocationMenuOption: Identifiable, Equatable {
 private struct LocationSummaryRow: View {
     let section: RunLocationSection
     var machines: [RunDetail.Machine] = []
-    var freshChestSkuChips: [FreshChestSkuChip] = []
+    var coldChestSkuChips: [ColdChestSkuChip] = []
     var chocolateBoxLabel: String? = nil
     var isProcessing = false
 
@@ -653,11 +653,11 @@ private struct LocationSummaryRow: View {
                     )
                 }
 
-                ForEach(freshChestSkuChips) { chip in
+                ForEach(coldChestSkuChips) { chip in
                     InfoChip(
                         title: chip.label,
                         text: "\(chip.count)",
-                        icon: "leaf.fill",
+                        icon: "snowflake",
                         iconColour: chip.colour
                     )
                 }

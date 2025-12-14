@@ -10,7 +10,7 @@ struct SkuDetailView: View {
     @State private var isLoadingStats = true
     @State private var errorMessage: String?
     @State private var selectedPeriod: SkuPeriod = .week
-    @State private var isUpdatingFreshStatus = false
+    @State private var isUpdatingColdChestStatus = false
     @State private var isUpdatingWeight = false
     @State private var isShowingWeightAlert = false
     @State private var weightInputText = ""
@@ -58,8 +58,8 @@ struct SkuDetailView: View {
                     if let skuStats = skuStats {
                         SkuInfoBento(
                             sku: sku,
-                            isUpdatingFreshStatus: isUpdatingFreshStatus,
-                            onToggleFreshStatus: { toggleFreshStatus() },
+                            isUpdatingColdChestStatus: isUpdatingColdChestStatus,
+                            onToggleColdChestStatus: { toggleColdChestStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
                             labelColour: $selectedLabelColour,
                             isLabelColourEnabled: isLabelColourEnabled,
@@ -267,13 +267,13 @@ struct SkuDetailView: View {
         }
     }
 
-    private func toggleFreshStatus() {
+    private func toggleColdChestStatus() {
         guard let sku = sku else { return }
         
-        isUpdatingFreshStatus = true
+        isUpdatingColdChestStatus = true
         Task {
             do {
-                try await skusService.updateFreshStatus(
+                try await skusService.updateColdChestStatus(
                     id: sku.id,
                     isFreshOrFrozen: !sku.isFreshOrFrozen
                 )
@@ -282,9 +282,9 @@ struct SkuDetailView: View {
                 await loadSkuDetails()
             } catch {
                 // Could show error alert here
-                print("Failed to update fresh chest status: \(error)")
+                print("Failed to update cold chest status: \(error)")
             }
-            isUpdatingFreshStatus = false
+            isUpdatingColdChestStatus = false
         }
     }
 

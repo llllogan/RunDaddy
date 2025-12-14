@@ -8,7 +8,7 @@ protocol SkusServicing {
         locationId: String?,
         machineId: String?
     ) async throws -> SkuStatsResponse
-    func updateFreshStatus(id: String, isFreshOrFrozen: Bool) async throws
+    func updateColdChestStatus(id: String, isFreshOrFrozen: Bool) async throws
     func updateWeight(id: String, weight: Double?) async throws
     func updateLabelColour(id: String, labelColourHex: String?) async throws
 }
@@ -113,7 +113,7 @@ final class SkusService: SkusServicing {
         return try decoder.decode(SkuStatsResponse.self, from: data)
     }
     
-    func updateFreshStatus(id: String, isFreshOrFrozen: Bool) async throws {
+    func updateColdChestStatus(id: String, isFreshOrFrozen: Bool) async throws {
         guard let credentials = credentialStore.loadCredentials() else {
             throw AuthError.unauthorized
         }

@@ -99,14 +99,14 @@ struct PackingSessionTestSheet: View {
                         
                     } label: {
                         HStack {
-                            // This should add this SKU to the fresh chest
-                            // This is the state of the SKU not being in the fresh chest (isFreshOrFrozen is false)
-                            // There should be another state for items already in the fresh chest, and pressing this button should toggle that field
-                            Label("Fresh Chest", systemImage: "leaf.fill")
+                            // This should add this SKU to the cold chest
+                            // This is the state of the SKU not being in the cold chest (isFreshOrFrozen is false)
+                            // There should be another state for items already in the cold chest, and pressing this button should toggle that field
+                            Label("Cold Chest", systemImage: "snowflake")
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .tint(Theme.freshChestTint)
+                    .tint(Theme.coldChestTint)
                     .buttonStyle(.borderedProminent)
                 }
             }
@@ -169,7 +169,7 @@ struct PackingSessionTestSheet: View {
 //                        
 //                    } label: {
 //                        HStack {
-//                            Label("Fresh Chest", systemImage: "leaf.fill")
+//                            Label("Cold Chest", systemImage: "snowflake")
 //                            Spacer()
 //                        }
 //                        .frame(maxWidth: .infinity)

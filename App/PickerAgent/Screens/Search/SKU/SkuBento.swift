@@ -9,8 +9,8 @@ import SwiftUI
 
 struct SkuInfoBento: View {
     let sku: SKU
-    let isUpdatingFreshStatus: Bool
-    let onToggleFreshStatus: () -> Void
+    let isUpdatingColdChestStatus: Bool
+    let onToggleColdChestStatus: () -> Void
     let mostRecentPick: MostRecentPick?
     let labelColour: Binding<Color>
     let isLabelColourEnabled: Bool
@@ -64,26 +64,26 @@ struct SkuInfoBento: View {
         
         cards.append(
             BentoItem(id: "sku-info-fresh",
-                      title: "Fresh Chest",
+                      title: "Cold Chest",
                       value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
                       subtitle: "Tap to toggle",
-                      symbolName: "leaf.fill",
-                      symbolTint: sku.isFreshOrFrozen ? Theme.freshChestTint : .secondary,
-                      onTap: { onToggleFreshStatus() },
+                      symbolName: "snowflake",
+                      symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
+                      onTap: { onToggleColdChestStatus() },
                       showsChevron: false,
                       customContent: AnyView(
                         HStack {
-                            if isUpdatingFreshStatus {
+                            if isUpdatingColdChestStatus {
                                 ProgressView()
                                     .scaleEffect(0.8)
                             } else {
-                                Text(sku.isFreshOrFrozen ? "In Fresh Chest" : "Not in Fresh Chest")
+                                Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
                                     .font(.headline)
-                                    .foregroundColor(sku.isFreshOrFrozen ? Theme.freshChestTint : .secondary)
+                                    .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                             }
                             Spacer()
                             Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(sku.isFreshOrFrozen ? .green : .secondary)
+                                .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                         }
                     ))
         )

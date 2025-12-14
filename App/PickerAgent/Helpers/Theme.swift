@@ -33,9 +33,9 @@ enum Theme {
         .red.opacity(0.90)
     }
     
-    /// Accent color for fresh/frozen items (formerly cheese tub)
-    static var freshChestTint: Color {
-        Color(red: 0.08, green: 0.45, blue: 0.28)
+    /// Accent color for cold chest items (fresh/frozen; formerly "fresh chest")
+    static var coldChestTint: Color {
+        Color(red: 0.20, green: 0.66, blue: 0.93)
     }
     
     static var packingSessionBackground: Color {

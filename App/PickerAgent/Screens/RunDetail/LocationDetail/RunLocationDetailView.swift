@@ -60,7 +60,7 @@ struct RunLocationDetailView: View {
         )
     }
     
-    private var freshChestItems: [RunDetail.PickItem] {
+    private var coldChestItems: [RunDetail.PickItem] {
         detail.pickItems.filter { pickItem in
             pickItem.sku?.isFreshOrFrozen == true
         }
@@ -135,7 +135,7 @@ struct RunLocationDetailView: View {
                     onAddChocolateBoxTap: {
                         activeSheet = .addChocolateBox
                     },
-                    freshChestItems: freshChestItems,
+                    coldChestItems: coldChestItems,
                     onLocationTap: {
                         navigateToSearchLocation()
                     },
@@ -229,15 +229,15 @@ struct RunLocationDetailView: View {
                             
                             Button {
                                 Task {
-                                    await toggleFreshStatus(pickItem)
+                                    await toggleColdChestStatus(pickItem)
                                 }
                             } label: {
                                 Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove" : "Fresh Chest",
-                                    systemImage: pickItem.sku?.isFreshOrFrozen == true ? "leaf.fill" : "plus.circle"
+                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove" : "Cold Chest",
+                                    systemImage: "snowflake"
                                 )
                             }
-                            .tint(Theme.freshChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
+                            .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                             
                             Button {
                                 selectedPickItemForCountPointer = pickItem
@@ -374,7 +374,7 @@ struct RunLocationDetailView: View {
         }
     }
     
-    private func toggleFreshStatus(_ pickItem: RunDetail.PickItem) async {
+    private func toggleColdChestStatus(_ pickItem: RunDetail.PickItem) async {
         guard let skuId = pickItem.sku?.id else { return }
         
         updatingSkuIds.insert(skuId)
@@ -382,7 +382,7 @@ struct RunLocationDetailView: View {
         let newFreshStatus = !(pickItem.sku?.isFreshOrFrozen ?? false)
         
         do {
-            try await service.updateSkuFreshStatus(
+            try await service.updateSkuColdChestStatus(
                 skuId: skuId,
                 isFreshOrFrozen: newFreshStatus,
                 credentials: session.credentials
@@ -390,7 +390,7 @@ struct RunLocationDetailView: View {
             await onPickStatusChanged()
         } catch {
             // Handle error - could show an alert
-            print("Failed to update SKU fresh chest status: \(error)")
+            print("Failed to update SKU cold chest status: \(error)")
         }
         
         _ = await MainActor.run {
@@ -838,10 +838,10 @@ struct PickEntryRow: View {
 
                     if pickItem.sku?.isFreshOrFrozen == true {
                         InfoChip(
-                            text: "Fresh Chest",
-                            colour: Theme.freshChestTint.opacity(0.2),
-                            foregroundColour: Theme.freshChestTint,
-                            icon: "leaf.fill"
+                            text: "Cold Chest",
+                            colour: Theme.coldChestTint.opacity(0.2),
+                            foregroundColour: Theme.coldChestTint,
+                            icon: "snowflake"
                         )
                     }
                 }

@@ -219,7 +219,10 @@ struct StaggeredBentoGrid: View {
 
 extension String {
     var statusDisplay: String {
-        self
+        if self == "PENDING_FRESH" {
+            return "Pending Cold"
+        }
+        return self
             .replacingOccurrences(of: "_", with: " ")
             .lowercased()
             .split(separator: " ")

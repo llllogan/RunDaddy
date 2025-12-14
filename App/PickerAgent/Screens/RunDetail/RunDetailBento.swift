@@ -12,7 +12,7 @@ struct RunOverviewBento: View {
     let viewModel: RunDetailViewModel
     let pendingItemsTap: () -> Void
     let notesTap: () -> Void
-    let freshChestChips: [FreshChestSkuChip]
+    let coldChestChips: [ColdChestSkuChip]
 
     private var packers: [RunDetail.Packer] {
         viewModel.detail?.packers ?? []
@@ -71,7 +71,7 @@ struct RunOverviewBento: View {
                                         await viewModel.updateRunStatus(to: "PICKING")
                                     }
                                 }
-                                Button("Pending Fresh") {
+                                Button("Pending Cold") {
                                     HapticsService.shared.statusChanged()
                                     Task {
                                         await viewModel.updateRunStatus(to: "PENDING_FRESH")
@@ -207,17 +207,17 @@ struct RunOverviewBento: View {
             )
         )
 
-        if !freshChestChips.isEmpty {
+        if !coldChestChips.isEmpty {
             cards.append(
                 BentoItem(
-                    title: "Fresh Chest",
+                    title: "Cold Chest",
                     value: "",
-                    symbolName: "leaf.fill",
-                    symbolTint: Theme.freshChestTint,
+                    symbolName: "snowflake",
+                    symbolTint: Theme.coldChestTint,
                     isProminent: true,
                     customContent: AnyView(
                         VStack(alignment: .leading, spacing: 4) {
-                            ForEach(freshChestChips) { chip in
+                            ForEach(coldChestChips) { chip in
                                 HStack(spacing: 5) {
                                     Image(systemName: "circle.fill")
                                         .font(.caption2.weight(.bold))

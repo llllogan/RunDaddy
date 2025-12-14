@@ -184,7 +184,7 @@ struct PreviewRunsService: RunsServicing {
         // Preview does nothing
     }
     
-    func updateSkuFreshStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
+    func updateSkuColdChestStatus(skuId: String, isFreshOrFrozen: Bool, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
     

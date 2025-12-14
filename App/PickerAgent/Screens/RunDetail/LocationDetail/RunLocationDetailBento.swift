@@ -26,7 +26,7 @@ struct RunLocationOverviewBento: View {
     let viewModel: RunDetailViewModel
     let onChocolateBoxesTap: (() -> Void)?
     let onAddChocolateBoxTap: (() -> Void)?
-    let freshChestItems: [RunDetail.PickItem]
+    let coldChestItems: [RunDetail.PickItem]
     let onLocationTap: (() -> Void)?
     let onMachineTap: ((RunDetail.Machine) -> Void)?
 
@@ -35,7 +35,7 @@ struct RunLocationOverviewBento: View {
          viewModel: RunDetailViewModel,
          onChocolateBoxesTap: (() -> Void)? = nil,
          onAddChocolateBoxTap: (() -> Void)? = nil,
-         freshChestItems: [RunDetail.PickItem] = [],
+         coldChestItems: [RunDetail.PickItem] = [],
          onLocationTap: (() -> Void)? = nil,
          onMachineTap: ((RunDetail.Machine) -> Void)? = nil) {
         self.summary = summary
@@ -43,7 +43,7 @@ struct RunLocationOverviewBento: View {
         self.viewModel = viewModel
         self.onChocolateBoxesTap = onChocolateBoxesTap
         self.onAddChocolateBoxTap = onAddChocolateBoxTap
-        self.freshChestItems = freshChestItems
+        self.coldChestItems = coldChestItems
         self.onLocationTap = onLocationTap
         self.onMachineTap = onMachineTap
     }
@@ -84,16 +84,16 @@ struct RunLocationOverviewBento: View {
         }
         
         cards.append(
-            BentoItem(title: "Fresh Items",
+            BentoItem(title: "Cold Chest",
                       value: "",
-                      subtitle: freshChestItems.count == 0 ? "No fresh products" : "",
-                      symbolName: "leaf.fill",
-                      symbolTint: Theme.freshChestTint,
-                      isProminent: freshChestItems.count > 0,
+                      subtitle: coldChestItems.count == 0 ? "No cold chest items" : "",
+                      symbolName: "snowflake",
+                      symbolTint: Theme.coldChestTint,
+                      isProminent: coldChestItems.count > 0,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 4) {
-                            if !freshChestItems.isEmpty {
-                                ForEach(freshSkuChips) { chip in
+                            if !coldChestItems.isEmpty {
+                                ForEach(coldSkuChips) { chip in
                                     HStack(spacing: 5) {
                                         Image(systemName: "circle.fill")
                                             .font(.caption2.weight(.bold))
@@ -199,18 +199,18 @@ struct RunLocationOverviewBento: View {
         return cards
     }
 
-    private var freshSkuChips: [FreshChip] {
-        let grouped = Dictionary(grouping: freshChestItems) { item -> String? in
+    private var coldSkuChips: [ColdChip] {
+        let grouped = Dictionary(grouping: coldChestItems) { item -> String? in
             guard let sku = item.sku, sku.isFreshOrFrozen else { return nil }
             return sku.id
         }
 
-        let chips = grouped.compactMap { key, items -> FreshChip? in
+        let chips = grouped.compactMap { key, items -> ColdChip? in
             guard let key, let sku = items.first?.sku else { return nil }
             let count = items.reduce(0) { $0 + max($1.count, 0) }
-            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? Theme.freshChestTint
+            let colour = ColorCodec.color(fromHex: sku.labelColour) ?? Theme.coldChestTint
             let label = sku.type
-            return FreshChip(id: key, label: label, count: count, colour: colour)
+            return ColdChip(id: key, label: label, count: count, colour: colour)
         }
 
         return chips.sorted { lhs, rhs in
@@ -354,7 +354,7 @@ struct RunLocationOverviewBento: View {
     }
 }
 
-private struct FreshChip: Identifiable, Equatable {
+private struct ColdChip: Identifiable, Equatable {
     let id: String
     let label: String
     let count: Int

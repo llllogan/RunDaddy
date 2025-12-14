@@ -753,8 +753,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
     
-    // MARK: - Fresh Chest Status Management
-    func toggleFreshStatus(_ pickItem: RunDetail.PickItem) async {
+    // MARK: - Cold Chest Status Management
+    func toggleColdChestStatus(_ pickItem: RunDetail.PickItem) async {
         guard let skuId = pickItem.sku?.id else { return }
         
         updatingSkuIds.insert(skuId)
@@ -762,14 +762,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         let newFreshStatus = !(pickItem.sku?.isFreshOrFrozen ?? false)
         
         do {
-            try await service.updateSkuFreshStatus(
+            try await service.updateSkuColdChestStatus(
                 skuId: skuId,
                 isFreshOrFrozen: newFreshStatus,
                 credentials: session.credentials
             )
             await refreshRunDetail()
         } catch {
-            print("Failed to update SKU fresh chest status: \(error)")
+            print("Failed to update SKU cold chest status: \(error)")
         }
         
         updatingSkuIds.remove(skuId)

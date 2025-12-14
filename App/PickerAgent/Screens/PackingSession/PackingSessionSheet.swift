@@ -264,14 +264,14 @@ struct PackingSessionSheet: View {
                     chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
                     isFreshOrFrozen: viewModel.currentPickItem?.sku?.isFreshOrFrozen ?? false,
                     canAddChocolateBox: viewModel.currentMachine != nil,
-                    canToggleFreshStatus: viewModel.currentPickItem != nil,
+                    canToggleColdChestStatus: viewModel.currentPickItem != nil,
                     onAddChocolateBoxTap: viewModel.currentMachine != nil ? {
                         beginAddChocolateBoxFlow()
                     } : nil,
-                    onToggleFreshTap: viewModel.currentPickItem != nil ? {
+                    onToggleColdChestTap: viewModel.currentPickItem != nil ? {
                         if let pickItem = viewModel.currentPickItem {
                             Task {
-                                await viewModel.toggleFreshStatus(pickItem)
+                                await viewModel.toggleColdChestStatus(pickItem)
                             }
                         }
                     } : nil,
@@ -438,9 +438,9 @@ fileprivate struct CurrentCommandView: View {
     let chocolateBoxNumbers: [Int]
     let isFreshOrFrozen: Bool
     let canAddChocolateBox: Bool
-    let canToggleFreshStatus: Bool
+    let canToggleColdChestStatus: Bool
     let onAddChocolateBoxTap: (() -> Void)?
-    let onToggleFreshTap: (() -> Void)?
+    let onToggleColdChestTap: (() -> Void)?
     let onChangeInputFieldTap: (() -> Void)?
 
     private var coilCount: Int {
@@ -544,12 +544,12 @@ fileprivate struct CurrentCommandView: View {
         machineCompletionInfo != nil
     }
 
-    private var freshChestButtonTitle: String {
-        isFreshOrFrozen ? "Remove Fresh" : "Add to Fresh"
+    private var coldChestButtonTitle: String {
+        isFreshOrFrozen ? "Remove from Cold Chest" : "Add to Cold Chest"
     }
 
-    private var freshChestButtonTint: Color {
-        Theme.freshChestTint
+    private var coldChestButtonTint: Color {
+        Theme.coldChestTint
     }
 
     private var progressCard: some View {
@@ -642,16 +642,16 @@ fileprivate struct CurrentCommandView: View {
     }
 
 
-    private var freshChestButton: some View {
+    private var coldChestButton: some View {
         Button {
-            onToggleFreshTap?()
+            onToggleColdChestTap?()
         } label: {
-            Label(freshChestButtonTitle, systemImage: "leaf.fill")
+            Label(coldChestButtonTitle, systemImage: "snowflake")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(freshChestButtonTint)
-        .disabled(onToggleFreshTap == nil || !canToggleFreshStatus || shouldDisableAccessoryButtons)
+        .tint(coldChestButtonTint)
+        .disabled(onToggleColdChestTap == nil || !canToggleColdChestStatus || shouldDisableAccessoryButtons)
     }
 
     private var addChocolateBoxButton: some View {
@@ -682,12 +682,12 @@ fileprivate struct CurrentCommandView: View {
         if layout == .stacked {
             HStack(spacing: 8) {
                 addChocolateBoxButton
-                freshChestButton
+                coldChestButton
             }
         } else {
             VStack(spacing: 8) {
                 addChocolateBoxButton
-                freshChestButton
+                coldChestButton
             }
         }
     }
@@ -706,7 +706,7 @@ fileprivate struct CurrentCommandView: View {
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
-                        freshChestButton
+                        coldChestButton
                         wideChocolateBoxCard
                         addChocolateBoxButton
                     }
