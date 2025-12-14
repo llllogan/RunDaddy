@@ -34,7 +34,10 @@ struct AllRunsView: View {
             } else if viewModel.runsByDate.isEmpty {
                 EmptyStateRow(message: "No runs found")
             } else {
-                ForEach(viewModel.runsByDate, id: \.date) { dateSection in
+                ForEach(Array(viewModel.runsByDate.enumerated()), id: \.element.date) { index, dateSection in
+                    if pastRunsInsertionIndex == index {
+                        pastRunsTitleRow
+                    }
                     Section(dateSection.headerText) {
                         if dateSection.kind == .today || dateSection.kind == .tomorrow {
                             StaggeredBentoGrid(items: bentoItems(for: dateSection.runs), columnCount: 2)
@@ -123,6 +126,30 @@ struct AllRunsView: View {
         _ = await MainActor.run {
             deletingRunIds.remove(run.id)
         }
+    }
+
+    private var pastRunsInsertionIndex: Int? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let todayIndex = viewModel.runsByDate.firstIndex(where: { calendar.isDateInToday($0.date) })
+        let firstPastIndex = viewModel.runsByDate.firstIndex(where: { $0.date < today })
+
+        guard let todayIndex, let firstPastIndex else {
+            return nil
+        }
+
+        return firstPastIndex > todayIndex ? firstPastIndex : nil
+    }
+
+    private var pastRunsTitleRow: some View {
+        Text("Past Runs")
+            .font(.title.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowInsets(.init(top: 2, leading: 6, bottom: 2, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 
     private func bentoItems(for runs: [RunSummary]) -> [BentoItem] {
