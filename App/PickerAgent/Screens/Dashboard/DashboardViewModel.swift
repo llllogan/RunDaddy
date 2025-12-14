@@ -49,8 +49,9 @@ final class DashboardViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            async let today = service.fetchRuns(for: .today, credentials: session.credentials)
-            async let tomorrow = service.fetchRuns(for: .tomorrow, credentials: session.credentials)
+            let companyId = isLighthouse ? selectedCompanyId() : nil
+            async let today = service.fetchRuns(for: .today, companyId: companyId, credentials: session.credentials)
+            async let tomorrow = service.fetchRuns(for: .tomorrow, companyId: companyId, credentials: session.credentials)
             async let profile = authService.fetchCurrentUserProfile(credentials: session.credentials)
             async let stats = service.fetchRunStats(credentials: session.credentials)
             async let notesSummary = notesService.fetchNotes(
@@ -89,6 +90,26 @@ final class DashboardViewModel: ObservableObject {
     func updateSession(_ session: AuthSession) {
         self.session = session
     }
+    
+    private var isLighthouse: Bool {
+        (session.profile.role?.uppercased() ?? "") == "LIGHTHOUSE"
+    }
 
+    private func selectedCompanyId() -> String? {
+        decodeCompanyId(from: session.credentials.accessToken)
+    }
 
+    private func decodeCompanyId(from token: String) -> String? {
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+        var base64 = String(segments[1])
+        base64 = base64.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let padding = 4 - (base64.count % 4)
+        if padding < 4 {
+            base64.append(String(repeating: "=", count: padding))
+        }
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["companyId"] as? String
+    }
 }

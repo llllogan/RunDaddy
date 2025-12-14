@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma, PackingSessionStatus as PrismaPackingSessionStatus } from '@prisma/client';
 import type { RunStatus as PrismaRunStatus } from '@prisma/client';
-import { RunStatus as AppRunStatus, isRunStatus, AuthContext } from '../types/enums.js';
+import { RunStatus as AppRunStatus, isRunStatus, AuthContext, UserRole } from '../types/enums.js';
 import type { RunStatus as RunStatusValue } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { requireCompanyContext } from '../middleware/requireCompany.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import {
@@ -69,6 +70,15 @@ const updatePickOverrideSchema = z.object({
   override: z.number().int().min(0).nullable(),
 });
 
+const runsQuerySchema = z.object({
+  status: z.string().trim().optional(),
+  startDayOffset: z.coerce.number().int().optional(),
+  endDayOffset: z.coerce.number().int().optional(),
+  timezone: z.string().trim().optional(),
+  limit: z.coerce.number().int().optional(),
+  offset: z.coerce.number().int().optional(),
+});
+
 async function updateRunCompletionStatus(runId: string) {
   const [run, unpickedCount, totalCount] = await prisma.$transaction([
     prisma.run.findUnique({
@@ -110,91 +120,83 @@ async function updateRunCompletionStatus(runId: string) {
   });
 }
 
-router.use(authenticate);
+router.use(authenticate, requireCompanyContext());
 
-// Lists runs for the current company, optionally filtered by status.
+// Lists runs for the current company, optionally filtered by status and day offsets.
 router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Return empty array for users without company
-  if (!req.auth.companyId) {
-    return res.json([]);
+  const parsedQuery = runsQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return res.status(400).json({ error: 'Invalid filters supplied', details: parsedQuery.error.flatten() });
   }
 
-  const { status } = req.query;
-  const where: Prisma.RunWhereInput = { companyId: req.auth.companyId };
+  const {
+    status,
+    startDayOffset,
+    endDayOffset,
+    timezone,
+    limit,
+    offset,
+  } = parsedQuery.data;
+
+  const effectiveCompanyId = req.auth.companyId as string;
+
+  const timezoneOverride = parseTimezoneQueryParam(timezone);
+  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
+    return res.status(400).json({
+      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
+    });
+  }
+
+  const persistTimezone = req.auth.context === AuthContext.APP;
+  const timeZone = await resolveCompanyTimezone(effectiveCompanyId, timezoneOverride, {
+    persistIfMissing: persistTimezone,
+  });
+
+  const defaultStartOffset = req.auth.role === UserRole.PICKER ? 0 : -100;
+  let resolvedStartOffset = startDayOffset ?? defaultStartOffset;
+  if (req.auth.role === UserRole.PICKER) {
+    resolvedStartOffset = Math.max(resolvedStartOffset, 0);
+  } else {
+    // Ensure privileged users always get at least the last 100 days by default
+    resolvedStartOffset = Math.min(resolvedStartOffset, defaultStartOffset);
+  }
+  const resolvedEndOffset = endDayOffset;
+
+  if (resolvedEndOffset !== undefined && resolvedEndOffset < resolvedStartOffset) {
+    return res
+      .status(400)
+      .json({ error: 'endDayOffset must be greater than or equal to startDayOffset' });
+  }
+
+  const rangeStart = getTimezoneDayRange({ timeZone, dayOffset: resolvedStartOffset }).start;
+  const rangeEnd =
+    resolvedEndOffset !== undefined
+      ? getTimezoneDayRange({ timeZone, dayOffset: resolvedEndOffset }).end
+      : undefined;
+
+  const limitNum = Math.min(Math.max(limit ?? 200, 1), 500);
+  const offsetNum = Math.max(offset ?? 0, 0);
+
+  const filters: RunRangeFilters = {
+    companyId: effectiveCompanyId,
+    start: rangeStart,
+    limit: limitNum,
+    offset: offsetNum,
+  };
+
+  if (rangeEnd) {
+    filters.end = rangeEnd;
+  }
+
   if (isRunStatus(status)) {
-    where.status = { equals: status as unknown as PrismaRunStatus };
+    filters.status = status as unknown as PrismaRunStatus;
   }
 
-  const runs = await prisma.run.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      runner: true,
-    },
-  });
-
-  return res.json(runs);
-});
-
-// Get all runs scheduled for today
-// Include the number of locations
-router.get('/today', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  if (!req.auth) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Return empty array for users without company
-  if (!req.auth.companyId) {
-    return res.json([]);
-  }
-
-  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
-  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
-    return res.status(400).json({
-      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
-    });
-  }
-
-  const persistTimezone = req.auth.context === AuthContext.APP;
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
-    persistIfMissing: persistTimezone,
-  });
-  const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 0 });
-
-  const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
-
-  return res.json(runs);
-});
-
-// Get all runs scheduled for tomorrow
-router.get('/tomorrow', setLogConfig({ level: 'minimal' }), async (req, res) => {
-  if (!req.auth) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Return empty array for users without company
-  if (!req.auth.companyId) {
-    return res.json([]);
-  }
-
-  const timezoneOverride = parseTimezoneQueryParam(req.query.timezone);
-  if (timezoneOverride && !isValidTimezone(timezoneOverride)) {
-    return res.status(400).json({
-      error: 'Invalid timezone supplied. Please use an IANA timezone like "America/Chicago".',
-    });
-  }
-
-  const persistTimezone = req.auth.context === AuthContext.APP;
-  const timeZone = await resolveCompanyTimezone(req.auth.companyId, timezoneOverride, {
-    persistIfMissing: persistTimezone,
-  });
-  const dayRange = getTimezoneDayRange({ timeZone, dayOffset: 1 });
-
-  const runs = await fetchScheduledRuns(req.auth.companyId, dayRange);
+  const runs = await fetchRunsWithinRange(filters);
 
   return res.json(runs);
 });
@@ -810,26 +812,13 @@ router.get('/all', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : null;
-
-  const isLighthouse = Boolean(req.auth.lighthouse);
-  const effectiveCompanyId = requestedCompanyId ?? req.auth.companyId ?? null;
-
-  // Require a specific company to scope runs
-  if (!effectiveCompanyId) {
-    return res.json([]);
-  }
-
-  // Non-lighthouse users cannot switch companies via query params
-  if (!isLighthouse && effectiveCompanyId !== req.auth.companyId) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  const effectiveCompanyId = req.auth.companyId;
 
   const { limit = 50, offset = 0 } = req.query;
   const limitNum = Math.min(Number(limit) || 50, 200); // Cap at 200 runs
   const offsetNum = Number(offset) || 0;
 
-  // Use the same view as today/tomorrow endpoints for consistency
+  // Use the same view as the daily endpoints for consistency
   const rows = await prisma.$queryRaw<RunDailyLocationRow[]>(
     Prisma.sql`
       SELECT
@@ -854,53 +843,9 @@ router.get('/all', async (req, res) => {
     `
   );
 
-  // Fetch chocolate boxes for all runs
-  const runIds = rows.map(row => row.run_id);
-  const chocolateBoxes = runIds.length > 0 ? await prisma.chocolateBox.findMany({
-    where: {
-      runId: { in: runIds }
-    },
-    include: {
-      machine: {
-        include: {
-          location: true,
-          machineType: true,
-        },
-      },
-    },
-    orderBy: {
-      number: 'asc'
-    }
-  }) : [];
+  const runs = await buildRunResponses(rows);
 
-  // Group chocolate boxes by run
-  const chocolateBoxesByRun = new Map<string, Array<{id: string, number: number, machine: any}>>();
-  chocolateBoxes.forEach(box => {
-    if (!chocolateBoxesByRun.has(box.runId)) {
-      chocolateBoxesByRun.set(box.runId, []);
-    }
-    chocolateBoxesByRun.get(box.runId)!.push({
-      id: box.id,
-      number: box.number,
-      machine: box.machine
-    });
-  });
-
-  return res.json(rows.map((row) => ({
-    id: row.run_id,
-    status: row.run_status,
-    scheduledFor: row.scheduled_for,
-    pickingStartedAt: row.picking_started_at,
-    pickingEndedAt: row.picking_ended_at,
-    createdAt: row.run_created_at,
-    locationCount: Number(row.location_count ?? 0),
-    chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
-    runner: row.runner_id ? {
-      id: row.runner_id,
-      firstName: row.runner_first_name,
-      lastName: row.runner_last_name,
-    } : null,
-  })));
+  return res.json(runs);
 });
 
 // Get runs scheduled for tomorrow with a status of READY
@@ -2145,12 +2090,19 @@ type RunDailyResponse = {
   };
 };
 
-type TimeRange = {
+type RunRangeFilters = {
+  companyId: string;
   start: Date;
-  end: Date;
+  end?: Date;
+  status?: PrismaRunStatus;
+  limit: number;
+  offset: number;
 };
 
-async function fetchScheduledRuns(companyId: string, range: TimeRange): Promise<RunDailyResponse[]> {
+async function fetchRunsWithinRange(filters: RunRangeFilters): Promise<RunDailyResponse[]> {
+  const endCondition = filters.end ? Prisma.sql`AND scheduled_for < ${filters.end}` : Prisma.sql``;
+  const statusCondition = filters.status ? Prisma.sql`AND run_status = ${filters.status}` : Prisma.sql``;
+
   const rows = await prisma.$queryRaw<RunDailyLocationRow[]>(
     Prisma.sql`
       SELECT
@@ -2168,42 +2120,54 @@ async function fetchScheduledRuns(companyId: string, range: TimeRange): Promise<
         runner_last_name,
         location_count
       FROM v_run_daily_locations
-      WHERE company_id = ${companyId}
-        AND scheduled_for >= ${range.start}
-        AND scheduled_for < ${range.end}
+      WHERE company_id = ${filters.companyId}
+        AND scheduled_for >= ${filters.start}
+        ${endCondition}
+        ${statusCondition}
       ORDER BY scheduled_for ASC, run_created_at ASC
+      LIMIT ${filters.limit}
+      OFFSET ${filters.offset}
     `,
   );
 
-  // Fetch chocolate boxes for all runs
-  const runIds = rows.map(row => row.run_id);
-  const chocolateBoxes = runIds.length > 0 ? await prisma.chocolateBox.findMany({
-    where: {
-      runId: { in: runIds }
-    },
-    include: {
-      machine: {
-        include: {
-          location: true,
-          machineType: true,
-        },
-      },
-    },
-    orderBy: {
-      number: 'asc'
-    }
-  }) : [];
+  return buildRunResponses(rows);
+}
 
-  // Group chocolate boxes by run
-  const chocolateBoxesByRun = new Map<string, Array<{id: string, number: number, machine: any}>>();
-  chocolateBoxes.forEach(box => {
+async function buildRunResponses(rows: RunDailyLocationRow[]): Promise<RunDailyResponse[]> {
+  if (!rows.length) {
+    return [];
+  }
+
+  const runIds = rows.map((row) => row.run_id);
+  const chocolateBoxes =
+    runIds.length > 0
+      ? await prisma.chocolateBox.findMany({
+          where: {
+            runId: { in: runIds },
+          },
+          include: {
+            machine: {
+              include: {
+                location: true,
+                machineType: true,
+              },
+            },
+          },
+          orderBy: {
+            number: 'asc',
+          },
+        })
+      : [];
+
+  const chocolateBoxesByRun = new Map<string, Array<{ id: string; number: number; machine: any }>>();
+  chocolateBoxes.forEach((box) => {
     if (!chocolateBoxesByRun.has(box.runId)) {
       chocolateBoxesByRun.set(box.runId, []);
     }
     chocolateBoxesByRun.get(box.runId)!.push({
       id: box.id,
       number: box.number,
-      machine: box.machine
+      machine: box.machine,
     });
   });
 

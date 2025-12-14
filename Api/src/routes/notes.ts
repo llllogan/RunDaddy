@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
+import { requireCompanyContext } from '../middleware/requireCompany.js';
 import { ensureRun } from './helpers/runs.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 import { getTimezoneDayRange, isValidTimezone } from '../lib/timezone.js';
@@ -15,6 +16,8 @@ const MAX_NOTES = 100;
 const DEFAULT_LIMIT = 50;
 const MAX_BODY_LENGTH = 2000;
 const MAX_RECENT_DAYS = 30;
+
+router.use(authenticate, requireCompanyContext());
 
 const createNoteSchema = z.object({
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH),

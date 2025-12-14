@@ -8,7 +8,7 @@
 import Foundation
 
 struct PreviewRunsService: RunsServicing {
-    func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
+    func fetchRuns(for schedule: RunsSchedule, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
         []
     }
 
@@ -16,7 +16,7 @@ struct PreviewRunsService: RunsServicing {
         RunStats(totalRuns: 128, averageRunsPerDay: 6.2)
     }
     
-    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
+    func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
         // Return some sample runs for testing
         return [
             .previewReady,

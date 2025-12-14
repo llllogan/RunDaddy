@@ -61,6 +61,10 @@ struct AllRunsView: View {
         .task {
             await viewModel.loadRuns()
         }
+        .onChange(of: session) { newSession in
+            viewModel.resetForNewSession(newSession)
+            Task { await viewModel.loadRuns(force: true) }
+        }
         .refreshable {
             await viewModel.loadRuns(force: true)
         }
@@ -134,8 +138,16 @@ fileprivate final class AllRunsViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
 
-    private let session: AuthSession
+    private var session: AuthSession
     let service: RunsServicing
+    private var historyStartOffset: Int {
+        let normalizedRole = session.profile.role?.uppercased() ?? ""
+        let isPicker = normalizedRole == "PICKER"
+        return isPicker ? 0 : -100
+    }
+    private var isLighthouse: Bool {
+        (session.profile.role?.uppercased() ?? "") == "LIGHTHOUSE"
+    }
 
     convenience init(session: AuthSession) {
         self.init(session: session, service: RunsService())
@@ -156,7 +168,12 @@ fileprivate final class AllRunsViewModel: ObservableObject {
 
         do {
             // Fetch all runs from new endpoint
-            let allRuns = try await service.fetchAllRuns(credentials: session.credentials)
+            let allRuns = try await service.fetchAllRuns(
+                startDayOffset: historyStartOffset,
+                endDayOffset: nil,
+                companyId: nil,
+                credentials: session.credentials
+            )
             
             // Group runs by date
             let groupedRuns = Dictionary(grouping: allRuns) { run in
@@ -164,10 +181,35 @@ fileprivate final class AllRunsViewModel: ObservableObject {
                 let date = run.scheduledFor ?? run.createdAt
                 return calendar.startOfDay(for: date)
             }
-            
-            // Create date sections sorted by date (newest first)
-            let sortedDates = groupedRuns.keys.sorted { $0 > $1 }
-            runsByDate = sortedDates.map { date in
+
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+
+            var todayDate: Date?
+            var futureDates: [Date] = []
+            var pastDates: [Date] = []
+
+            for date in groupedRuns.keys {
+                if calendar.isDate(date, inSameDayAs: today) {
+                    todayDate = date
+                } else if date > today {
+                    futureDates.append(date)
+                } else {
+                    pastDates.append(date)
+                }
+            }
+
+            futureDates.sort()
+            pastDates.sort(by: >)
+
+            var orderedDates: [Date] = []
+            if let todayDate {
+                orderedDates.append(todayDate)
+            }
+            orderedDates.append(contentsOf: futureDates)
+            orderedDates.append(contentsOf: pastDates)
+
+            runsByDate = orderedDates.map { date in
                 RunDateSection(date: date, runs: groupedRuns[date] ?? [])
             }
         } catch {
@@ -189,6 +231,40 @@ fileprivate final class AllRunsViewModel: ObservableObject {
             let filteredRuns = dateSection.runs.filter { $0.id != runId }
             return RunDateSection(date: dateSection.date, runs: filteredRuns)
         }.filter { !$0.runs.isEmpty }
+    }
+
+    func handleCompanyChange() {
+        Task { await loadRuns(force: true) }
+    }
+
+    func updateSession(_ session: AuthSession) {
+        self.session = session
+    }
+
+    func resetForNewSession(_ session: AuthSession) {
+        self.session = session
+        runsByDate = []
+        errorMessage = nil
+        isLoading = false
+        handleCompanyChange()
+    }
+    
+    private func companyIdFromToken() -> String? {
+        decodeCompanyId(from: session.credentials.accessToken)
+    }
+
+    private func decodeCompanyId(from token: String) -> String? {
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+        var base64 = String(segments[1])
+        base64 = base64.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let padding = 4 - (base64.count % 4)
+        if padding < 4 {
+            base64.append(String(repeating: "=", count: padding))
+        }
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["companyId"] as? String
     }
 }
 

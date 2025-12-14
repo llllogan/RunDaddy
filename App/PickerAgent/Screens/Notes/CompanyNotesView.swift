@@ -28,6 +28,7 @@ struct CompanyNotesView: View {
     @StateObject private var viewModel: CompanyNotesViewModel
     let onNotesUpdated: ((Int) -> Void)?
     @State private var composerIntent: NoteComposerIntent?
+    let session: AuthSession
 
     init(
         session: AuthSession,
@@ -36,6 +37,7 @@ struct CompanyNotesView: View {
         runsService: RunsServicing? = nil,
         onNotesUpdated: ((Int) -> Void)? = nil
     ) {
+        self.session = session
         _viewModel = StateObject(
             wrappedValue: CompanyNotesViewModel(
                 session: session,
@@ -89,6 +91,13 @@ struct CompanyNotesView: View {
         .task {
             await viewModel.loadNotes()
             await viewModel.loadSuggestedTags()
+        }
+        .onChange(of: session.credentials.accessToken) {
+            viewModel.resetSession(session)
+            Task {
+                await viewModel.loadNotes(force: true)
+                await viewModel.loadSuggestedTags()
+            }
         }
         .onChange(of: viewModel.total) { _, newValue in
             onNotesUpdated?(newValue)
@@ -166,7 +175,7 @@ final class CompanyNotesViewModel: ObservableObject {
     @Published private(set) var groupedNotes: [NoteDayGroup] = []
     @Published private(set) var runDates: [String: Date] = [:]
 
-    let session: AuthSession
+    private var session: AuthSession
     private let notesService: NotesServicing
     private let searchService: SearchServicing
     private let runsService: RunsServicing
@@ -182,6 +191,16 @@ final class CompanyNotesViewModel: ObservableObject {
         self.notesService = notesService ?? NotesService()
         self.searchService = searchService ?? SearchService()
         self.runsService = runsService ?? RunsService()
+    }
+
+    func resetSession(_ session: AuthSession) {
+        self.session = session
+        notes = []
+        total = 0
+        groupedNotes = []
+        runDates = [:]
+        errorMessage = nil
+        isLoading = false
     }
 
     func loadNotes(force: Bool = false) async {

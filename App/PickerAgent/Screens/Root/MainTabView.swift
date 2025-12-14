@@ -34,6 +34,7 @@ private extension MainTabView {
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
+                .id(session.credentials.accessToken)
             }
 
             Tab("Analytics", systemImage: "chart.bar") {
@@ -41,6 +42,7 @@ private extension MainTabView {
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
+                .id(session.credentials.accessToken)
             }
 
             Tab("Notes", systemImage: "note.text") {
@@ -48,6 +50,7 @@ private extension MainTabView {
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
+                .id(session.credentials.accessToken)
             }
 
             Tab(role: .search) {

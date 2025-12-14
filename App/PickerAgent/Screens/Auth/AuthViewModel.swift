@@ -57,8 +57,8 @@ final class AuthViewModel: ObservableObject {
 
         do {
             let refreshedCredentials = try await service.refresh(using: storedCredentials)
-            let profile = try await service.fetchProfile(userID: refreshedCredentials.userID, credentials: refreshedCredentials)
-            let session = AuthSession(credentials: refreshedCredentials, profile: profile)
+            let currentProfile = try await service.fetchCurrentUserProfile(credentials: refreshedCredentials)
+            let session = AuthSession(credentials: refreshedCredentials, profile: currentProfile.toUserProfile())
             service.store(credentials: refreshedCredentials)
             phase = .authenticated(session)
         } catch {
@@ -87,8 +87,8 @@ final class AuthViewModel: ObservableObject {
                 .lowercased()
 
             let credentials = try await service.login(email: normalizedEmail, password: password)
-            let profile = try await service.fetchProfile(userID: credentials.userID, credentials: credentials)
-            let session = AuthSession(credentials: credentials, profile: profile)
+            let currentProfile = try await service.fetchCurrentUserProfile(credentials: credentials)
+            let session = AuthSession(credentials: credentials, profile: currentProfile.toUserProfile())
             service.store(credentials: credentials)
             phase = .authenticated(session)
         } catch {
@@ -121,8 +121,8 @@ final class AuthViewModel: ObservableObject {
                 lastName: lastName.trimmingCharacters(in: .whitespacesAndNewlines),
                 phone: phone?.trimmingCharacters(in: .whitespacesAndNewlines)
             )
-            let profile = try await service.fetchProfile(userID: credentials.userID, credentials: credentials)
-            let session = AuthSession(credentials: credentials, profile: profile)
+            let currentProfile = try await service.fetchCurrentUserProfile(credentials: credentials)
+            let session = AuthSession(credentials: credentials, profile: currentProfile.toUserProfile())
             service.store(credentials: credentials)
             phase = .authenticated(session)
         } catch {
@@ -149,8 +149,8 @@ final class AuthViewModel: ObservableObject {
         }
 
         do {
-            let profile = try await service.fetchProfile(userID: storedCredentials.userID, credentials: storedCredentials)
-            let session = AuthSession(credentials: storedCredentials, profile: profile)
+            let currentProfile = try await service.fetchCurrentUserProfile(credentials: storedCredentials)
+            let session = AuthSession(credentials: storedCredentials, profile: currentProfile.toUserProfile())
             phase = .authenticated(session)
         } catch {
             if handleUpdateRequirement(from: error) {

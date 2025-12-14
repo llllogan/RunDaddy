@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
+import { requireCompanyContext } from '../middleware/requireCompany.js';
 import {
   getTimezoneDayRange,
   isValidTimezone,
@@ -237,7 +238,7 @@ type MomentumLeadersResponse<LeaderType> = {
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireCompanyContext());
 
 router.get('/daily-totals', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const context = await buildLookbackContext(req, res);

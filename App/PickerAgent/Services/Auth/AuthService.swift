@@ -354,6 +354,17 @@ private struct CurrentUserProfileResponse: Decodable {
             currentCompany: currentCompany
         )
     }
+
+    func toUserProfile() -> UserProfile {
+        UserProfile(
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone,
+            role: currentCompany?.role ?? user.role
+        )
+    }
 }
 
 private struct UserInfo: Decodable {
@@ -401,6 +412,19 @@ private struct StandaloneUserResponse: Decodable {
             lastName: lastName,
             phone: phone,
             role: role
+        )
+    }
+}
+
+extension CurrentUserProfile {
+    func toUserProfile() -> UserProfile {
+        UserProfile(
+            id: id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            role: currentCompany?.role ?? role
         )
     }
 }

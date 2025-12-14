@@ -24,36 +24,11 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     if (!payload.sub || !payload.context) {
       return res.status(401).json({ error: 'Invalid token payload' });
     }
+    if (payload.companyId === null || typeof payload.companyId === 'undefined') {
+      return res.status(401).json({ error: 'Company context missing from token' });
+    }
     const isLighthouse = Boolean((payload as Record<string, unknown>).lighthouse);
     const payloadRole = (payload as Record<string, unknown>).role as UserRole | undefined;
-
-    // Handle users without company memberships
-    if (!payload.companyId) {
-      const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(401).json({ error: 'User not found' });
-      }
-
-      const accountRole = (user.role as AccountRole | null | undefined) ?? null;
-      req.auth = {
-        userId: user.id,
-        email: user.email,
-        role: payloadRole ?? (isLighthouse ? UserRole.OWNER : FALLBACK_ROLE),
-        companyId: null,
-        context: payload.context,
-        lighthouse: isLighthouse,
-        accountRole,
-      };
-      return next();
-    }
 
     if (isLighthouse) {
       const user = await prisma.user.findUnique({

@@ -8,9 +8,9 @@
 import Foundation
 
 protocol RunsServicing {
-    func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary]
+    func fetchRuns(for schedule: RunsSchedule, companyId: String?, credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats
-    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary]
+    func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String?, credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
@@ -38,12 +38,12 @@ enum RunsSchedule {
     case today
     case tomorrow
 
-    var pathComponent: String {
+    var dayOffsets: (start: Int, end: Int) {
         switch self {
         case .today:
-            return "today"
+            return (0, 0)
         case .tomorrow:
-            return "tomorrow"
+            return (1, 1)
         }
     }
 }
@@ -356,38 +356,16 @@ final class RunsService: RunsServicing {
         self.decoder = decoder
     }
 
-    func fetchRuns(for schedule: RunsSchedule, credentials: AuthCredentials) async throws -> [RunSummary] {
-        var url = AppConfig.apiBaseURL
-        url.appendPathComponent("runs")
-        url.appendPathComponent(schedule.pathComponent)
+    func fetchRuns(for schedule: RunsSchedule, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
+        let offsets = schedule.dayOffsets
+        let url = buildRunsURL(
+            startDayOffset: offsets.start,
+            endDayOffset: offsets.end,
+            limit: 200,
+            companyId: companyId
+        )
 
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let timezoneIdentifier = TimeZone.current.identifier
-        var queryItems = components?.queryItems ?? []
-        queryItems.append(URLQueryItem(name: "timezone", value: timezoneIdentifier))
-        components?.queryItems = queryItems
-        let resolvedURL = components?.url ?? url
-
-        var request = URLRequest(url: resolvedURL)
-        request.httpMethod = "GET"
-        request.httpShouldHandleCookies = true
-        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw RunsServiceError.invalidResponse
-        }
-
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 401 {
-                throw AuthError.unauthorized
-            }
-            throw RunsServiceError.serverError(code: httpResponse.statusCode)
-        }
-
-        let payload = try decoder.decode([RunResponse].self, from: data)
-        return payload.map { $0.toSummary() }
+        return try await performRunsRequest(url: url, credentials: credentials)
     }
 
     func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats {
@@ -418,20 +396,51 @@ final class RunsService: RunsServicing {
         return RunStats(totalRuns: payload.totalRuns, averageRunsPerDay: payload.averageRunsPerDay)
     }
 
-    func fetchAllRuns(credentials: AuthCredentials) async throws -> [RunSummary] {
+    func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
+        let url = buildRunsURL(
+            startDayOffset: startDayOffset,
+            endDayOffset: endDayOffset,
+            limit: 500,
+            companyId: companyId
+        )
+
+        return try await performRunsRequest(url: url, credentials: credentials)
+    }
+
+    private func buildRunsURL(
+        startDayOffset: Int,
+        endDayOffset: Int?,
+        limit: Int?,
+        companyId: String? = nil
+    ) -> URL {
         var url = AppConfig.apiBaseURL
         url.appendPathComponent("runs")
-        url.appendPathComponent("all")
 
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        if let selectedCompanyId = UserDefaults.standard.string(forKey: "pickeragent_selected_company_id") {
-            var queryItems = components?.queryItems ?? []
-            queryItems.append(URLQueryItem(name: "companyId", value: selectedCompanyId))
-            components?.queryItems = queryItems
-        }
-        let resolvedURL = components?.url ?? url
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "startDayOffset", value: String(startDayOffset)),
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
+        ]
 
-        var request = URLRequest(url: resolvedURL)
+        if let endDayOffset {
+            queryItems.append(URLQueryItem(name: "endDayOffset", value: String(endDayOffset)))
+        }
+
+        if let companyId {
+            queryItems.append(URLQueryItem(name: "companyId", value: companyId))
+        }
+
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+
+        components?.queryItems = queryItems
+
+        return components?.url ?? url
+    }
+
+    private func performRunsRequest(url: URL, credentials: AuthCredentials) async throws -> [RunSummary] {
+        var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = true
