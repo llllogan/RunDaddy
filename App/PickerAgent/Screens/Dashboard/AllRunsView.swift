@@ -203,10 +203,10 @@ fileprivate final class AllRunsViewModel: ObservableObject {
             pastDates.sort(by: >)
 
             var orderedDates: [Date] = []
+            orderedDates.append(contentsOf: futureDates)
             if let todayDate {
                 orderedDates.append(todayDate)
             }
-            orderedDates.append(contentsOf: futureDates)
             orderedDates.append(contentsOf: pastDates)
 
             runsByDate = orderedDates.map { date in
