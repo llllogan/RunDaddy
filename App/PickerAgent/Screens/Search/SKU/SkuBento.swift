@@ -92,18 +92,29 @@ struct SkuInfoBento: View {
                                         ColorPicker("", selection: labelColour, supportsOpacity: false)
                                             .labelsHidden()
                                             .disabled(!canEditLabelColour)
-                                            .accessibilityLabel("Pick label colour")
+                                            .accessibilityLabel("Select label colour")
                                         if isUpdatingLabelColour {
                                             ProgressView()
                                                 .scaleEffect(0.8)
                                         }
                                     }
                                     
-                                    Text("Pick label colour")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(labelColourHex ?? "—")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.secondary)
+                                        Text("Select label colour")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
 
                                 }
+                                .padding(6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(.systemGray5))
+                                )
                             }
                         }
                     ))
@@ -204,6 +215,10 @@ struct SkuInfoBento: View {
     }()
 
     // Label colour picker has been folded into the Cold Chest card.
+
+    private var labelColourHex: String? {
+        ColorCodec.hexString(from: labelColour.wrappedValue)
+    }
 }
 
 struct SkuPerformanceBento: View {
