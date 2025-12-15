@@ -682,6 +682,7 @@ private struct CompanyNoteComposer: View {
     let editingNote: Note?
     let onNoteSaved: () -> Void
 
+    @FocusState private var isBodyFocused: Bool
     @State private var bodyText: String
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
@@ -732,6 +733,7 @@ private struct CompanyNoteComposer: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 120)
+                            .focused($isBodyFocused)
 
                         if bodyText.isEmpty {
                             Text("Add context or reminders for your team…")
@@ -777,6 +779,7 @@ private struct CompanyNoteComposer: View {
                                     selectedTag = option
                                 } label: {
                                     EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -823,6 +826,12 @@ private struct CompanyNoteComposer: View {
                     }
                     .disabled(isSaveDisabled)
                 }
+            }
+        }
+        .task {
+            guard !isEditing else { return }
+            await MainActor.run {
+                isBodyFocused = true
             }
         }
     }

@@ -435,6 +435,7 @@ private struct RunNoteComposer: View {
     let editingNote: Note?
     let onNoteSaved: () -> Void
 
+    @FocusState private var isBodyFocused: Bool
     @State private var bodyText: String
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
@@ -489,6 +490,7 @@ private struct RunNoteComposer: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 120)
+                            .focused($isBodyFocused)
 
                         if bodyText.isEmpty {
                             Text("Add context about this run…")
@@ -568,6 +570,12 @@ private struct RunNoteComposer: View {
                     }
                     .disabled(isSaveDisabled)
                 }
+            }
+        }
+        .task {
+            guard !isEditing else { return }
+            await MainActor.run {
+                isBodyFocused = true
             }
         }
     }
