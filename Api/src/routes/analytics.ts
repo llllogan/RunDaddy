@@ -2339,16 +2339,18 @@ function buildPickEntryBreakdownAverages(
         }
         const group = weekGroups.get(key)!;
         group.labels.push(label);
-        group.totals.push(total);
+        if (total > 0) {
+          group.totals.push(total);
+        }
       }
     }
 
     return Array.from(weekGroups.values())
       .sort((a, b) => a.start.getTime() - b.start.getTime())
       .map((group) => {
-        const dayCount = Math.max(group.totals.length, group.labels.length, 1);
+        const dayCount = group.totals.length;
         const total = group.totals.reduce((sum, value) => sum + value, 0);
-        const averageRaw = total / dayCount;
+        const averageRaw = dayCount > 0 ? total / dayCount : 0;
         const displaySpan = displaySpanForPeriod(group.start, group.end);
         return {
           start: formatDateInTimezone(displaySpan.start, timeZone),
@@ -2382,8 +2384,10 @@ function buildPickEntryBreakdownAverages(
       .map(([, group]) => {
         const orderedBuckets = group.buckets.sort((a, b) => a.start.getTime() - b.start.getTime());
         const bucketTotals = orderedBuckets.map((bucket) => sumBucketTotals(bucket, dailyTotals));
-        const divisor = bucketTotals.length || 1;
-        const averageRaw = bucketTotals.reduce((sum, value) => sum + value, 0) / divisor;
+        const nonZeroBucketTotals = bucketTotals.filter((total) => total > 0);
+        const divisor = nonZeroBucketTotals.length;
+        const averageRaw =
+          divisor > 0 ? nonZeroBucketTotals.reduce((sum, value) => sum + value, 0) / divisor : 0;
         const allLabels = orderedBuckets.flatMap((bucket) => bucket.dayLabels);
         const displaySpan = displaySpanForPeriod(
           orderedBuckets[0]!.start,
@@ -2425,22 +2429,25 @@ function buildPickEntryBreakdownAverages(
         start: bucket.start,
         end: bucket.end,
         labels: new Set(bucket.dayLabels),
-        totals: [bucketTotal],
+        totals: bucketTotal > 0 ? [bucketTotal] : [],
       });
     } else {
       const group = monthGroups.get(monthKey)!;
       group.start = new Date(Math.min(group.start.getTime(), bucket.start.getTime()));
       group.end = new Date(Math.max(group.end.getTime(), bucket.end.getTime()));
       bucket.dayLabels.forEach((label) => group.labels.add(label));
-      group.totals.push(bucketTotal);
+      if (bucketTotal > 0) {
+        group.totals.push(bucketTotal);
+      }
     }
   }
 
   return Array.from(monthGroups.entries())
     .sort(([aKey], [bKey]) => (aKey < bKey ? -1 : 1))
     .map(([, group]) => {
-      const divisor = Math.max(group.totals.length, 1);
-      const averageRaw = group.totals.reduce((sum, value) => sum + value, 0) / divisor;
+      const divisor = group.totals.length;
+      const averageRaw =
+        divisor > 0 ? group.totals.reduce((sum, value) => sum + value, 0) / divisor : 0;
       const displaySpan = displaySpanForPeriod(group.start, group.end);
 
       return {
@@ -2755,9 +2762,10 @@ async function buildPeriodComparison(period: PeriodType, context: TimezoneContex
 
   const currentTotal = await currentTotalPromise;
   const previousTotals = previousPeriods.map((entry) => entry.totalItems);
+  const previousNonZeroTotals = previousTotals.filter((total) => total > 0);
   const previousAverageRaw =
-    previousTotals.length > 0
-      ? previousTotals.reduce((sum, value) => sum + value, 0) / previousTotals.length
+    previousNonZeroTotals.length > 0
+      ? previousNonZeroTotals.reduce((sum, value) => sum + value, 0) / previousNonZeroTotals.length
       : null;
   const previousAverage =
     previousAverageRaw !== null ? Number(previousAverageRaw.toFixed(2)) : null;

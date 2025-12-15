@@ -513,7 +513,9 @@ async function buildLocationChartPoints(
     total: periodBucketTotals.get(bucket.key) ?? 0,
     isInPeriod: isBucketInPeriod(bucket),
   }));
-  const periodBucketCount = periodBucketSummaries.filter(bucket => bucket.isInPeriod).length;
+  const periodBucketCount = periodBucketSummaries.filter(
+    bucket => bucket.isInPeriod && bucket.total > 0,
+  ).length;
 
   return {
     points,

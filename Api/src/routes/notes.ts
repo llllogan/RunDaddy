@@ -123,11 +123,13 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
       return res.status(404).json({ error: 'Target not found for this company' });
     }
 
-    filters.push({
-      skuId: targetType === 'sku' ? targetId : undefined,
-      machineId: targetType === 'machine' ? targetId : undefined,
-      locationId: targetType === 'location' ? targetId : undefined,
-    });
+    if (targetType === 'sku') {
+      filters.push({ skuId: targetId });
+    } else if (targetType === 'machine') {
+      filters.push({ machineId: targetId });
+    } else if (targetType === 'location') {
+      filters.push({ locationId: targetId });
+    }
   }
 
   // Apply date window if requested (e.g., today + yesterday)
