@@ -212,18 +212,12 @@ struct StaggeredBentoGrid: View {
                 VStack(spacing: 12) {
                     ForEach(columns[index]) { item in
                         if let onTap = item.onTap {
-                            if item.customContent != nil {
+                            Button {
+                                onTap()
+                            } label: {
                                 BentoCard(item: item)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { onTap() }
-                            } else {
-                                Button {
-                                    onTap()
-                                } label: {
-                                    BentoCard(item: item)
-                                }
-                                .buttonStyle(.plain)
                             }
+                            .buttonStyle(.plain)
                         } else {
                             BentoCard(item: item)
                         }

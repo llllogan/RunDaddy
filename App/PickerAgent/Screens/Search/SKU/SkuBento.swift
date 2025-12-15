@@ -67,7 +67,6 @@ struct SkuInfoBento: View {
                       value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
                       symbolName: "snowflake",
                       symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
-                      onTap: { onToggleColdChestStatus() },
                       showsChevron: false,
                       customContent: AnyView(
                         VStack(alignment: .leading, spacing: 10) {
@@ -90,27 +89,22 @@ struct SkuInfoBento: View {
                                 .foregroundStyle(.secondary)
 
                             if sku.isFreshOrFrozen {
-                                ColorPicker(selection: labelColour, supportsOpacity: false) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(labelColourHex ?? "—")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.secondary)
-                                        Text("Select label colour")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .disabled(!canEditLabelColour)
-                                .padding(10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(Color(.systemGray5))
-                                )
-                                .accessibilityLabel("Select label colour")
+                                labelColourSelection
                             }
                         }
+                        .background(
+                            Button {
+                                if isUpdatingColdChestStatus {
+                                    return
+                                }
+                                onToggleColdChestStatus()
+                            } label: {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isUpdatingColdChestStatus)
+                        )
                     ))
         )
 
@@ -212,6 +206,28 @@ struct SkuInfoBento: View {
 
     private var labelColourHex: String? {
         ColorCodec.hexString(from: labelColour.wrappedValue)
+    }
+
+    private var labelColourSelection: some View {
+        ColorPicker(selection: labelColour, supportsOpacity: false) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(labelColourHex ?? "—")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                Text("Select label colour")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .disabled(!canEditLabelColour)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.systemGray5))
+        )
+        .accessibilityLabel("Select label colour")
     }
 }
 
