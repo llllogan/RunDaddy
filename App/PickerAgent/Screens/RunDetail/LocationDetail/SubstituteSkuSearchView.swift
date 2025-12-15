@@ -8,12 +8,13 @@ struct SubstituteSkuSearchView: View {
     let onPickStatusChanged: () async -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isQueryFocused: Bool
 
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var searchResults: [SearchResult] = []
     @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var selectedSkuResult: SearchResult?
+    @State private var selectedSkuId: String?
     @State private var confirmingSubstitution = false
     @State private var errorMessage: String?
 
@@ -29,8 +30,8 @@ struct SubstituteSkuSearchView: View {
     }
 
     private var isSubstituteEnabled: Bool {
-        guard let selectedSkuResult else { return false }
-        return selectedSkuResult.id != pickItem.sku?.id
+        guard let selectedSkuId else { return false }
+        return selectedSkuId != pickItem.sku?.id
     }
 
     var body: some View {
@@ -41,27 +42,55 @@ struct SubstituteSkuSearchView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Search Results") {
-                    if isSearching {
-                        HStack(spacing: 12) {
-                            ProgressView()
-                            Text("Searching…")
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("Search for a SKU to substitute.")
+                Section("Search") {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
-                    } else if searchResults.isEmpty {
-                        Text("No SKUs found.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(searchResults) { result in
+
+                        TextField("Search SKUs…", text: $searchText)
+                            .focused($isQueryFocused)
+                            .submitLabel(.search)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onSubmit {
+                                performSearch()
+                            }
+
+                        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Button {
-                                selectedSkuResult = result
+                                searchText = ""
                             } label: {
-                                EntityResultRow(result: result, isSelected: selectedSkuResult?.id == result.id)
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Clear search")
+                        }
+                    }
+                }
+
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Section("Search Results") {
+                        if isSearching {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                Text("Searching…")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if searchResults.isEmpty {
+                            Text("No SKUs found.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(searchResults) { result in
+                                Button {
+                                    selectedSkuId = result.id
+                                    isQueryFocused = false
+                                } label: {
+                                    EntityResultRow(result: result, isSelected: selectedSkuId == result.id)
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Rectangle())
+                            }
                         }
                     }
                 }
@@ -83,7 +112,6 @@ struct SubstituteSkuSearchView: View {
                     .disabled(!isSubstituteEnabled)
                 }
             }
-            .searchable(text: $searchText, prompt: "Search SKUs…")
             .onChange(of: searchText) { _, newValue in
                 handleSearchTextChange(newValue)
             }
@@ -101,7 +129,7 @@ struct SubstituteSkuSearchView: View {
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will update this pick entry to use the selected SKU and keep the same count.")
+                Text("This coil will be updated with the new SKU. The count will remain the same.")
             }
             .alert("Couldn't Substitute", isPresented: Binding(get: { errorMessage != nil }, set: { _, _ in errorMessage = nil })) {
                 Button("OK", role: .cancel) { }
@@ -116,7 +144,6 @@ struct SubstituteSkuSearchView: View {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             searchResults = []
-            selectedSkuResult = nil
             return
         }
 
@@ -139,9 +166,6 @@ struct SubstituteSkuSearchView: View {
                 let response = try await searchService.search(query: trimmed, results: [.sku])
                 searchResults = response.results
                     .filter { $0.type == "sku" }
-                if let selectedSkuResult, !searchResults.contains(where: { $0.id == selectedSkuResult.id }) {
-                    self.selectedSkuResult = nil
-                }
             } catch {
                 searchResults = []
             }
@@ -149,13 +173,13 @@ struct SubstituteSkuSearchView: View {
     }
 
     private func substituteSelectedSku() async {
-        guard let selectedSkuResult else { return }
+        guard let selectedSkuId else { return }
 
         do {
             try await runsService.substitutePickEntrySku(
                 runId: runId,
                 pickId: pickItem.id,
-                skuId: selectedSkuResult.id,
+                skuId: selectedSkuId,
                 credentials: session.credentials
             )
             await onPickStatusChanged()
