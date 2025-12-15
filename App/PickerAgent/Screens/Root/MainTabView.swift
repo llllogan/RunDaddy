@@ -183,6 +183,7 @@ private struct SearchTab: View {
     @State private var suggestionsErrorMessage: String?
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
+    @FocusState private var isSearchFocused: Bool
     private let searchService = SearchService()
 
     private var isShowingSuggestions: Bool {
@@ -207,6 +208,7 @@ private struct SearchTab: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search locations, machines, SKUs...")
+            .searchFocused($isSearchFocused)
             .onSubmit(of: .search) {
                 performSearch()
             }
@@ -230,11 +232,13 @@ private struct SearchTab: View {
                 }
             }
             .onAppear {
+                isSearchFocused = true
                 if suggestions.isEmpty {
                     loadSuggestionsIfNeeded()
                 }
             }
             .onDisappear {
+                isSearchFocused = false
                 searchDebounceTask?.cancel()
             }
         }

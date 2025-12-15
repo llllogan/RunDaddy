@@ -209,16 +209,14 @@ struct SkuInfoBento: View {
     }
 
     private var labelColourSelection: some View {
-        ColorPicker(selection: labelColour, supportsOpacity: false) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(labelColourHex ?? "—")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
-                Text("Select label colour")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+        HStack(spacing: 4) {
+            ColorPicker("", selection: labelColour, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 34, height: 34)
+
+            Text("Select SKU label colour")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .disabled(!canEditLabelColour)
@@ -227,7 +225,7 @@ struct SkuInfoBento: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(.systemGray5))
         )
-        .accessibilityLabel("Select label colour")
+        .accessibilityLabel("Select SKU label colour")
     }
 }
 
