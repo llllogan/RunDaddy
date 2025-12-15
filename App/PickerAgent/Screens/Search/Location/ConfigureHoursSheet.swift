@@ -36,7 +36,6 @@ struct ConfigureHoursSheet: View {
                     }
                     TextField("Not set", text: $dwellTimeText)
                         .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
                 }
                 .padding(.vertical, 4)
 

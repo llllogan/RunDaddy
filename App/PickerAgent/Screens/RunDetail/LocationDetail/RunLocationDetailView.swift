@@ -634,7 +634,6 @@ struct CountPointerSelectionSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         TextField("Override count", text: $overrideInput)
                             .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
                         
                         if let defaultPointerCount {
                             Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")

@@ -489,16 +489,12 @@ private struct RunNoteComposer: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 120)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color(.separator))
-                            }
 
                         if bodyText.isEmpty {
                             Text("Add context about this run…")
                                 .foregroundStyle(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 12)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 10)
                         }
                     }
                 }
@@ -506,7 +502,6 @@ private struct RunNoteComposer: View {
                 if !isEditing {
                     Section("Apply to") {
                         TextField("Search SKUs, machines, or locations", text: $searchText)
-                            .textFieldStyle(.roundedBorder)
 
                         if viewModel.tagOptions.isEmpty {
                             Text("Tags are unavailable until the run details finish loading.")
