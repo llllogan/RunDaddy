@@ -183,7 +183,7 @@ final class RunNotesViewModel: ObservableObject {
         isLoading = false
     }
 
-    func addNote(body: String, tag: NoteTagOption) async -> Note? {
+    func addNote(body: String, tag: NoteTagOption, saveForFutureRuns: Bool) async -> Note? {
         if isSaving {
             return nil
         }
@@ -196,7 +196,7 @@ final class RunNotesViewModel: ObservableObject {
         do {
             let request = CreateNoteRequest(
                 body: trimmedBody,
-                runId: runId,
+                runId: saveForFutureRuns ? nil : runId,
                 targetType: tag.type,
                 targetId: tag.id
             )
@@ -437,6 +437,7 @@ private struct RunNoteComposer: View {
 
     @FocusState private var isBodyFocused: Bool
     @State private var bodyText: String
+    @State private var saveForFutureRuns = false
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
     @State private var searchTask: Task<Void, Never>?
@@ -481,6 +482,28 @@ private struct RunNoteComposer: View {
         bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag == nil || viewModel.isSaving
     }
 
+    private var futureRunsFooterTarget: String {
+        guard let selectedTag else {
+            return "this location, machine, or SKU"
+        }
+
+        switch selectedTag.type {
+        case .location:
+            return "this location"
+        case .machine:
+            return "this machine"
+        case .sku:
+            return "this SKU"
+        }
+    }
+
+    private var saveForFutureRunsFooterText: String {
+        if saveForFutureRuns {
+            return "This note will appear in all runs that \(futureRunsFooterTarget) is found in. It can also be found in the notes tab."
+        }
+        return "This note will only appear in this run. It can still be found in the notes tab later."
+    }
+
     var body: some View {
         let isEditing = editingNote != nil
 
@@ -498,6 +521,14 @@ private struct RunNoteComposer: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 10)
                         }
+                    }
+                }
+
+                if !isEditing {
+                    Section {
+                        Toggle("Add to future runs", isOn: $saveForFutureRuns)
+                    } footer: {
+                        Text(saveForFutureRunsFooterText)
                     }
                 }
 
@@ -554,12 +585,13 @@ private struct RunNoteComposer: View {
                             if let editingNote {
                                 note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
                             } else {
-                                note = await viewModel.addNote(body: bodyText, tag: tag)
+                                note = await viewModel.addNote(body: bodyText, tag: tag, saveForFutureRuns: saveForFutureRuns)
                             }
                             if note != nil {
                                 onNoteSaved()
                                 isPresented = false
                                 bodyText = ""
+                                saveForFutureRuns = false
                                 searchText = ""
                                 selectedTag = nil
                                 if editingNote != nil {
