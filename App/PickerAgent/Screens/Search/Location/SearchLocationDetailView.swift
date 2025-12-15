@@ -25,9 +25,12 @@ struct SearchLocationDetailView: View {
     @AppStorage(DirectionsApp.storageKey) private var preferredDirectionsAppRawValue = DirectionsApp.appleMaps.rawValue
     @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
+    @State private var recentNotes: [Note] = []
+    @State private var isLoadingNotes = false
 
     private let locationsService: LocationsServicing = LocationsService()
     private let authService: AuthServicing = AuthService()
+    private let notesService: NotesServicing = NotesService()
 
     init(locationId: String, session: AuthSession) {
         self.locationId = locationId
@@ -148,6 +151,26 @@ struct SearchLocationDetailView: View {
                         Text("Recent Activity")
                     }
                 }
+
+                if !recentNotes.isEmpty {
+                    Section("Notes") {
+                        ForEach(recentNotes) { note in
+                            NoteRowView(note: note)
+                        }
+
+                        NavigationLink("View all notes") {
+                            CompanyNotesView(
+                                session: session,
+                                initialFilterTag: NoteTagOption(
+                                    id: locationId,
+                                    type: .location,
+                                    label: location.name,
+                                    subtitle: location.address
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
         .navigationTitle(locationDisplayTitle)
@@ -159,6 +182,7 @@ struct SearchLocationDetailView: View {
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
             await loadEffectiveRole()
             await loadLocationDetails()
+            await loadRecentNotes()
         }
         .onChange(of: selectedPeriod) { _, _ in
             Task {
@@ -297,6 +321,27 @@ struct SearchLocationDetailView: View {
             locationStats = nil
         }
         isLoadingStats = false
+    }
+
+    private func loadRecentNotes() async {
+        if isLoadingNotes {
+            return
+        }
+
+        isLoadingNotes = true
+        defer { isLoadingNotes = false }
+
+        do {
+            let response = try await notesService.fetchNotes(
+                targetType: .location,
+                targetId: locationId,
+                limit: 5,
+                credentials: session.credentials
+            )
+            recentNotes = Array(response.notes.prefix(5))
+        } catch {
+            recentNotes = []
+        }
     }
 
     private func saveLocationSchedule() async {

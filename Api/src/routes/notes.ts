@@ -34,6 +34,8 @@ const updateNoteSchema = z.object({
 
 const listNotesSchema = z.object({
   runId: z.string().cuid().optional(),
+  targetType: z.enum(['sku', 'machine', 'location']).optional(),
+  targetId: z.string().cuid().optional(),
   includePersistentForRun: z
     .preprocess((value) => (value === 'false' ? false : true), z.boolean())
     .optional(),
@@ -62,6 +64,9 @@ const listNotesSchema = z.object({
     }, z.number().int().min(1).max(MAX_NOTES))
     .optional(),
   timezone: z.string().trim().optional(),
+}).refine((value) => (value.targetType == null) === (value.targetId == null), {
+  message: 'targetType and targetId must be provided together',
+  path: ['targetType'],
 });
 
 type RunNoteContext = {
@@ -108,9 +113,22 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.flatten() });
   }
 
-  const { runId, includePersistentForRun = true, recentDays, limit, timezone } = parsed.data;
+  const { runId, targetType, targetId, includePersistentForRun = true, recentDays, limit, timezone } = parsed.data;
   const companyId = req.auth.companyId;
   const filters: [Prisma.NoteWhereInput, ...Prisma.NoteWhereInput[]] = [{ companyId }];
+
+  if (targetType && targetId) {
+    const target = await ensureTarget(companyId, targetType, targetId);
+    if (!target) {
+      return res.status(404).json({ error: 'Target not found for this company' });
+    }
+
+    filters.push({
+      skuId: targetType === 'sku' ? targetId : undefined,
+      machineId: targetType === 'machine' ? targetId : undefined,
+      locationId: targetType === 'location' ? targetId : undefined,
+    });
+  }
 
   // Apply date window if requested (e.g., today + yesterday)
   if (recentDays) {

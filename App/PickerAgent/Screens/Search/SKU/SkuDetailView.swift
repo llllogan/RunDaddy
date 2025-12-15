@@ -22,9 +22,12 @@ struct SkuDetailView: View {
     @State private var selectedLabelColour: Color = .yellow
     @State private var suppressLabelColourSync = false
     @StateObject private var chartsViewModel: ChartsViewModel
+    @State private var recentNotes: [Note] = []
+    @State private var isLoadingNotes = false
     
     private let skusService = SkusService()
     private let authService: AuthServicing = AuthService()
+    private let notesService: NotesServicing = NotesService()
 
     init(skuId: String, session: AuthSession) {
         self.skuId = skuId
@@ -142,6 +145,26 @@ struct SkuDetailView: View {
                         Text("Recent Activity")
                     }
                 }
+
+                if !recentNotes.isEmpty {
+                    Section("Notes") {
+                        ForEach(recentNotes) { note in
+                            NoteRowView(note: note)
+                        }
+
+                        NavigationLink("View all notes") {
+                            CompanyNotesView(
+                                session: session,
+                                initialFilterTag: NoteTagOption(
+                                    id: skuId,
+                                    type: .sku,
+                                    label: sku.code,
+                                    subtitle: sku.name
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
         .navigationTitle(skuDisplayTitle)
@@ -153,6 +176,7 @@ struct SkuDetailView: View {
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
             await loadEffectiveRole()
             await loadSkuDetails()
+            await loadRecentNotes()
         }
         .onChange(of: selectedPeriod) { _, _ in
             Task {
@@ -264,6 +288,27 @@ struct SkuDetailView: View {
         }
         await MainActor.run {
             isLoadingStats = false
+        }
+    }
+
+    private func loadRecentNotes() async {
+        if isLoadingNotes {
+            return
+        }
+
+        isLoadingNotes = true
+        defer { isLoadingNotes = false }
+
+        do {
+            let response = try await notesService.fetchNotes(
+                targetType: .sku,
+                targetId: skuId,
+                limit: 5,
+                credentials: session.credentials
+            )
+            recentNotes = Array(response.notes.prefix(5))
+        } catch {
+            recentNotes = []
         }
     }
 

@@ -29,15 +29,20 @@ struct CompanyNotesView: View {
     let onNotesUpdated: ((Int) -> Void)?
     @State private var composerIntent: NoteComposerIntent?
     let session: AuthSession
+    @State private var activeFilterTag: NoteTagOption?
+    @State private var isShowingFilterPicker = false
+    @State private var filterPickerType: NoteTargetType = .sku
 
     init(
         session: AuthSession,
         notesService: NotesServicing? = nil,
         searchService: SearchServicing? = nil,
         runsService: RunsServicing? = nil,
+        initialFilterTag: NoteTagOption? = nil,
         onNotesUpdated: ((Int) -> Void)? = nil
     ) {
         self.session = session
+        self._activeFilterTag = State(initialValue: initialFilterTag)
         _viewModel = StateObject(
             wrappedValue: CompanyNotesViewModel(
                 session: session,
@@ -51,13 +56,27 @@ struct CompanyNotesView: View {
 
     var body: some View {
         List {
+            Section {
+                NotesFilterBar(
+                    selectedTag: activeFilterTag,
+                    onSelectAll: {
+                        activeFilterTag = nil
+                        Task { await viewModel.loadNotes(force: true, filterTag: nil) }
+                    },
+                    onSelectType: { type in
+                        filterPickerType = type
+                        isShowingFilterPicker = true
+                    }
+                )
+            }
+
             if viewModel.isLoading && viewModel.notes.isEmpty {
                 Section {
                     LoadingNotesRow(message: "Loading notes…")
                 }
             } else if viewModel.notes.isEmpty {
                 Section {
-                    Text("No notes have been created today or yesterday.")
+                    Text(activeFilterTag == nil ? "No notes have been created today or yesterday." : "No notes found for this item.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -86,16 +105,16 @@ struct CompanyNotesView: View {
             }
         }
         .refreshable {
-            await viewModel.loadNotes(force: true)
+            await viewModel.loadNotes(force: true, filterTag: activeFilterTag)
         }
         .task {
-            await viewModel.loadNotes()
+            await viewModel.loadNotes(filterTag: activeFilterTag)
             await viewModel.loadSuggestedTags()
         }
         .onChange(of: session.credentials.accessToken) {
             viewModel.resetSession(session)
             Task {
-                await viewModel.loadNotes(force: true)
+                await viewModel.loadNotes(force: true, filterTag: activeFilterTag)
                 await viewModel.loadSuggestedTags()
             }
         }
@@ -117,6 +136,17 @@ struct CompanyNotesView: View {
                 onNoteSaved: {
                     composerIntent = nil
                     onNotesUpdated?(viewModel.total)
+                }
+            )
+        }
+        .sheet(isPresented: $isShowingFilterPicker) {
+            NotesTargetFilterPickerSheet(
+                session: session,
+                targetType: filterPickerType,
+                selectedTag: $activeFilterTag,
+                onSelected: { tag in
+                    activeFilterTag = tag
+                    Task { await viewModel.loadNotes(force: true, filterTag: tag) }
                 }
             )
         }
@@ -203,7 +233,7 @@ final class CompanyNotesViewModel: ObservableObject {
         isLoading = false
     }
 
-    func loadNotes(force: Bool = false) async {
+    func loadNotes(force: Bool = false, filterTag: NoteTagOption? = nil) async {
         if isLoading && !force {
             return
         }
@@ -215,13 +245,22 @@ final class CompanyNotesViewModel: ObservableObject {
         isLoading = true
 
         do {
-            let response = try await notesService.fetchNotes(
-                runId: nil,
-                includePersistentForRun: true,
-                recentDays: 2,
-                limit: 50,
-                credentials: session.credentials
-            )
+            let response = if let filterTag {
+                try await notesService.fetchNotes(
+                    targetType: filterTag.type,
+                    targetId: filterTag.id,
+                    limit: 50,
+                    credentials: session.credentials
+                )
+            } else {
+                try await notesService.fetchNotes(
+                    runId: nil,
+                    includePersistentForRun: true,
+                    recentDays: 2,
+                    limit: 50,
+                    credentials: session.credentials
+                )
+            }
             notes = response.notes
             total = response.total
             errorMessage = nil
@@ -402,6 +441,173 @@ final class CompanyNotesViewModel: ObservableObject {
             } catch {
                 failedRunIds.insert(runId)
             }
+        }
+    }
+}
+
+private struct NotesFilterBar: View {
+    let selectedTag: NoteTagOption?
+    let onSelectAll: () -> Void
+    let onSelectType: (NoteTargetType) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                Button {
+                    onSelectAll()
+                } label: {
+                    Text(selectedTag == nil ? "All" : "Cear")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onSelectType(.sku)
+                } label: {
+                    filterChip(label: selectedTagLabel(for: .sku))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onSelectType(.machine)
+                } label: {
+                    filterChip(label: selectedTagLabel(for: .machine))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onSelectType(.location)
+                } label: {
+                    filterChip(label: selectedTagLabel(for: .location))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func selectedTagLabel(for type: NoteTargetType) -> String {
+        guard let selectedTag, selectedTag.type == type else {
+            switch type {
+            case .sku: return "SKU"
+            case .machine: return "Machine"
+            case .location: return "Location"
+            }
+        }
+        return selectedTag.label
+    }
+}
+
+private struct NotesTargetFilterPickerSheet: View {
+    let session: AuthSession
+    let targetType: NoteTargetType
+    @Binding var selectedTag: NoteTagOption?
+    let onSelected: (NoteTagOption) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var searchText = ""
+    @State private var isSearching = false
+    @State private var searchResults: [SearchResult] = []
+    @State private var searchDebounceTask: Task<Void, Never>?
+
+    private let searchService = SearchService()
+
+    private var searchFilters: [SearchResultFilter] {
+        switch targetType {
+        case .sku: return [.sku]
+        case .machine: return [.machine]
+        case .location: return [.location]
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Search") {
+                    TextField("Search…", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: searchText) { _, newValue in
+                            handleSearchTextChange(newValue)
+                        }
+                }
+
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Section("Results") {
+                        if isSearching {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                Text("Searching…")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if searchResults.isEmpty {
+                            Text("No results found.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(searchResults) { result in
+                                Button {
+                                    let type = NoteTargetType(rawValue: result.type) ?? targetType
+                                    let tag = NoteTagOption(
+                                        id: result.id,
+                                        type: type,
+                                        label: result.title,
+                                        subtitle: result.subtitle
+                                    )
+                                    selectedTag = tag
+                                    onSelected(tag)
+                                    dismiss()
+                                } label: {
+                                    EntityResultRow(result: result, isSelected: selectedTag?.id == result.id)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Filter \(targetType.rawValue.uppercased()) Notes")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onDisappear {
+                searchDebounceTask?.cancel()
+            }
+        }
+    }
+
+    private func handleSearchTextChange(_ value: String) {
+        searchDebounceTask?.cancel()
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            searchResults = []
+            isSearching = false
+            return
+        }
+
+        searchDebounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            await performSearch(trimmed)
+        }
+    }
+
+    private func performSearch(_ query: String) async {
+        isSearching = true
+        defer { isSearching = false }
+
+        do {
+            let response = try await searchService.search(query: query, results: searchFilters)
+            searchResults = response.results.filter { $0.type == targetType.rawValue }
+        } catch {
+            searchResults = []
         }
     }
 }

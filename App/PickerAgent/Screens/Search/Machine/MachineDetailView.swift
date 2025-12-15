@@ -14,9 +14,12 @@ struct MachineDetailView: View {
     @State private var locationNavigationTarget: MachineDetailLocationNavigation?
     @State private var effectiveRole: UserRole?
     @StateObject private var chartsViewModel: ChartsViewModel
+    @State private var recentNotes: [Note] = []
+    @State private var isLoadingNotes = false
 
     private let machinesService = MachinesService()
     private let authService: AuthServicing = AuthService()
+    private let notesService: NotesServicing = NotesService()
 
     init(machineId: String, session: AuthSession) {
         self.machineId = machineId
@@ -128,6 +131,29 @@ struct MachineDetailView: View {
                         Text("Recent Activity")
                     }
                 }
+
+                if !recentNotes.isEmpty {
+                    Section("Notes") {
+                        ForEach(recentNotes) { note in
+                            NoteRowView(note: note)
+                        }
+
+                        NavigationLink("View all notes") {
+                            CompanyNotesView(
+                                session: session,
+                                initialFilterTag: NoteTagOption(
+                                    id: machineId,
+                                    type: .machine,
+                                    label: {
+                                        let trimmed = machine.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                                        return trimmed.isEmpty ? machine.code : trimmed
+                                    }(),
+                                    subtitle: machine.location?.name
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
         .navigationTitle(machineDisplayTitle)
@@ -139,6 +165,7 @@ struct MachineDetailView: View {
             chartsViewModel.skuBreakdownAggregation = selectedPeriod.pickEntryAggregation
             await loadEffectiveRole()
             await loadMachineDetails()
+            await loadRecentNotes()
         }
         .onChange(of: selectedPeriod) { _, _ in
             Task {
@@ -201,6 +228,27 @@ struct MachineDetailView: View {
             machineStats = nil
         }
         isLoadingStats = false
+    }
+
+    private func loadRecentNotes() async {
+        if isLoadingNotes {
+            return
+        }
+
+        isLoadingNotes = true
+        defer { isLoadingNotes = false }
+
+        do {
+            let response = try await notesService.fetchNotes(
+                targetType: .machine,
+                targetId: machineId,
+                limit: 5,
+                credentials: session.credentials
+            )
+            recentNotes = Array(response.notes.prefix(5))
+        } catch {
+            recentNotes = []
+        }
     }
 
     private var machineDisplayTitle: String {

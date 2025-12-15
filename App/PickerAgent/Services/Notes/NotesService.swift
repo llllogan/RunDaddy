@@ -9,6 +9,13 @@ protocol NotesServicing {
         credentials: AuthCredentials
     ) async throws -> NotesResponse
 
+    func fetchNotes(
+        targetType: NoteTargetType,
+        targetId: String,
+        limit: Int?,
+        credentials: AuthCredentials
+    ) async throws -> NotesResponse
+
     func createNote(
         request: CreateNoteRequest,
         credentials: AuthCredentials
@@ -60,6 +67,52 @@ final class NotesService: NotesServicing {
         if let recentDays {
             queryItems.append(URLQueryItem(name: "recentDays", value: String(recentDays)))
         }
+
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+
+        components?.queryItems = queryItems
+        let resolvedURL = components?.url ?? url
+
+        var request = URLRequest(url: resolvedURL)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw NotesServiceError.notFound
+            }
+            throw NotesServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        return try decoder.decode(NotesResponse.self, from: data)
+    }
+
+    func fetchNotes(
+        targetType: NoteTargetType,
+        targetId: String,
+        limit: Int? = nil,
+        credentials: AuthCredentials
+    ) async throws -> NotesResponse {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("notes")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "targetType", value: targetType.rawValue),
+            URLQueryItem(name: "targetId", value: targetId)
+        ]
 
         if let limit {
             queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
