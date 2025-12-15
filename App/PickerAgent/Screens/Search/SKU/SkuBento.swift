@@ -13,9 +13,8 @@ struct SkuInfoBento: View {
     let onToggleColdChestStatus: () -> Void
     let mostRecentPick: MostRecentPick?
     let labelColour: Binding<Color>
-    let isLabelColourEnabled: Bool
     let isUpdatingLabelColour: Bool
-    let onToggleLabelColour: (Bool) -> Void
+    let canEditLabelColour: Bool
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
@@ -72,24 +71,44 @@ struct SkuInfoBento: View {
                       onTap: { onToggleColdChestStatus() },
                       showsChevron: false,
                       customContent: AnyView(
-                        HStack {
-                            if isUpdatingColdChestStatus {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            } else {
-                                Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
-                                    .font(.headline)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                if isUpdatingColdChestStatus {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
+                                        .font(.headline)
+                                        .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
+                                }
+                                Spacer()
+                                Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
                                     .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                             }
-                            Spacer()
-                            Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
+
+                            if sku.isFreshOrFrozen {
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        ColorPicker("", selection: labelColour, supportsOpacity: false)
+                                            .labelsHidden()
+                                            .disabled(!canEditLabelColour)
+                                            .accessibilityLabel("Pick label colour")
+                                        if isUpdatingLabelColour {
+                                            ProgressView()
+                                                .scaleEffect(0.8)
+                                        }
+                                    }
+                                    
+                                    Text("Pick label colour")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.secondary)
+
+                                }
+                            }
                         }
                     ))
         )
-        
-        cards.append(labelColourCard)
-        
+
         return cards
     }
     
@@ -184,52 +203,7 @@ struct SkuInfoBento: View {
         return formatter
     }()
 
-    private var labelColourCard: BentoItem {
-        BentoItem(
-            id: "sku-info-label-colour",
-            title: "Label Colour",
-            value: isLabelColourEnabled ? (labelColourHex ?? "Enabled") : "Disabled",
-            symbolName: "paintpalette",
-            symbolTint: isLabelColourEnabled ? labelColour.wrappedValue : .secondary,
-            isProminent: true,
-            customContent: AnyView(
-                VStack(alignment: .leading) {
-                    
-                    if isUpdatingLabelColour {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Saving colour...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    } else if isLabelColourEnabled {
-                        HStack(alignment: .center) {
-                            ColorPicker("Pick Colour", selection: labelColour, supportsOpacity: false)
-                                .labelsHidden()
-                            
-                            Text(labelColourHex ?? "Custom")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    
-                    Toggle(isOn: Binding(
-                        get: { isLabelColourEnabled },
-                        set: { isOn in onToggleLabelColour(isOn) }
-                    )) {
-                        Text("")
-                    }
-//                    .toggleStyle(SwitchToggleStyle(tint: labelColour.wrappedValue))
-                }
-                .padding(.bottom, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            )
-        )
-    }
-
-    private var labelColourHex: String? {
-        ColorCodec.hexString(from: labelColour.wrappedValue)
-    }
+    // Label colour picker has been folded into the Cold Chest card.
 }
 
 struct SkuPerformanceBento: View {

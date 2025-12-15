@@ -18,9 +18,10 @@ struct SkuDetailView: View {
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
     @State private var effectiveRole: UserRole?
     @State private var isUpdatingLabelColour = false
-    @State private var isLabelColourEnabled = false
     @State private var selectedLabelColour: Color = .yellow
     @State private var suppressLabelColourSync = false
+    @State private var desiredLabelColour: Color?
+    @State private var labelColourSaveTask: Task<Void, Never>?
     @StateObject private var chartsViewModel: ChartsViewModel
     @State private var recentNotes: [Note] = []
     @State private var isLoadingNotes = false
@@ -65,9 +66,8 @@ struct SkuDetailView: View {
                             onToggleColdChestStatus: { toggleColdChestStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
                             labelColour: $selectedLabelColour,
-                            isLabelColourEnabled: isLabelColourEnabled,
                             isUpdatingLabelColour: isUpdatingLabelColour,
-                            onToggleLabelColour: { isOn in toggleLabelColour(isOn) }
+                            canEditLabelColour: canEditSku
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -187,8 +187,8 @@ struct SkuDetailView: View {
             }
         }
         .onChange(of: selectedLabelColour) { _, newValue in
-            guard isLabelColourEnabled, !suppressLabelColourSync, !isUpdatingLabelColour else { return }
-            Task { await persistLabelColour(newValue) }
+            guard sku?.isFreshOrFrozen == true, canEditSku, !suppressLabelColourSync else { return }
+            queueLabelColourSave(newValue)
         }
         .navigationDestination(item: $machineNavigationTarget) { target in
             MachineDetailView(machineId: target.id, session: session)
@@ -333,40 +333,41 @@ struct SkuDetailView: View {
         }
     }
 
-    private func toggleLabelColour(_ isEnabled: Bool) {
-        isLabelColourEnabled = isEnabled
-        Task {
-            await persistLabelColour(isEnabled ? selectedLabelColour : nil)
+    @MainActor
+    private func queueLabelColourSave(_ color: Color) {
+        desiredLabelColour = color
+        if labelColourSaveTask == nil {
+            labelColourSaveTask = Task { await runLabelColourSaveLoop() }
         }
     }
 
-    private func persistLabelColour(_ color: Color?) async {
-        if isUpdatingLabelColour {
-            return
-        }
-
-        await MainActor.run {
-            isUpdatingLabelColour = true
-        }
-
-        let hexString = color.flatMap { ColorCodec.hexString(from: $0) }
-
-        do {
-            try await skusService.updateLabelColour(id: skuId, labelColourHex: hexString)
-            await MainActor.run {
-                isLabelColourEnabled = color != nil
-                if color == nil {
-                    selectedLabelColour = .yellow
-                }
-                updateLocalSkuLabelColour(hexString)
+    private func runLabelColourSaveLoop() async {
+        while true {
+            let nextColour = await MainActor.run { () -> Color? in
+                let next = desiredLabelColour
+                desiredLabelColour = nil
+                return next
             }
-        } catch {
-            print("Failed to update label colour: \(error)")
-            await loadSkuDetails(shouldRefreshStats: false)
-        }
 
-        await MainActor.run {
-            isUpdatingLabelColour = false
+            guard let nextColour else {
+                await MainActor.run { labelColourSaveTask = nil }
+                return
+            }
+
+            await MainActor.run { isUpdatingLabelColour = true }
+            let hexString = ColorCodec.hexString(from: nextColour)
+
+            do {
+                try await skusService.updateLabelColour(id: skuId, labelColourHex: hexString)
+                await MainActor.run {
+                    updateLocalSkuLabelColour(hexString)
+                }
+            } catch {
+                print("Failed to update label colour: \(error)")
+                await loadSkuDetails(shouldRefreshStats: false)
+            }
+
+            await MainActor.run { isUpdatingLabelColour = false }
         }
     }
 
@@ -387,12 +388,6 @@ struct SkuDetailView: View {
             )
         }
 
-        if let hexString, let color = ColorCodec.color(fromHex: hexString) {
-            selectedLabelColour = color
-        } else if !isLabelColourEnabled {
-            selectedLabelColour = .yellow
-        }
-
         suppressLabelColourSync = false
     }
 
@@ -400,10 +395,8 @@ struct SkuDetailView: View {
         suppressLabelColourSync = true
         if let colour = ColorCodec.color(fromHex: sku.labelColour) {
             selectedLabelColour = colour
-            isLabelColourEnabled = true
         } else {
             selectedLabelColour = .yellow
-            isLabelColourEnabled = false
         }
         suppressLabelColourSync = false
     }
