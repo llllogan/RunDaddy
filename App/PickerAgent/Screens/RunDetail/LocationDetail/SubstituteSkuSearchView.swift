@@ -19,6 +19,8 @@ struct SubstituteSkuSearchView: View {
     @State private var errorMessage: String?
 
     private let searchService = SearchService()
+    private let skusService = SkusService()
+    private let notesService = NotesService()
 
     private var currentSkuLabel: String {
         let code = pickItem.sku?.code.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -176,12 +178,14 @@ struct SubstituteSkuSearchView: View {
         guard let selectedSkuId else { return }
 
         do {
+            let newSku = try await skusService.getSku(id: selectedSkuId)
             try await runsService.substitutePickEntrySku(
                 runId: runId,
                 pickId: pickItem.id,
                 skuId: selectedSkuId,
                 credentials: session.credentials
             )
+            await createSubstitutionNoteIfPossible(newSku: newSku)
             await onPickStatusChanged()
             await MainActor.run {
                 dismiss()
@@ -196,6 +200,30 @@ struct SubstituteSkuSearchView: View {
                     errorMessage = "We couldn't substitute this pick entry right now. Please try again."
                 }
             }
+        }
+    }
+
+    private func createSubstitutionNoteIfPossible(newSku: SKU) async {
+        guard let machineId = pickItem.machine?.id ?? pickItem.coilItem.coil.machineId else {
+            return
+        }
+
+        let oldName = pickItem.sku?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown SKU"
+        let oldType = pickItem.sku?.type.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown Type"
+        let newName = newSku.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newType = newSku.type.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coilCode = pickItem.coilItem.coil.code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coilLabel = coilCode.isEmpty ? "Unknown Coil" : coilCode
+
+        let body = "SKU substituted on coil \(coilLabel): Replaced \(oldName) (\(oldType)) with \(newName) (\(newType))."
+
+        do {
+            _ = try await notesService.createNote(
+                request: CreateNoteRequest(body: body, runId: runId, targetType: .machine, targetId: machineId),
+                credentials: session.credentials
+            )
+        } catch {
+            // Notes are best-effort; ignore failures.
         }
     }
 }
