@@ -19,17 +19,6 @@ struct SkuInfoBento: View {
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
         
-        if let mostRecentPick = mostRecentPick {
-            cards.append(
-                BentoItem(id: "sku-info-last-packed",
-                          title: lastPackedTitle,
-                          value: formatDate(mostRecentPick.pickedAt),
-                          symbolName: "clock",
-                          symbolTint: .indigo,
-                          allowsMultilineValue: true)
-            )
-        }
-        
         cards.append(
             BentoItem(id: "sku-info-details",
                       title: "Details",
@@ -58,55 +47,66 @@ struct SkuInfoBento: View {
 //                      symbolName: "barcode",
 //                      symbolTint: .blue)
 //        )
-
-        cards.append(weightCard)
         
         cards.append(
             BentoItem(id: "sku-info-fresh",
-                      title: "Cold Chest",
-                      value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
-                      symbolName: "snowflake",
-                      symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
-                      showsChevron: false,
-                      customContent: AnyView(
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                if isUpdatingColdChestStatus {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
-                                        .font(.headline)
-                                        .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
-                                }
-                                Spacer()
-                                Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
-                            }
-
-                            Text("Tap to toggle")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-
-                            if sku.isFreshOrFrozen {
-                                labelColourSelection
-                            }
+              title: "Cold Chest",
+              value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
+              symbolName: "snowflake",
+              symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
+              showsChevron: false,
+              customContent: AnyView(
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        if isUpdatingColdChestStatus {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
+                                .font(.headline)
+                                .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                         }
-                        .background(
-                            Button {
-                                if isUpdatingColdChestStatus {
-                                    return
-                                }
-                                onToggleColdChestStatus()
-                            } label: {
-                                Color.clear
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(isUpdatingColdChestStatus)
-                        )
-                    ))
+                        Spacer()
+                        Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
+                    }
+
+                    Text("Tap to toggle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if sku.isFreshOrFrozen {
+                        labelColourSelection
+                    }
+                }
+                .background(
+                    Button {
+                        if isUpdatingColdChestStatus {
+                            return
+                        }
+                        onToggleColdChestStatus()
+                    } label: {
+                        Color.clear
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isUpdatingColdChestStatus)
+                )
+            ))
         )
+        
+        cards.append(weightCard)
+        
+        if let mostRecentPick = mostRecentPick {
+            cards.append(
+                BentoItem(id: "sku-info-last-packed",
+                          title: lastPackedTitle,
+                          value: formatDate(mostRecentPick.pickedAt),
+                          symbolName: "clock",
+                          symbolTint: .indigo,
+                          allowsMultilineValue: true)
+            )
+        }
 
         return cards
     }
