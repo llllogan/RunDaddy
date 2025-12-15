@@ -65,7 +65,6 @@ struct SkuInfoBento: View {
             BentoItem(id: "sku-info-fresh",
                       title: "Cold Chest",
                       value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
-                      subtitle: "Tap to toggle",
                       symbolName: "snowflake",
                       symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
                       onTap: { onToggleColdChestStatus() },
@@ -86,19 +85,12 @@ struct SkuInfoBento: View {
                                     .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                             }
 
+                            Text("Tap to toggle")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
                             if sku.isFreshOrFrozen {
-                                HStack {
-                                    HStack(spacing: 8) {
-                                        ColorPicker("", selection: labelColour, supportsOpacity: false)
-                                            .labelsHidden()
-                                            .disabled(!canEditLabelColour)
-                                            .accessibilityLabel("Select label colour")
-                                        if isUpdatingLabelColour {
-                                            ProgressView()
-                                                .scaleEffect(0.8)
-                                        }
-                                    }
-                                    
+                                ColorPicker(selection: labelColour, supportsOpacity: false) {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(labelColourHex ?? "—")
                                             .font(.caption)
@@ -108,13 +100,15 @@ struct SkuInfoBento: View {
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .padding(6)
+                                .disabled(!canEditLabelColour)
+                                .padding(10)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                                         .fill(Color(.systemGray5))
                                 )
+                                .accessibilityLabel("Select label colour")
                             }
                         }
                     ))
