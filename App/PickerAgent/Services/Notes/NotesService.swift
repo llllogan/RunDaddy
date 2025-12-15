@@ -6,6 +6,7 @@ protocol NotesServicing {
         includePersistentForRun: Bool,
         recentDays: Int?,
         limit: Int?,
+        offset: Int?,
         credentials: AuthCredentials
     ) async throws -> NotesResponse
 
@@ -13,6 +14,7 @@ protocol NotesServicing {
         targetType: NoteTargetType,
         targetId: String,
         limit: Int?,
+        offset: Int?,
         credentials: AuthCredentials
     ) async throws -> NotesResponse
 
@@ -49,6 +51,7 @@ final class NotesService: NotesServicing {
         includePersistentForRun: Bool = true,
         recentDays: Int? = nil,
         limit: Int? = nil,
+        offset: Int? = nil,
         credentials: AuthCredentials
     ) async throws -> NotesResponse {
         var url = AppConfig.apiBaseURL
@@ -70,6 +73,10 @@ final class NotesService: NotesServicing {
 
         if let limit {
             queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+
+        if let offset {
+            queryItems.append(URLQueryItem(name: "offset", value: String(offset)))
         }
 
         components?.queryItems = queryItems
@@ -103,6 +110,7 @@ final class NotesService: NotesServicing {
         targetType: NoteTargetType,
         targetId: String,
         limit: Int? = nil,
+        offset: Int? = nil,
         credentials: AuthCredentials
     ) async throws -> NotesResponse {
         var url = AppConfig.apiBaseURL
@@ -116,6 +124,10 @@ final class NotesService: NotesServicing {
 
         if let limit {
             queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+
+        if let offset {
+            queryItems.append(URLQueryItem(name: "offset", value: String(offset)))
         }
 
         components?.queryItems = queryItems

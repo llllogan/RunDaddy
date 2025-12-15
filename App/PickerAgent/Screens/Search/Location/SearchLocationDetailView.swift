@@ -336,6 +336,7 @@ struct SearchLocationDetailView: View {
                 targetType: .location,
                 targetId: locationId,
                 limit: 5,
+                offset: nil,
                 credentials: session.credentials
             )
             recentNotes = Array(response.notes.prefix(5))

@@ -14,6 +14,7 @@ const router = Router();
 
 const MAX_NOTES = 100;
 const DEFAULT_LIMIT = 50;
+const MAX_OFFSET = 100_000;
 const MAX_BODY_LENGTH = 2000;
 const MAX_RECENT_DAYS = 30;
 
@@ -62,6 +63,18 @@ const listNotesSchema = z.object({
       }
       return undefined;
     }, z.number().int().min(1).max(MAX_NOTES))
+    .optional(),
+  offset: z
+    .preprocess((value) => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+      if (typeof value === 'number') {
+        return value;
+      }
+      return undefined;
+    }, z.number().int().min(0).max(MAX_OFFSET))
     .optional(),
   timezone: z.string().trim().optional(),
 }).refine((value) => (value.targetType == null) === (value.targetId == null), {
@@ -113,7 +126,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.flatten() });
   }
 
-  const { runId, targetType, targetId, includePersistentForRun = true, recentDays, limit, timezone } = parsed.data;
+  const { runId, targetType, targetId, includePersistentForRun = true, recentDays, limit, offset, timezone } = parsed.data;
   const companyId = req.auth.companyId;
   const filters: [Prisma.NoteWhereInput, ...Prisma.NoteWhereInput[]] = [{ companyId }];
 
@@ -193,12 +206,14 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
   const where: Prisma.NoteWhereInput = filters.length === 1 ? filters[0] : { AND: filters };
   const take = Math.min(limit ?? DEFAULT_LIMIT, MAX_NOTES);
+  const skip = Math.max(offset ?? 0, 0);
 
   const [total, notes] = await prisma.$transaction([
     prisma.note.count({ where }),
     prisma.note.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      skip,
       take,
       include: noteInclude,
     }),
@@ -206,6 +221,8 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
   return res.json({
     total,
+    offset: skip,
+    limit: take,
     notes: notes.map(serializeNote),
   });
 });

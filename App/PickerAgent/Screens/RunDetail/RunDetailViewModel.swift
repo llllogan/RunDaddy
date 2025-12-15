@@ -615,6 +615,7 @@ final class RunDetailViewModel: ObservableObject {
                 includePersistentForRun: false,
                 recentDays: nil,
                 limit: 1,
+                offset: nil,
                 credentials: session.credentials
             )
 
@@ -623,6 +624,7 @@ final class RunDetailViewModel: ObservableObject {
                 includePersistentForRun: true,
                 recentDays: nil,
                 limit: 1,
+                offset: nil,
                 credentials: session.credentials
             )
 

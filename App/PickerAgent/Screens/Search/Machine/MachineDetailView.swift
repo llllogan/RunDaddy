@@ -243,6 +243,7 @@ struct MachineDetailView: View {
                 targetType: .machine,
                 targetId: machineId,
                 limit: 5,
+                offset: nil,
                 credentials: session.credentials
             )
             recentNotes = Array(response.notes.prefix(5))

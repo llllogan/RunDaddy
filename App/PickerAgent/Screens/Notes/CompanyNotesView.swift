@@ -76,7 +76,7 @@ struct CompanyNotesView: View {
                 }
             } else if viewModel.notes.isEmpty {
                 Section {
-                    Text(activeFilterTag == nil ? "No notes have been created today or yesterday." : "No notes found for this item.")
+                    Text(activeFilterTag == nil ? "No notes have been created yet." : "No notes found for this item.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -89,6 +89,24 @@ struct CompanyNotesView: View {
                         onEdit: { note in composerIntent = .edit(note) },
                         onDelete: { note in handleDelete(note) }
                     )
+                }
+
+                if viewModel.hasMoreNotes {
+                    Section {
+                        Button {
+                            Task { await viewModel.loadMoreNotes(filterTag: activeFilterTag) }
+                        } label: {
+                            if viewModel.isLoadingMore {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                    Text("Loading more…")
+                                }
+                            } else {
+                                Text("Load more")
+                            }
+                        }
+                        .disabled(viewModel.isLoadingMore)
+                    }
                 }
             }
         }
@@ -196,6 +214,7 @@ final class CompanyNotesViewModel: ObservableObject {
     @Published private(set) var notes: [Note] = []
     @Published private(set) var total: Int = 0
     @Published private(set) var isLoading = false
+    @Published private(set) var isLoadingMore = false
     @Published private(set) var isSaving = false
     @Published private(set) var isSearchingTags = false
     @Published private(set) var isDeleting = false
@@ -210,6 +229,7 @@ final class CompanyNotesViewModel: ObservableObject {
     private let searchService: SearchServicing
     private let runsService: RunsServicing
     private var failedRunIds = Set<String>()
+    private let pageSize = 100
 
     init(
         session: AuthSession,
@@ -231,6 +251,11 @@ final class CompanyNotesViewModel: ObservableObject {
         runDates = [:]
         errorMessage = nil
         isLoading = false
+        isLoadingMore = false
+    }
+
+    var hasMoreNotes: Bool {
+        notes.count < total
     }
 
     func loadNotes(force: Bool = false, filterTag: NoteTagOption? = nil) async {
@@ -243,24 +268,15 @@ final class CompanyNotesViewModel: ObservableObject {
         }
 
         isLoading = true
+        if force {
+            notes = []
+            total = 0
+            groupedNotes = []
+            runDates = [:]
+        }
 
         do {
-            let response = if let filterTag {
-                try await notesService.fetchNotes(
-                    targetType: filterTag.type,
-                    targetId: filterTag.id,
-                    limit: 50,
-                    credentials: session.credentials
-                )
-            } else {
-                try await notesService.fetchNotes(
-                    runId: nil,
-                    includePersistentForRun: true,
-                    recentDays: 2,
-                    limit: 50,
-                    credentials: session.credentials
-                )
-            }
+            let response = try await fetchNotesPage(offset: 0, filterTag: filterTag)
             notes = response.notes
             total = response.total
             errorMessage = nil
@@ -277,6 +293,34 @@ final class CompanyNotesViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func loadMoreNotes(filterTag: NoteTagOption? = nil) async {
+        if isLoadingMore || isLoading || !hasMoreNotes {
+            return
+        }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let response = try await fetchNotesPage(offset: notes.count, filterTag: filterTag)
+            if !response.notes.isEmpty {
+                notes.append(contentsOf: response.notes)
+            }
+            total = response.total
+            errorMessage = nil
+            regroup()
+            await loadRunDates(for: response.notes)
+        } catch {
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let notesError = error as? NotesServiceError {
+                errorMessage = notesError.localizedDescription
+            } else {
+                errorMessage = "We couldn't load more notes right now. Please try again."
+            }
+        }
     }
 
     func addNote(body: String, tag: NoteTagOption) async -> Note? {
@@ -410,6 +454,27 @@ final class CompanyNotesViewModel: ObservableObject {
         tagResults = []
     }
 
+    private func fetchNotesPage(offset: Int, filterTag: NoteTagOption?) async throws -> NotesResponse {
+        if let filterTag {
+            return try await notesService.fetchNotes(
+                targetType: filterTag.type,
+                targetId: filterTag.id,
+                limit: pageSize,
+                offset: offset,
+                credentials: session.credentials
+            )
+        }
+
+        return try await notesService.fetchNotes(
+            runId: nil,
+            includePersistentForRun: true,
+            recentDays: nil,
+            limit: pageSize,
+            offset: offset,
+            credentials: session.credentials
+        )
+    }
+
     private func regroup() {
         let grouped = Dictionary(grouping: notes) { note in
             note.createdAt.formatted(date: .abbreviated, time: .omitted)
@@ -456,7 +521,7 @@ private struct NotesFilterBar: View {
                 Button {
                     onSelectAll()
                 } label: {
-                    Text(selectedTag == nil ? "All" : "Cear")
+                    Text(selectedTag == nil ? "All" : "Clear")
                         .font(.subheadline.weight(.semibold))
                         .padding(.vertical, 6)
                         .padding(.horizontal, 10)

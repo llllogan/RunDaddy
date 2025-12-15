@@ -59,6 +59,7 @@ final class DashboardViewModel: ObservableObject {
                 includePersistentForRun: true,
                 recentDays: 2,
                 limit: 1,
+                offset: nil,
                 credentials: session.credentials
             )
 

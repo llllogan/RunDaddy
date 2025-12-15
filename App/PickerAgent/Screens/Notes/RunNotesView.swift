@@ -163,6 +163,7 @@ final class RunNotesViewModel: ObservableObject {
                 includePersistentForRun: true,
                 recentDays: nil,
                 limit: 50,
+                offset: nil,
                 credentials: session.credentials
             )
             notes = response.notes
