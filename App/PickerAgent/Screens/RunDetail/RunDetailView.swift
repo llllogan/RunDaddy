@@ -660,22 +660,22 @@ private struct LocationSummaryRow: View {
                         icon: "building"
                     )
                 }
-
-                ForEach(coldChestSkuChips) { chip in
-                    InfoChip(
-                        title: chip.label,
-                        text: "\(chip.count)",
-                        icon: "snowflake",
-                        iconColour: chip.colour
-                    )
-                }
-
+                
                 if let chocolateBoxLabel {
                     InfoChip(
                         text: chocolateBoxLabel,
                         colour: Color.brown.opacity(0.15),
                         foregroundColour: Color.brown,
                         icon: "shippingbox.fill"
+                    )
+                }
+
+                ForEach(coldChestSkuChips) { chip in
+                    InfoChip(
+                        title: chip.label,
+                        text: "\(chip.count)",
+                        icon: "snowflake",
+                        iconColour: chip.colour.opacity(0.85)
                     )
                 }
             }
