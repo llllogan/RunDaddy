@@ -259,9 +259,15 @@ struct SkuDetailView: View {
             message: expiryDaysUpdateError,
             confirmTitle: "Save",
             cancelTitle: "Cancel",
+            secondaryTitle: (sku?.expiryDays ?? 0) > 0 ? "Clear" : nil,
+            secondaryStyle: .destructive,
             keyboardType: .numberPad,
             allowedCharacterSet: CharacterSet.decimalDigits,
             onConfirm: {
+                Task { await submitExpiryDaysUpdate() }
+            },
+            onSecondary: {
+                expiryDaysInputText = "0"
                 Task { await submitExpiryDaysUpdate() }
             },
             onCancel: {

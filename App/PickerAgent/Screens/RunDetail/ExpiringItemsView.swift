@@ -14,7 +14,7 @@ struct ExpiringItemsView: View {
                     ContentUnavailableView(
                         "No Expiring Items",
                         systemImage: "checkmark.circle",
-                        description: Text("Nothing is expiring today, yesterday, or two days ago for this run.")
+                        description: Text("Nothing is expiring on the day of this run.")
                     )
                 } else {
                     List {
@@ -61,50 +61,7 @@ struct ExpiringItemsView: View {
     }
 
     private func sectionHeaderText(for section: ExpiringItemsRunResponse.Section) -> String {
-        switch section.dayOffset {
-        case 0:
-            return "On day of run (\(section.expiryDate))"
-        case -1, -2:
-            return "\(relativeDayLabel(for: section.expiryDate)) (\(section.expiryDate))"
-        default:
-            return section.expiryDate
-        }
-    }
-
-    private func relativeDayLabel(for dateString: String) -> String {
-        guard let date = Self.parseLocalDateOnly(dateString) else {
-            return dateString
-        }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let target = calendar.startOfDay(for: date)
-
-        if calendar.isDate(target, inSameDayAs: today) {
-            return "Today"
-        }
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
-           calendar.isDate(target, inSameDayAs: yesterday) {
-            return "Yesterday"
-        }
-        if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today),
-           calendar.isDate(target, inSameDayAs: twoDaysAgo) {
-            return "2 days ago"
-        }
-        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
-           calendar.isDate(target, inSameDayAs: tomorrow) {
-            return "Tomorrow"
-        }
-
-        return dateString
-    }
-
-    private static func parseLocalDateOnly(_ dateString: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: dateString)
+        "On day of run (\(section.expiryDate))"
     }
 
     private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {

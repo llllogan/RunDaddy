@@ -8,9 +8,12 @@ struct TextFieldAlert: UIViewControllerRepresentable {
     let message: String?
     let confirmTitle: String
     let cancelTitle: String
+    let secondaryTitle: String?
+    let secondaryStyle: UIAlertAction.Style
     let keyboardType: UIKeyboardType
     let allowedCharacterSet: CharacterSet?
     let onConfirm: () -> Void
+    let onSecondary: (() -> Void)?
     let onCancel: () -> Void
     
     func makeCoordinator() -> Coordinator {
@@ -57,6 +60,15 @@ struct TextFieldAlert: UIViewControllerRepresentable {
                 isPresented = false
                 context.coordinator.alert = nil
                 onConfirm()
+            }
+
+            if let secondaryTitle, let onSecondary {
+                let secondaryAction = UIAlertAction(title: secondaryTitle, style: secondaryStyle) { _ in
+                    isPresented = false
+                    context.coordinator.alert = nil
+                    onSecondary()
+                }
+                alert.addAction(secondaryAction)
             }
             
             alert.addAction(cancelAction)
@@ -111,9 +123,12 @@ struct TextFieldAlertModifier: ViewModifier {
     let message: String?
     let confirmTitle: String
     let cancelTitle: String
+    let secondaryTitle: String?
+    let secondaryStyle: UIAlertAction.Style
     let keyboardType: UIKeyboardType
     let allowedCharacterSet: CharacterSet?
     let onConfirm: () -> Void
+    let onSecondary: (() -> Void)?
     let onCancel: () -> Void
     
     func body(content: Content) -> some View {
@@ -126,9 +141,12 @@ struct TextFieldAlertModifier: ViewModifier {
                     message: message,
                     confirmTitle: confirmTitle,
                     cancelTitle: cancelTitle,
+                    secondaryTitle: secondaryTitle,
+                    secondaryStyle: secondaryStyle,
                     keyboardType: keyboardType,
                     allowedCharacterSet: allowedCharacterSet,
                     onConfirm: onConfirm,
+                    onSecondary: onSecondary,
                     onCancel: onCancel
                 )
             )
@@ -143,9 +161,12 @@ extension View {
         message: String?,
         confirmTitle: String,
         cancelTitle: String,
+        secondaryTitle: String? = nil,
+        secondaryStyle: UIAlertAction.Style = .default,
         keyboardType: UIKeyboardType,
         allowedCharacterSet: CharacterSet? = .decimalDigits,
         onConfirm: @escaping () -> Void,
+        onSecondary: (() -> Void)? = nil,
         onCancel: @escaping () -> Void
     ) -> some View {
         modifier(
@@ -156,9 +177,12 @@ extension View {
                 message: message,
                 confirmTitle: confirmTitle,
                 cancelTitle: cancelTitle,
+                secondaryTitle: secondaryTitle,
+                secondaryStyle: secondaryStyle,
                 keyboardType: keyboardType,
                 allowedCharacterSet: allowedCharacterSet,
                 onConfirm: onConfirm,
+                onSecondary: onSecondary,
                 onCancel: onCancel
             )
         )

@@ -59,7 +59,7 @@ struct MainTabView: View {
 private extension MainTabView {
     var tabView: some View {
         TabView {
-            Tab("Runs", systemImage: "flag.checkered") {
+            Tab("Runs", systemImage: "archivebox.fill") {
                 RunsTab(
                     session: session,
                     isShowingProfile: $isShowingProfile
@@ -67,7 +67,7 @@ private extension MainTabView {
                 .id(session.credentials.accessToken)
             }
 
-            Tab("Analytics", systemImage: "chart.bar") {
+            Tab("Analytics", systemImage: "chart.bar.xaxis.ascending") {
                 AnalyticsTab(
                     session: session,
                     isShowingProfile: $isShowingProfile

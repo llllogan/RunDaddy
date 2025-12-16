@@ -20,8 +20,6 @@ struct SkuInfoBento: View {
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
-
-        cards.append(expiryDaysCard)
         
         cards.append(
             BentoItem(id: "sku-info-details",
@@ -44,13 +42,6 @@ struct SkuInfoBento: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                       ))
         )
-        
-//        cards.append(
-//            BentoItem(title: "Code",
-//                      value: sku.code,
-//                      symbolName: "barcode",
-//                      symbolTint: .blue)
-//        )
         
         cards.append(
             BentoItem(id: "sku-info-fresh",
@@ -100,6 +91,8 @@ struct SkuInfoBento: View {
         )
         
         cards.append(weightCard)
+        
+        cards.append(expiryDaysCard)
         
         if let mostRecentPick = mostRecentPick {
             cards.append(
@@ -203,11 +196,11 @@ struct SkuInfoBento: View {
 
         return BentoItem(
             id: "sku-info-expiry-days",
-            title: "Expiry Days",
+            title: "Shelf Lifespan",
             value: isUpdatingExpiryDays ? "Saving…" : valueText,
             subtitle: "Configure",
             symbolName: "calendar.badge.clock",
-            symbolTint: .orange,
+            symbolTint: .green,
             isProminent: false,
             onTap: onConfigureExpiryDays,
             showsChevron: true

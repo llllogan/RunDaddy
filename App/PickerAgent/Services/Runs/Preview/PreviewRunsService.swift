@@ -30,13 +30,7 @@ struct PreviewRunsService: RunsServicing {
                             sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix"),
                             machine: .init(id: "machine-2", code: "B-204", description: "Breakroom"),
                             coil: .init(id: "coil-2", code: "C2")
-                        )
-                    ]
-                ),
-                ExpiringItemsRunResponse.Section(
-                    expiryDate: "2025-11-05",
-                    dayOffset: -1,
-                    items: [
+                        ),
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 3,
                             coilItemId: "coil-item-1",

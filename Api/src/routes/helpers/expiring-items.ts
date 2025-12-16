@@ -25,7 +25,7 @@ type ExpiringItemsSectionItem = {
 
 export type ExpiringItemsSection = {
   expiryDate: string; // YYYY-MM-DD, in company timezone
-  dayOffset: -2 | -1 | 0;
+  dayOffset: 0;
   items: ExpiringItemsSectionItem[];
 };
 
@@ -101,11 +101,6 @@ type ExpiringQuantityRow = {
   expiring_quantity: bigint | number | string;
 };
 
-type RestockedQuantityRow = {
-  coil_item_id: string;
-  restocked_quantity: bigint | number | string;
-};
-
 const parseQueryNumber = (value: bigint | number | string): number => {
   if (typeof value === 'bigint') {
     return Number(value);
@@ -141,16 +136,7 @@ export async function buildExpiringItemsForRun(
 
   const timeZone = await resolveCompanyTimezone(companyId);
 
-  const targetOffsets: Array<-2 | -1 | 0> = [-2, -1, 0];
-  const dayRanges = targetOffsets.map((dayOffset) => ({
-    dayOffset,
-    range: getTimezoneDayRange({ timeZone, reference: run.scheduledFor!, dayOffset }),
-  }));
-
-  const labelToOffset = new Map<string, -2 | -1 | 0>();
-  dayRanges.forEach(({ dayOffset, range }) => {
-    labelToOffset.set(range.label, dayOffset);
-  });
+  const runDayRange = getTimezoneDayRange({ timeZone, reference: run.scheduledFor!, dayOffset: 0 });
 
   const coilItemIds = Array.from(
     new Set(run.pickEntries.map((entry) => entry.coilItemId).filter((value): value is string => Boolean(value))),
@@ -169,8 +155,16 @@ export async function buildExpiringItemsForRun(
     plannedRestocks.set(entry.coilItemId, (plannedRestocks.get(entry.coilItemId) ?? 0) + plannedCount);
   });
 
+  const currentByCoilItemId = new Map<string, number>();
+  run.pickEntries.forEach((entry) => {
+    if (typeof entry.current !== 'number' || !Number.isFinite(entry.current)) {
+      return;
+    }
+    currentByCoilItemId.set(entry.coilItemId, Math.max(0, entry.current));
+  });
+
   const resolvedCountSql = buildResolvedCountSql();
-  const targetLabels = dayRanges.map(({ range }) => range.label);
+  const targetLabels = [runDayRange.label];
 
   const expiringRows = await prisma.$queryRaw<ExpiringQuantityRow[]>(
     Prisma.sql`
@@ -219,56 +213,16 @@ export async function buildExpiringItemsForRun(
     return { warningCount: 0, sections: [] };
   }
 
-  const restocksByOffset = new Map<-2 | -1, Map<string, number>>();
-  for (const { dayOffset, range } of dayRanges) {
-    if (dayOffset === 0) {
-      continue;
-    }
-
-    const restockedRows = await prisma.$queryRaw<RestockedQuantityRow[]>(
-      Prisma.sql`
-        SELECT
-          pe.coilItemId AS coil_item_id,
-          SUM(${resolvedCountSql}) AS restocked_quantity
-        FROM PickEntry pe
-          INNER JOIN Run r ON r.id = pe.runId
-          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
-          INNER JOIN SKU s ON s.id = ci.skuId
-        WHERE r.companyId = ${companyId}
-          AND pe.coilItemId IN (${Prisma.join(coilItemIds)})
-          AND r.scheduledFor >= ${range.start}
-          AND r.scheduledFor < ${range.end}
-        GROUP BY coil_item_id
-        HAVING restocked_quantity > 0
-      `,
-    );
-
-    const byCoilItem = new Map<string, number>();
-    restockedRows.forEach((row) => {
-      byCoilItem.set(row.coil_item_id, parseQueryNumber(row.restocked_quantity));
-    });
-    restocksByOffset.set(dayOffset, byCoilItem);
-  }
-
-  const expiringByCoilItemByOffset = new Map<string, Map<-2 | -1 | 0, number>>();
+  const expiringByCoilItem = new Map<string, number>();
   const detailsByCoilItemByDate = new Map<string, ExpiringItemsSectionItem>();
 
   expiringRows.forEach((row) => {
-    const offset = labelToOffset.get(row.expiry_date);
-    if (offset === undefined) {
-      return;
-    }
-
     const expiringQty = parseQueryNumber(row.expiring_quantity);
     if (!Number.isFinite(expiringQty) || expiringQty <= 0) {
       return;
     }
 
-    if (!expiringByCoilItemByOffset.has(row.coil_item_id)) {
-      expiringByCoilItemByOffset.set(row.coil_item_id, new Map());
-    }
-    const expiringByOffset = expiringByCoilItemByOffset.get(row.coil_item_id)!;
-    expiringByOffset.set(offset, (expiringByOffset.get(offset) ?? 0) + expiringQty);
+    expiringByCoilItem.set(row.coil_item_id, (expiringByCoilItem.get(row.coil_item_id) ?? 0) + expiringQty);
 
     const detailKey = `${row.coil_item_id}:${row.expiry_date}`;
     if (!detailsByCoilItemByDate.has(detailKey)) {
@@ -293,12 +247,9 @@ export async function buildExpiringItemsForRun(
     }
   });
 
-  const warningItemsByDate = new Map<string, { dayOffset: -2 | -1 | 0; items: ExpiringItemsSectionItem[] }>();
+  const warningItemsByDate = new Map<string, { dayOffset: 0; items: ExpiringItemsSectionItem[] }>();
 
-  const resolveExpiryDate = (offset: -2 | -1 | 0) =>
-    dayRanges.find((entry) => entry.dayOffset === offset)!.range.label;
-
-  const addWarningItem = (coilItemId: string, expiryDate: string, dayOffset: -2 | -1 | 0, quantity: number) => {
+  const addWarningItem = (coilItemId: string, expiryDate: string, quantity: number) => {
     if (quantity <= 0) {
       return;
     }
@@ -315,27 +266,19 @@ export async function buildExpiringItemsForRun(
     };
 
     if (!warningItemsByDate.has(expiryDate)) {
-      warningItemsByDate.set(expiryDate, { dayOffset, items: [] });
+      warningItemsByDate.set(expiryDate, { dayOffset: 0, items: [] });
     }
     warningItemsByDate.get(expiryDate)!.items.push(warningItem);
   };
 
-  for (const [coilItemId, expiringByOffset] of expiringByCoilItemByOffset.entries()) {
-    const expTwoDaysAgo = expiringByOffset.get(-2) ?? 0;
-    const expYesterday = expiringByOffset.get(-1) ?? 0;
-    const expToday = expiringByOffset.get(0) ?? 0;
-
-    const restTwoDaysAgo = restocksByOffset.get(-2)?.get(coilItemId) ?? 0;
-    const restYesterday = restocksByOffset.get(-1)?.get(coilItemId) ?? 0;
+  for (const [coilItemId, expiringQty] of expiringByCoilItem.entries()) {
+    const currentCount = currentByCoilItemId.get(coilItemId);
+    const expToday = currentCount === undefined ? (expiringQty ?? 0) : Math.min(expiringQty ?? 0, currentCount);
     const restToday = plannedRestocks.get(coilItemId) ?? 0;
 
     const missingToday = Math.max(0, expToday - restToday);
-    const missingYesterday = Math.max(0, expYesterday - restYesterday);
-    const missingTwoDaysAgo = Math.max(0, expTwoDaysAgo - restTwoDaysAgo);
 
-    addWarningItem(coilItemId, resolveExpiryDate(0), 0, missingToday);
-    addWarningItem(coilItemId, resolveExpiryDate(-1), -1, missingYesterday);
-    addWarningItem(coilItemId, resolveExpiryDate(-2), -2, missingTwoDaysAgo);
+    addWarningItem(coilItemId, runDayRange.label, missingToday);
   }
 
   const sections: ExpiringItemsSection[] = Array.from(warningItemsByDate.entries())
@@ -437,12 +380,16 @@ export async function addNeededForRunDayExpiry({
   const expiringQuantity = expiringSum.length
     ? parseQueryNumber(expiringSum[0]?.expiring_quantity ?? 0)
     : 0;
-  const addedQuantity = Math.max(0, expiringQuantity - plannedCount);
+  const currentCount = typeof pickEntry.current === 'number' && Number.isFinite(pickEntry.current)
+    ? Math.max(0, pickEntry.current)
+    : null;
+  const remainingExpiringQuantity = currentCount === null ? expiringQuantity : Math.min(expiringQuantity, currentCount);
+  const addedQuantity = Math.max(0, remainingExpiringQuantity - plannedCount);
 
   if (addedQuantity <= 0) {
     return {
       addedQuantity: 0,
-      expiringQuantity,
+      expiringQuantity: remainingExpiringQuantity,
       coilCode: pickEntry.coilItem.coil.code,
       runDate: runDayLabel,
     };
@@ -456,8 +403,8 @@ export async function addNeededForRunDayExpiry({
       },
     },
     data: {
-      override: expiringQuantity,
-      count: expiringQuantity,
+      override: remainingExpiringQuantity,
+      count: remainingExpiringQuantity,
     },
   });
 
@@ -466,14 +413,14 @@ export async function addNeededForRunDayExpiry({
       companyId,
       runId,
       machineId: pickEntry.coilItem.coil.machineId,
-      body: `Coil ${pickEntry.coilItem.coil.code} has ${expiringQuantity} items expiring`,
+      body: `Coil ${pickEntry.coilItem.coil.code} has ${addedQuantity} items expiring`,
       createdBy: userId,
     },
   });
 
   return {
     addedQuantity,
-    expiringQuantity,
+    expiringQuantity: remainingExpiringQuantity,
     coilCode: pickEntry.coilItem.coil.code,
     runDate: runDayLabel,
   };
