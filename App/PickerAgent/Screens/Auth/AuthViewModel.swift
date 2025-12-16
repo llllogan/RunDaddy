@@ -15,6 +15,7 @@ final class AuthViewModel: ObservableObject {
         case authenticated(AuthSession)
         case login(message: String?)
         case updateRequired(requiredVersion: String)
+        case maintenance
 
         static func == (lhs: Phase, rhs: Phase) -> Bool {
             switch (lhs, rhs) {
@@ -26,6 +27,8 @@ final class AuthViewModel: ObservableObject {
                 return lhsMessage == rhsMessage
             case let (.updateRequired(lhsVersion), .updateRequired(rhsVersion)):
                 return lhsVersion == rhsVersion
+            case (.maintenance, .maintenance):
+                return true
             default:
                 return false
             }
@@ -65,6 +68,9 @@ final class AuthViewModel: ObservableObject {
             if handleUpdateRequirement(from: error) {
                 return
             }
+            if handleMaintenanceRequirement(from: error) {
+                return
+            }
             service.clearStoredCredentials()
             if let authError = error as? AuthError, case .unauthorized = authError {
                 phase = .login(message: "Please sign in again to continue.")
@@ -93,6 +99,9 @@ final class AuthViewModel: ObservableObject {
             phase = .authenticated(session)
         } catch {
             if handleUpdateRequirement(from: error) {
+                return
+            }
+            if handleMaintenanceRequirement(from: error) {
                 return
             }
             if let authError = error as? AuthError {
@@ -129,6 +138,9 @@ final class AuthViewModel: ObservableObject {
             if handleUpdateRequirement(from: error) {
                 return
             }
+            if handleMaintenanceRequirement(from: error) {
+                return
+            }
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
             } else {
@@ -156,6 +168,9 @@ final class AuthViewModel: ObservableObject {
             if handleUpdateRequirement(from: error) {
                 return
             }
+            if handleMaintenanceRequirement(from: error) {
+                return
+            }
             if let authError = error as? AuthError, case .unauthorized = authError {
                 service.clearStoredCredentials()
                 phase = .login(message: "Please sign in again to continue.")
@@ -174,5 +189,43 @@ final class AuthViewModel: ObservableObject {
         }
 
         return false
+    }
+
+    private func handleMaintenanceRequirement(from error: Error) -> Bool {
+        guard isBackendConnectionFailure(error) else {
+            return false
+        }
+
+        errorMessage = nil
+        isProcessing = false
+        phase = .maintenance
+        return true
+    }
+
+    private func isBackendConnectionFailure(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return isBackendConnectionFailure(code: urlError.code)
+        }
+
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else {
+            return false
+        }
+
+        return isBackendConnectionFailure(code: URLError.Code(rawValue: nsError.code))
+    }
+
+    private func isBackendConnectionFailure(code: URLError.Code) -> Bool {
+        switch code {
+        case .cannotFindHost,
+             .cannotConnectToHost,
+             .dnsLookupFailed,
+             .networkConnectionLost,
+             .secureConnectionFailed,
+             .timedOut:
+            return true
+        default:
+            return false
+        }
     }
 }
