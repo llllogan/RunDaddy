@@ -194,11 +194,12 @@ final class RunNotesViewModel: ObservableObject {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
+            let isGeneral = tag.type == .general
             let request = CreateNoteRequest(
                 body: trimmedBody,
                 runId: saveForFutureRuns ? nil : runId,
                 targetType: tag.type,
-                targetId: tag.id
+                targetId: isGeneral ? nil : tag.id
             )
             let note = try await notesService.createNote(request: request, credentials: session.credentials)
             notes.insert(note, at: 0)
@@ -229,10 +230,11 @@ final class RunNotesViewModel: ObservableObject {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
+            let isGeneral = tag.type == .general
             let request = UpdateNoteRequest(
                 body: trimmedBody,
                 targetType: tag.type,
-                targetId: tag.id
+                targetId: isGeneral ? nil : tag.id
             )
             let updated = try await notesService.updateNote(noteId: note.id, request: request, credentials: session.credentials)
             if let index = notes.firstIndex(where: { $0.id == note.id }) {
@@ -441,6 +443,7 @@ private struct RunNoteComposer: View {
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
     @State private var searchTask: Task<Void, Never>?
+    @State private var isShowingGeneralConfirm = false
 
     init(
         viewModel: RunNotesViewModel,
@@ -479,7 +482,7 @@ private struct RunNoteComposer: View {
     }
 
     private var isSaveDisabled: Bool {
-        bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag == nil || viewModel.isSaving
+        bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving
     }
 
     private var futureRunsFooterTarget: String {
@@ -494,6 +497,8 @@ private struct RunNoteComposer: View {
             return "this machine"
         case .sku:
             return "this SKU"
+        case .general:
+            return "general notes"
         }
     }
 
@@ -582,11 +587,15 @@ private struct RunNoteComposer: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            guard let tag = selectedTag else { return }
                             let note: Note?
                             if let editingNote {
+                                guard let tag = selectedTag else { return }
                                 note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
                             } else {
+                                guard let tag = selectedTag else {
+                                    isShowingGeneralConfirm = true
+                                    return
+                                }
                                 note = await viewModel.addNote(body: bodyText, tag: tag, saveForFutureRuns: saveForFutureRuns)
                             }
                             if note != nil {
@@ -605,6 +614,25 @@ private struct RunNoteComposer: View {
                     .disabled(isSaveDisabled)
                 }
             }
+        }
+        .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Yes") {
+                Task {
+                    let tag = NoteTagOption(id: "general", type: .general, label: "General", subtitle: nil)
+                    let note = await viewModel.addNote(body: bodyText, tag: tag, saveForFutureRuns: saveForFutureRuns)
+                    if note != nil {
+                        onNoteSaved()
+                        isPresented = false
+                        bodyText = ""
+                        saveForFutureRuns = false
+                        searchText = ""
+                        selectedTag = nil
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you dont want to tag this note with a SKU, machine, or location?")
         }
         .task {
             guard !isEditing else { return }

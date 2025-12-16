@@ -9,6 +9,7 @@ enum NoteTargetType: String, Codable {
     case sku
     case machine
     case location
+    case general
 }
 
 struct NoteTarget: Codable, Equatable {
@@ -37,7 +38,7 @@ struct CreateNoteRequest: Encodable {
     let body: String
     let runId: String?
     let targetType: NoteTargetType
-    let targetId: String
+    let targetId: String?
 }
 
 struct UpdateNoteRequest: Encodable {

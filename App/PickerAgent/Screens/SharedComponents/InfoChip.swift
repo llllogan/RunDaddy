@@ -185,6 +185,8 @@ struct EntityResultRow: View {
             return EntityStyle(systemName: "tag", color: .teal)
         case "location":
             return EntityStyle(systemName: "mappin.circle", color: .orange)
+        case "general":
+            return EntityStyle(systemName: "note.text", color: .gray)
         default:
             return EntityStyle(systemName: "magnifyingglass", color: .gray)
         }

@@ -23,19 +23,68 @@ router.use(authenticate, requireCompanyContext());
 const createNoteSchema = z.object({
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH),
   runId: z.string().cuid().optional().nullable(),
-  targetType: z.enum(['sku', 'machine', 'location']),
-  targetId: z.string().cuid(),
+  targetType: z.enum(['sku', 'machine', 'location', 'general']),
+  targetId: z.string().cuid().optional(),
+}).superRefine((value, ctx) => {
+  if (value.targetType === 'general') {
+    if (value.targetId != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['targetId'],
+        message: 'targetId must be omitted for general notes',
+      });
+    }
+    return;
+  }
+
+  if (!value.targetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetId'],
+      message: 'targetId is required for sku, machine, and location notes',
+    });
+  }
 });
 
 const updateNoteSchema = z.object({
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH).optional(),
-  targetType: z.enum(['sku', 'machine', 'location']).optional(),
+  targetType: z.enum(['sku', 'machine', 'location', 'general']).optional(),
   targetId: z.string().cuid().optional(),
+}).superRefine((value, ctx) => {
+  if (!value.targetType && !value.targetId) {
+    return;
+  }
+
+  if (value.targetType === 'general') {
+    if (value.targetId != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['targetId'],
+        message: 'targetId must be omitted for general notes',
+      });
+    }
+    return;
+  }
+
+  if (value.targetType && !value.targetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetId'],
+      message: 'targetId is required when targetType is provided',
+    });
+  }
+  if (!value.targetType && value.targetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetType'],
+      message: 'targetType is required when targetId is provided',
+    });
+  }
 });
 
 const listNotesSchema = z.object({
   runId: z.string().cuid().optional(),
-  targetType: z.enum(['sku', 'machine', 'location']).optional(),
+  targetType: z.enum(['sku', 'machine', 'location', 'general']).optional(),
   targetId: z.string().cuid().optional(),
   includePersistentForRun: z
     .preprocess((value) => (value === 'false' ? false : true), z.boolean())
@@ -77,10 +126,27 @@ const listNotesSchema = z.object({
     }, z.number().int().min(0).max(MAX_OFFSET))
     .optional(),
   timezone: z.string().trim().optional(),
-}).refine((value) => (value.targetType == null) === (value.targetId == null), {
-  message: 'targetType and targetId must be provided together',
-  path: ['targetType'],
-});
+})
+  .superRefine((value, ctx) => {
+    if (value.targetType === 'general') {
+      if (value.targetId != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['targetId'],
+          message: 'targetId must be omitted for general notes',
+        });
+      }
+      return;
+    }
+
+    if ((value.targetType == null) !== (value.targetId == null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['targetType'],
+        message: 'targetType and targetId must be provided together',
+      });
+    }
+  });
 
 type RunNoteContext = {
   skuIds: Set<string>;
@@ -130,7 +196,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   const companyId = req.auth.companyId;
   const filters: [Prisma.NoteWhereInput, ...Prisma.NoteWhereInput[]] = [{ companyId }];
 
-  if (targetType && targetId) {
+  if (targetType && targetId && targetType !== 'general') {
     const target = await ensureTarget(companyId, targetType, targetId);
     if (!target) {
       return res.status(404).json({ error: 'Target not found for this company' });
@@ -143,6 +209,12 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     } else if (targetType === 'location') {
       filters.push({ locationId: targetId });
     }
+  } else if (targetType === 'general') {
+    filters.push({
+      skuId: null,
+      machineId: null,
+      locationId: null,
+    });
   }
 
   // Apply date window if requested (e.g., today + yesterday)
@@ -254,15 +326,18 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
     runContext = buildRunContext(run);
   }
 
-  const target = await ensureTarget(companyId, targetType, targetId);
-  if (!target) {
-    return res.status(404).json({ error: 'Target not found for this company' });
-  }
+  if (targetType !== 'general') {
+    const resolvedTargetId = targetId!;
+    const target = await ensureTarget(companyId, targetType, resolvedTargetId);
+    if (!target) {
+      return res.status(404).json({ error: 'Target not found for this company' });
+    }
 
-  if (runContext && !isTargetInRun(targetType, targetId, runContext)) {
-    return res.status(400).json({
-      error: 'Selected tag is not part of this run',
-    });
+    if (runContext && !isTargetInRun(targetType, resolvedTargetId, runContext)) {
+      return res.status(400).json({
+        error: 'Selected tag is not part of this run',
+      });
+    }
   }
 
   const created = await prisma.note.create({
@@ -271,9 +346,9 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
       companyId,
       runId: runId ?? null,
       createdBy: req.auth.userId ?? null,
-      skuId: targetType === 'sku' ? targetId : null,
-      machineId: targetType === 'machine' ? targetId : null,
-      locationId: targetType === 'location' ? targetId : null,
+      skuId: targetType === 'sku' ? targetId! : null,
+      machineId: targetType === 'machine' ? targetId! : null,
+      locationId: targetType === 'location' ? targetId! : null,
     },
     include: noteInclude,
   });
@@ -318,7 +393,7 @@ router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =>
     if (!run) {
       return res.status(404).json({ error: 'Run not found' });
     }
-    if (parsed.data.targetType && parsed.data.targetId) {
+    if (parsed.data.targetType && parsed.data.targetType !== 'general' && parsed.data.targetId) {
       const runContext = buildRunContext(run);
       if (!isTargetInRun(parsed.data.targetType, parsed.data.targetId, runContext)) {
         return res.status(400).json({ error: 'Selected tag is not part of this run' });
@@ -327,17 +402,26 @@ router.patch('/:noteId', setLogConfig({ level: 'minimal' }), async (req, res) =>
   }
 
   let targetFieldUpdates: Prisma.NoteUncheckedUpdateInput = {};
-  if (parsed.data.targetType && parsed.data.targetId) {
-    const target = await ensureTarget(req.auth.companyId, parsed.data.targetType, parsed.data.targetId);
-    if (!target) {
-      return res.status(404).json({ error: 'Target not found for this company' });
-    }
+  if (parsed.data.targetType) {
+    if (parsed.data.targetType === 'general') {
+      targetFieldUpdates = {
+        skuId: null,
+        machineId: null,
+        locationId: null,
+      };
+    } else {
+      const resolvedTargetId = parsed.data.targetId!;
+      const target = await ensureTarget(req.auth.companyId, parsed.data.targetType, resolvedTargetId);
+      if (!target) {
+        return res.status(404).json({ error: 'Target not found for this company' });
+      }
 
-    targetFieldUpdates = {
-      skuId: parsed.data.targetType === 'sku' ? parsed.data.targetId : null,
-      machineId: parsed.data.targetType === 'machine' ? parsed.data.targetId : null,
-      locationId: parsed.data.targetType === 'location' ? parsed.data.targetId : null,
-    };
+      targetFieldUpdates = {
+        skuId: parsed.data.targetType === 'sku' ? resolvedTargetId : null,
+        machineId: parsed.data.targetType === 'machine' ? resolvedTargetId : null,
+        locationId: parsed.data.targetType === 'location' ? resolvedTargetId : null,
+      };
+    }
   }
 
   const updated = await prisma.note.update({
@@ -436,7 +520,7 @@ function buildRunContext(run: NonNullable<Awaited<ReturnType<typeof ensureRun>>>
 }
 
 function isTargetInRun(
-  type: 'sku' | 'machine' | 'location',
+  type: 'sku' | 'machine' | 'location' | 'general',
   targetId: string,
   context: RunNoteContext,
 ): boolean {
@@ -447,6 +531,8 @@ function isTargetInRun(
       return context.machineIds.has(targetId);
     case 'location':
       return context.locationIds.has(targetId);
+    case 'general':
+      return true;
     default:
       return false;
   }
@@ -489,14 +575,23 @@ function resolveTarget(note: NoteWithRelations) {
     };
   }
 
-  const locationLabel = note.location?.name?.trim() || 'Location';
-  const locationSubtitle = note.location?.address?.trim() || null;
+  if (note.location) {
+    const locationLabel = note.location.name?.trim() || 'Location';
+    const locationSubtitle = note.location.address?.trim() || null;
+
+    return {
+      type: 'location' as const,
+      id: note.location.id,
+      label: locationLabel,
+      subtitle: locationSubtitle,
+    };
+  }
 
   return {
-    type: 'location' as const,
-    id: note.location?.id ?? '',
-    label: locationLabel,
-    subtitle: locationSubtitle,
+    type: 'general' as const,
+    id: 'general',
+    label: 'General',
+    subtitle: null,
   };
 }
 

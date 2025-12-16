@@ -334,11 +334,12 @@ final class CompanyNotesViewModel: ObservableObject {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
+            let isGeneral = tag.type == .general
             let request = CreateNoteRequest(
                 body: trimmedBody,
                 runId: nil,
                 targetType: tag.type,
-                targetId: tag.id
+                targetId: isGeneral ? nil : tag.id
             )
             let note = try await notesService.createNote(request: request, credentials: session.credentials)
             notes.insert(note, at: 0)
@@ -369,10 +370,11 @@ final class CompanyNotesViewModel: ObservableObject {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
+            let isGeneral = tag.type == .general
             let request = UpdateNoteRequest(
                 body: trimmedBody,
                 targetType: tag.type,
-                targetId: tag.id
+                targetId: isGeneral ? nil : tag.id
             )
             let updated = try await notesService.updateNote(noteId: note.id, request: request, credentials: session.credentials)
             if let index = notes.firstIndex(where: { $0.id == note.id }) {
@@ -561,6 +563,7 @@ private struct NotesFilterBar: View {
             case .sku: return "SKU"
             case .machine: return "Machine"
             case .location: return "Location"
+            case .general: return "General"
             }
         }
         return selectedTag.label
@@ -587,6 +590,7 @@ private struct NotesTargetFilterPickerSheet: View {
         case .sku: return [.sku]
         case .machine: return [.machine]
         case .location: return [.location]
+        case .general: return []
         }
     }
 
@@ -687,6 +691,7 @@ private struct CompanyNoteComposer: View {
     @State private var searchText = ""
     @State private var selectedTag: NoteTagOption?
     @State private var searchTask: Task<Void, Never>?
+    @State private var isShowingGeneralConfirm = false
 
     init(
         viewModel: CompanyNotesViewModel,
@@ -721,7 +726,7 @@ private struct CompanyNoteComposer: View {
     }
 
     private var isSaveDisabled: Bool {
-        bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag == nil || viewModel.isSaving
+        bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving
     }
 
     var body: some View {
@@ -809,11 +814,15 @@ private struct CompanyNoteComposer: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            guard let tag = selectedTag else { return }
                             let note: Note?
                             if let editingNote {
+                                guard let tag = selectedTag else { return }
                                 note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
                             } else {
+                                guard let tag = selectedTag else {
+                                    isShowingGeneralConfirm = true
+                                    return
+                                }
                                 note = await viewModel.addNote(body: bodyText, tag: tag)
                             }
                             if note != nil {
@@ -828,6 +837,24 @@ private struct CompanyNoteComposer: View {
                     .disabled(isSaveDisabled)
                 }
             }
+        }
+        .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Yes") {
+                Task {
+                    let tag = NoteTagOption(id: "general", type: .general, label: "General", subtitle: nil)
+                    let note = await viewModel.addNote(body: bodyText, tag: tag)
+                    if note != nil {
+                        onNoteSaved()
+                        isPresented = false
+                        bodyText = ""
+                        searchText = ""
+                        selectedTag = nil
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you dont want to tag this note with a SKU, machine, or location?")
         }
         .task {
             guard !isEditing else { return }
