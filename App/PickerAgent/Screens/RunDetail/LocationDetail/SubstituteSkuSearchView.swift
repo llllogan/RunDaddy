@@ -16,6 +16,7 @@ struct SubstituteSkuSearchView: View {
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var selectedSkuId: String?
     @State private var confirmingSubstitution = false
+    @State private var showingNoteCreatedAlert = false
     @State private var errorMessage: String?
 
     private let searchService = SearchService()
@@ -138,6 +139,13 @@ struct SubstituteSkuSearchView: View {
             } message: {
                 Text(errorMessage ?? "Please try again.")
             }
+            .alert("Substitution Complete", isPresented: $showingNoteCreatedAlert) {
+                Button("OK", role: .cancel) {
+                    dismiss()
+                }
+            } message: {
+                Text("A note has been created for this run to document the substitution")
+            }
         }
     }
 
@@ -185,10 +193,14 @@ struct SubstituteSkuSearchView: View {
                 skuId: selectedSkuId,
                 credentials: session.credentials
             )
-            await createSubstitutionNoteIfPossible(newSku: newSku)
+            let noteCreated = await createSubstitutionNoteIfPossible(newSku: newSku)
             await onPickStatusChanged()
             await MainActor.run {
-                dismiss()
+                if noteCreated {
+                    showingNoteCreatedAlert = true
+                } else {
+                    dismiss()
+                }
             }
         } catch {
             await MainActor.run {
@@ -203,9 +215,9 @@ struct SubstituteSkuSearchView: View {
         }
     }
 
-    private func createSubstitutionNoteIfPossible(newSku: SKU) async {
+    private func createSubstitutionNoteIfPossible(newSku: SKU) async -> Bool {
         guard let machineId = pickItem.machine?.id ?? pickItem.coilItem.coil.machineId else {
-            return
+            return false
         }
 
         let oldName = pickItem.sku?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown SKU"
@@ -222,8 +234,10 @@ struct SubstituteSkuSearchView: View {
                 request: CreateNoteRequest(body: body, runId: runId, targetType: .machine, targetId: machineId),
                 credentials: session.credentials
             )
+            return true
         } catch {
             // Notes are best-effort; ignore failures.
+            return false
         }
     }
 }
