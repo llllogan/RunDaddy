@@ -26,6 +26,7 @@ struct PreviewRunsService: RunsServicing {
                     items: [
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 1,
+                            coilItemId: "coil-item-2",
                             sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix"),
                             machine: .init(id: "machine-2", code: "B-204", description: "Breakroom"),
                             coil: .init(id: "coil-2", code: "C2")
@@ -38,6 +39,7 @@ struct PreviewRunsService: RunsServicing {
                     items: [
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 3,
+                            coilItemId: "coil-item-1",
                             sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers"),
                             machine: .init(id: "machine-1", code: "A-101", description: "Lobby"),
                             coil: .init(id: "coil-1", code: "C1")
@@ -45,6 +47,15 @@ struct PreviewRunsService: RunsServicing {
                     ]
                 )
             ]
+        )
+    }
+
+    func addNeededForExpiringItem(runId: String, coilItemId: String, credentials: AuthCredentials) async throws -> AddNeededForExpiryResponse {
+        AddNeededForExpiryResponse(
+            addedQuantity: 2,
+            expiringQuantity: 5,
+            coilCode: "C2",
+            runDate: "2025-11-06"
         )
     }
     

@@ -316,7 +316,7 @@ struct RunBottomBento: View {
             value: expiringWarningsValueText,
             subtitle: "View Details",
             symbolName: "exclamationmark.triangle",
-            symbolTint: .orange,
+            symbolTint: .red,
             isProminent: false,
             onTap: expiringItemsTap,
             showsChevron: true

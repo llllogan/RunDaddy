@@ -23,7 +23,7 @@ import {
   ensureCoilItem,
   ensureMachine,
 } from './helpers/runs.js';
-import { buildExpiringItemsForRun } from './helpers/expiring-items.js';
+import { addNeededForRunDayExpiry, buildExpiringItemsForRun } from './helpers/expiring-items.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
 
 interface AudioCommand {
@@ -935,6 +935,43 @@ router.get('/:runId/expiring-items', setLogConfig({ level: 'minimal' }), async (
     return res.status(404).json({ error: 'Run not found' });
   }
   return res.json(response);
+});
+
+const addNeededExpirySchema = z.object({
+  coilItemId: z.string().cuid(),
+});
+
+router.post('/:runId/expiring-items/add-needed', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to access runs' });
+  }
+
+  const parsed = addNeededExpirySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const result = await addNeededForRunDayExpiry({
+    companyId: req.auth.companyId,
+    runId,
+    coilItemId: parsed.data.coilItemId,
+    userId: req.auth.userId ?? null,
+  });
+
+  if (!result) {
+    return res.status(404).json({ error: 'Run or pick entry not found' });
+  }
+
+  return res.json(result);
 });
 
 router.put('/:runId/location-order', setLogConfig({ level: 'minimal' }), async (req, res) => {

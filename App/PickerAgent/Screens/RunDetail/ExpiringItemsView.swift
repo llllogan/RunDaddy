@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct ExpiringItemsView: View {
-    let runId: String
-    let response: ExpiringItemsRunResponse?
+    @ObservedObject var viewModel: RunDetailViewModel
+
+    @State private var isAddingNeeded = false
+    @State private var addedAlertMessage: String?
+    @State private var isShowingAddedAlert = false
 
     var body: some View {
         Group {
-            if let response {
+            if let response = viewModel.expiringItems {
                 if response.sections.isEmpty {
                     ContentUnavailableView(
                         "No Expiring Items",
@@ -19,6 +22,17 @@ struct ExpiringItemsView: View {
                             Section(header: Text(sectionHeaderText(for: section))) {
                                 ForEach(section.items) { item in
                                     ExpiringItemRow(item: item)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            if section.dayOffset == 0 {
+                                                Button {
+                                                    addNeeded(for: item, runDate: section.expiryDate)
+                                                } label: {
+                                                    Label("Add Needed", systemImage: "arrow.up.to.line")
+                                                }
+                                                .tint(.blue)
+                                                .disabled(isAddingNeeded)
+                                            }
+                                        }
                                 }
                             }
                         }
@@ -34,22 +48,85 @@ struct ExpiringItemsView: View {
         }
         .navigationTitle("Expiring Items")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Added Needed", isPresented: $isShowingAddedAlert) {
+            Button("OK") {
+                addedAlertMessage = nil
+                Task { @MainActor in
+                    await viewModel.loadExpiringItems(force: true)
+                }
+            }
+        } message: {
+            Text(addedAlertMessage ?? "")
+        }
     }
 
     private func sectionHeaderText(for section: ExpiringItemsRunResponse.Section) -> String {
-        let relative: String
         switch section.dayOffset {
         case 0:
-            relative = "Today"
-        case -1:
-            relative = "Yesterday"
-        case -2:
-            relative = "2 days ago"
+            return "On day of run (\(section.expiryDate))"
+        case -1, -2:
+            return "\(relativeDayLabel(for: section.expiryDate)) (\(section.expiryDate))"
         default:
-            relative = section.expiryDate
+            return section.expiryDate
+        }
+    }
+
+    private func relativeDayLabel(for dateString: String) -> String {
+        guard let date = Self.parseLocalDateOnly(dateString) else {
+            return dateString
         }
 
-        return "\(relative) (\(section.expiryDate))"
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+
+        if calendar.isDate(target, inSameDayAs: today) {
+            return "Today"
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
+           calendar.isDate(target, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today),
+           calendar.isDate(target, inSameDayAs: twoDaysAgo) {
+            return "2 days ago"
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+           calendar.isDate(target, inSameDayAs: tomorrow) {
+            return "Tomorrow"
+        }
+
+        return dateString
+    }
+
+    private static func parseLocalDateOnly(_ dateString: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: dateString)
+    }
+
+    private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {
+        if isAddingNeeded {
+            return
+        }
+
+        isAddingNeeded = true
+        Task { @MainActor in
+            defer { isAddingNeeded = false }
+            do {
+                let result = try await viewModel.addNeededForExpiringItem(coilItemId: item.coilItemId)
+                let added = result.addedQuantity
+                let coil = result.coilCode
+                let dateLabel = result.runDate.isEmpty ? runDate : result.runDate
+                addedAlertMessage = "\(added) items have been added to coil \(coil) on \(dateLabel)."
+                isShowingAddedAlert = true
+            } catch {
+                addedAlertMessage = "We couldn't add the needed items right now. Please try again."
+                isShowingAddedAlert = true
+            }
+        }
     }
 }
 

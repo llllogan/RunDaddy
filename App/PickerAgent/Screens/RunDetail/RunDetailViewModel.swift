@@ -660,6 +660,10 @@ final class RunDetailViewModel: ObservableObject {
         }
     }
 
+    func addNeededForExpiringItem(coilItemId: String) async throws -> AddNeededForExpiryResponse {
+        try await service.addNeededForExpiringItem(runId: runId, coilItemId: coilItemId, credentials: session.credentials)
+    }
+
     func saveLocationOrder(with orderedLocationIds: [String?]) async throws {
         guard let runId = detail?.id else {
             throw RunsServiceError.runNotFound

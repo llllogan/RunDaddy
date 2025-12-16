@@ -128,8 +128,7 @@ struct RunDetailView: View {
         }
         .navigationDestination(isPresented: $showingExpiringItems) {
             ExpiringItemsView(
-                runId: viewModel.detail?.id ?? viewModel.runId,
-                response: viewModel.expiringItems
+                viewModel: viewModel
             )
         }
         .task {
