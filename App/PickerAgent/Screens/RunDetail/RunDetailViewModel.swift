@@ -113,6 +113,8 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var runNoteCount: Int?
     @Published private(set) var generalNoteCount: Int?
     @Published private(set) var isLoadingNoteCounts = false
+    @Published private(set) var expiringItems: ExpiringItemsRunResponse?
+    @Published private(set) var isLoadingExpiringItems = false
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -181,6 +183,9 @@ final class RunDetailViewModel: ObservableObject {
             Task {
                 await self.loadRunNoteCounts()
             }
+            Task {
+                await self.loadExpiringItems()
+            }
         } catch {
             if let authError = error as? AuthError {
                 errorMessage = authError.localizedDescription
@@ -197,6 +202,7 @@ final class RunDetailViewModel: ObservableObject {
             locationSchedules = [:]
             runNoteCount = nil
             generalNoteCount = nil
+            expiringItems = nil
         }
 
         isLoading = false
@@ -636,6 +642,21 @@ final class RunDetailViewModel: ObservableObject {
         } catch {
             runNoteCount = nil
             generalNoteCount = nil
+        }
+    }
+
+    func loadExpiringItems(force: Bool = false) async {
+        if isLoadingExpiringItems && !force {
+            return
+        }
+
+        isLoadingExpiringItems = true
+        defer { isLoadingExpiringItems = false }
+
+        do {
+            expiringItems = try await service.fetchExpiringItems(for: runId, credentials: session.credentials)
+        } catch {
+            expiringItems = nil
         }
     }
 

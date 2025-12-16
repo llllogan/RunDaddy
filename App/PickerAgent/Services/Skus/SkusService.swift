@@ -11,6 +11,7 @@ protocol SkusServicing {
     func updateColdChestStatus(id: String, isFreshOrFrozen: Bool) async throws
     func updateWeight(id: String, weight: Double?) async throws
     func updateLabelColour(id: String, labelColourHex: String?) async throws
+    func updateExpiryDays(id: String, expiryDays: Int) async throws
 }
 
 final class SkusService: SkusServicing {
@@ -211,6 +212,47 @@ final class SkusService: SkusServicing {
 
         let body: [String: Any] = [
             "labelColour": labelColourHex as Any? ?? NSNull()
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SkusServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 403 {
+                throw SkusServiceError.insufficientPermissions
+            }
+            if httpResponse.statusCode == 404 {
+                throw SkusServiceError.skuNotFound
+            }
+            throw SkusServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func updateExpiryDays(id: String, expiryDays: Int) async throws {
+        guard let credentials = credentialStore.loadCredentials() else {
+            throw AuthError.unauthorized
+        }
+
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("skus")
+        url.appendPathComponent(id)
+        url.appendPathComponent("expiry-days")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "expiryDays": expiryDays
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

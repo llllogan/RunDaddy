@@ -24,6 +24,7 @@ struct RunDetailView: View {
     @State private var deletingLocationIDs: Set<String> = []
     @State private var notifications: [InAppNotification] = []
     @State private var showingRunNotes = false
+    @State private var showingExpiringItems = false
     
     // Check if run is 100% complete
     private var isRunComplete: Bool {
@@ -67,10 +68,13 @@ struct RunDetailView: View {
                                 coldChestChips: viewModel.runColdChestChips
                             )
 
-                            RunNotesBento(
+                            RunBottomBento(
                                 viewModel: viewModel,
                                 notesTap: {
                                     showingRunNotes = true
+                                },
+                                expiringItemsTap: {
+                                    showingExpiringItems = true
                                 }
                             )
                         }
@@ -120,6 +124,12 @@ struct RunDetailView: View {
                         await viewModel.loadRunNoteCounts(force: true)
                     }
                 }
+            )
+        }
+        .navigationDestination(isPresented: $showingExpiringItems) {
+            ExpiringItemsView(
+                runId: viewModel.detail?.id ?? viewModel.runId,
+                response: viewModel.expiringItems
             )
         }
         .task {

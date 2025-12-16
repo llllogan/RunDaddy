@@ -41,4 +41,5 @@ struct SKU: Codable, Identifiable {
     let labelColour: String?
     let countNeededPointer: String?
     let isFreshOrFrozen: Bool
+    let expiryDays: Int?
 }

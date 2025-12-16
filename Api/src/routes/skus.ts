@@ -68,6 +68,7 @@ router.patch('/:skuId/fresh-or-frozen', setLogConfig({ level: 'minimal' }), asyn
     type: updatedSku.type,
     labelColour: updatedSku.labelColour,
     isFreshOrFrozen: updatedSku.isFreshOrFrozen,
+    expiryDays: updatedSku.expiryDays,
   });
 });
 
@@ -117,6 +118,53 @@ router.patch('/:skuId/count-pointer', setLogConfig({ level: 'minimal' }), async 
     type: updatedSku.type,
     labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
+    expiryDays: updatedSku.expiryDays,
+  });
+});
+
+// Update SKU expiryDays field
+router.patch('/:skuId/expiry-days', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { skuId } = req.params;
+  if (!skuId) {
+    return res.status(400).json({ error: 'SKU ID is required' });
+  }
+
+  const { expiryDays } = req.body;
+  const parsedExpiryDays = Number(expiryDays);
+  if (!Number.isFinite(parsedExpiryDays) || !Number.isInteger(parsedExpiryDays) || parsedExpiryDays < 0) {
+    return res.status(400).json({ error: 'expiryDays must be a non-negative integer' });
+  }
+
+  const skuResult = await getSkuForCompany(skuId, req.auth.companyId);
+  if (skuResult.status === 'not_found') {
+    return res.status(404).json({ error: 'SKU not found' });
+  }
+  if (skuResult.status === 'forbidden') {
+    return res.status(403).json({ error: 'SKU does not belong to your company' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const updatedSku = await prisma.sKU.update({
+    where: { id: skuId },
+    data: { expiryDays: parsedExpiryDays },
+  });
+
+  return res.json({
+    id: updatedSku.id,
+    code: updatedSku.code,
+    name: updatedSku.name,
+    type: updatedSku.type,
+    labelColour: updatedSku.labelColour,
+    countNeededPointer: updatedSku.countNeededPointer,
+    isFreshOrFrozen: updatedSku.isFreshOrFrozen,
+    expiryDays: updatedSku.expiryDays,
   });
 });
 
@@ -149,6 +197,7 @@ router.get('/:skuId', setLogConfig({ level: 'minimal' }), async (req, res) => {
     isFreshOrFrozen: skuResult.sku.isFreshOrFrozen,
     labelColour: skuResult.sku.labelColour,
     countNeededPointer: skuResult.sku.countNeededPointer,
+    expiryDays: skuResult.sku.expiryDays,
   });
 });
 
@@ -202,6 +251,7 @@ router.patch('/:skuId/weight', setLogConfig({ level: 'minimal' }), async (req, r
     labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
     isFreshOrFrozen: updatedSku.isFreshOrFrozen,
+    expiryDays: updatedSku.expiryDays,
   });
 });
 
@@ -266,6 +316,7 @@ router.patch('/:skuId/label-colour', setLogConfig({ level: 'minimal' }), async (
     labelColour: updatedSku.labelColour,
     countNeededPointer: updatedSku.countNeededPointer,
     isFreshOrFrozen: updatedSku.isFreshOrFrozen,
+    expiryDays: updatedSku.expiryDays,
   });
 });
 

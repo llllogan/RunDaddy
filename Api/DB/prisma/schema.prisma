@@ -179,6 +179,7 @@ model SKU {
   labelColour         String?
   countNeededPointer  String?  @default("total")
   isFreshOrFrozen     Boolean  @default(false)
+  expiryDays          Int      @default(0)
 
   company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   coilItems CoilItem[]

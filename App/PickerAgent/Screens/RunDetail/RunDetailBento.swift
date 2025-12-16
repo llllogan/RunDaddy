@@ -257,9 +257,10 @@ struct RunOverviewBento: View {
     }()
 }
 
-struct RunNotesBento: View {
+struct RunBottomBento: View {
     let viewModel: RunDetailViewModel
     let notesTap: () -> Void
+    let expiringItemsTap: () -> Void
 
     private var runNotesValueText: String {
         guard let count = viewModel.runNoteCount else {
@@ -273,7 +274,7 @@ struct RunNotesBento: View {
         }
 
         let day = Calendar.current.component(.day, from: runDate)
-        let ordinal = RunNotesBento.ordinalFormatter.string(from: NSNumber(value: day)) ?? "\(day)"
+        let ordinal = RunBottomBento.ordinalFormatter.string(from: NSNumber(value: day)) ?? "\(day)"
         return "\(count) \(label) for the \(ordinal)"
     }
 
@@ -282,6 +283,17 @@ struct RunNotesBento: View {
             return nil
         }
         return count == 1 ? "1 general note" : "\(count) general notes"
+    }
+
+    private var expiringWarningsValueText: String {
+        if viewModel.isLoadingExpiringItems {
+            return "…"
+        }
+        guard let warningCount = viewModel.expiringItems?.warningCount else {
+            return "—"
+        }
+        let label = warningCount == 1 ? "warning" : "warnings"
+        return "\(warningCount) \(label)"
     }
 
     private var notesItem: BentoItem {
@@ -298,8 +310,21 @@ struct RunNotesBento: View {
         )
     }
 
+    private var expiringItemsItem: BentoItem {
+        BentoItem(
+            title: "Expiring Items",
+            value: expiringWarningsValueText,
+            subtitle: "View Details",
+            symbolName: "exclamationmark.triangle",
+            symbolTint: .orange,
+            isProminent: false,
+            onTap: expiringItemsTap,
+            showsChevron: true
+        )
+    }
+
     var body: some View {
-        StaggeredBentoGrid(items: [notesItem], columnCount: 1)
+        StaggeredBentoGrid(items: [expiringItemsItem, notesItem], columnCount: 1)
             .padding(.vertical, 2)
     }
 

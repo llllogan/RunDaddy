@@ -15,9 +15,13 @@ struct SkuInfoBento: View {
     let labelColour: Binding<Color>
     let isUpdatingLabelColour: Bool
     let canEditLabelColour: Bool
+    let isUpdatingExpiryDays: Bool
+    let onConfigureExpiryDays: () -> Void
     
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
+
+        cards.append(expiryDaysCard)
         
         cards.append(
             BentoItem(id: "sku-info-details",
@@ -186,6 +190,27 @@ struct SkuInfoBento: View {
             symbolName: "scalemass",
             symbolTint: .orange,
             isProminent: true
+        )
+    }
+
+    private var expiryDaysCard: BentoItem {
+        let valueText: String
+        if let expiryDays = sku.expiryDays, expiryDays > 0 {
+            valueText = "\(expiryDays) days"
+        } else {
+            valueText = "Not set"
+        }
+
+        return BentoItem(
+            id: "sku-info-expiry-days",
+            title: "Expiry Days",
+            value: isUpdatingExpiryDays ? "Saving…" : valueText,
+            subtitle: "Configure",
+            symbolName: "calendar.badge.clock",
+            symbolTint: .orange,
+            isProminent: false,
+            onTap: onConfigureExpiryDays,
+            showsChevron: true
         )
     }
 

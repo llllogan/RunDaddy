@@ -15,6 +15,10 @@ struct SkuDetailView: View {
     @State private var isShowingWeightAlert = false
     @State private var weightInputText = ""
     @State private var weightUpdateError: String?
+    @State private var isUpdatingExpiryDays = false
+    @State private var isShowingExpiryDaysAlert = false
+    @State private var expiryDaysInputText = ""
+    @State private var expiryDaysUpdateError: String?
     @State private var machineNavigationTarget: SkuDetailMachineNavigation?
     @State private var effectiveRole: UserRole?
     @State private var isUpdatingLabelColour = false
@@ -67,7 +71,9 @@ struct SkuDetailView: View {
                             mostRecentPick: skuStats.mostRecentPick,
                             labelColour: $selectedLabelColour,
                             isUpdatingLabelColour: isUpdatingLabelColour,
-                            canEditLabelColour: canEditSku
+                            canEditLabelColour: canEditSku,
+                            isUpdatingExpiryDays: isUpdatingExpiryDays,
+                            onConfigureExpiryDays: { openExpiryDaysEditor() }
                         )
                     } else if isLoadingStats {
                         ProgressView("Loading SKU stats...")
@@ -246,6 +252,22 @@ struct SkuDetailView: View {
                 weightUpdateError = nil
             }
         )
+        .textFieldAlert(
+            isPresented: $isShowingExpiryDaysAlert,
+            text: $expiryDaysInputText,
+            title: "Expiry Days",
+            message: expiryDaysUpdateError,
+            confirmTitle: "Save",
+            cancelTitle: "Cancel",
+            keyboardType: .numberPad,
+            allowedCharacterSet: CharacterSet.decimalDigits,
+            onConfirm: {
+                Task { await submitExpiryDaysUpdate() }
+            },
+            onCancel: {
+                expiryDaysUpdateError = nil
+            }
+        )
     }
     
     private func loadSkuDetails(shouldRefreshStats: Bool = true) async {
@@ -385,7 +407,8 @@ struct SkuDetailView: View {
                 weight: currentSku.weight,
                 labelColour: hexString,
                 countNeededPointer: currentSku.countNeededPointer,
-                isFreshOrFrozen: currentSku.isFreshOrFrozen
+                isFreshOrFrozen: currentSku.isFreshOrFrozen,
+                expiryDays: currentSku.expiryDays
             )
         }
 
@@ -409,9 +432,60 @@ struct SkuDetailView: View {
         isShowingWeightAlert = true
     }
 
+    private func openExpiryDaysEditor() {
+        guard canEditSku else { return }
+        guard let sku else { return }
+
+        expiryDaysUpdateError = nil
+        let current = sku.expiryDays ?? 0
+        expiryDaysInputText = current > 0 ? "\(current)" : ""
+        isShowingExpiryDaysAlert = true
+    }
+
     private func formattedWeightInput(from weight: Double?) -> String {
         guard let weight else { return "" }
         return SkuDetailView.weightFormatter.string(from: NSNumber(value: weight)) ?? "\(weight)"
+    }
+
+    private func submitExpiryDaysUpdate() async {
+        guard canEditSku else { return }
+        guard let sku else { return }
+        if isUpdatingExpiryDays {
+            return
+        }
+
+        let trimmed = expiryDaysInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed: Int
+        if trimmed.isEmpty {
+            parsed = 0
+        } else if let value = Int(trimmed), value >= 0 {
+            parsed = value
+        } else {
+            await MainActor.run {
+                expiryDaysUpdateError = "Enter a non-negative whole number."
+                isShowingExpiryDaysAlert = true
+            }
+            return
+        }
+
+        await MainActor.run {
+            expiryDaysUpdateError = nil
+            isUpdatingExpiryDays = true
+        }
+
+        do {
+            try await skusService.updateExpiryDays(id: sku.id, expiryDays: parsed)
+            await loadSkuDetails(shouldRefreshStats: false)
+        } catch {
+            await MainActor.run {
+                expiryDaysUpdateError = error.localizedDescription
+                isShowingExpiryDaysAlert = true
+            }
+        }
+
+        await MainActor.run {
+            isUpdatingExpiryDays = false
+        }
     }
 
     private func submitWeightUpdate() async {

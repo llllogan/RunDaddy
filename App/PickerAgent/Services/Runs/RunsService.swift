@@ -12,6 +12,7 @@ protocol RunsServicing {
     func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats
     func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String?, credentials: AuthCredentials) async throws -> [RunSummary]
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
+    func fetchExpiringItems(for runId: String, credentials: AuthCredentials) async throws -> ExpiringItemsRunResponse
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
@@ -153,6 +154,45 @@ struct AudioCommandsResponse: Equatable, Decodable {
     let audioCommands: [AudioCommand]
     let totalItems: Int
     let hasItems: Bool
+}
+
+struct ExpiringItemsRunResponse: Equatable, Decodable {
+    struct Section: Equatable, Decodable, Identifiable {
+        struct Item: Equatable, Decodable, Identifiable {
+            struct Sku: Equatable, Decodable {
+                let id: String
+                let code: String
+                let name: String
+            }
+
+            struct Machine: Equatable, Decodable {
+                let id: String
+                let code: String
+                let description: String?
+            }
+
+            struct Coil: Equatable, Decodable {
+                let id: String
+                let code: String
+            }
+
+            var id: String { "\(sku.id)-\(machine.id)-\(coil.id)-\(quantity)" }
+
+            let quantity: Int
+            let sku: Sku
+            let machine: Machine
+            let coil: Coil
+        }
+
+        var id: String { expiryDate }
+
+        let expiryDate: String
+        let dayOffset: Int
+        let items: [Item]
+    }
+
+    let warningCount: Int
+    let sections: [Section]
 }
 
 struct RunDetail: Equatable {
@@ -492,6 +532,36 @@ final class RunsService: RunsServicing {
 
         let payload = try decoder.decode(RunDetailResponse.self, from: data)
         return payload.toDetail()
+    }
+
+    func fetchExpiringItems(for runId: String, credentials: AuthCredentials) async throws -> ExpiringItemsRunResponse {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("expiring-items")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        return try decoder.decode(ExpiringItemsRunResponse.self, from: data)
     }
 
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {

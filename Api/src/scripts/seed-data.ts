@@ -1325,6 +1325,217 @@ async function seedMetroSalesHistory(
   }
 }
 
+async function seedMetroExpiringItems(companyId: string) {
+  const expiryDays = 5;
+
+  const todayScheduledFor = scheduleForDay(0, 8);
+  const todayRun = await prisma.run.findFirst({
+    where: {
+      companyId,
+      scheduledFor: todayScheduledFor,
+    },
+    include: {
+      pickEntries: {
+        include: {
+          coilItem: {
+            include: {
+              sku: true,
+              coil: {
+                include: {
+                  machine: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!todayRun || todayRun.pickEntries.length < 2) {
+    return;
+  }
+
+  const pickEntriesBySku = new Map<string, typeof todayRun.pickEntries>();
+  todayRun.pickEntries.forEach((entry) => {
+    const skuId = entry.coilItem.sku?.id;
+    if (!skuId) {
+      return;
+    }
+    if (!pickEntriesBySku.has(skuId)) {
+      pickEntriesBySku.set(skuId, []);
+    }
+    pickEntriesBySku.get(skuId)!.push(entry);
+  });
+
+  const candidate = Array.from(pickEntriesBySku.values()).find((entries) => entries.length >= 2);
+  const coilAEntry = candidate?.[0];
+  const coilBEntry = candidate?.[1];
+  const skuId = coilAEntry?.coilItem.sku?.id;
+
+  if (!coilAEntry || !coilBEntry || !skuId) {
+    return;
+  }
+
+  await prisma.sKU.update({
+    where: { id: skuId },
+    data: {
+      expiryDays,
+      countNeededPointer: 'need',
+    },
+  });
+
+  const updatePlannedNeed = async (runId: string, coilItemId: string, need: number) => {
+    const existing = await prisma.pickEntry.findUnique({
+      where: {
+        runId_coilItemId: {
+          runId,
+          coilItemId,
+        },
+      },
+      select: { current: true },
+    });
+
+    const current = existing?.current ?? 0;
+    const total = current + need;
+
+    await prisma.pickEntry.update({
+      where: {
+        runId_coilItemId: {
+          runId,
+          coilItemId,
+        },
+      },
+      data: {
+        need,
+        count: need,
+        total,
+        forecast: total,
+      },
+    });
+  };
+
+  // Coil mismatch scenario: items expiring in coil B, restock happens in coil A only.
+  await updatePlannedNeed(todayRun.id, coilAEntry.coilItemId, 4);
+  await updatePlannedNeed(todayRun.id, coilBEntry.coilItemId, 0);
+
+  // Create origin runs that generate expiries on today / yesterday / 2 days ago (based on expiryDays).
+  const originTwoDaysAgo = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(-(expiryDays + 1), 8),
+      pickingStartedAt: scheduleForDay(-(expiryDays + 1), 8),
+      pickingEndedAt: scheduleForDay(-(expiryDays + 1), 9),
+    },
+  });
+  await seedPickEntriesWithConfig(originTwoDaysAgo.id, [
+    makePickEntrySeed(
+      {
+        id: coilBEntry.coilItemId,
+        par: coilBEntry.par ?? 10,
+        machineCode: coilBEntry.coilItem.coil.machine.code,
+        skuCode: coilBEntry.coilItem.sku?.code ?? 'SKU',
+      },
+      2,
+      0,
+    ),
+  ]);
+
+  const originYesterday = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(-expiryDays, 8),
+      pickingStartedAt: scheduleForDay(-expiryDays, 8),
+      pickingEndedAt: scheduleForDay(-expiryDays, 9),
+    },
+  });
+  await seedPickEntriesWithConfig(originYesterday.id, [
+    makePickEntrySeed(
+      {
+        id: coilBEntry.coilItemId,
+        par: coilBEntry.par ?? 10,
+        machineCode: coilBEntry.coilItem.coil.machine.code,
+        skuCode: coilBEntry.coilItem.sku?.code ?? 'SKU',
+      },
+      3,
+      0,
+    ),
+  ]);
+
+  const originToday = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(-(expiryDays - 1), 8),
+      pickingStartedAt: scheduleForDay(-(expiryDays - 1), 8),
+      pickingEndedAt: scheduleForDay(-(expiryDays - 1), 9),
+    },
+  });
+  await seedPickEntriesWithConfig(originToday.id, [
+    makePickEntrySeed(
+      {
+        id: coilBEntry.coilItemId,
+        par: coilBEntry.par ?? 10,
+        machineCode: coilBEntry.coilItem.coil.machine.code,
+        skuCode: coilBEntry.coilItem.sku?.code ?? 'SKU',
+      },
+      5,
+      0,
+    ),
+  ]);
+
+  // Runs on the expiry days (yesterday & 2 days ago) that under-stock (or don't stock) the expiring coil.
+  const missedTwoDaysAgo = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(-2, 8),
+      pickingStartedAt: scheduleForDay(-2, 8),
+      pickingEndedAt: scheduleForDay(-2, 9),
+    },
+  });
+  await prisma.pickEntry.create({
+    data: {
+      runId: missedTwoDaysAgo.id,
+      coilItemId: coilBEntry.coilItemId,
+      par: coilBEntry.par ?? 10,
+      current: 0,
+      need: 0,
+      count: 0,
+      total: 0,
+      forecast: 0,
+      isPicked: true,
+      pickedAt: new Date(missedTwoDaysAgo.scheduledFor!.getTime() + 30 * 60 * 1000),
+    },
+  });
+
+  const missedYesterday = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(-1, 8),
+      pickingStartedAt: scheduleForDay(-1, 8),
+      pickingEndedAt: scheduleForDay(-1, 9),
+    },
+  });
+  await prisma.pickEntry.create({
+    data: {
+      runId: missedYesterday.id,
+      coilItemId: coilBEntry.coilItemId,
+      par: coilBEntry.par ?? 10,
+      current: 0,
+      need: 1,
+      count: 1,
+      total: 1,
+      forecast: 1,
+      isPicked: true,
+      pickedAt: new Date(missedYesterday.scheduledFor!.getTime() + 30 * 60 * 1000),
+    },
+  });
+}
+
 async function seedAppleTesting() {
   console.log('Creating Apple testing workspace...');
   const company = await ensureCompany(APP_STORE_COMPANY_NAME, APP_STORE_TIER_ID, APP_STORE_TIME_ZONE);
@@ -1416,6 +1627,8 @@ async function seedCompanyData() {
         });
         await ensurePickEntries(run.id, runLocations.flatMap((detail) => detail.coilItems));
       }
+
+      await seedMetroExpiringItems(company.id);
     } else {
       const todayLocations = selectRunLocations(locationDetails, 0);
       const tomorrowLocations = selectRunLocations(locationDetails, 2);

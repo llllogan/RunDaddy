@@ -15,6 +15,38 @@ struct PreviewRunsService: RunsServicing {
     func fetchRunStats(credentials: AuthCredentials) async throws -> RunStats {
         RunStats(totalRuns: 128, averageRunsPerDay: 6.2)
     }
+
+    func fetchExpiringItems(for runId: String, credentials: AuthCredentials) async throws -> ExpiringItemsRunResponse {
+        ExpiringItemsRunResponse(
+            warningCount: 2,
+            sections: [
+                ExpiringItemsRunResponse.Section(
+                    expiryDate: "2025-11-06",
+                    dayOffset: 0,
+                    items: [
+                        ExpiringItemsRunResponse.Section.Item(
+                            quantity: 1,
+                            sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix"),
+                            machine: .init(id: "machine-2", code: "B-204", description: "Breakroom"),
+                            coil: .init(id: "coil-2", code: "C2")
+                        )
+                    ]
+                ),
+                ExpiringItemsRunResponse.Section(
+                    expiryDate: "2025-11-05",
+                    dayOffset: -1,
+                    items: [
+                        ExpiringItemsRunResponse.Section.Item(
+                            quantity: 3,
+                            sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers"),
+                            machine: .init(id: "machine-1", code: "A-101", description: "Lobby"),
+                            coil: .init(id: "coil-1", code: "C1")
+                        )
+                    ]
+                )
+            ]
+        )
+    }
     
     func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
         // Return some sample runs for testing
