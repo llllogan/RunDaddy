@@ -90,6 +90,8 @@ struct SubstituteSkuSearchView: View {
                                     isQueryFocused = false
                                 } label: {
                                     EntityResultRow(result: result, isSelected: selectedSkuId == result.id)
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .contentShape(Rectangle())

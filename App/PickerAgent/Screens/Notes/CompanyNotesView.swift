@@ -779,6 +779,7 @@ private struct CompanyNoteComposer: View {
                                     selectedTag = option
                                 } label: {
                                     EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                        .frame(maxWidth: .infinity)
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
