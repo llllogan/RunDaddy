@@ -220,7 +220,7 @@ private struct SearchTab: View {
     @State private var missingWeightSkuCount: Int?
     @State private var isLoadingSkuTools = false
     @State private var skuToolsErrorMessage: String?
-    @State private var bulkSetSkuWeightMessage: String?
+    @State private var isShowingBulkSetSkuWeight = false
     @State private var isShowingColdChest = false
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
@@ -264,18 +264,12 @@ private struct SearchTab: View {
             .onChange(of: skuToolsErrorMessage) { _, _ in
                 refreshNotifications()
             }
-            .onChange(of: bulkSetSkuWeightMessage) { _, _ in
-                refreshNotifications()
-            }
             .inAppNotifications(notifications) { notification in
                 if notification.isDismissable && notification.message == suggestionsErrorMessage {
                     suggestionsErrorMessage = nil
                 }
                 if notification.isDismissable && notification.message == skuToolsErrorMessage {
                     skuToolsErrorMessage = nil
-                }
-                if notification.isDismissable && notification.message == bulkSetSkuWeightMessage {
-                    bulkSetSkuWeightMessage = nil
                 }
                 notifications.removeAll(where: { $0.id == notification.id })
             }
@@ -288,6 +282,13 @@ private struct SearchTab: View {
             }
             .navigationDestination(isPresented: $isShowingColdChest) {
                 ColdChestView(session: session)
+            }
+            .sheet(isPresented: $isShowingBulkSetSkuWeight) {
+                SkuBulkActionView(mode: .bulkSetWeight) {
+                    coldChestSkuCount = nil
+                    missingWeightSkuCount = nil
+                    loadSkuToolsIfNeeded(force: true)
+                }
             }
             .onAppear {
                 isSearchFocused = true
@@ -328,7 +329,7 @@ private struct SearchTab: View {
                 coldChestSkuCount: coldChestSkuCount,
                 missingWeightSkuCount: missingWeightSkuCount,
                 isLoading: isLoadingSkuTools,
-                onBulkSetSkuWeight: { showBulkSetSkuWeightComingSoon() },
+                onBulkSetSkuWeight: { isShowingBulkSetSkuWeight = true },
                 onColdChestTap: { isShowingColdChest = true }
             )
             // .padding(.horizontal, 16)
@@ -388,16 +389,6 @@ private struct SearchTab: View {
         }
 
         if let message = skuToolsErrorMessage {
-            items.append(
-                InAppNotification(
-                    message: message,
-                    style: .info,
-                    isDismissable: true
-                )
-            )
-        }
-
-        if let message = bulkSetSkuWeightMessage {
             items.append(
                 InAppNotification(
                     message: message,
@@ -483,10 +474,6 @@ private struct SearchTab: View {
                 }
             }
         }
-    }
-
-    private func showBulkSetSkuWeightComingSoon() {
-        bulkSetSkuWeightMessage = "Bulk set SKU weight is coming soon."
     }
 
     @MainActor

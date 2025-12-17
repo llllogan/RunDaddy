@@ -7,6 +7,7 @@ struct ColdChestView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var loadTask: Task<Void, Never>?
+    @State private var isShowingAddSheet = false
 
     private let skusService: SkusServicing = SkusService()
 
@@ -50,6 +51,20 @@ struct ColdChestView: View {
         }
         .navigationTitle("Cold Chest")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingAddSheet) {
+            SkuBulkActionView(mode: .addToColdChest) {
+                Task { await load(force: true) }
+            }
+        }
         .refreshable {
             await load(force: true)
         }

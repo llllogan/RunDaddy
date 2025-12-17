@@ -115,6 +115,101 @@ router.get('/missing-weight/count', setLogConfig({ level: 'minimal' }), async (r
   return res.json({ count });
 });
 
+router.post('/bulk/weight', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const { skuIds, weight } = req.body as { skuIds?: unknown; weight?: unknown };
+
+  if (!Array.isArray(skuIds) || skuIds.length === 0 || skuIds.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+    return res.status(400).json({ error: 'skuIds must be a non-empty array of strings' });
+  }
+
+  if (weight !== null && weight !== undefined) {
+    const parsedWeight = Number(weight);
+    if (!Number.isFinite(parsedWeight) || parsedWeight < 0) {
+      return res.status(400).json({ error: 'weight must be null or a non-negative number' });
+    }
+  }
+
+  const requestedIds = skuIds.map((id) => id.trim());
+
+  const accessibleSkus = await prisma.sKU.findMany({
+    where: {
+      id: { in: requestedIds },
+      ...buildSkuCompanyWhere(companyId),
+    },
+    select: { id: true },
+  });
+
+  if (accessibleSkus.length !== requestedIds.length) {
+    return res.status(403).json({ error: 'One or more SKUs are not available for your company' });
+  }
+
+  const updateResult = await prisma.sKU.updateMany({
+    where: { id: { in: requestedIds } },
+    data: {
+      weight: weight === null || weight === undefined ? null : Number(weight),
+    },
+  });
+
+  return res.json({ updatedCount: updateResult.count });
+});
+
+router.post('/bulk/cold-chest', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const { skuIds } = req.body as { skuIds?: unknown };
+
+  if (!Array.isArray(skuIds) || skuIds.length === 0 || skuIds.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+    return res.status(400).json({ error: 'skuIds must be a non-empty array of strings' });
+  }
+
+  const requestedIds = skuIds.map((id) => id.trim());
+
+  const accessibleSkus = await prisma.sKU.findMany({
+    where: {
+      id: { in: requestedIds },
+      ...buildSkuCompanyWhere(companyId),
+    },
+    select: { id: true },
+  });
+
+  if (accessibleSkus.length !== requestedIds.length) {
+    return res.status(403).json({ error: 'One or more SKUs are not available for your company' });
+  }
+
+  const updateResult = await prisma.sKU.updateMany({
+    where: { id: { in: requestedIds } },
+    data: {
+      isFreshOrFrozen: true,
+    },
+  });
+
+  return res.json({ updatedCount: updateResult.count });
+});
+
 // Update SKU isFreshOrFrozen field
 router.patch('/:skuId/fresh-or-frozen', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
