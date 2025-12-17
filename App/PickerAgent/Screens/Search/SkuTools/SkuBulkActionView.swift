@@ -105,55 +105,55 @@ struct SkuBulkActionView: View {
                     }
                 }
 
-                Section("Selection") {
-                    Text(selectedSummary)
-                        .foregroundStyle(selected.isEmpty ? .secondary : .primary)
+                if !selected.isEmpty {
+                    Section("Selection") {
+                        Text(selectedSummary)
+                            .foregroundStyle(.primary)
 
-                    if isSelectionExpanded {
-                        ForEach(selected) { sku in
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(selectionLabel(for: sku))
-                                        .font(.headline)
-                                    Text(sku.title)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                        if isSelectionExpanded {
+                            ForEach(selected) { sku in
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(selectionLabel(for: sku))
+                                            .font(.headline)
+                                        Text(sku.title)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Button {
+                                        removeFromSelection(sku)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove \(sku.title) from selection")
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                Button {
-                                    removeFromSelection(sku)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Remove \(sku.title) from selection")
                             }
-                        }
 
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelectionExpanded = false
-                            }
-                        } label: {
-                            Text("Collapse")
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isSelectionExpanded = false
+                                }
+                            } label: {
+                                Text("Collapse")
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .foregroundStyle(Color(.label))
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(selected.isEmpty)
-                    } else {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelectionExpanded = true
                             }
-                        } label: {
-                            Text("Expand")
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isSelectionExpanded = true
+                                }
+                            } label: {
+                                Text("Expand")
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .foregroundStyle(Color(.label))
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(selected.isEmpty)
                     }
                 }
 
