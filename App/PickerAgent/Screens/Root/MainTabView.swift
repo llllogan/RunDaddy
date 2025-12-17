@@ -294,7 +294,9 @@ private struct SearchTab: View {
                 if suggestions.isEmpty {
                     loadSuggestionsIfNeeded()
                 }
-                loadSkuToolsIfNeeded()
+                if isShowingSuggestions {
+                    loadSkuToolsIfNeeded(force: true)
+                }
             }
             .onDisappear {
                 isSearchFocused = false
@@ -366,7 +368,7 @@ private struct SearchTab: View {
         if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             searchResults = []
             searchDebounceTask?.cancel()
-            loadSkuToolsIfNeeded()
+            loadSkuToolsIfNeeded(force: true)
         } else {
             scheduleDebouncedSearch(for: newValue)
         }

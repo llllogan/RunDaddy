@@ -6,6 +6,7 @@ struct ColdChestView: View {
     @State private var skus: [SKU] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var loadTask: Task<Void, Never>?
 
     private let skusService: SkusServicing = SkusService()
 
@@ -52,8 +53,14 @@ struct ColdChestView: View {
         .refreshable {
             await load(force: true)
         }
-        .task {
-            await load(force: false)
+        .onAppear {
+            loadTask?.cancel()
+            loadTask = Task {
+                await load(force: true)
+            }
+        }
+        .onDisappear {
+            loadTask?.cancel()
         }
     }
 
@@ -78,4 +85,3 @@ struct ColdChestView: View {
         }
     }
 }
-

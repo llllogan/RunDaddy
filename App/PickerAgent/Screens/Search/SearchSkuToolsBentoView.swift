@@ -44,7 +44,7 @@ struct SearchSkuToolsBentoView: View {
 
     private func resolvedCountTextColdChest(_ count: Int?) -> String {
         if let count {
-            return "\(count) SKUs"
+            return count > 1 ? "\(count) SKUs" : "\(count) SKU"
         }
         return isLoading ? "…" : "—"
     }
