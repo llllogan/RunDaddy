@@ -151,10 +151,47 @@ router.patch('/:skuId/expiry-days', setLogConfig({ level: 'minimal' }), async (r
     return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
   }
 
+  const companyId = req.auth.companyId as string;
+  const timeZone = await resolveCompanyTimezone(companyId);
+  const lookbackStart = new Date();
+  lookbackStart.setMonth(lookbackStart.getMonth() - 3);
+
   const updatedSku = await prisma.sKU.update({
     where: { id: skuId },
     data: { expiryDays: parsedExpiryDays },
   });
+
+  if (updatedSku.expiryDays <= 0) {
+    await prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE PickEntry pe
+          INNER JOIN Run r ON r.id = pe.runId
+          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        SET pe.expiryDate = NULL
+        WHERE r.companyId = ${companyId}
+          AND ci.skuId = ${skuId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${lookbackStart};
+      `,
+    );
+  } else {
+    const expiryOffsetDays = Math.max(0, Math.floor(updatedSku.expiryDays) - 1);
+    await prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE PickEntry pe
+          INNER JOIN Run r ON r.id = pe.runId
+          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        SET pe.expiryDate = DATE_FORMAT(
+          DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), INTERVAL ${expiryOffsetDays} DAY),
+          '%Y-%m-%d'
+        )
+        WHERE r.companyId = ${companyId}
+          AND ci.skuId = ${skuId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${lookbackStart};
+      `,
+    );
+  }
 
   return res.json({
     id: updatedSku.id,

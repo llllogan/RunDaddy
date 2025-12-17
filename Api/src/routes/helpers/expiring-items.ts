@@ -161,20 +161,6 @@ const sumPlannedAfter = (index: PlannedIndex, afterMs: number): number => {
   return Math.max(0, index.total - sumBefore);
 };
 
-const resolveExpiringRemaining = ({
-  expiringQuantity,
-  restockedAfter,
-}: {
-  expiringQuantity: number;
-  restockedAfter: number;
-}): number => {
-  if (expiringQuantity <= 0) {
-    return 0;
-  }
-
-  return restockedAfter >= expiringQuantity ? 0 : expiringQuantity;
-};
-
 export async function buildExpiringItemsForRun(
   companyId: string,
   runId: string,
@@ -357,7 +343,7 @@ export async function buildExpiringItemsForRun(
 
     const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
     const restockedAfter = sumPlannedAfter(index, runAt);
-    const remaining = resolveExpiringRemaining({ expiringQuantity, restockedAfter });
+    const remaining = Math.max(0, expiringQuantity - restockedAfter);
     if (remaining <= 0) {
       continue;
     }
@@ -367,16 +353,14 @@ export async function buildExpiringItemsForRun(
 
   const items: ExpiringItemsSectionItem[] = [];
   for (const [coilItemId, expiringRemaining] of expiringRemainingByCoilItemId.entries()) {
-    const plannedQuantity = plannedByCoilItemId.get(coilItemId) ?? 0;
-    const missingQuantity = Math.max(0, expiringRemaining - plannedQuantity);
-    if (missingQuantity <= 0) {
+    if (expiringRemaining <= 0) {
       continue;
     }
     const base = detailsByCoilItemId.get(coilItemId);
     if (!base) {
       continue;
     }
-    items.push({ ...base, quantity: missingQuantity });
+    items.push({ ...base, quantity: expiringRemaining });
   }
 
   if (!items.length) {
@@ -630,7 +614,7 @@ export async function buildUpcomingExpiringItems({
 
     const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
     const restockedAfter = sumPlannedAfter(index, runAt);
-    const remaining = resolveExpiringRemaining({ expiringQuantity, restockedAfter });
+    const remaining = Math.max(0, expiringQuantity - restockedAfter);
     if (remaining <= 0) {
       continue;
     }
@@ -674,8 +658,7 @@ export async function buildUpcomingExpiringItems({
     }
 
     const plannedQuantity = plannedByCoilItemIdByDate.get(detailKey) ?? 0;
-    const missingQuantity = Math.max(0, expiringRemaining - plannedQuantity);
-    if (missingQuantity <= 0) {
+    if (expiringRemaining <= 0) {
       continue;
     }
 
@@ -683,7 +666,7 @@ export async function buildUpcomingExpiringItems({
 
     const item: UpcomingExpiringItemsSectionItem = {
       ...base,
-      quantity: missingQuantity,
+      quantity: expiringRemaining,
       plannedQuantity,
       expiringQuantity: expiringRemaining,
       stockingRun: stockingRun
@@ -894,12 +877,10 @@ export async function addNeededForRunDayExpiry({
       continue;
     }
     const restockedAfter = sumPlannedAfter(index, runAt);
-    remainingExpiringQuantity += resolveExpiringRemaining({ expiringQuantity, restockedAfter });
+    remainingExpiringQuantity += Math.max(0, expiringQuantity - restockedAfter);
   }
 
-  const addedQuantity = Math.max(0, remainingExpiringQuantity - plannedCount);
-
-  if (addedQuantity <= 0) {
+  if (remainingExpiringQuantity <= 0) {
     return {
       addedQuantity: 0,
       expiringQuantity: remainingExpiringQuantity,
@@ -907,6 +888,9 @@ export async function addNeededForRunDayExpiry({
       runDate: runDayLabel,
     };
   }
+
+  const overrideCount = remainingExpiringQuantity;
+  const addedQuantity = Math.max(0, overrideCount - plannedCount);
 
   await prisma.pickEntry.update({
     where: {
@@ -916,8 +900,8 @@ export async function addNeededForRunDayExpiry({
       },
     },
     data: {
-      override: remainingExpiringQuantity,
-      count: remainingExpiringQuantity,
+      override: overrideCount,
+      count: overrideCount,
     },
   });
 
@@ -926,7 +910,7 @@ export async function addNeededForRunDayExpiry({
       companyId,
       runId,
       machineId: pickEntry.coilItem.coil.machineId,
-      body: `Coil ${pickEntry.coilItem.coil.code} has ${addedQuantity} items expiring`,
+      body: `Coil ${pickEntry.coilItem.coil.code} has ${remainingExpiringQuantity} items expiring`,
       createdBy: userId,
     },
   });
