@@ -67,6 +67,14 @@ private extension MainTabView {
                 .id(session.credentials.accessToken)
             }
 
+            Tab("Expiries", systemImage: "calendar.badge.exclamationmark") {
+                ExpiriesTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+                .id(session.credentials.accessToken)
+            }
+
             Tab("Analytics", systemImage: "chart.bar.xaxis.ascending") {
                 AnalyticsTab(
                     session: session,
@@ -126,6 +134,32 @@ private struct AnalyticsTab: View {
     var body: some View {
         NavigationStack {
             AnalyticsView(session: session)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        profileButton
+                    }
+                }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
+    }
+}
+
+private struct ExpiriesTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
+
+    var body: some View {
+        NavigationStack {
+            ExpiriesView(session: session)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         profileButton

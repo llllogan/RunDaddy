@@ -164,6 +164,7 @@ struct ExpiringItemsRunResponse: Equatable, Decodable {
                 let id: String
                 let code: String
                 let name: String
+                let type: String
             }
 
             struct Machine: Equatable, Decodable {

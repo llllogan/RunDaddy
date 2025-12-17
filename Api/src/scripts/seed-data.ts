@@ -42,6 +42,7 @@ const APP_STORE_TIER_ID = TIER_IDS.ENTERPRISE_10;
 const DEFAULT_SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'SeedDataPass!123';
 const METRO_COMPANY_NAME = 'Metro Snacks Co.';
 const MIN_RUN_LOCATIONS = 4;
+const RIVER_COMPANY_NAME = 'River City Logistics';
 
 const MACHINE_TYPE_SEED_DATA = [
   { name: 'AMS Sensit 3', description: 'Snack' },
@@ -127,6 +128,7 @@ type CompanySeedConfig = {
     email: string;
     phone?: string;
   };
+  minLocations?: number;
   locations: LocationSeedConfig[];
 };
 
@@ -421,6 +423,7 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
     name: 'River City Logistics',
     timeZone: BRISBANE_TIME_ZONE,
     tierId: TIER_IDS.BUSINESS,
+    minLocations: 1,
     owner: {
       firstName: 'Jordan',
       lastName: 'Blake',
@@ -434,102 +437,12 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
         machines: [
           {
             code: 'RIVER-HQ-01',
-            description: 'HQ Snack Tower',
+            description: 'River HQ Snack Tower',
             machineType: 'AMS Sensit 3',
             coils: [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
-              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
-              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
-              { code: 'D1', skuCode: 'SKU-CHEESE-CHED', par: 11 },
-              { code: 'D2', skuCode: 'SKU-CHEESE-GOUDA', par: 11 },
-            ],
-          },
-          {
-            code: 'RIVER-HQ-02',
-            description: 'HQ Beverage Cooler',
-            machineType: 'DN BevMax 4',
-            coils: [
-              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 11 },
-              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
-              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 12 },
-            ],
-          },
-        ],
-      },
-      {
-        name: 'Aurora Route',
-        address: '1852 Logan Rd, Upper Mount Gravatt QLD 4122, Australia', // South towards Logan
-        machines: [
-          {
-            code: 'RIVER-AU-01',
-            description: 'Aurora Beverage Cooler',
-            machineType: 'DN BevMax 4',
-            coils: [
-              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 10 },
-              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
-              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 11 },
-            ],
-          },
-          {
-            code: 'RIVER-AU-02',
-            description: 'Aurora Snack Tower',
-            machineType: 'AMS Sensit 3',
-            coils: [
-              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 15 },
-              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 13 },
-              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 16 },
-            ],
-          },
-        ],
-      },
-      {
-        name: 'Stapleton Tech Park',
-        address: '52 Wembley Rd, Logan Central QLD 4114, Australia',
-        machines: [
-          {
-            code: 'RIVER-ST-01',
-            description: 'Stapleton Snack Tower',
-            machineType: 'AMS Sensit 3',
-            coils: [
-              { code: 'A1', skuCode: 'SKU-ENERGY-MIX', par: 17 },
-              { code: 'A2', skuCode: 'SKU-PBAR-ALM', par: 15 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 17 },
-            ],
-          },
-          {
-            code: 'RIVER-ST-02',
-            description: 'Stapleton Beverage Cooler',
-            machineType: 'DN BevMax 4',
-            coils: [
-              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 13 },
-              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 14 },
-              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 13 },
-            ],
-          },
-        ],
-      },
-      {
-        name: 'Boulder Medical Campus',
-        address: '9 Macrossan St, Brisbane City QLD 4000, Australia',
-        machines: [
-          {
-            code: 'RIVER-BO-01',
-            description: 'Boulder Snack Tower',
-            machineType: 'AMS Sensit 3',
-            coils: [
-              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 18 },
-              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 17 },
-              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 18 },
-            ],
-          },
-          {
-            code: 'RIVER-BO-02',
-            description: 'Boulder Beverage Cooler',
-            machineType: 'DN BevMax 4',
-            coils: [
-              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
-              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 13 },
-              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 15 },
             ],
           },
         ],
@@ -642,6 +555,48 @@ const TREND_SCENARIO_PICK_CONFIG: Record<'lastWeek' | 'thisWeek', TrendPickNeed[
     { machineCode: 'PULSE-RF-01', skuCode: 'SKU-JUICE-CIT', need: 2 },
   ],
 };
+
+type RiverRunPickEntry = {
+  skuCode: string;
+  need: number;
+  current: number;
+};
+
+type RiverRunSchedule = {
+  dayOffset: number;
+  hour: number;
+  entries: RiverRunPickEntry[];
+};
+
+const RIVER_RUN_SCHEDULES: RiverRunSchedule[] = [
+  {
+    dayOffset: -2,
+    hour: 8,
+    entries: [
+      { skuCode: 'SKU-PBAR-ALM', need: 4, current: 12 },
+      { skuCode: 'SKU-ENERGY-MIX', need: 5, current: 10 },
+      { skuCode: 'SKU-CHIPS-SEA', need: 6, current: 11 },
+    ],
+  },
+  {
+    dayOffset: 0,
+    hour: 9,
+    entries: [
+      { skuCode: 'SKU-PBAR-ALM', need: 7, current: 9 },
+      { skuCode: 'SKU-ENERGY-MIX', need: 6, current: 9 },
+      { skuCode: 'SKU-CHIPS-SEA', need: 8, current: 9 },
+    ],
+  },
+  {
+    dayOffset: 1,
+    hour: 11,
+    entries: [
+      { skuCode: 'SKU-PBAR-ALM', need: 10, current: 6 },
+      { skuCode: 'SKU-ENERGY-MIX', need: 3, current: 12 },
+      { skuCode: 'SKU-CHIPS-SEA', need: 2, current: 14 },
+    ],
+  },
+];
 
 const EXTRA_USERS: Array<{
   firstName: string;
@@ -1601,9 +1556,10 @@ async function seedCompanyData() {
       locationDetails.push(await ensureLocationWithEquipment(company.id, locationConfig));
     }
 
-    if (locationDetails.length < MIN_RUN_LOCATIONS) {
+    const requiredLocations = config.minLocations ?? MIN_RUN_LOCATIONS;
+    if (locationDetails.length < requiredLocations) {
       throw new Error(
-        `Company ${config.name} must have at least ${MIN_RUN_LOCATIONS} locations for seeding.`,
+        `Company ${config.name} must have at least ${requiredLocations} locations for seeding.`,
       );
     }
 
@@ -1629,6 +1585,43 @@ async function seedCompanyData() {
       }
 
       await seedMetroExpiringItems(company.id);
+    } else if (config.name === RIVER_COMPANY_NAME) {
+      const riverLocation = locationDetails[0];
+      if (!riverLocation) {
+        throw new Error(`River company seeding requires at least 1 location.`);
+      }
+
+      const riverMachineCode = riverLocation.coilItems[0]?.machineCode;
+      if (!riverMachineCode) {
+        throw new Error('River location must have at least one machine.');
+      }
+
+      const coilLookup = buildCoilItemLookup(locationDetails);
+      const locationId = riverLocation.location.id;
+
+      for (const runConfig of RIVER_RUN_SCHEDULES) {
+        const run = await ensureRunWithLocations({
+          companyId: company.id,
+          scheduledFor: scheduleForDay(runConfig.dayOffset, runConfig.hour),
+          locationIds: [locationId],
+        });
+
+        const pickSeeds: PickEntrySeed[] = runConfig.entries.map((entry) => {
+          const key = `${riverMachineCode}:${entry.skuCode}`;
+          const coilItem = coilLookup.get(key);
+          if (!coilItem) {
+            throw new Error(`Missing coil item for River machine ${key}`);
+          }
+          return {
+            coilItemId: coilItem.id,
+            par: coilItem.par,
+            current: entry.current,
+            need: entry.need,
+          };
+        });
+
+        await seedPickEntriesWithConfig(run.id, pickSeeds);
+      }
     } else {
       const todayLocations = selectRunLocations(locationDetails, 0);
       const tomorrowLocations = selectRunLocations(locationDetails, 2);

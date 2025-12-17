@@ -21,7 +21,13 @@ struct ExpiringItemsView: View {
                         ForEach(response.sections) { section in
                             Section(header: Text(sectionHeaderText(for: section))) {
                                 ForEach(section.items) { item in
-                                    ExpiringItemRow(item: item)
+                                    ExpiringItemRowView(
+                                        skuName: item.sku.name,
+                                        skuType: item.sku.type,
+                                        machineCode: item.machine.code,
+                                        coilCode: item.coil.code,
+                                        quantity: item.quantity
+                                    )
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             if section.dayOffset == 0 {
                                                 Button {
@@ -84,36 +90,5 @@ struct ExpiringItemsView: View {
                 isShowingAddedAlert = true
             }
         }
-    }
-}
-
-private struct ExpiringItemRow: View {
-    let item: ExpiringItemsRunResponse.Section.Item
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.sku.name)
-                    .font(.headline)
-                    .lineLimit(2)
-
-                Text("\(item.machine.code) • Coil \(item.coil.code)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(item.quantity)")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text("EXPIRING")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
     }
 }

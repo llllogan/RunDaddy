@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
-import { getTimezoneDayRange } from '../../lib/timezone.js';
+import { formatDateInTimezone, getTimezoneDayRange } from '../../lib/timezone.js';
 import { ensureRun } from './runs.js';
 import { resolveCompanyTimezone } from './timezone.js';
 
@@ -11,6 +11,7 @@ type ExpiringItemsSectionItem = {
     id: string;
     code: string;
     name: string;
+    type: string;
   };
   machine: {
     id: string;
@@ -32,6 +33,25 @@ export type ExpiringItemsSection = {
 export type ExpiringItemsRunResponse = {
   warningCount: number;
   sections: ExpiringItemsSection[];
+};
+
+type UpcomingExpiringItemsSectionItem = ExpiringItemsSectionItem & {
+  plannedQuantity: number;
+  expiringQuantity: number;
+  stockingRun: {
+    id: string;
+    runDate: string; // YYYY-MM-DD in company timezone
+  } | null;
+};
+
+export type UpcomingExpiringItemsSection = {
+  expiryDate: string; // YYYY-MM-DD, in company timezone
+  items: UpcomingExpiringItemsSectionItem[];
+};
+
+export type UpcomingExpiringItemsResponse = {
+  warningCount: number;
+  sections: UpcomingExpiringItemsSection[];
 };
 
 export type AddNeededForExpiryResult = {
@@ -92,6 +112,7 @@ type ExpiringQuantityRow = {
   sku_id: string;
   sku_code: string;
   sku_name: string;
+  sku_type: string;
   coil_id: string;
   coil_code: string;
   machine_id: string;
@@ -121,6 +142,9 @@ const buildResolvedCountSql = () => Prisma.sql`
     ELSE COALESCE(pe.total, pe.count)
   END
 `;
+
+const isValidFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
 
 export async function buildExpiringItemsForRun(
   companyId: string,
@@ -173,6 +197,7 @@ export async function buildExpiringItemsForRun(
         s.id AS sku_id,
         s.code AS sku_code,
         s.name AS sku_name,
+        s.type AS sku_type,
         c.id AS coil_id,
         c.code AS coil_code,
         m.id AS machine_id,
@@ -229,11 +254,12 @@ export async function buildExpiringItemsForRun(
       detailsByCoilItemByDate.set(detailKey, {
         quantity: 0,
         coilItemId: row.coil_item_id,
-        sku: {
-          id: row.sku_id,
-          code: row.sku_code,
-          name: row.sku_name,
-        },
+      sku: {
+        id: row.sku_id,
+        code: row.sku_code,
+        name: row.sku_name,
+        type: row.sku_type,
+      },
         machine: {
           id: row.machine_id,
           code: row.machine_code,
@@ -286,6 +312,273 @@ export async function buildExpiringItemsForRun(
       expiryDate,
       dayOffset: group.dayOffset,
       items: group.items.sort((a, b) => {
+        const skuCompare = a.sku.name.localeCompare(b.sku.name);
+        if (skuCompare !== 0) {
+          return skuCompare;
+        }
+        const machineCompare = a.machine.code.localeCompare(b.machine.code);
+        if (machineCompare !== 0) {
+          return machineCompare;
+        }
+        return a.coil.code.localeCompare(b.coil.code);
+      }),
+    }))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+
+  const warningCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+
+  return { warningCount, sections };
+}
+
+export async function buildUpcomingExpiringItems({
+  companyId,
+  daysAhead = 14,
+}: {
+  companyId: string;
+  daysAhead?: number;
+}): Promise<UpcomingExpiringItemsResponse> {
+  const resolvedDaysAhead = Number.isFinite(daysAhead) ? Math.max(0, Math.min(28, Math.floor(daysAhead))) : 14;
+
+  const timeZone = await resolveCompanyTimezone(companyId);
+  const windowStart = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: 0 });
+  const windowEnd = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead });
+  const windowEndExclusive = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead + 1 });
+  const lookbackStart = new Date(windowStart.start);
+  lookbackStart.setUTCDate(lookbackStart.getUTCDate() - 120);
+
+  const resolvedCountSql = buildResolvedCountSql();
+
+  const expiringRows = await prisma.$queryRaw<ExpiringQuantityRow[]>(
+    Prisma.sql`
+      SELECT
+        pe.coilItemId AS coil_item_id,
+        s.id AS sku_id,
+        s.code AS sku_code,
+        s.name AS sku_name,
+        c.id AS coil_id,
+        c.code AS coil_code,
+        m.id AS machine_id,
+        m.code AS machine_code,
+        m.description AS machine_description,
+        DATE_FORMAT(
+          DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), INTERVAL (s.expiryDays - 1) DAY),
+          '%Y-%m-%d'
+        ) AS expiry_date,
+        SUM(${resolvedCountSql}) AS expiring_quantity
+      FROM PickEntry pe
+        INNER JOIN Run r ON r.id = pe.runId
+        INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        INNER JOIN Coil c ON c.id = ci.coilId
+        INNER JOIN Machine m ON m.id = c.machineId
+        INNER JOIN SKU s ON s.id = ci.skuId
+      WHERE r.companyId = ${companyId}
+        AND r.scheduledFor IS NOT NULL
+        AND s.expiryDays > 0
+      GROUP BY
+        coil_item_id,
+        sku_id,
+        sku_code,
+        sku_name,
+        coil_id,
+        coil_code,
+        machine_id,
+        machine_code,
+        machine_description,
+        expiry_date
+      HAVING expiry_date BETWEEN ${windowStart.label} AND ${windowEnd.label}
+        AND expiring_quantity > 0
+    `,
+  );
+
+  if (!expiringRows.length) {
+    return { warningCount: 0, sections: [] };
+  }
+
+  const coilItemIds = Array.from(new Set(expiringRows.map((row) => row.coil_item_id).filter(Boolean)));
+
+  const relevantPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId: { in: coilItemIds },
+      run: {
+        companyId,
+        scheduledFor: {
+          gte: lookbackStart,
+          lt: windowEndExclusive.start,
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          id: true,
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  const upcomingByCoilItemId = new Map<
+    string,
+    Array<{
+      runId: string;
+      runDate: string;
+      plannedQuantity: number;
+      current: number | null;
+    }>
+  >();
+
+  for (const entry of relevantPickEntries) {
+    if (!entry.run?.scheduledFor) {
+      continue;
+    }
+
+    const runDate = formatDateInTimezone(entry.run.scheduledFor, timeZone);
+    const plannedQuantity = resolvePickEntryCount(entry as unknown as PickEntryCountSource);
+    const current = isValidFiniteNumber(entry.current) ? Math.max(0, entry.current) : null;
+
+    if (!upcomingByCoilItemId.has(entry.coilItemId)) {
+      upcomingByCoilItemId.set(entry.coilItemId, []);
+    }
+    upcomingByCoilItemId.get(entry.coilItemId)!.push({
+      runId: entry.run.id,
+      runDate,
+      plannedQuantity: Math.max(0, plannedQuantity),
+      current,
+    });
+  }
+
+  for (const entries of upcomingByCoilItemId.values()) {
+    entries.sort((a, b) => a.runDate.localeCompare(b.runDate));
+  }
+
+  const detailsByCoilItemByDate = new Map<string, ExpiringItemsSectionItem>();
+  expiringRows.forEach((row) => {
+    const detailKey = `${row.coil_item_id}:${row.expiry_date}`;
+    if (!detailsByCoilItemByDate.has(detailKey)) {
+      detailsByCoilItemByDate.set(detailKey, {
+        quantity: 0,
+        coilItemId: row.coil_item_id,
+        sku: {
+          id: row.sku_id,
+          code: row.sku_code,
+          name: row.sku_name,
+          type: row.sku_type,
+        },
+        machine: {
+          id: row.machine_id,
+          code: row.machine_code,
+          description: row.machine_description,
+        },
+        coil: {
+          id: row.coil_id,
+          code: row.coil_code,
+        },
+      });
+    }
+  });
+
+  const sectionsByDate = new Map<string, UpcomingExpiringItemsSectionItem[]>();
+
+  const findCurrentCapForExpiry = (
+    entries: Array<{
+      runId: string;
+      runDate: string;
+      plannedQuantity: number;
+      current: number | null;
+    }>,
+    expiryDate: string,
+  ): number | null => {
+    if (!entries.length) {
+      return null;
+    }
+
+    for (let i = entries.length - 1; i >= 0; i -= 1) {
+      const entry = entries[i];
+      if (!entry) {
+        continue;
+      }
+      if (entry.runDate > expiryDate) {
+        continue;
+      }
+      if (entry.current === null) {
+        continue;
+      }
+      return entry.current;
+    }
+
+    return null;
+  };
+
+  for (const row of expiringRows) {
+    const expiringQuantity = parseQueryNumber(row.expiring_quantity);
+    if (!Number.isFinite(expiringQuantity) || expiringQuantity <= 0) {
+      continue;
+    }
+
+    const expiryDate = row.expiry_date;
+    const detailKey = `${row.coil_item_id}:${expiryDate}`;
+    const baseDetails = detailsByCoilItemByDate.get(detailKey);
+    if (!baseDetails) {
+      continue;
+    }
+
+    const upcomingEntries = upcomingByCoilItemId.get(row.coil_item_id) ?? [];
+
+    const plannedQuantity = upcomingEntries
+      .filter((entry) => entry.runDate === expiryDate)
+      .reduce((sum, entry) => sum + entry.plannedQuantity, 0);
+    const stockingRunId = upcomingEntries.find((entry) => entry.runDate === expiryDate)?.runId ?? null;
+
+    const currentCap = findCurrentCapForExpiry(upcomingEntries, expiryDate);
+
+    const cappedExpiringQuantity = currentCap === null ? expiringQuantity : Math.min(expiringQuantity, currentCap);
+
+    const missingQuantity = Math.max(0, cappedExpiringQuantity - plannedQuantity);
+
+    if (missingQuantity <= 0) {
+      continue;
+    }
+
+    const item: UpcomingExpiringItemsSectionItem = {
+      ...baseDetails,
+      quantity: missingQuantity,
+      plannedQuantity,
+      expiringQuantity: cappedExpiringQuantity,
+      stockingRun: stockingRunId
+        ? {
+            id: stockingRunId,
+            runDate: expiryDate,
+          }
+        : null,
+    };
+
+    if (!sectionsByDate.has(expiryDate)) {
+      sectionsByDate.set(expiryDate, []);
+    }
+    sectionsByDate.get(expiryDate)!.push(item);
+  }
+
+  const sections: UpcomingExpiringItemsSection[] = Array.from(sectionsByDate.entries())
+    .map(([expiryDate, items]) => ({
+      expiryDate,
+      items: items.sort((a, b) => {
         const skuCompare = a.sku.name.localeCompare(b.sku.name);
         if (skuCompare !== 0) {
           return skuCompare;

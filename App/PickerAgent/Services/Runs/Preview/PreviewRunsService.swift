@@ -27,14 +27,14 @@ struct PreviewRunsService: RunsServicing {
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 1,
                             coilItemId: "coil-item-2",
-                            sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix"),
+                            sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Sour"),
                             machine: .init(id: "machine-2", code: "B-204", description: "Breakroom"),
                             coil: .init(id: "coil-2", code: "C2")
                         ),
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 3,
                             coilItemId: "coil-item-1",
-                            sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers"),
+                            sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Sharp"),
                             machine: .init(id: "machine-1", code: "A-101", description: "Lobby"),
                             coil: .init(id: "coil-1", code: "C1")
                         )
