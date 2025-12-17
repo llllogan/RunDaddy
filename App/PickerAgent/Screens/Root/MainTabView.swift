@@ -59,31 +59,15 @@ struct MainTabView: View {
 private extension MainTabView {
     var tabView: some View {
         TabView {
-            Tab("Runs", systemImage: "archivebox.fill") {
+            Tab("Runs", systemImage: "truck.box") {
                 RunsTab(
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
                 .id(session.credentials.accessToken)
             }
-
-            Tab("Expiries", systemImage: "calendar.badge.exclamationmark") {
-                ExpiriesTab(
-                    session: session,
-                    isShowingProfile: $isShowingProfile
-                )
-                .id(session.credentials.accessToken)
-            }
-
-            Tab("Analytics", systemImage: "chart.bar.xaxis.ascending") {
-                AnalyticsTab(
-                    session: session,
-                    isShowingProfile: $isShowingProfile
-                )
-                .id(session.credentials.accessToken)
-            }
-
-            Tab("Notes", systemImage: "note.text") {
+            
+            Tab("Notes", systemImage: "list.bullet.clipboard") {
                 NotesTab(
                     session: session,
                     isShowingProfile: $isShowingProfile
@@ -91,6 +75,23 @@ private extension MainTabView {
                 .id(session.credentials.accessToken)
             }
 
+            Tab("Expiries", systemImage: "calendar") {
+                ExpiriesTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+                .id(session.credentials.accessToken)
+            }
+
+            Tab("Analytics", systemImage: "chart.bar.fill") {
+                AnalyticsTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+                .id(session.credentials.accessToken)
+            }
+
+            
             Tab(role: .search) {
                 SearchTab(
                     session: session,
