@@ -54,8 +54,8 @@ struct SkuBulkActionView: View {
     }
 
     private var selectedSummary: String {
-        let titles = selected.map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        return titles.isEmpty ? "None" : titles.joined(separator: ", ")
+        let labels = selected.map(selectionLabel(for:))
+        return labels.isEmpty ? "None" : labels.joined(separator: ", ")
     }
 
     private var parsedWeight: Double? {
@@ -119,7 +119,14 @@ struct SkuBulkActionView: View {
                     if isSelectionExpanded {
                         ForEach(selected) { sku in
                             HStack(spacing: 12) {
-                                EntityResultRow(result: sku, showsSubheadline: true, iconDiameter: 30, iconFontSize: 14)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(selectionLabel(for: sku))
+                                        .font(.headline)
+                                    Text(sku.title)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 Button {
                                     removeFromSelection(sku)
                                 } label: {
@@ -263,6 +270,21 @@ struct SkuBulkActionView: View {
         selected.removeAll(where: { $0.id == sku.id })
     }
 
+    private func selectionLabel(for sku: SearchResult) -> String {
+        let parts = sku.subtitle
+            .split(separator: "•")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let name = (parts.first?.isEmpty == false ? parts.first : sku.title.trimmingCharacters(in: .whitespacesAndNewlines))
+            ?? "SKU"
+        let type = parts.dropFirst().first ?? ""
+        if type.isEmpty || type.lowercased() == "general" {
+            return name
+        }
+        return "\(name) (\(type))"
+    }
+
     @MainActor
     private func submit() async {
         errorMessage = nil
@@ -303,4 +325,3 @@ struct SkuBulkActionView: View {
         return formatter
     }()
 }
-
