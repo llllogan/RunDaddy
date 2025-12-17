@@ -19,6 +19,7 @@ protocol RunsServicing {
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
     func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws
+    func addPickEntryExpiryOverride(runId: String, pickId: String, expiryDate: String, quantity: Int, credentials: AuthCredentials) async throws
     func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
@@ -311,33 +312,103 @@ struct RunDetail: Equatable {
         let coil: Coil
     }
 
-    struct PickItem: Identifiable, Equatable {
-        let id: String
-        let count: Int
-        let overrideCount: Int?
-        let current: Int?
-        let par: Int?
-        let need: Int?
-        let forecast: Int?
-        let total: Int?
-        let expiryDate: String?
-        let isPicked: Bool
-        let pickedAt: Date?
-        let coilItem: CoilItem
-        let sku: Sku?
-        let machine: Machine?
-        let location: Location?
-        let packingSessionId: String?
+	    struct PickItem: Identifiable, Equatable {
+	        struct ExpiryOverride: Identifiable, Equatable {
+	            let expiryDate: String
+	            let quantity: Int
+	            
+	            var id: String { expiryDate }
+	        }
+	        
+	        let id: String
+	        let count: Int
+	        let overrideCount: Int?
+	        let current: Int?
+	        let par: Int?
+	        let need: Int?
+	        let forecast: Int?
+	        let total: Int?
+	        let expiryDate: String?
+	        let expiryDates: [String]
+	        let expiryOverrides: [ExpiryOverride]
+	        let isPicked: Bool
+	        let pickedAt: Date?
+	        let coilItem: CoilItem
+	        let sku: Sku?
+	        let machine: Machine?
+	        let location: Location?
+	        let packingSessionId: String?
+	        
+	        init(
+	            id: String,
+	            count: Int,
+	            overrideCount: Int?,
+	            current: Int?,
+	            par: Int?,
+	            need: Int?,
+	            forecast: Int?,
+	            total: Int?,
+	            expiryDate: String?,
+	            expiryDates: [String] = [],
+	            expiryOverrides: [ExpiryOverride] = [],
+	            isPicked: Bool,
+	            pickedAt: Date?,
+	            coilItem: CoilItem,
+	            sku: Sku?,
+	            machine: Machine?,
+	            location: Location?,
+	            packingSessionId: String?
+	        ) {
+	            self.id = id
+	            self.count = count
+	            self.overrideCount = overrideCount
+	            self.current = current
+	            self.par = par
+	            self.need = need
+	            self.forecast = forecast
+	            self.total = total
+	            self.expiryDate = expiryDate
+	            self.expiryDates = expiryDates
+	            self.expiryOverrides = expiryOverrides
+	            self.isPicked = isPicked
+	            self.pickedAt = pickedAt
+	            self.coilItem = coilItem
+	            self.sku = sku
+	            self.machine = machine
+	            self.location = location
+	            self.packingSessionId = packingSessionId
+	        }
 
-        var isInPackingSession: Bool {
-            guard let packedId = packingSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                return false
+	        var isInPackingSession: Bool {
+	            guard let packedId = packingSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+	                return false
             }
             return !packedId.isEmpty
         }
 
         var hasOverride: Bool {
             overrideCount != nil
+        }
+
+        var isExpiringConfigured: Bool {
+            let normalized = expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !normalized.isEmpty
+        }
+        
+        var displayExpiryDates: [String] {
+            let normalized = expiryDates
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            
+            if !normalized.isEmpty {
+                return Array(Set(normalized)).sorted()
+            }
+            
+            if let fallback = expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines), !fallback.isEmpty {
+                return [fallback]
+            }
+            
+            return []
         }
         
         func countForPointer(_ pointer: String) -> Int? {
@@ -798,6 +869,53 @@ final class RunsService: RunsServicing {
             throw RunsServiceError.invalidResponse
         }
 
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.pickItemNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+    
+    func addPickEntryExpiryOverride(
+        runId: String,
+        pickId: String,
+        expiryDate: String,
+        quantity: Int,
+        credentials: AuthCredentials
+    ) async throws {
+        let normalizedExpiryDate = expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedExpiryDate.isEmpty else { return }
+        guard quantity > 0 else { return }
+        
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+        url.appendPathComponent(pickId)
+        url.appendPathComponent("expiry-overrides")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "expiryDate": normalizedExpiryDate,
+            "quantity": quantity
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (_, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+        
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 {
                 throw AuthError.unauthorized
@@ -1548,7 +1666,7 @@ private struct RunResponse: Decodable {
     }
 }
 
-private struct RunDetailResponse: Decodable {
+    private struct RunDetailResponse: Decodable {
     struct Participant: Decodable {
         let id: String
         let firstName: String?
@@ -1652,67 +1770,78 @@ private struct RunDetailResponse: Decodable {
         }
     }
 
-    struct PickItem: Decodable {
-        let id: String
-        let count: Int
-        let overrideCount: Int?
-        let current: Int?
-        let par: Int?
-        let need: Int?
-        let forecast: Int?
-        let total: Int?
-        let expiryDate: String?
-        let isPicked: Bool
-        let pickedAt: Date?
-        let coilItem: CoilItem
-        let coil: Coil
+        struct PickItem: Decodable {
+            struct ExpiryOverride: Decodable {
+                let expiryDate: String
+                let quantity: Int
+            }
+            
+            let id: String
+            let count: Int
+            let overrideCount: Int?
+            let current: Int?
+            let par: Int?
+            let need: Int?
+            let forecast: Int?
+            let total: Int?
+            let expiryDate: String?
+            let expiryDates: [String]?
+            let expiryOverrides: [ExpiryOverride]?
+            let isPicked: Bool
+            let pickedAt: Date?
+            let coilItem: CoilItem
+            let coil: Coil
         let sku: Sku?
         let machine: Machine?
         let location: Location?
         let packingSessionId: String?
         
-        enum CodingKeys: String, CodingKey {
-            case id
-            case count
-            case overrideCount = "override"
-            case current
-            case par
-            case need
-            case forecast
-            case total
-            case expiryDate
-            case isPicked
-            case pickedAt
-            case coilItem
-            case coil
+            enum CodingKeys: String, CodingKey {
+                case id
+                case count
+                case overrideCount = "override"
+                case current
+                case par
+                case need
+                case forecast
+                case total
+                case expiryDate
+                case expiryDates
+                case expiryOverrides
+                case isPicked
+                case pickedAt
+                case coilItem
+                case coil
             case sku
             case machine
             case location
             case packingSessionId
         }
 
-        func toPickItem() -> RunDetail.PickItem {
-            let coilDomain = coil.toCoil()
-            return RunDetail.PickItem(
-                id: id,
-                count: count,
-                overrideCount: overrideCount,
-                current: current,
-                par: par,
-                need: need,
-                forecast: forecast,
-                total: total,
-                expiryDate: expiryDate,
-                isPicked: isPicked,
-                pickedAt: pickedAt,
-                coilItem: coilItem.toCoilItem(with: coilDomain),
-                sku: sku?.toSku(),
-                machine: machine?.toMachine(),
-                location: location?.toLocation(),
-                packingSessionId: packingSessionId
-            )
+            func toPickItem() -> RunDetail.PickItem {
+                let coilDomain = coil.toCoil()
+                return RunDetail.PickItem(
+                    id: id,
+                    count: count,
+                    overrideCount: overrideCount,
+                    current: current,
+                    par: par,
+                    need: need,
+                    forecast: forecast,
+                    total: total,
+                    expiryDate: expiryDate,
+                    expiryDates: expiryDates ?? [],
+                    expiryOverrides: (expiryOverrides ?? []).map { RunDetail.PickItem.ExpiryOverride(expiryDate: $0.expiryDate, quantity: $0.quantity) },
+                    isPicked: isPicked,
+                    pickedAt: pickedAt,
+                    coilItem: coilItem.toCoilItem(with: coilDomain),
+                    sku: sku?.toSku(),
+                    machine: machine?.toMachine(),
+                    location: location?.toLocation(),
+                    packingSessionId: packingSessionId
+                )
+            }
         }
-    }
 
     struct ChocolateBox: Decodable {
         let id: String

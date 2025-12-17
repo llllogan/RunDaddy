@@ -49,6 +49,16 @@ type UpcomingExpiringItemsSectionItem = ExpiringItemsSectionItem & {
   } | null;
 };
 
+type PickEntryExpiryOverrideRow = {
+  expiryDate: string;
+  quantity: number;
+};
+
+type PickEntryExpiryLot = {
+  expiryDate: string;
+  quantity: number;
+};
+
 export type UpcomingExpiringItemsSection = {
   expiryDate: string; // YYYY-MM-DD, in company timezone
   items: UpcomingExpiringItemsSectionItem[];
@@ -178,6 +188,69 @@ const sumPlannedAfter = (index: PlannedIndex, afterMs: number): number => {
   return Math.max(0, index.total - sumBefore);
 };
 
+const buildExpiryLots = ({
+  baseExpiryDate,
+  plannedCount,
+  overrides,
+}: {
+  baseExpiryDate: string | null | undefined;
+  plannedCount: number;
+  overrides: PickEntryExpiryOverrideRow[] | null | undefined;
+}): PickEntryExpiryLot[] => {
+  const normalizedBase = baseExpiryDate?.trim() ?? '';
+  const normalizedOverrides = overrides ?? [];
+
+  const lotsByDate = new Map<string, number>();
+  let overrideTotal = 0;
+
+  for (const row of normalizedOverrides) {
+    const date = row.expiryDate?.trim() ?? '';
+    if (!date) {
+      continue;
+    }
+    const quantity = Math.max(0, Math.floor(row.quantity ?? 0));
+    if (quantity <= 0) {
+      continue;
+    }
+    lotsByDate.set(date, (lotsByDate.get(date) ?? 0) + quantity);
+    overrideTotal += quantity;
+  }
+
+  const remainder = Math.max(0, plannedCount - overrideTotal);
+  if (remainder > 0 && normalizedBase) {
+    lotsByDate.set(normalizedBase, (lotsByDate.get(normalizedBase) ?? 0) + remainder);
+  }
+
+  return Array.from(lotsByDate.entries())
+    .map(([expiryDate, quantity]) => ({ expiryDate, quantity }))
+    .filter((lot) => lot.expiryDate.trim().length > 0 && lot.quantity > 0)
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+};
+
+const applyRestockConsumption = (lots: PickEntryExpiryLot[], restockedAfter: number): PickEntryExpiryLot[] => {
+  if (!lots.length) {
+    return [];
+  }
+
+  let remainingSold = Math.max(0, Math.floor(restockedAfter));
+  const nextLots: PickEntryExpiryLot[] = [];
+
+  for (const lot of lots) {
+    if (lot.quantity <= 0) {
+      continue;
+    }
+
+    const soldFromLot = Math.min(lot.quantity, remainingSold);
+    remainingSold -= soldFromLot;
+    const remaining = lot.quantity - soldFromLot;
+    if (remaining > 0) {
+      nextLots.push({ expiryDate: lot.expiryDate, quantity: remaining });
+    }
+  }
+
+  return nextLots;
+};
+
 export async function buildExpiringItemsForRun(
   companyId: string,
   runId: string,
@@ -245,7 +318,6 @@ export async function buildExpiringItemsForRun(
   const expiringPickEntries = await prisma.pickEntry.findMany({
     where: {
       coilItemId: { in: coilItemIds },
-      expiryDate: runDayRange.label,
       run: {
         companyId,
         scheduledFor: {
@@ -253,9 +325,14 @@ export async function buildExpiringItemsForRun(
           lt: runDayRange.end,
         },
       },
+      OR: [
+        { expiryDate: runDayRange.label },
+        { expiryOverrides: { some: { expiryDate: runDayRange.label } } },
+      ],
     },
     select: {
       coilItemId: true,
+      expiryDate: true,
       count: true,
       override: true,
       current: true,
@@ -263,6 +340,12 @@ export async function buildExpiringItemsForRun(
       need: true,
       forecast: true,
       total: true,
+      expiryOverrides: {
+        select: {
+          expiryDate: true,
+          quantity: true,
+        },
+      },
       coilItem: {
         select: {
           sku: {
@@ -361,19 +444,33 @@ export async function buildExpiringItemsForRun(
       continue;
     }
 
-    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
-    if (expiringQuantity <= 0) {
-      continue;
-    }
-
     const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
     const restockedAfter = sumPlannedAfter(index, runAt);
-    const remaining = Math.max(0, expiringQuantity - restockedAfter);
-    if (remaining <= 0) {
+
+    const plannedCount = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (plannedCount <= 0) {
       continue;
     }
 
-    expiringRemainingByCoilItemId.set(entry.coilItemId, (expiringRemainingByCoilItemId.get(entry.coilItemId) ?? 0) + remaining);
+    const lots = buildExpiryLots({
+      baseExpiryDate: entry.expiryDate,
+      plannedCount,
+      overrides: entry.expiryOverrides,
+    });
+
+    const remainingLots = applyRestockConsumption(lots, restockedAfter);
+    const remainingForTargetDate = remainingLots
+      .filter((lot) => lot.expiryDate === runDayRange.label)
+      .reduce((sum, lot) => sum + lot.quantity, 0);
+
+    if (remainingForTargetDate <= 0) {
+      continue;
+    }
+
+    expiringRemainingByCoilItemId.set(
+      entry.coilItemId,
+      (expiringRemainingByCoilItemId.get(entry.coilItemId) ?? 0) + remainingForTargetDate,
+    );
   }
 
   const items: ExpiringItemsSectionItem[] = [];
@@ -432,10 +529,6 @@ export async function buildUpcomingExpiringItems({
 
   const expiringPickEntries = await prisma.pickEntry.findMany({
     where: {
-      expiryDate: {
-        gte: windowStart.label,
-        lte: windowEnd.label,
-      },
       run: {
         companyId,
         scheduledFor: {
@@ -443,6 +536,24 @@ export async function buildUpcomingExpiringItems({
           lt: windowEndExclusive.start,
         },
       },
+      OR: [
+        {
+          expiryDate: {
+            gte: windowStart.label,
+            lte: windowEnd.label,
+          },
+        },
+        {
+          expiryOverrides: {
+            some: {
+              expiryDate: {
+                gte: windowStart.label,
+                lte: windowEnd.label,
+              },
+            },
+          },
+        },
+      ],
     },
     select: {
       coilItemId: true,
@@ -454,6 +565,12 @@ export async function buildUpcomingExpiringItems({
       need: true,
       forecast: true,
       total: true,
+      expiryOverrides: {
+        select: {
+          expiryDate: true,
+          quantity: true,
+        },
+      },
       coilItem: {
         select: {
           sku: {
@@ -635,24 +752,35 @@ export async function buildUpcomingExpiringItems({
 
   for (const entry of expiringPickEntries) {
     const runAt = entry.run?.scheduledFor?.getTime();
-    if (!runAt || !entry.expiryDate) {
-      continue;
-    }
-
-    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
-    if (expiringQuantity <= 0) {
+    if (!runAt) {
       continue;
     }
 
     const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
     const restockedAfter = sumPlannedAfter(index, runAt);
-    const remaining = Math.max(0, expiringQuantity - restockedAfter);
-    if (remaining <= 0) {
+
+    const plannedCount = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (plannedCount <= 0) {
       continue;
     }
 
-    const detailKey = `${entry.coilItemId}:${entry.expiryDate}`;
-    expiringRemainingByCoilItemIdByDate.set(detailKey, (expiringRemainingByCoilItemIdByDate.get(detailKey) ?? 0) + remaining);
+    const lots = buildExpiryLots({
+      baseExpiryDate: entry.expiryDate,
+      plannedCount,
+      overrides: entry.expiryOverrides,
+    });
+
+    const remainingLots = applyRestockConsumption(lots, restockedAfter).filter(
+      (lot) => lot.expiryDate >= windowStart.label && lot.expiryDate <= windowEnd.label,
+    );
+
+    for (const lot of remainingLots) {
+      const detailKey = `${entry.coilItemId}:${lot.expiryDate}`;
+      expiringRemainingByCoilItemIdByDate.set(
+        detailKey,
+        (expiringRemainingByCoilItemIdByDate.get(detailKey) ?? 0) + lot.quantity,
+      );
+    }
 
     if (!detailsByCoilItemId.has(entry.coilItemId)) {
       detailsByCoilItemId.set(entry.coilItemId, {
@@ -904,7 +1032,6 @@ export async function addNeededForRunDayExpiry({
   const expiringPickEntries = await prisma.pickEntry.findMany({
     where: {
       coilItemId,
-      expiryDate: runDayLabel,
       run: {
         companyId,
         scheduledFor: {
@@ -912,9 +1039,11 @@ export async function addNeededForRunDayExpiry({
           lt: getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 1 }).start,
         },
       },
+      OR: [{ expiryDate: runDayLabel }, { expiryOverrides: { some: { expiryDate: runDayLabel } } }],
     },
     select: {
       coilItemId: true,
+      expiryDate: true,
       count: true,
       override: true,
       current: true,
@@ -922,6 +1051,12 @@ export async function addNeededForRunDayExpiry({
       need: true,
       forecast: true,
       total: true,
+      expiryOverrides: {
+        select: {
+          expiryDate: true,
+          quantity: true,
+        },
+      },
       coilItem: {
         select: {
           sku: {
@@ -1015,12 +1150,23 @@ export async function addNeededForRunDayExpiry({
     if (!runAt) {
       continue;
     }
-    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
-    if (expiringQuantity <= 0) {
+    const restockedAfter = sumPlannedAfter(index, runAt);
+
+    const plannedQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (plannedQuantity <= 0) {
       continue;
     }
-    const restockedAfter = sumPlannedAfter(index, runAt);
-    remainingExpiringQuantity += Math.max(0, expiringQuantity - restockedAfter);
+
+    const lots = buildExpiryLots({
+      baseExpiryDate: entry.expiryDate,
+      plannedCount: plannedQuantity,
+      overrides: entry.expiryOverrides,
+    });
+
+    const remainingLots = applyRestockConsumption(lots, restockedAfter);
+    remainingExpiringQuantity += remainingLots
+      .filter((lot) => lot.expiryDate === runDayLabel)
+      .reduce((sum, lot) => sum + lot.quantity, 0);
   }
 
   if (remainingExpiringQuantity <= 0) {

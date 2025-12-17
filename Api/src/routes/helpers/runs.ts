@@ -61,6 +61,7 @@ export const ensureRun = async (companyId: string, runId: string) => {
       runner: true,
       pickEntries: {
         include: {
+          expiryOverrides: true,
           coilItem: {
             include: {
               sku: true,

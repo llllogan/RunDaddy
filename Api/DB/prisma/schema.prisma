@@ -248,6 +248,7 @@ model PickEntry {
   run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
   coilItem CoilItem @relation(fields: [coilItemId], references: [id], onDelete: Cascade)
   packingSession PackingSession? @relation(fields: [packingSessionId], references: [id], onDelete: SetNull)
+  expiryOverrides PickEntryExpiryOverride[]
 
   @@unique([runId, coilItemId])
   @@index([runId])
@@ -255,6 +256,22 @@ model PickEntry {
   @@index([expiryDate])
   @@index([coilItemId, expiryDate])
   @@index([packingSessionId])
+}
+
+model PickEntryExpiryOverride {
+  id          String   @id @default(cuid())
+  pickEntryId String
+  /// YYYY-MM-DD in the owning company's timezone.
+  expiryDate  String   @db.VarChar(10)
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pickEntry PickEntry @relation(fields: [pickEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([pickEntryId, expiryDate])
+  @@index([pickEntryId])
+  @@index([expiryDate])
 }
 
 model PackingSession {
