@@ -1,12 +1,19 @@
 import SwiftUI
 
 struct UpdateExpirySheet: View {
+    struct OverridePayload: Identifiable, Equatable {
+        let expiryDate: String
+        let quantity: Int
+        
+        var id: String { expiryDate }
+    }
+    
     let pickItem: RunDetail.PickItem
     let onDismiss: () -> Void
-    let onSave: (_ expiryDate: String, _ quantity: Int) -> Void
+    let onSave: (_ overrides: [OverridePayload]) -> Void
     
-    @State private var selectedDate: Date
-    @State private var quantity: Int = 0
+    @State private var selectedDates: [Date]
+    private let initialOverridesKey: String
     
     private static let expiryFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -19,75 +26,100 @@ struct UpdateExpirySheet: View {
     init(
         pickItem: RunDetail.PickItem,
         onDismiss: @escaping () -> Void,
-        onSave: @escaping (_ expiryDate: String, _ quantity: Int) -> Void
+        onSave: @escaping (_ overrides: [OverridePayload]) -> Void
     ) {
         self.pickItem = pickItem
         self.onDismiss = onDismiss
         self.onSave = onSave
         
-        let normalized = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let initial = Self.expiryFormatter.date(from: normalized) ?? Date()
-        _selectedDate = State(initialValue: initial)
+        let baseExpiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let baseDate = Self.expiryFormatter.date(from: baseExpiryDate) ?? Date()
+        
+        var dates = Array(repeating: baseDate, count: max(0, pickItem.count))
+        
+        var cursor = 0
+        for overrideRow in pickItem.expiryOverrides {
+            let dateString = overrideRow.expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !dateString.isEmpty else { continue }
+            guard let overrideDate = Self.expiryFormatter.date(from: dateString) else { continue }
+            let qty = max(0, overrideRow.quantity)
+            guard qty > 0 else { continue }
+            
+            for _ in 0..<qty {
+                guard cursor < dates.count else { break }
+                dates[cursor] = overrideDate
+                cursor += 1
+            }
+        }
+        
+        _selectedDates = State(initialValue: dates)
+        initialOverridesKey = UpdateExpirySheet.buildOverridesKey(from: dates, baseExpiryDate: baseExpiryDate)
     }
     
     private var baseExpiryDate: String {
         pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
     
-    private var selectedExpiryDateString: String {
-        Self.expiryFormatter.string(from: selectedDate)
+    private static func buildOverridesKey(from dates: [Date], baseExpiryDate: String) -> String {
+        let base = baseExpiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+        var counts: [String: Int] = [:]
+        
+        for date in dates {
+            let label = expiryFormatter.string(from: date)
+            if label == base { continue }
+            counts[label, default: 0] += 1
+        }
+        
+        return counts
+            .sorted(by: { $0.key < $1.key })
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "&")
     }
     
-    private var hasValidChange: Bool {
-        quantity > 0 && selectedExpiryDateString != baseExpiryDate
+    private var currentOverrides: [OverridePayload] {
+        let base = baseExpiryDate
+        var counts: [String: Int] = [:]
+        
+        for date in selectedDates {
+            let label = Self.expiryFormatter.string(from: date)
+            if label == base { continue }
+            counts[label, default: 0] += 1
+        }
+        
+        return counts
+            .sorted(by: { $0.key < $1.key })
+            .map { OverridePayload(expiryDate: $0.key, quantity: $0.value) }
+    }
+    
+    private var hasChanges: Bool {
+        UpdateExpirySheet.buildOverridesKey(from: selectedDates, baseExpiryDate: baseExpiryDate) != initialOverridesKey
     }
     
     var body: some View {
         NavigationView {
-            Form {
+            List {
                 Section {
-                    DatePicker(
-                        "Expiry Date",
-                        selection: $selectedDate,
-                        displayedComponents: [.date]
-                    )
-                } header: {
-                    Text("New Expiry")
-                } footer: {
-                    Text("Current: \(baseExpiryDate)")
-                }
-                
-                Section {
-                    HStack(spacing: 12) {
-                        Button {
-                            quantity = max(0, quantity - 1)
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
+                    ForEach(Array(selectedDates.indices), id: \.self) { index in
+                        HStack {
+                            Text("Item \(index + 1)")
+                            
+                            Spacer()
+                            
+                            DatePicker(
+                                "",
+                                selection: Binding(
+                                    get: { selectedDates[index] },
+                                    set: { selectedDates[index] = $0 }
+                                ),
+                                displayedComponents: [.date]
+                            )
+                            .labelsHidden()
                         }
-                        .disabled(quantity <= 0)
-                        
-                        Spacer()
-                        
-                        Text("\(quantity)")
-                            .font(.title3.weight(.semibold))
-                            .monospacedDigit()
-                        
-                        Spacer()
-                        
-                        Button {
-                            quantity = min(pickItem.count, quantity + 1)
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                        }
-                        .disabled(quantity >= pickItem.count)
                     }
-                    .padding(.vertical, 4)
                 } header: {
-                    Text("Count")
+                    Text("Expiry Dates")
                 } footer: {
-                    Text("Select how many items in this coil have a different expiry date.")
+                    Text("Base expiry: \(baseExpiryDate)")
                 }
             }
             .navigationTitle("Update Expiry")
@@ -100,9 +132,9 @@ struct UpdateExpirySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(selectedExpiryDateString, quantity)
+                        onSave(currentOverrides)
                     }
-                    .disabled(!hasValidChange)
+                    .disabled(!hasChanges)
                 }
             }
         }

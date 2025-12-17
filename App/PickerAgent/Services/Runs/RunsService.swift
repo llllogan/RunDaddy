@@ -20,6 +20,7 @@ protocol RunsServicing {
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
     func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws
     func addPickEntryExpiryOverride(runId: String, pickId: String, expiryDate: String, quantity: Int, credentials: AuthCredentials) async throws
+    func replacePickEntryExpiryOverrides(runId: String, pickId: String, overrides: [(expiryDate: String, quantity: Int)], credentials: AuthCredentials) async throws
     func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws
     func deletePickItem(runId: String, pickId: String, credentials: AuthCredentials) async throws
     func deletePickEntries(for runId: String, locationID: String, credentials: AuthCredentials) async throws
@@ -908,6 +909,52 @@ final class RunsService: RunsServicing {
             "expiryDate": normalizedExpiryDate,
             "quantity": quantity
         ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (_, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+        
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.pickItemNotFound
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+    
+    func replacePickEntryExpiryOverrides(
+        runId: String,
+        pickId: String,
+        overrides: [(expiryDate: String, quantity: Int)],
+        credentials: AuthCredentials
+    ) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+        url.appendPathComponent(pickId)
+        url.appendPathComponent("expiry-overrides")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let normalized: [[String: Any]] = overrides.compactMap { row in
+            let date = row.expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !date.isEmpty else { return nil }
+            guard row.quantity > 0 else { return nil }
+            return ["expiryDate": date, "quantity": row.quantity]
+        }
+        
+        let body: [String: Any] = ["overrides": normalized]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (_, response) = try await urlSession.data(for: request)

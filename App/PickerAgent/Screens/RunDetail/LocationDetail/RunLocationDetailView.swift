@@ -323,9 +323,9 @@ struct RunLocationDetailView: View {
                 onDismiss: {
                     pickItemPendingExpiryUpdate = nil
                 },
-                onSave: { newExpiryDate, quantity in
+                onSave: { overrides in
                     Task {
-                        await addExpiryOverride(pickItem, expiryDate: newExpiryDate, quantity: quantity)
+                        await replaceExpiryOverrides(pickItem, overrides: overrides)
                     }
                 }
             )
@@ -517,15 +517,14 @@ struct RunLocationDetailView: View {
         }
     }
     
-    private func addExpiryOverride(_ pickItem: RunDetail.PickItem, expiryDate: String, quantity: Int) async {
+    private func replaceExpiryOverrides(_ pickItem: RunDetail.PickItem, overrides: [UpdateExpirySheet.OverridePayload]) async {
         updatingPickIds.insert(pickItem.id)
         
         do {
-            try await service.addPickEntryExpiryOverride(
+            try await service.replacePickEntryExpiryOverrides(
                 runId: runId,
                 pickId: pickItem.id,
-                expiryDate: expiryDate,
-                quantity: quantity,
+                overrides: overrides.map { (expiryDate: $0.expiryDate, quantity: $0.quantity) },
                 credentials: session.credentials
             )
             await onPickStatusChanged()

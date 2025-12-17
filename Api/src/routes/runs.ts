@@ -81,6 +81,19 @@ const addPickEntryExpiryOverrideSchema = z.object({
   quantity: z.number().int().min(1),
 });
 
+const replacePickEntryExpiryOverridesSchema = z.object({
+  overrides: z
+    .array(
+      z.object({
+        expiryDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
+        quantity: z.number().int().min(1),
+      }),
+    )
+    .max(25)
+    .optional()
+    .default([]),
+});
+
 const createRunPickEntrySchema = z.object({
   coilItemId: z.string().trim().min(1),
   count: z.number().int().min(0),
@@ -1402,6 +1415,139 @@ router.post('/:runId/picks/:pickId/expiry-overrides', setLogConfig({ level: 'min
     update: {
       quantity: { increment: parsed.data.quantity },
     },
+  });
+
+  const updatedOverrides = await prisma.pickEntryExpiryOverride.findMany({
+    where: { pickEntryId: pickEntry.id },
+    select: { expiryDate: true, quantity: true },
+    orderBy: { expiryDate: 'asc' },
+  });
+
+  const expiryDates = Array.from(new Set([baseExpiryDate, ...updatedOverrides.map((row) => row.expiryDate)]))
+    .filter((value) => value.trim().length > 0)
+    .sort((a, b) => a.localeCompare(b));
+
+  return res.json({
+    pickEntryId: pickEntry.id,
+    expiryDate: baseExpiryDate,
+    expiryDates,
+    expiryOverrides: updatedOverrides,
+  });
+});
+
+router.put('/:runId/picks/:pickId/expiry-overrides', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update pick expiries' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const parsed = replacePickEntryExpiryOverridesSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const pickEntry = await prisma.pickEntry.findFirst({
+    where: {
+      id: pickId,
+      runId: runId,
+    },
+    include: {
+      run: { select: { companyId: true } },
+      coilItem: {
+        select: {
+          sku: { select: { countNeededPointer: true } },
+        },
+      },
+      expiryOverrides: {
+        select: { expiryDate: true, quantity: true },
+      },
+    },
+  });
+
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  if (pickEntry.run.companyId !== req.auth.companyId) {
+    return res.status(403).json({ error: 'Pick entry does not belong to your company' });
+  }
+
+  const baseExpiryDate = pickEntry.expiryDate?.trim() ?? '';
+  if (!baseExpiryDate) {
+    return res.status(400).json({ error: 'Pick entry does not support expiry overrides' });
+  }
+
+  const plannedCount = Math.max(0, resolvePickEntryCount(pickEntry as unknown as PickEntryCountSource));
+
+  const normalizedOverrides = parsed.data.overrides
+    .map((row) => ({
+      expiryDate: row.expiryDate.trim(),
+      quantity: row.quantity,
+    }))
+    .filter((row) => row.expiryDate.length > 0 && row.expiryDate !== baseExpiryDate && row.quantity > 0);
+
+  const overridesByDate = new Map<string, number>();
+  for (const row of normalizedOverrides) {
+    overridesByDate.set(row.expiryDate, (overridesByDate.get(row.expiryDate) ?? 0) + row.quantity);
+  }
+
+  const uniqueOverrides = Array.from(overridesByDate.entries())
+    .map(([expiryDate, quantity]) => ({ expiryDate, quantity }))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+
+  const overrideTotal = uniqueOverrides.reduce((sum, row) => sum + row.quantity, 0);
+  if (overrideTotal > plannedCount) {
+    return res.status(400).json({
+      error: 'Override quantity exceeds pick entry count',
+      remaining: Math.max(0, plannedCount - overrideTotal),
+    });
+  }
+
+  const overrideDates = uniqueOverrides.map((row) => row.expiryDate);
+
+  await prisma.$transaction(async (tx) => {
+    if (!overrideDates.length) {
+      await tx.pickEntryExpiryOverride.deleteMany({
+        where: {
+          pickEntryId: pickEntry.id,
+        },
+      });
+      return;
+    }
+
+    await tx.pickEntryExpiryOverride.deleteMany({
+      where: {
+        pickEntryId: pickEntry.id,
+        expiryDate: { notIn: overrideDates },
+      },
+    });
+
+    for (const row of uniqueOverrides) {
+      await tx.pickEntryExpiryOverride.upsert({
+        where: {
+          pickEntryId_expiryDate: {
+            pickEntryId: pickEntry.id,
+            expiryDate: row.expiryDate,
+          },
+        },
+        create: {
+          pickEntryId: pickEntry.id,
+          expiryDate: row.expiryDate,
+          quantity: row.quantity,
+        },
+        update: {
+          quantity: row.quantity,
+        },
+      });
+    }
   });
 
   const updatedOverrides = await prisma.pickEntryExpiryOverride.findMany({
