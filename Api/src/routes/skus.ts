@@ -27,6 +27,94 @@ const HEX_COLOUR_REGEX = /^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 router.use(authenticate);
 
+router.get('/cold-chest/count', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const count = await prisma.sKU.count({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      isFreshOrFrozen: true,
+    },
+  });
+
+  return res.json({ count });
+});
+
+router.get('/cold-chest', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const skus = await prisma.sKU.findMany({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      isFreshOrFrozen: true,
+    },
+    orderBy: {
+      code: 'asc',
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      type: true,
+      category: true,
+      weight: true,
+      labelColour: true,
+      countNeededPointer: true,
+      isFreshOrFrozen: true,
+      expiryDays: true,
+    },
+  });
+
+  return res.json(
+    skus.map((sku) => ({
+      id: sku.id,
+      code: sku.code,
+      name: sku.name,
+      type: sku.type,
+      category: sku.category,
+      weight: sku.weight,
+      labelColour: sku.labelColour,
+      countNeededPointer: sku.countNeededPointer,
+      isFreshOrFrozen: sku.isFreshOrFrozen,
+      expiryDays: sku.expiryDays,
+    })),
+  );
+});
+
+router.get('/missing-weight/count', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const count = await prisma.sKU.count({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      weight: null,
+    },
+  });
+
+  return res.json({ count });
+});
+
 // Update SKU isFreshOrFrozen field
 router.patch('/:skuId/fresh-or-frozen', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
@@ -904,6 +992,26 @@ function normalizeFilterValue(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildSkuCompanyWhere(companyId: string): Prisma.SKUWhereInput {
+  return {
+    OR: [
+      { companyId },
+      {
+        companyId: null,
+        coilItems: {
+          some: {
+            coil: {
+              machine: {
+                companyId,
+              },
+            },
+          },
+        },
+      },
+    ],
+  };
 }
 
 export const skuRouter = router;

@@ -216,10 +216,16 @@ private struct SearchTab: View {
     @State private var isSearching = false
     @State private var isLoadingSuggestions = false
     @State private var suggestionsErrorMessage: String?
+    @State private var coldChestSkuCount: Int?
+    @State private var missingWeightSkuCount: Int?
+    @State private var isLoadingSkuTools = false
+    @State private var skuToolsErrorMessage: String?
+    @State private var bulkSetSkuWeightMessage: String?
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
     private let searchService = SearchService()
+    private let skusService: SkusServicing = SkusService()
 
     private var isShowingSuggestions: Bool {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -229,6 +235,7 @@ private struct SearchTab: View {
         NavigationStack {
             List {
                 if isShowingSuggestions {
+                    skuToolsSection()
                     suggestionsSection()
                 } else {
                     searchResultsSection()
@@ -253,9 +260,21 @@ private struct SearchTab: View {
             .onChange(of: suggestionsErrorMessage) { _, _ in
                 refreshNotifications()
             }
+            .onChange(of: skuToolsErrorMessage) { _, _ in
+                refreshNotifications()
+            }
+            .onChange(of: bulkSetSkuWeightMessage) { _, _ in
+                refreshNotifications()
+            }
             .inAppNotifications(notifications) { notification in
                 if notification.isDismissable && notification.message == suggestionsErrorMessage {
                     suggestionsErrorMessage = nil
+                }
+                if notification.isDismissable && notification.message == skuToolsErrorMessage {
+                    skuToolsErrorMessage = nil
+                }
+                if notification.isDismissable && notification.message == bulkSetSkuWeightMessage {
+                    bulkSetSkuWeightMessage = nil
                 }
                 notifications.removeAll(where: { $0.id == notification.id })
             }
@@ -271,6 +290,7 @@ private struct SearchTab: View {
                 if suggestions.isEmpty {
                     loadSuggestionsIfNeeded()
                 }
+                loadSkuToolsIfNeeded()
             }
             .onDisappear {
                 isSearchFocused = false
@@ -292,6 +312,24 @@ private struct SearchTab: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func skuToolsSection() -> some View {
+        Section {
+            SearchSkuToolsBentoView(
+                coldChestSkuCount: coldChestSkuCount,
+                missingWeightSkuCount: missingWeightSkuCount,
+                isLoading: isLoadingSkuTools,
+                onBulkSetSkuWeight: { showBulkSetSkuWeightComingSoon() },
+                coldChestDestination: AnyView(ColdChestView(session: session))
+            )
+            // .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -324,6 +362,7 @@ private struct SearchTab: View {
         if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             searchResults = []
             searchDebounceTask?.cancel()
+            loadSkuToolsIfNeeded()
         } else {
             scheduleDebouncedSearch(for: newValue)
         }
@@ -333,6 +372,26 @@ private struct SearchTab: View {
         var items: [InAppNotification] = []
 
         if let message = suggestionsErrorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .info,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = skuToolsErrorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .info,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = bulkSetSkuWeightMessage {
             items.append(
                 InAppNotification(
                     message: message,
@@ -387,6 +446,41 @@ private struct SearchTab: View {
                 }
             }
         }
+    }
+
+    private func loadSkuToolsIfNeeded(force: Bool = false) {
+        if isLoadingSkuTools {
+            return
+        }
+
+        if !force, coldChestSkuCount != nil, missingWeightSkuCount != nil {
+            return
+        }
+
+        isLoadingSkuTools = true
+        skuToolsErrorMessage = nil
+        Task {
+            do {
+                async let coldChestCount = skusService.getColdChestSkuCount()
+                async let missingWeightCount = skusService.getSkusMissingWeightCount()
+                let (resolvedColdChestCount, resolvedMissingWeightCount) = try await (coldChestCount, missingWeightCount)
+                await MainActor.run {
+                    coldChestSkuCount = resolvedColdChestCount
+                    missingWeightSkuCount = resolvedMissingWeightCount
+                    isLoadingSkuTools = false
+                }
+            } catch {
+                await MainActor.run {
+                    skuToolsErrorMessage = (error as? LocalizedError)?.errorDescription
+                        ?? "Unable to load SKU tools right now."
+                    isLoadingSkuTools = false
+                }
+            }
+        }
+    }
+
+    private func showBulkSetSkuWeightComingSoon() {
+        bulkSetSkuWeightMessage = "Bulk set SKU weight is coming soon."
     }
 
     @MainActor
