@@ -109,13 +109,6 @@ struct SkuBulkActionView: View {
                     Text(selectedSummary)
                         .foregroundStyle(selected.isEmpty ? .secondary : .primary)
 
-                    Button(isSelectionExpanded ? "Collapse" : "Expand") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isSelectionExpanded.toggle()
-                        }
-                    }
-                    .disabled(selected.isEmpty)
-
                     if isSelectionExpanded {
                         ForEach(selected) { sku in
                             HStack(spacing: 12) {
@@ -137,6 +130,30 @@ struct SkuBulkActionView: View {
                                 .accessibilityLabel("Remove \(sku.title) from selection")
                             }
                         }
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelectionExpanded = false
+                            }
+                        } label: {
+                            Text("Collapse")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .foregroundStyle(Color(.label))
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(selected.isEmpty)
+                    } else {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelectionExpanded = true
+                            }
+                        } label: {
+                            Text("Expand")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .foregroundStyle(Color(.label))
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(selected.isEmpty)
                     }
                 }
 
