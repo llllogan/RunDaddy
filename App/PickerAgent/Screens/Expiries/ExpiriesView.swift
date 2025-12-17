@@ -46,39 +46,9 @@ struct ExpiriesView: View {
                 } else {
                     List {
                         ForEach(response.sections) { section in
-                            Section(header: Text(sectionHeaderText(section.expiryDate))) {
+                            Section(header: sectionHeaderView(for: section)) {
                                 ForEach(section.items) { item in
-                                    let stockingStatus = stockingStatus(for: item)
-                                    ExpiringItemRowView(
-                                        skuName: item.sku.name,
-                                        skuType: item.sku.type,
-                                        machineCode: item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                                            ? item.machine.description!
-                                            : item.machine.code,
-                                        coilCode: item.coil.code,
-                                        quantity: item.expiringQuantity,
-                                        stockingMessage: stockingStatus.message,
-                                        stockingMessageColor: stockingStatus.color
-                                    )
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        if let stockingRun = item.stockingRun {
-                                            Button {
-                                                addNeeded(runId: stockingRun.id, item: item)
-                                            } label: {
-                                                Label("Add \(item.expiringQuantity) to coil", systemImage: "plus")
-                                            }
-                                            .tint(.blue)
-                                            .disabled(isPerformingAction)
-                                        } else {
-                                            Button {
-                                                addToRun(item: item, runOptions: section.runs)
-                                            } label: {
-                                                Label("Add to Run", systemImage: "plus")
-                                            }
-                                            .tint(.orange)
-                                            .disabled(isPerformingAction || section.runs.isEmpty)
-                                        }
-                                    }
+                                    expiringItemRow(item: item, section: section)
                                 }
                             }
                         }
@@ -150,8 +120,14 @@ struct ExpiriesView: View {
         return "\(dayTitle)  \(dayNumber) \(month)"
     }
 
-    private func stockingStatus(for item: UpcomingExpiringItemsResponse.Section.Item) -> (message: String, color: Color) {
+    private func stockingStatus(
+        for item: UpcomingExpiringItemsResponse.Section.Item,
+        section: UpcomingExpiringItemsResponse.Section
+    ) -> (message: String, color: Color) {
         guard let stockingRun = item.stockingRun else {
+            if section.runs.isEmpty {
+                return (message: "", color: .secondary)
+            }
             return (message: "Not stocked in a run", color: .red)
         }
 
@@ -161,6 +137,75 @@ struct ExpiriesView: View {
     private func machineDisplayName(for item: UpcomingExpiringItemsResponse.Section.Item) -> String {
         let description = item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return description.isEmpty ? item.machine.code : description
+    }
+
+    private func noRunsScheduledMessage(for expiryDate: String) -> String {
+        guard let date = Self.expiryFormatter.date(from: expiryDate) else {
+            return "No runs are scheduled for \(expiryDate)."
+        }
+
+        let day = Calendar.current.component(.day, from: date)
+        let dayOrdinal =
+            Self.ordinalFormatter.string(from: NSNumber(value: day)) ??
+            Self.dayFormatter.string(from: date)
+        let month = Self.monthFormatter.string(from: date).pascalCased
+        return "No runs are scheduled for the \(dayOrdinal) of \(month)"
+    }
+
+    @ViewBuilder
+    private func sectionHeaderView(for section: UpcomingExpiringItemsResponse.Section) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(sectionHeaderText(section.expiryDate))
+            if section.runs.isEmpty {
+                Text(noRunsScheduledMessage(for: section.expiryDate))
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func expiringItemRow(
+        item: UpcomingExpiringItemsResponse.Section.Item,
+        section: UpcomingExpiringItemsResponse.Section
+    ) -> some View {
+        let stockingStatus = stockingStatus(for: item, section: section)
+        let row = ExpiringItemRowView(
+            skuName: item.sku.name,
+            skuType: item.sku.type,
+            machineCode: item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? item.machine.description!
+                : item.machine.code,
+            coilCode: item.coil.code,
+            quantity: item.expiringQuantity,
+            stockingMessage: stockingStatus.message,
+            stockingMessageColor: stockingStatus.color
+        )
+
+        if let stockingRun = item.stockingRun {
+            row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button {
+                    addNeeded(runId: stockingRun.id, item: item)
+                } label: {
+                    Label("Add \(item.expiringQuantity) to coil", systemImage: "plus")
+                }
+                .tint(.blue)
+                .disabled(isPerformingAction)
+            }
+        } else if !section.runs.isEmpty {
+            row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button {
+                    addToRun(item: item, runOptions: section.runs)
+                } label: {
+                    Label("Add to Run", systemImage: "plus")
+                }
+                .tint(.orange)
+                .disabled(isPerformingAction)
+            }
+        } else {
+            row
+        }
     }
 
     private func addNeeded(runId: String, item: UpcomingExpiringItemsResponse.Section.Item) {
@@ -298,6 +343,13 @@ struct ExpiriesView: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "MMM"
+        return formatter
+    }()
+
+    private static let ordinalFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.numberStyle = .ordinal
         return formatter
     }()
 }
