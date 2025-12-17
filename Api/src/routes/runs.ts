@@ -1822,6 +1822,7 @@ type PickItemPayload = {
   need: number | null;
   forecast: number | null;
   total: number | null;
+  expiryDate: string | null;
   isPicked: boolean;
   pickedAt: Date | null;
   packingSessionId: string | null;
@@ -1873,6 +1874,7 @@ type RunDetailPayload = {
     need: number | null;
     forecast: number | null;
     total: number | null;
+    expiryDate: string | null;
     isPicked: boolean;
     pickedAt: Date | null;
     coilItem: {
@@ -2027,6 +2029,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       need: entry.need,
       forecast: entry.forecast,
       total: entry.total,
+      expiryDate: entry.expiryDate ?? null,
       isPicked: !!entry.isPicked,
       pickedAt: entry.pickedAt,
       packingSessionId: entry.packingSessionId,
@@ -2119,6 +2122,7 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
         need: entry.need,
         forecast: entry.forecast,
         total: entry.total,
+        expiryDate: entry.expiryDate ?? null,
         isPicked: !!entry.isPicked,
         pickedAt: entry.pickedAt,
         packingSessionId: entry.packingSessionId,

@@ -1740,6 +1740,28 @@ async function seedExtraUsers() {
   }
 }
 
+async function backfillPickEntryExpiryDates() {
+  try {
+    await prisma.$executeRaw`
+      UPDATE PickEntry pe
+        INNER JOIN Run r ON r.id = pe.runId
+        INNER JOIN Company co ON co.id = r.companyId
+        INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        INNER JOIN SKU s ON s.id = ci.skuId
+      SET pe.expiryDate = DATE_FORMAT(
+        DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', COALESCE(co.timeZone, 'UTC')), INTERVAL (s.expiryDays - 1) DAY),
+        '%Y-%m-%d'
+      )
+      WHERE pe.expiryDate IS NULL
+        AND r.scheduledFor IS NOT NULL
+        AND s.expiryDays > 0;
+    `;
+  } catch (error) {
+    console.warn('Skipping pick entry expiry date backfill (likely missing column).');
+    console.warn(error);
+  }
+}
+
 async function main() {
   await seedMachineTypes();
   await seedSkus();
@@ -1748,6 +1770,7 @@ async function main() {
   await seedCompanyData();
   await seedTrendScenarioCompany();
   await seedExtraUsers();
+  await backfillPickEntryExpiryDates();
   console.log('Seed data completed.');
 }
 

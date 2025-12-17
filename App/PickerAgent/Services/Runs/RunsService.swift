@@ -301,6 +301,7 @@ struct RunDetail: Equatable {
         let need: Int?
         let forecast: Int?
         let total: Int?
+        let expiryDate: String?
         let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -1601,6 +1602,7 @@ private struct RunDetailResponse: Decodable {
         let need: Int?
         let forecast: Int?
         let total: Int?
+        let expiryDate: String?
         let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -1619,6 +1621,7 @@ private struct RunDetailResponse: Decodable {
             case need
             case forecast
             case total
+            case expiryDate
             case isPicked
             case pickedAt
             case coilItem
@@ -1640,6 +1643,7 @@ private struct RunDetailResponse: Decodable {
                 need: need,
                 forecast: forecast,
                 total: total,
+                expiryDate: expiryDate,
                 isPicked: isPicked,
                 pickedAt: pickedAt,
                 coilItem: coilItem.toCoilItem(with: coilDomain),

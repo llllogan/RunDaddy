@@ -95,7 +95,7 @@ struct ExpiriesView: View {
             return nil
         }
 
-        return "\(item.plannedQuantity) will be stocked on \(stockingRun.runDate), need \(item.quantity) more"
+        return "\(item.plannedQuantity) will be stocked, need \(item.quantity) more"
     }
 
     private static let expiryFormatter: DateFormatter = {
