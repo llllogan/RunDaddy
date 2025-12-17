@@ -443,6 +443,39 @@ const COMPANY_SEED_CONFIG: CompanySeedConfig[] = [
               { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 16 },
               { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 15 },
               { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 17 },
+              { code: 'D1', skuCode: 'SKU-CHEESE-CHED', par: 10 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'River North Depot',
+        address: '25 Duke St, Nambour QLD 4560, Australia',
+        machines: [
+          {
+            code: 'RIVER-NORTH-01',
+            description: 'North depot snack tower',
+            machineType: 'AMS Sensit 3',
+            coils: [
+              { code: 'A1', skuCode: 'SKU-PBAR-ALM', par: 14 },
+              { code: 'A2', skuCode: 'SKU-ENERGY-MIX', par: 14 },
+              { code: 'B1', skuCode: 'SKU-CHIPS-SEA', par: 15 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'River West Clinic',
+        address: '77 Sunset Rd, Buderim QLD 4556, Australia',
+        machines: [
+          {
+            code: 'RIVER-WEST-01',
+            description: 'West clinic beverage cooler',
+            machineType: 'DN BevMax 4',
+            coils: [
+              { code: 'C1', skuCode: 'SKU-COFF-COLD', par: 12 },
+              { code: 'C2', skuCode: 'SKU-JUICE-CIT', par: 12 },
+              { code: 'C3', skuCode: 'SKU-TEA-HERBAL', par: 10 },
             ],
           },
         ],
@@ -1491,6 +1524,86 @@ async function seedMetroExpiringItems(companyId: string) {
   });
 }
 
+async function seedRiverExpiringItems(companyId: string, locationDetails: LocationSeedResult[]) {
+  const hqMachineCode = 'RIVER-HQ-01';
+  const selectionSkuCode = 'SKU-CHEESE-CHED';
+  const stockingSkuCode = 'SKU-ENERGY-MIX';
+
+  const coilLookup = buildCoilItemLookup(locationDetails);
+  const selectionCoilItem = coilLookup.get(`${hqMachineCode}:${selectionSkuCode}`);
+  const stockingCoilItem = coilLookup.get(`${hqMachineCode}:${stockingSkuCode}`);
+  if (!selectionCoilItem || !stockingCoilItem) {
+    return;
+  }
+
+  const selectionSku = await getSkuForCompany(selectionSkuCode, companyId);
+  await prisma.sKU.update({
+    where: { id: selectionSku.id },
+    data: {
+      expiryDays: 3,
+      countNeededPointer: 'need',
+    },
+  });
+
+  const stockingSku = await getSkuForCompany(stockingSkuCode, companyId);
+  await prisma.sKU.update({
+    where: { id: stockingSku.id },
+    data: {
+      expiryDays: 2,
+      countNeededPointer: 'need',
+    },
+  });
+
+  const selectionOrigin = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(0, 6),
+      pickingStartedAt: scheduleForDay(0, 6),
+      pickingEndedAt: scheduleForDay(0, 7),
+    },
+  });
+  await seedPickEntriesWithConfig(selectionOrigin.id, [
+    makePickEntrySeed(selectionCoilItem, 6, 0),
+  ]);
+
+  const stockingOrigin = await prisma.run.create({
+    data: {
+      companyId,
+      status: RunStatus.READY,
+      scheduledFor: scheduleForDay(0, 7),
+      pickingStartedAt: scheduleForDay(0, 7),
+      pickingEndedAt: scheduleForDay(0, 8),
+    },
+  });
+  await seedPickEntriesWithConfig(stockingOrigin.id, [makePickEntrySeed(stockingCoilItem, 20, 0)]);
+
+  const hqLocationId = locationDetails.find((detail) =>
+    detail.coilItems.some((coilItem) => coilItem.machineCode === hqMachineCode),
+  )?.location.id;
+  const otherLocations = locationDetails.filter((detail) => detail.location.id !== hqLocationId);
+  if (otherLocations.length < 2) {
+    return;
+  }
+
+  const firstOption = otherLocations[0]!;
+  const secondOption = otherLocations[1]!;
+
+  const firstRun = await ensureRunWithLocations({
+    companyId,
+    scheduledFor: scheduleForDay(2, 8),
+    locationIds: [firstOption.location.id],
+  });
+  await ensurePickEntries(firstRun.id, firstOption.coilItems);
+
+  const secondRun = await ensureRunWithLocations({
+    companyId,
+    scheduledFor: scheduleForDay(2, 14),
+    locationIds: [secondOption.location.id],
+  });
+  await ensurePickEntries(secondRun.id, secondOption.coilItems);
+}
+
 async function seedAppleTesting() {
   console.log('Creating Apple testing workspace...');
   const company = await ensureCompany(APP_STORE_COMPANY_NAME, APP_STORE_TIER_ID, APP_STORE_TIME_ZONE);
@@ -1547,7 +1660,7 @@ async function seedCompanyData() {
     const membership = await ensureMembership(owner.id, company.id, UserRole.OWNER);
     await ensureDefaultMembership(owner.id, membership.id);
 
-    if (config.name === METRO_COMPANY_NAME) {
+    if (config.name === METRO_COMPANY_NAME || config.name === RIVER_COMPANY_NAME) {
       await resetCompanyRuns(company.id);
     }
 
@@ -1622,6 +1735,8 @@ async function seedCompanyData() {
 
         await seedPickEntriesWithConfig(run.id, pickSeeds);
       }
+
+      await seedRiverExpiringItems(company.id, locationDetails);
     } else {
       const todayLocations = selectRunLocations(locationDetails, 0);
       const tomorrowLocations = selectRunLocations(locationDetails, 2);
