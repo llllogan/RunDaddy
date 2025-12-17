@@ -33,7 +33,7 @@ struct ExpiringItemsView: View {
                                                 Button {
                                                     addNeeded(for: item, runDate: section.expiryDate)
                                                 } label: {
-                                                    Label("Add \(item.quantity) to coil", systemImage: "plus.circle.fill")
+                                                    Label("Add \(item.quantity) to coil", systemImage: "plus")
                                                 }
                                                 .tint(.blue)
                                                 .disabled(isAddingNeeded)

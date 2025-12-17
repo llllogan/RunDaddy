@@ -91,6 +91,37 @@ enum ExpiriesServiceError: LocalizedError {
 
 struct UpcomingExpiringItemsResponse: Equatable, Decodable {
     struct Section: Equatable, Decodable, Identifiable {
+        struct RunOption: Equatable, Decodable, Identifiable {
+            struct Location: Equatable, Decodable {
+                let id: String
+                let name: String?
+                let address: String?
+            }
+
+            let id: String
+            let runDate: String
+            let locationIds: [String]
+            let machineIds: [String]
+            let locations: [Location]
+
+            private enum CodingKeys: String, CodingKey {
+                case id
+                case runDate
+                case locationIds
+                case machineIds
+                case locations
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                id = try container.decodeStringOrEmpty(forKey: .id)
+                runDate = try container.decodeStringOrEmpty(forKey: .runDate)
+                locationIds = (try? container.decodeIfPresent([String].self, forKey: .locationIds)) ?? []
+                machineIds = (try? container.decodeIfPresent([String].self, forKey: .machineIds)) ?? []
+                locations = (try? container.decodeIfPresent([Location].self, forKey: .locations)) ?? []
+            }
+        }
+
         struct Item: Equatable, Decodable, Identifiable {
             struct Sku: Equatable, Decodable {
                 let id: String
@@ -118,11 +149,13 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
                 let id: String
                 let code: String
                 let description: String?
+                let locationId: String?
 
                 private enum CodingKeys: String, CodingKey {
                     case id
                     case code
                     case description
+                    case locationId
                 }
 
                 init(from decoder: Decoder) throws {
@@ -130,6 +163,7 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
                     id = try container.decodeStringOrEmpty(forKey: .id)
                     code = try container.decodeStringOrEmpty(forKey: .code)
                     description = try? container.decodeIfPresent(String.self, forKey: .description)
+                    locationId = try? container.decodeIfPresent(String.self, forKey: .locationId)
                 }
             }
 
@@ -213,16 +247,19 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
 
         let expiryDate: String
         let items: [Item]
+        let runs: [RunOption]
 
         private enum CodingKeys: String, CodingKey {
             case expiryDate
             case items
+            case runs
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             expiryDate = try container.decodeStringOrEmpty(forKey: .expiryDate)
             items = try container.decodeIfPresent([Item].self, forKey: .items) ?? []
+            runs = try container.decodeIfPresent([RunOption].self, forKey: .runs) ?? []
         }
     }
 

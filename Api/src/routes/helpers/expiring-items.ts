@@ -16,6 +16,12 @@ type ExpiringItemsSectionItem = {
     id: string;
     code: string;
     description: string | null;
+    locationId: string | null;
+    location: {
+      id: string;
+      name: string | null;
+      address: string | null;
+    } | null;
   };
   coil: {
     id: string;
@@ -46,6 +52,17 @@ type UpcomingExpiringItemsSectionItem = ExpiringItemsSectionItem & {
 export type UpcomingExpiringItemsSection = {
   expiryDate: string; // YYYY-MM-DD, in company timezone
   items: UpcomingExpiringItemsSectionItem[];
+  runs: Array<{
+    id: string;
+    runDate: string; // YYYY-MM-DD, in company timezone
+    locationIds: string[];
+    machineIds: string[];
+    locations: Array<{
+      id: string;
+      name: string | null;
+      address: string | null;
+    }>;
+  }>;
 };
 
 export type UpcomingExpiringItemsResponse = {
@@ -208,6 +225,14 @@ export async function buildExpiringItemsForRun(
           id: entry.coilItem.coil.machine.id,
           code: entry.coilItem.coil.machine.code,
           description: entry.coilItem.coil.machine.description,
+          locationId: entry.coilItem.coil.machine.location?.id ?? null,
+          location: entry.coilItem.coil.machine.location
+            ? {
+                id: entry.coilItem.coil.machine.location.id,
+                name: entry.coilItem.coil.machine.location.name,
+                address: entry.coilItem.coil.machine.location.address,
+              }
+            : null,
         },
         coil: {
           id: entry.coilItem.coil.id,
@@ -449,6 +474,13 @@ export async function buildUpcomingExpiringItems({
                   id: true,
                   code: true,
                   description: true,
+                  location: {
+                    select: {
+                      id: true,
+                      name: true,
+                      address: true,
+                    },
+                  },
                 },
               },
             },
@@ -635,6 +667,14 @@ export async function buildUpcomingExpiringItems({
           id: entry.coilItem.coil.machine.id,
           code: entry.coilItem.coil.machine.code,
           description: entry.coilItem.coil.machine.description,
+          locationId: entry.coilItem.coil.machine.location?.id ?? null,
+          location: entry.coilItem.coil.machine.location
+            ? {
+                id: entry.coilItem.coil.machine.location.id,
+                name: entry.coilItem.coil.machine.location.name,
+                address: entry.coilItem.coil.machine.location.address,
+              }
+            : null,
         },
         coil: {
           id: entry.coilItem.coil.id,
@@ -683,6 +723,108 @@ export async function buildUpcomingExpiringItems({
     sectionsByDate.get(expiryDate)!.push(item);
   }
 
+  const expiryDates = Array.from(sectionsByDate.keys());
+  const runs = expiryDates.length
+    ? await prisma.run.findMany({
+        where: {
+          companyId,
+          scheduledFor: {
+            not: null,
+            gte: windowStart.start,
+            lt: windowEndExclusive.start,
+          },
+        },
+        select: {
+          id: true,
+          scheduledFor: true,
+          pickEntries: {
+            select: {
+              coilItem: {
+                select: {
+                  coil: {
+                    select: {
+                      machine: {
+                        select: {
+                          id: true,
+                          location: {
+                            select: {
+                              id: true,
+                              name: true,
+                              address: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          locationOrders: {
+            select: {
+              location: {
+                select: {
+                  id: true,
+                  name: true,
+                  address: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+
+  const runsByDate = new Map<
+    string,
+    Array<{
+      id: string;
+      runDate: string;
+      locationIds: string[];
+      machineIds: string[];
+      locations: Array<{ id: string; name: string | null; address: string | null }>;
+    }>
+  >();
+
+  for (const run of runs) {
+    if (!run.scheduledFor) {
+      continue;
+    }
+    const runDate = getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 0 }).label;
+    if (!runsByDate.has(runDate)) {
+      runsByDate.set(runDate, []);
+    }
+
+    const machineIds = new Set<string>();
+    const locationsById = new Map<string, { id: string; name: string | null; address: string | null }>();
+
+    for (const pickEntry of run.pickEntries) {
+      const machine = pickEntry.coilItem.coil.machine;
+      machineIds.add(machine.id);
+      if (machine.location) {
+        locationsById.set(machine.location.id, machine.location);
+      }
+    }
+
+    for (const order of run.locationOrders) {
+      if (order.location) {
+        locationsById.set(order.location.id, order.location);
+      }
+    }
+
+    const locations = Array.from(locationsById.values());
+    const locationIds = locations.map((location) => location.id);
+
+    runsByDate.get(runDate)!.push({
+      id: run.id,
+      runDate,
+      locationIds,
+      machineIds: Array.from(machineIds),
+      locations,
+    });
+  }
+
   const sections: UpcomingExpiringItemsSection[] = Array.from(sectionsByDate.entries())
     .map(([expiryDate, items]) => ({
       expiryDate,
@@ -697,6 +839,7 @@ export async function buildUpcomingExpiringItems({
         }
         return a.coil.code.localeCompare(b.coil.code);
       }),
+      runs: runsByDate.get(expiryDate) ?? [],
     }))
     .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
 

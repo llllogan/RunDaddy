@@ -52,6 +52,10 @@ struct PreviewRunsService: RunsServicing {
             runDate: "2025-11-06"
         )
     }
+
+    func createPickEntry(runId: String, coilItemId: String, count: Int, credentials: AuthCredentials) async throws {
+        return
+    }
     
     func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
         // Return some sample runs for testing

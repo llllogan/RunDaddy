@@ -25,6 +25,7 @@ import {
 } from './helpers/runs.js';
 import { addNeededForRunDayExpiry, buildExpiringItemsForRun } from './helpers/expiring-items.js';
 import { parseTimezoneQueryParam, resolveCompanyTimezone } from './helpers/timezone.js';
+import { computeExpiryDateLabel } from './helpers/app-dates.js';
 
 interface AudioCommand {
   id: string;
@@ -73,6 +74,11 @@ const updatePickOverrideSchema = z.object({
 
 const substitutePickEntrySchema = z.object({
   skuId: z.string().trim().min(1),
+});
+
+const createRunPickEntrySchema = z.object({
+  coilItemId: z.string().trim().min(1),
+  count: z.number().int().min(0),
 });
 
 const runsQuerySchema = z.object({
@@ -1422,6 +1428,98 @@ router.delete('/:runId/picks/:pickId', async (req, res) => {
   await updateRunCompletionStatus(run.id);
 
   return res.status(204).send();
+});
+
+// Create a new pick entry in a run (used by Expiries -> "Add to run")
+router.post('/:runId/picks', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to create picks' });
+  }
+
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: 'Run ID is required' });
+  }
+
+  const parsed = createRunPickEntrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const run = await prisma.run.findUnique({
+    where: { id: runId },
+    select: {
+      id: true,
+      companyId: true,
+      scheduledFor: true,
+    },
+  });
+  if (!run || run.companyId !== req.auth.companyId) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+  if (!run.scheduledFor) {
+    return res.status(400).json({ error: 'Run must have a scheduled date to add picks' });
+  }
+
+  const coilItem = await ensureCoilItem(req.auth.companyId, parsed.data.coilItemId);
+  if (!coilItem) {
+    return res.status(404).json({ error: 'Coil item not found' });
+  }
+
+  const existing = await prisma.pickEntry.findUnique({
+    where: {
+      runId_coilItemId: {
+        runId: run.id,
+        coilItemId: parsed.data.coilItemId,
+      },
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return res.status(409).json({ error: 'A pick entry already exists for that coil.' });
+  }
+
+  const timeZone = await resolveCompanyTimezone(req.auth.companyId);
+  const expiryDate = computeExpiryDateLabel({
+    scheduledFor: run.scheduledFor,
+    timeZone,
+    expiryDays: coilItem.sku.expiryDays ?? 0,
+  });
+
+  const created = await prisma.pickEntry.create({
+    data: {
+      runId: run.id,
+      coilItemId: parsed.data.coilItemId,
+      count: parsed.data.count,
+      override: parsed.data.count,
+      par: coilItem.par,
+      expiryDate,
+    },
+    select: {
+      id: true,
+      runId: true,
+      coilItemId: true,
+      count: true,
+      override: true,
+      expiryDate: true,
+    },
+  });
+
+  await prisma.note.create({
+    data: {
+      companyId: req.auth.companyId,
+      runId: run.id,
+      machineId: coilItem.coil.machineId ?? coilItem.coil.machine.id,
+      body: `Coil ${coilItem.coil.code} has ${parsed.data.count} items expiring`,
+      createdBy: req.auth.userId ?? null,
+    },
+  });
+
+  return res.status(201).json(created);
 });
 
 router.delete('/:runId/locations/:locationId', setLogConfig({ level: 'minimal' }), async (req, res) => {

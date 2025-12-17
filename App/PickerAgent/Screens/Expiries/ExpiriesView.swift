@@ -5,9 +5,19 @@ struct ExpiriesView: View {
     let session: AuthSession
 
     @StateObject private var viewModel: ExpiriesViewModel
+    private let runsService: RunsServicing
 
-    init(session: AuthSession, service: ExpiriesServicing? = nil) {
+    @State private var isPerformingAction = false
+    @State private var actionAlertMessage: String?
+    @State private var isShowingActionAlert = false
+
+    @State private var pendingRunOptions: [UpcomingExpiringItemsResponse.Section.RunOption] = []
+    @State private var pendingAddToRunItem: UpcomingExpiringItemsResponse.Section.Item?
+    @State private var isShowingRunPicker = false
+
+    init(session: AuthSession, service: ExpiriesServicing? = nil, runsService: RunsServicing? = nil) {
         self.session = session
+        self.runsService = runsService ?? RunsService()
         _viewModel = StateObject(
             wrappedValue: ExpiriesViewModel(
                 session: session,
@@ -50,6 +60,25 @@ struct ExpiriesView: View {
                                         stockingMessage: stockingStatus.message,
                                         stockingMessageColor: stockingStatus.color
                                     )
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if let stockingRun = item.stockingRun {
+                                            Button {
+                                                addNeeded(runId: stockingRun.id, item: item)
+                                            } label: {
+                                                Label("Add \(item.expiringQuantity) to coil", systemImage: "plus")
+                                            }
+                                            .tint(.blue)
+                                            .disabled(isPerformingAction)
+                                        } else {
+                                            Button {
+                                                addToRun(item: item, runOptions: section.runs)
+                                            } label: {
+                                                Label("Add to Run", systemImage: "plus")
+                                            }
+                                            .tint(.orange)
+                                            .disabled(isPerformingAction || section.runs.isEmpty)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -70,6 +99,33 @@ struct ExpiriesView: View {
         }
         .refreshable {
             await viewModel.load(force: true)
+        }
+        .alert("Expiries", isPresented: $isShowingActionAlert) {
+            Button("OK") {
+                actionAlertMessage = nil
+            }
+        } message: {
+            Text(actionAlertMessage ?? "")
+        }
+        .confirmationDialog(
+            "Add to which run?",
+            isPresented: $isShowingRunPicker,
+            titleVisibility: .visible
+        ) {
+            ForEach(pendingRunOptions) { run in
+                Button(runPickerTitle(for: run)) {
+                    if let item = pendingAddToRunItem {
+                        createPickEntry(runId: run.id, item: item)
+                    }
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingRunOptions = []
+                pendingAddToRunItem = nil
+            }
+        } message: {
+            Text(runPickerMessage())
         }
     }
 
@@ -100,6 +156,110 @@ struct ExpiriesView: View {
         }
 
         return (message: "\(item.plannedQuantity) will be stocked, need \(item.expiringQuantity) more", color: .secondary)
+    }
+
+    private func addNeeded(runId: String, item: UpcomingExpiringItemsResponse.Section.Item) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer { isPerformingAction = false }
+            do {
+                let result = try await runsService.addNeededForExpiringItem(
+                    runId: runId,
+                    coilItemId: item.coilItemId,
+                    credentials: session.credentials
+                )
+                actionAlertMessage = "\(result.expiringQuantity) items added to coil \(result.coilCode)."
+                isShowingActionAlert = true
+                await viewModel.load(force: true)
+            } catch {
+                actionAlertMessage = "We couldn't add expiring items right now. Please try again."
+                isShowingActionAlert = true
+            }
+        }
+    }
+
+    private func addToRun(item: UpcomingExpiringItemsResponse.Section.Item, runOptions: [UpcomingExpiringItemsResponse.Section.RunOption]) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        guard !runOptions.isEmpty else {
+            actionAlertMessage = "No runs are scheduled for that day."
+            isShowingActionAlert = true
+            return
+        }
+
+        if let match = runOptions.first(where: { run in
+            if run.machineIds.contains(item.machine.id) {
+                return true
+            }
+            if let locationId = item.machine.locationId, run.locationIds.contains(locationId) {
+                return true
+            }
+            return false
+        }) {
+            createPickEntry(runId: match.id, item: item)
+            return
+        }
+
+        pendingRunOptions = runOptions
+        pendingAddToRunItem = item
+        isShowingRunPicker = true
+    }
+
+    private func createPickEntry(runId: String, item: UpcomingExpiringItemsResponse.Section.Item) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer {
+                isPerformingAction = false
+                pendingRunOptions = []
+                pendingAddToRunItem = nil
+            }
+
+            do {
+                try await runsService.createPickEntry(
+                    runId: runId,
+                    coilItemId: item.coilItemId,
+                    count: item.expiringQuantity,
+                    credentials: session.credentials
+                )
+                actionAlertMessage = "\(item.expiringQuantity) items added to a run."
+                isShowingActionAlert = true
+                await viewModel.load(force: true)
+            } catch {
+                actionAlertMessage = "We couldn't add this to a run right now. Please try again."
+                isShowingActionAlert = true
+            }
+        }
+    }
+
+    private func runPickerTitle(for run: UpcomingExpiringItemsResponse.Section.RunOption) -> String {
+        let locationNames = run.locations
+            .compactMap { ($0.name ?? $0.address)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if locationNames.isEmpty {
+            return "Run \(run.id.prefix(6))"
+        }
+
+        let summary = locationNames.prefix(2).joined(separator: ", ")
+        let suffix = locationNames.count > 2 ? " +\(locationNames.count - 2)" : ""
+        return "Run \(run.id.prefix(6)) • \(summary)\(suffix)"
+    }
+
+    private func runPickerMessage() -> String {
+        if pendingRunOptions.isEmpty {
+            return ""
+        }
+        return "Select a run to add this coil to. Runs are listed with their locations."
     }
 
     private static let expiryFormatter: DateFormatter = {
