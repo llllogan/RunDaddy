@@ -73,6 +73,7 @@ struct SkuDetailView: View {
                             isUpdatingLabelColour: isUpdatingLabelColour,
                             canEditLabelColour: canEditSku,
                             isUpdatingExpiryDays: isUpdatingExpiryDays,
+                            firstSeen: skuStats.firstSeen,
                             onConfigureExpiryDays: { openExpiryDaysEditor() }
                         )
                     } else if isLoadingStats {
@@ -118,7 +119,6 @@ struct SkuDetailView: View {
                             SkuPerformanceBento(
                                 percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: skuStats.bestMachine,
-                                firstSeen: skuStats.firstSeen,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: { bestMachine in
                                     navigateToMachineDetail(bestMachine)
@@ -135,7 +135,6 @@ struct SkuDetailView: View {
                             SkuPerformanceBento(
                                 percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: nil,
-                                firstSeen: nil,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: nil,
                                 highMark: chartsViewModel.skuBreakdownHighMark,

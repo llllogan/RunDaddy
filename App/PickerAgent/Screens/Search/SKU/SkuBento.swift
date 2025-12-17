@@ -16,6 +16,7 @@ struct SkuInfoBento: View {
     let isUpdatingLabelColour: Bool
     let canEditLabelColour: Bool
     let isUpdatingExpiryDays: Bool
+    let firstSeen: String?
     let onConfigureExpiryDays: () -> Void
     
     private var items: [BentoItem] {
@@ -104,6 +105,8 @@ struct SkuInfoBento: View {
                           allowsMultilineValue: true)
             )
         }
+        
+        cards.append(firstSeenCard)
 
         return cards
     }
@@ -111,6 +114,50 @@ struct SkuInfoBento: View {
     var body: some View {
         StaggeredBentoGrid(items: items, columnCount: 2)
     }
+    
+    private var firstSeenCard: BentoItem {
+        guard let firstSeen,
+              let firstSeenDate = parseDate(firstSeen) else {
+            return BentoItem(
+                id: "sku-perf-first-seen",
+                title: "First Seen",
+                value: "No data",
+                symbolName: "calendar.badge.clock",
+                symbolTint: .secondary
+            )
+        }
+
+        return BentoItem(
+            id: "sku-perf-first-seen",
+            title: "First Seen",
+            value: formatRelativeDay(from: firstSeenDate),
+            subtitle: SkuInfoBento.weekdayFormatter.string(from: firstSeenDate),
+            symbolName: "calendar.badge.clock",
+            symbolTint: .blue,
+            allowsMultilineValue: true
+        )
+    }
+    
+    private func formatRelativeDay(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        return SkuInfoBento.dayMonthFormatter.string(from: date)
+    }
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        formatter.locale = Locale.current
+        return formatter
+    }()
 
     private var lastPackedTitle: String {
         guard let pick = mostRecentPick,
@@ -250,7 +297,6 @@ struct SkuInfoBento: View {
 struct SkuPerformanceBento: View {
     let percentageChange: PickEntryBreakdown.PercentageChange?
     let bestMachine: SkuBestMachine?
-    let firstSeen: String?
     let selectedPeriod: SkuPeriod?
     let onBestMachineTap: ((SkuBestMachine) -> Void)?
     let highMark: PickEntryBreakdown.Extremum?
@@ -263,8 +309,7 @@ struct SkuPerformanceBento: View {
             packTrendCard,
             bestMachineCard,
             highMarkCard,
-            lowMarkCard,
-            firstSeenCard
+            lowMarkCard
         ]
     }
 
@@ -321,29 +366,6 @@ struct SkuPerformanceBento: View {
             symbolName: "arrow.down.to.line",
             tint: .orange,
             isProminent: false
-        )
-    }
-
-    private var firstSeenCard: BentoItem {
-        guard let firstSeen,
-              let firstSeenDate = parseDate(firstSeen) else {
-            return BentoItem(
-                id: "sku-perf-first-seen",
-                title: "First Seen",
-                value: "No data",
-                symbolName: "calendar.badge.clock",
-                symbolTint: .secondary
-            )
-        }
-
-        return BentoItem(
-            id: "sku-perf-first-seen",
-            title: "First Seen",
-            value: formatRelativeDay(from: firstSeenDate),
-            subtitle: SkuPerformanceBento.weekdayFormatter.string(from: firstSeenDate),
-            symbolName: "calendar.badge.clock",
-            symbolTint: .blue,
-            allowsMultilineValue: true
         )
     }
 
@@ -430,20 +452,6 @@ struct SkuPerformanceBento: View {
         return SkuPerformanceBento.basicIsoFormatter.date(from: string)
     }
 
-    private func formatRelativeDay(from date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "Today"
-        }
-        if calendar.isDateInYesterday(date) {
-            return "Yesterday"
-        }
-        if calendar.isDateInTomorrow(date) {
-            return "Tomorrow"
-        }
-        return SkuPerformanceBento.dayMonthFormatter.string(from: date)
-    }
-
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -453,20 +461,6 @@ struct SkuPerformanceBento: View {
     private static let basicIsoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    private static let dayMonthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        formatter.locale = Locale.current
-        return formatter
-    }()
-
-    private static let weekdayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        formatter.locale = Locale.current
         return formatter
     }()
 }
