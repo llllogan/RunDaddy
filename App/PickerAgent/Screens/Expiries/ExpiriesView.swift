@@ -115,7 +115,7 @@ struct ExpiriesView: View {
             ForEach(pendingRunOptions) { run in
                 Button(runPickerTitle(for: run)) {
                     if let item = pendingAddToRunItem {
-                        createPickEntry(runId: run.id, item: item)
+                        createPickEntry(run: run, item: item)
                     }
                 }
             }
@@ -158,6 +158,11 @@ struct ExpiriesView: View {
         return (message: "\(item.plannedQuantity) will be stocked, need \(item.expiringQuantity) more", color: .secondary)
     }
 
+    private func machineDisplayName(for item: UpcomingExpiringItemsResponse.Section.Item) -> String {
+        let description = item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return description.isEmpty ? item.machine.code : description
+    }
+
     private func addNeeded(runId: String, item: UpcomingExpiringItemsResponse.Section.Item) {
         guard !isPerformingAction else {
             return
@@ -172,7 +177,8 @@ struct ExpiriesView: View {
                     coilItemId: item.coilItemId,
                     credentials: session.credentials
                 )
-                actionAlertMessage = "\(result.expiringQuantity) items added to coil \(result.coilCode)."
+                let machineName = machineDisplayName(for: item)
+                actionAlertMessage = "Added \(result.addedQuantity) items to \(machineName) for \(sectionHeaderText(result.runDate))."
                 isShowingActionAlert = true
                 await viewModel.load(force: true)
             } catch {
@@ -200,9 +206,9 @@ struct ExpiriesView: View {
             if let locationId = item.machine.locationId, run.locationIds.contains(locationId) {
                 return true
             }
-            return false
+                return false
         }) {
-            createPickEntry(runId: match.id, item: item)
+            createPickEntry(run: match, item: item)
             return
         }
 
@@ -211,7 +217,7 @@ struct ExpiriesView: View {
         isShowingRunPicker = true
     }
 
-    private func createPickEntry(runId: String, item: UpcomingExpiringItemsResponse.Section.Item) {
+    private func createPickEntry(run: UpcomingExpiringItemsResponse.Section.RunOption, item: UpcomingExpiringItemsResponse.Section.Item) {
         guard !isPerformingAction else {
             return
         }
@@ -226,12 +232,13 @@ struct ExpiriesView: View {
 
             do {
                 try await runsService.createPickEntry(
-                    runId: runId,
+                    runId: run.id,
                     coilItemId: item.coilItemId,
                     count: item.expiringQuantity,
                     credentials: session.credentials
                 )
-                actionAlertMessage = "\(item.expiringQuantity) items added to a run."
+                let machineName = machineDisplayName(for: item)
+                actionAlertMessage = "Added \(item.expiringQuantity) items to \(machineName) for \(sectionHeaderText(run.runDate))."
                 isShowingActionAlert = true
                 await viewModel.load(force: true)
             } catch {
@@ -247,12 +254,12 @@ struct ExpiriesView: View {
             .filter { !$0.isEmpty }
 
         if locationNames.isEmpty {
-            return "Run \(run.id.prefix(6))"
+            return "Run locations unavailable"
         }
 
         let summary = locationNames.prefix(2).joined(separator: ", ")
         let suffix = locationNames.count > 2 ? " +\(locationNames.count - 2)" : ""
-        return "Run \(run.id.prefix(6)) • \(summary)\(suffix)"
+        return "\(summary)\(suffix)"
     }
 
     private func runPickerMessage() -> String {

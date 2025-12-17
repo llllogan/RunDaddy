@@ -66,8 +66,30 @@ struct ExpiringItemsView: View {
         }
     }
 
-    private func sectionHeaderText(for section: ExpiringItemsRunResponse.Section) -> String {
-        "On day of run (\(section.expiryDate))"
+    private func formattedExpiryDateLabel(_ expiryDate: String) -> String {
+        guard let date = Self.expiryFormatter.date(from: expiryDate) else {
+            return expiryDate
+        }
+
+        let calendar = Calendar.current
+        let dayTitle: String
+        if calendar.isDateInToday(date) {
+            dayTitle = "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            dayTitle = "Tomorrow"
+        } else {
+            dayTitle = Self.weekdayFormatter.string(from: date)
+        }
+
+        let dayNumber = Self.dayFormatter.string(from: date)
+        let rawMonth = Self.monthFormatter.string(from: date)
+        let month = rawMonth.first.map { String($0).uppercased() + rawMonth.dropFirst().lowercased() } ?? rawMonth
+        return "\(dayTitle)  \(dayNumber) \(month)"
+    }
+
+    private func machineDisplayName(for item: ExpiringItemsRunResponse.Section.Item) -> String {
+        let description = item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return description.isEmpty ? item.machine.code : description
     }
 
     private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {
@@ -81,9 +103,9 @@ struct ExpiringItemsView: View {
             do {
                 let result = try await viewModel.addNeededForExpiringItem(coilItemId: item.coilItemId)
                 let added = result.expiringQuantity > 0 ? result.expiringQuantity : item.quantity
-                let coil = result.coilCode
                 let dateLabel = result.runDate.isEmpty ? runDate : result.runDate
-                addedAlertMessage = "\(added) items have been added to coil \(coil) on \(dateLabel)."
+                let machineName = machineDisplayName(for: item)
+                addedAlertMessage = "Added \(added) items to \(machineName) for \(formattedExpiryDateLabel(dateLabel))."
                 isShowingAddedAlert = true
             } catch {
                 addedAlertMessage = "We couldn't add the needed items right now. Please try again."
@@ -91,4 +113,36 @@ struct ExpiringItemsView: View {
             }
         }
     }
+
+    private static let expiryFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "dd"
+        return formatter
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "MMM"
+        return formatter
+    }()
 }
