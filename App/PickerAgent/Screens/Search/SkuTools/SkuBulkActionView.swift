@@ -40,6 +40,7 @@ struct SkuBulkActionView: View {
     @State private var errorMessage: String?
 
     @State private var weightInputText = ""
+    @State private var coldChestSkuIds: Set<String> = []
 
     private let searchService: SearchServicing = SearchService()
     private let skusService: SkusServicing = SkusService()
@@ -49,13 +50,28 @@ struct SkuBulkActionView: View {
         return trimmed.isEmpty ? suggestions : results
     }
 
+    private var visibleSkusForSelection: [SearchResult] {
+        visibleSkus.filter { sku in
+            guard sku.type.lowercased() == "sku" else {
+                return false
+            }
+            if mode == .addToColdChest, coldChestSkuIds.contains(sku.id) {
+                return false
+            }
+            return true
+        }
+    }
+
     private var selectedIds: [String] {
         selected.map(\.id)
     }
 
     private var selectedSummary: String {
-        let labels = selected.map(selectionLabel(for:))
-        return labels.isEmpty ? "None" : labels.joined(separator: ", ")
+        let count = selected.count
+        if count == 1 {
+            return "This will apply to 1 SKU."
+        }
+        return "This will apply to \(count) SKUs."
     }
 
     private var parsedWeight: Double? {
@@ -106,7 +122,7 @@ struct SkuBulkActionView: View {
                 }
 
                 if !selected.isEmpty {
-                    Section("Selection") {
+                    Section("Items to be updated") {
                         Text(selectedSummary)
                             .foregroundStyle(.primary)
 
@@ -157,7 +173,7 @@ struct SkuBulkActionView: View {
                     }
                 }
 
-                Section("Search") {
+                Section {
                     TextField("Search SKUs", text: $searchText)
                         .onChange(of: searchText) { _, newValue in
                             handleSearchTextChanged(newValue)
@@ -169,7 +185,7 @@ struct SkuBulkActionView: View {
                             Text("Searching…")
                                 .foregroundStyle(.secondary)
                         }
-                    } else if visibleSkus.isEmpty {
+                    } else if visibleSkusForSelection.isEmpty {
                         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text("Start typing to find SKUs. Recent suggestions will appear here.")
                                 .font(.footnote)
@@ -182,7 +198,7 @@ struct SkuBulkActionView: View {
                                 .padding(.vertical, 4)
                         }
                     } else {
-                        ForEach(visibleSkus) { sku in
+                        ForEach(visibleSkusForSelection) { sku in
                             Button {
                                 toggleSelection(sku)
                             } label: {
@@ -192,6 +208,10 @@ struct SkuBulkActionView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    }
+                } footer: {
+                    if mode == .addToColdChest {
+                        Text("Items already in the Cold Chest are not shown")
                     }
                 }
 
@@ -222,7 +242,7 @@ struct SkuBulkActionView: View {
                 }
             }
             .task {
-                await loadSuggestions()
+                await loadInitialData()
             }
             .onDisappear {
                 searchTask?.cancel()
@@ -258,6 +278,12 @@ struct SkuBulkActionView: View {
         }
     }
 
+    private func loadInitialData() async {
+        async let suggestionsTask: Void = loadSuggestions()
+        async let coldChestTask: Void = loadColdChestIdsIfNeeded()
+        _ = await (suggestionsTask, coldChestTask)
+    }
+
     private func loadSuggestions() async {
         do {
             let response = try await searchService.fetchSuggestions(lookbackDays: 14)
@@ -271,20 +297,60 @@ struct SkuBulkActionView: View {
         }
     }
 
+    private func loadColdChestIdsIfNeeded() async {
+        guard mode == .addToColdChest else {
+            return
+        }
+
+        do {
+            let coldChestSkus = try await skusService.getColdChestSkus()
+            await MainActor.run {
+                coldChestSkuIds = Set(coldChestSkus.map(\.id))
+                selected.removeAll(where: { coldChestSkuIds.contains($0.id) })
+            }
+        } catch {
+            await MainActor.run {
+                coldChestSkuIds = []
+            }
+        }
+    }
+
     private func isSelected(_ sku: SearchResult) -> Bool {
         selected.contains(where: { $0.id == sku.id })
     }
 
     private func toggleSelection(_ sku: SearchResult) {
+        if mode == .addToColdChest, coldChestSkuIds.contains(sku.id) {
+            return
+        }
         if let index = selected.firstIndex(where: { $0.id == sku.id }) {
             selected.remove(at: index)
+            if selected.isEmpty {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isSelectionExpanded = false
+                }
+            }
         } else {
             selected.append(sku)
+            if selected.count == 1 {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isSelectionExpanded = true
+                }
+            } else if selected.count == 2 {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isSelectionExpanded = false
+                }
+            }
         }
     }
 
     private func removeFromSelection(_ sku: SearchResult) {
         selected.removeAll(where: { $0.id == sku.id })
+        if selected.isEmpty {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSelectionExpanded = false
+            }
+        }
     }
 
     private func selectionLabel(for sku: SearchResult) -> String {
@@ -325,7 +391,12 @@ struct SkuBulkActionView: View {
                 guard let weight = parsedWeight else { return }
                 _ = try await skusService.bulkUpdateWeight(skuIds: selectedIds, weight: weight)
             case .addToColdChest:
-                _ = try await skusService.bulkAddToColdChest(skuIds: selectedIds)
+                let skuIdsToAdd = selectedIds.filter { !coldChestSkuIds.contains($0) }
+                guard !skuIdsToAdd.isEmpty else {
+                    errorMessage = "All selected SKUs are already in the Cold Chest."
+                    return
+                }
+                _ = try await skusService.bulkAddToColdChest(skuIds: skuIdsToAdd)
             }
             onComplete?()
             dismiss()

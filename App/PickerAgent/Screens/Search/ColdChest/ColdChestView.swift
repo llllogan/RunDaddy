@@ -8,6 +8,7 @@ struct ColdChestView: View {
     @State private var errorMessage: String?
     @State private var loadTask: Task<Void, Never>?
     @State private var isShowingAddSheet = false
+    @State private var removingSkuIds: Set<String> = []
 
     private let skusService: SkusServicing = SkusService()
 
@@ -42,6 +43,15 @@ struct ColdChestView: View {
                                     subtitle: sku.name
                                 )
                             )
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                Task { await removeFromColdChest(sku) }
+                            } label: {
+                                Label("Remove", systemImage: "minus.circle.fill")
+                            }
+                            .tint(.orange)
+                            .disabled(removingSkuIds.contains(sku.id))
                         }
                     }
                 } header: {
@@ -98,5 +108,27 @@ struct ColdChestView: View {
             skus = []
             isLoading = false
         }
+    }
+
+    @MainActor
+    private func removeFromColdChest(_ sku: SKU) async {
+        if removingSkuIds.contains(sku.id) {
+            return
+        }
+
+        removingSkuIds.insert(sku.id)
+        errorMessage = nil
+
+        do {
+            try await skusService.updateColdChestStatus(id: sku.id, isFreshOrFrozen: false)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                skus.removeAll(where: { $0.id == sku.id })
+            }
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Unable to remove this SKU from the cold chest right now."
+        }
+
+        removingSkuIds.remove(sku.id)
     }
 }
