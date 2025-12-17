@@ -289,7 +289,7 @@ fileprivate final class AllRunsViewModel: ObservableObject {
                 }
             }
 
-            futureDates.sort()
+            futureDates.sort(by: >)
             pastDates.sort(by: >)
 
             var orderedDates: [Date] = []
@@ -300,7 +300,12 @@ fileprivate final class AllRunsViewModel: ObservableObject {
             orderedDates.append(contentsOf: pastDates)
 
             runsByDate = orderedDates.map { date in
-                RunDateSection(date: date, runs: groupedRuns[date] ?? [])
+                let runsForDate = (groupedRuns[date] ?? []).sorted { lhs, rhs in
+                    let lhsDate = lhs.scheduledFor ?? lhs.createdAt
+                    let rhsDate = rhs.scheduledFor ?? rhs.createdAt
+                    return lhsDate < rhsDate
+                }
+                return RunDateSection(date: date, runs: runsForDate)
             }
         } catch {
             if let authError = error as? AuthError {
