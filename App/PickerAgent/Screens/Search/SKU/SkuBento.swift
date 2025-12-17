@@ -15,6 +15,9 @@ struct SkuInfoBento: View {
     let labelColour: Binding<Color>
     let isUpdatingLabelColour: Bool
     let canEditLabelColour: Bool
+    let canEditWeight: Bool
+    let isUpdatingWeight: Bool
+    let onConfigureWeight: () -> Void
     let isUpdatingExpiryDays: Bool
     let firstSeen: String?
     let onConfigureExpiryDays: () -> Void
@@ -213,23 +216,25 @@ struct SkuInfoBento: View {
     }()
 
     private var weightCard: BentoItem {
-        guard let weight = sku.weight else {
-            return BentoItem(
-                id: "sku-info-weight",
-                title: "Weight",
-                value: "Not set",
-                symbolName: "scalemass",
-                symbolTint: .secondary
-            )
+        let valueText: String
+        if isUpdatingWeight {
+            valueText = "Saving…"
+        } else if let weight = sku.weight {
+            valueText = formattedWeight(weight)
+        } else {
+            valueText = "Not set"
         }
 
         return BentoItem(
             id: "sku-info-weight",
             title: "Weight",
-            value: formattedWeight(weight),
+            value: valueText,
+            subtitle: canEditWeight ? "Configure" : nil,
             symbolName: "scalemass",
-            symbolTint: .orange,
-            isProminent: true
+            symbolTint: sku.weight == nil ? .secondary : .orange,
+            isProminent: sku.weight != nil,
+            onTap: canEditWeight ? onConfigureWeight : nil,
+            showsChevron: canEditWeight
         )
     }
 
