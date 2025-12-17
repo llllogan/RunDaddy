@@ -139,6 +139,10 @@ struct ExpiriesView: View {
         return description.isEmpty ? item.machine.code : description
     }
 
+    private func itemLabel(for count: Int) -> String {
+        count == 1 ? "item" : "items"
+    }
+
     private func noRunsScheduledMessage(for expiryDate: String) -> String {
         guard let date = Self.expiryFormatter.date(from: expiryDate) else {
             return "No runs are scheduled for \(expiryDate)."
@@ -223,7 +227,7 @@ struct ExpiriesView: View {
                     credentials: session.credentials
                 )
                 let machineName = machineDisplayName(for: item)
-                actionAlertMessage = "Added \(result.addedQuantity) items to \(machineName) for \(sectionHeaderText(result.runDate))."
+                actionAlertMessage = "Added \(result.addedQuantity) \(itemLabel(for: result.addedQuantity)) to \(machineName) for \(sectionHeaderText(result.runDate))."
                 isShowingActionAlert = true
                 await viewModel.load(force: true)
             } catch {
@@ -283,7 +287,7 @@ struct ExpiriesView: View {
                     credentials: session.credentials
                 )
                 let machineName = machineDisplayName(for: item)
-                actionAlertMessage = "Added \(item.expiringQuantity) items to \(machineName) for \(sectionHeaderText(run.runDate))."
+                actionAlertMessage = "Added \(item.expiringQuantity) \(itemLabel(for: item.expiringQuantity)) to \(machineName) for \(sectionHeaderText(run.runDate))."
                 isShowingActionAlert = true
                 await viewModel.load(force: true)
             } catch {

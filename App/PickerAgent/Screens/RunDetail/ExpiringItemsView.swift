@@ -92,6 +92,10 @@ struct ExpiringItemsView: View {
         return description.isEmpty ? item.machine.code : description
     }
 
+    private func itemLabel(for count: Int) -> String {
+        count == 1 ? "item" : "items"
+    }
+
     private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {
         if isAddingNeeded {
             return
@@ -105,7 +109,7 @@ struct ExpiringItemsView: View {
                 let added = result.expiringQuantity > 0 ? result.expiringQuantity : item.quantity
                 let dateLabel = result.runDate.isEmpty ? runDate : result.runDate
                 let machineName = machineDisplayName(for: item)
-                addedAlertMessage = "Added \(added) items to \(machineName) for \(formattedExpiryDateLabel(dateLabel))."
+                addedAlertMessage = "Added \(added) \(itemLabel(for: added)) to \(machineName) for \(formattedExpiryDateLabel(dateLabel))."
                 isShowingAddedAlert = true
             } catch {
                 addedAlertMessage = "We couldn't add the needed items right now. Please try again."
