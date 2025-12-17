@@ -221,6 +221,7 @@ private struct SearchTab: View {
     @State private var isLoadingSkuTools = false
     @State private var skuToolsErrorMessage: String?
     @State private var bulkSetSkuWeightMessage: String?
+    @State private var isShowingColdChest = false
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
@@ -285,6 +286,9 @@ private struct SearchTab: View {
                         .background(Color(.systemBackground))
                 }
             }
+            .navigationDestination(isPresented: $isShowingColdChest) {
+                ColdChestView(session: session)
+            }
             .onAppear {
                 isSearchFocused = true
                 if suggestions.isEmpty {
@@ -317,13 +321,13 @@ private struct SearchTab: View {
 
     @ViewBuilder
     private func skuToolsSection() -> some View {
-        Section {
+        Section("Quick Actions") {
             SearchSkuToolsBentoView(
                 coldChestSkuCount: coldChestSkuCount,
                 missingWeightSkuCount: missingWeightSkuCount,
                 isLoading: isLoadingSkuTools,
                 onBulkSetSkuWeight: { showBulkSetSkuWeightComingSoon() },
-                coldChestDestination: AnyView(ColdChestView(session: session))
+                onColdChestTap: { isShowingColdChest = true }
             )
             // .padding(.horizontal, 16)
             .padding(.vertical, 4)

@@ -80,10 +80,16 @@ struct BentoCard: View {
             Text(item.title)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         } else {
             Text(item.title.uppercased())
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
