@@ -17,7 +17,7 @@ struct RunsListView: View {
         runs.sorted { lhs, rhs in
             let lhsDate = lhs.scheduledFor ?? lhs.createdAt
             let rhsDate = rhs.scheduledFor ?? rhs.createdAt
-            return lhsDate < rhsDate
+            return lhsDate > rhsDate
         }
     }
 

@@ -10,7 +10,7 @@ import Foundation
 enum AppVersion {
     static let headerField = "X-App-Version"
     /// Update this constant to the required client version. No plist or env indirection.
-    static let current = "17"
+    static let current = "18"
 }
 
 struct AppUpdateRequiredError: LocalizedError, Equatable {

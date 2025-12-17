@@ -27,6 +27,189 @@ const HEX_COLOUR_REGEX = /^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 router.use(authenticate);
 
+router.get('/cold-chest/count', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const count = await prisma.sKU.count({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      isFreshOrFrozen: true,
+    },
+  });
+
+  return res.json({ count });
+});
+
+router.get('/cold-chest', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const skus = await prisma.sKU.findMany({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      isFreshOrFrozen: true,
+    },
+    orderBy: {
+      code: 'asc',
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      type: true,
+      category: true,
+      weight: true,
+      labelColour: true,
+      countNeededPointer: true,
+      isFreshOrFrozen: true,
+      expiryDays: true,
+    },
+  });
+
+  return res.json(
+    skus.map((sku) => ({
+      id: sku.id,
+      code: sku.code,
+      name: sku.name,
+      type: sku.type,
+      category: sku.category,
+      weight: sku.weight,
+      labelColour: sku.labelColour,
+      countNeededPointer: sku.countNeededPointer,
+      isFreshOrFrozen: sku.isFreshOrFrozen,
+      expiryDays: sku.expiryDays,
+    })),
+  );
+});
+
+router.get('/missing-weight/count', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const count = await prisma.sKU.count({
+    where: {
+      ...buildSkuCompanyWhere(companyId),
+      weight: null,
+    },
+  });
+
+  return res.json({ count });
+});
+
+router.post('/bulk/weight', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const { skuIds, weight } = req.body as { skuIds?: unknown; weight?: unknown };
+
+  if (!Array.isArray(skuIds) || skuIds.length === 0 || skuIds.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+    return res.status(400).json({ error: 'skuIds must be a non-empty array of strings' });
+  }
+
+  if (weight !== null && weight !== undefined) {
+    const parsedWeight = Number(weight);
+    if (!Number.isFinite(parsedWeight) || parsedWeight < 0) {
+      return res.status(400).json({ error: 'weight must be null or a non-negative number' });
+    }
+  }
+
+  const requestedIds = skuIds.map((id) => id.trim());
+
+  const accessibleSkus = await prisma.sKU.findMany({
+    where: {
+      id: { in: requestedIds },
+      ...buildSkuCompanyWhere(companyId),
+    },
+    select: { id: true },
+  });
+
+  if (accessibleSkus.length !== requestedIds.length) {
+    return res.status(403).json({ error: 'One or more SKUs are not available for your company' });
+  }
+
+  const updateResult = await prisma.sKU.updateMany({
+    where: { id: { in: requestedIds } },
+    data: {
+      weight: weight === null || weight === undefined ? null : Number(weight),
+    },
+  });
+
+  return res.json({ updatedCount: updateResult.count });
+});
+
+router.post('/bulk/cold-chest', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const companyId = req.auth.companyId;
+  if (!companyId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (!isCompanyManager(req.auth.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
+  }
+
+  const { skuIds } = req.body as { skuIds?: unknown };
+
+  if (!Array.isArray(skuIds) || skuIds.length === 0 || skuIds.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+    return res.status(400).json({ error: 'skuIds must be a non-empty array of strings' });
+  }
+
+  const requestedIds = skuIds.map((id) => id.trim());
+
+  const accessibleSkus = await prisma.sKU.findMany({
+    where: {
+      id: { in: requestedIds },
+      ...buildSkuCompanyWhere(companyId),
+    },
+    select: { id: true },
+  });
+
+  if (accessibleSkus.length !== requestedIds.length) {
+    return res.status(403).json({ error: 'One or more SKUs are not available for your company' });
+  }
+
+  const updateResult = await prisma.sKU.updateMany({
+    where: { id: { in: requestedIds } },
+    data: {
+      isFreshOrFrozen: true,
+    },
+  });
+
+  return res.json({ updatedCount: updateResult.count });
+});
+
 // Update SKU isFreshOrFrozen field
 router.patch('/:skuId/fresh-or-frozen', setLogConfig({ level: 'minimal' }), async (req, res) => {
   if (!req.auth) {
@@ -151,10 +334,47 @@ router.patch('/:skuId/expiry-days', setLogConfig({ level: 'minimal' }), async (r
     return res.status(403).json({ error: 'Insufficient permissions to update SKU' });
   }
 
+  const companyId = req.auth.companyId as string;
+  const timeZone = await resolveCompanyTimezone(companyId);
+  const lookbackStart = new Date();
+  lookbackStart.setMonth(lookbackStart.getMonth() - 3);
+
   const updatedSku = await prisma.sKU.update({
     where: { id: skuId },
     data: { expiryDays: parsedExpiryDays },
   });
+
+  if (updatedSku.expiryDays <= 0) {
+    await prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE PickEntry pe
+          INNER JOIN Run r ON r.id = pe.runId
+          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        SET pe.expiryDate = NULL
+        WHERE r.companyId = ${companyId}
+          AND ci.skuId = ${skuId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${lookbackStart};
+      `,
+    );
+  } else {
+    const expiryOffsetDays = Math.max(0, Math.floor(updatedSku.expiryDays) - 1);
+    await prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE PickEntry pe
+          INNER JOIN Run r ON r.id = pe.runId
+          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        SET pe.expiryDate = DATE_FORMAT(
+          DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), INTERVAL ${expiryOffsetDays} DAY),
+          '%Y-%m-%d'
+        )
+        WHERE r.companyId = ${companyId}
+          AND ci.skuId = ${skuId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${lookbackStart};
+      `,
+    );
+  }
 
   return res.json({
     id: updatedSku.id,
@@ -867,6 +1087,26 @@ function normalizeFilterValue(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildSkuCompanyWhere(companyId: string): Prisma.SKUWhereInput {
+  return {
+    OR: [
+      { companyId },
+      {
+        companyId: null,
+        coilItems: {
+          some: {
+            coil: {
+              machine: {
+                companyId,
+              },
+            },
+          },
+        },
+      },
+    ],
+  };
 }
 
 export const skuRouter = router;

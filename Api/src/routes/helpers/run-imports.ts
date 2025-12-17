@@ -6,6 +6,7 @@ import { parseRunWorkbook } from '../../lib/run-import-parser.js';
 import { prisma } from '../../lib/prisma.js';
 import { determineScheduledFor, isValidTimezone } from '../../lib/timezone.js';
 import { RunStatus as AppRunStatus } from '../../types/enums.js';
+import { computeExpiryDateLabel } from './app-dates.js';
 import type {
   ParsedCoilItem,
   ParsedMachine,
@@ -119,6 +120,11 @@ export const persistRunFromWorkbook = async ({
           data: { timeZone: timezone },
         });
       }
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { timeZone: true },
+      });
+      const companyTimeZone = timezone ?? company?.timeZone ?? 'UTC';
       const runRecord = await tx.run.create({
         data: {
           companyId,
@@ -128,7 +134,7 @@ export const persistRunFromWorkbook = async ({
       });
 
       for (const entry of run.pickEntries) {
-        await persistPickEntry(tx, helpers, runRecord.id, entry);
+        await persistPickEntry(tx, helpers, runRecord.id, runRecord.scheduledFor, companyTimeZone, entry);
       }
 
       return runRecord;
@@ -300,7 +306,7 @@ const createImportHelpers = (tx: TransactionClient, companyId: string) => {
 
   const ensureSku = async (
     sku: ParsedCoilItem['sku'],
-  ): Promise<{ id: string; countNeededPointer?: string | null }> => {
+  ): Promise<{ id: string; countNeededPointer?: string | null; expiryDays?: number | null }> => {
     const code = sku.code?.trim();
     if (!code) {
       throw new RunImportError('Encountered a SKU without a code in the workbook.');
@@ -417,6 +423,8 @@ const persistPickEntry = async (
   tx: TransactionClient,
   helpers: ReturnType<typeof createImportHelpers>,
   runId: string,
+  scheduledFor: Date | null,
+  timeZone: string,
   entry: ParsedPickEntry,
 ) => {
   const machine = entry.coilItem.coil.machine;
@@ -463,6 +471,11 @@ const persistPickEntry = async (
       need: normalizeInteger(entry.need),
       forecast: normalizeInteger(entry.forecast),
       total: normalizeInteger(entry.total),
+      expiryDate: computeExpiryDateLabel({
+        scheduledFor,
+        timeZone,
+        expiryDays: skuRecord.expiryDays ?? 0,
+      }),
     },
   });
 };

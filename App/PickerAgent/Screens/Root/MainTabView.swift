@@ -59,23 +59,15 @@ struct MainTabView: View {
 private extension MainTabView {
     var tabView: some View {
         TabView {
-            Tab("Runs", systemImage: "archivebox.fill") {
+            Tab("Runs", systemImage: "truck.box") {
                 RunsTab(
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
                 .id(session.credentials.accessToken)
             }
-
-            Tab("Analytics", systemImage: "chart.bar.xaxis.ascending") {
-                AnalyticsTab(
-                    session: session,
-                    isShowingProfile: $isShowingProfile
-                )
-                .id(session.credentials.accessToken)
-            }
-
-            Tab("Notes", systemImage: "note.text") {
+            
+            Tab("Notes", systemImage: "list.bullet.clipboard") {
                 NotesTab(
                     session: session,
                     isShowingProfile: $isShowingProfile
@@ -83,6 +75,23 @@ private extension MainTabView {
                 .id(session.credentials.accessToken)
             }
 
+            Tab("Expiries", systemImage: "calendar") {
+                ExpiriesTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+                .id(session.credentials.accessToken)
+            }
+
+            Tab("Analytics", systemImage: "chart.bar.fill") {
+                AnalyticsTab(
+                    session: session,
+                    isShowingProfile: $isShowingProfile
+                )
+                .id(session.credentials.accessToken)
+            }
+
+            
             Tab(role: .search) {
                 SearchTab(
                     session: session,
@@ -145,6 +154,32 @@ private struct AnalyticsTab: View {
     }
 }
 
+private struct ExpiriesTab: View {
+    let session: AuthSession
+    @Binding var isShowingProfile: Bool
+
+    var body: some View {
+        NavigationStack {
+            ExpiriesView(session: session)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        profileButton
+                    }
+                }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                isShowingProfile = true
+            }
+        } label: {
+            Label("Profile", systemImage: "person.fill")
+        }
+    }
+}
+
 private struct NotesTab: View {
     let session: AuthSession
     @Binding var isShowingProfile: Bool
@@ -181,10 +216,17 @@ private struct SearchTab: View {
     @State private var isSearching = false
     @State private var isLoadingSuggestions = false
     @State private var suggestionsErrorMessage: String?
+    @State private var coldChestSkuCount: Int?
+    @State private var missingWeightSkuCount: Int?
+    @State private var isLoadingSkuTools = false
+    @State private var skuToolsErrorMessage: String?
+    @State private var isShowingBulkSetSkuWeight = false
+    @State private var isShowingColdChest = false
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
     private let searchService = SearchService()
+    private let skusService: SkusServicing = SkusService()
 
     private var isShowingSuggestions: Bool {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -194,6 +236,7 @@ private struct SearchTab: View {
         NavigationStack {
             List {
                 if isShowingSuggestions {
+                    skuToolsSection()
                     suggestionsSection()
                 } else {
                     searchResultsSection()
@@ -218,9 +261,15 @@ private struct SearchTab: View {
             .onChange(of: suggestionsErrorMessage) { _, _ in
                 refreshNotifications()
             }
+            .onChange(of: skuToolsErrorMessage) { _, _ in
+                refreshNotifications()
+            }
             .inAppNotifications(notifications) { notification in
                 if notification.isDismissable && notification.message == suggestionsErrorMessage {
                     suggestionsErrorMessage = nil
+                }
+                if notification.isDismissable && notification.message == skuToolsErrorMessage {
+                    skuToolsErrorMessage = nil
                 }
                 notifications.removeAll(where: { $0.id == notification.id })
             }
@@ -231,10 +280,23 @@ private struct SearchTab: View {
                         .background(Color(.systemBackground))
                 }
             }
+            .navigationDestination(isPresented: $isShowingColdChest) {
+                ColdChestView(session: session)
+            }
+            .sheet(isPresented: $isShowingBulkSetSkuWeight) {
+                SkuBulkActionView(mode: .bulkSetWeight) {
+                    coldChestSkuCount = nil
+                    missingWeightSkuCount = nil
+                    loadSkuToolsIfNeeded(force: true)
+                }
+            }
             .onAppear {
                 isSearchFocused = true
                 if suggestions.isEmpty {
                     loadSuggestionsIfNeeded()
+                }
+                if isShowingSuggestions {
+                    loadSkuToolsIfNeeded(force: true)
                 }
             }
             .onDisappear {
@@ -257,6 +319,24 @@ private struct SearchTab: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func skuToolsSection() -> some View {
+        Section("Quick Actions") {
+            SearchSkuToolsBentoView(
+                coldChestSkuCount: coldChestSkuCount,
+                missingWeightSkuCount: missingWeightSkuCount,
+                isLoading: isLoadingSkuTools,
+                onBulkSetSkuWeight: { isShowingBulkSetSkuWeight = true },
+                onColdChestTap: { isShowingColdChest = true }
+            )
+            // .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -289,6 +369,7 @@ private struct SearchTab: View {
         if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             searchResults = []
             searchDebounceTask?.cancel()
+            loadSkuToolsIfNeeded(force: true)
         } else {
             scheduleDebouncedSearch(for: newValue)
         }
@@ -298,6 +379,16 @@ private struct SearchTab: View {
         var items: [InAppNotification] = []
 
         if let message = suggestionsErrorMessage {
+            items.append(
+                InAppNotification(
+                    message: message,
+                    style: .info,
+                    isDismissable: true
+                )
+            )
+        }
+
+        if let message = skuToolsErrorMessage {
             items.append(
                 InAppNotification(
                     message: message,
@@ -349,6 +440,37 @@ private struct SearchTab: View {
                     suggestionsErrorMessage = (error as? LocalizedError)?.errorDescription
                         ?? "Unable to load suggestions right now."
                     isLoadingSuggestions = false
+                }
+            }
+        }
+    }
+
+    private func loadSkuToolsIfNeeded(force: Bool = false) {
+        if isLoadingSkuTools {
+            return
+        }
+
+        if !force, coldChestSkuCount != nil, missingWeightSkuCount != nil {
+            return
+        }
+
+        isLoadingSkuTools = true
+        skuToolsErrorMessage = nil
+        Task {
+            do {
+                async let coldChestCount = skusService.getColdChestSkuCount()
+                async let missingWeightCount = skusService.getSkusMissingWeightCount()
+                let (resolvedColdChestCount, resolvedMissingWeightCount) = try await (coldChestCount, missingWeightCount)
+                await MainActor.run {
+                    coldChestSkuCount = resolvedColdChestCount
+                    missingWeightSkuCount = resolvedMissingWeightCount
+                    isLoadingSkuTools = false
+                }
+            } catch {
+                await MainActor.run {
+                    skuToolsErrorMessage = (error as? LocalizedError)?.errorDescription
+                        ?? "Unable to load SKU tools right now."
+                    isLoadingSkuTools = false
                 }
             }
         }

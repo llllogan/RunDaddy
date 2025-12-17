@@ -1,4 +1,4 @@
-import { formatDateInTimezone } from '../../lib/timezone.js';
+import { formatDateInTimezone, getTimezoneDayRange } from '../../lib/timezone.js';
 
 const coerceToDate = (value: Date | string): Date => {
   if (value instanceof Date) {
@@ -42,4 +42,21 @@ export const formatAppExclusiveRange = (
     start: formatDateInTimezone(startDate, timeZone),
     end: formatDateInTimezone(adjustedEnd, timeZone),
   };
+};
+
+export const computeExpiryDateLabel = ({
+  scheduledFor,
+  timeZone,
+  expiryDays,
+}: {
+  scheduledFor: Date | string | null | undefined;
+  timeZone: string;
+  expiryDays: number | null | undefined;
+}): string | null => {
+  if (!scheduledFor || typeof expiryDays !== 'number' || !Number.isFinite(expiryDays) || expiryDays <= 0) {
+    return null;
+  }
+
+  const offset = Math.max(0, Math.floor(expiryDays) - 1);
+  return getTimezoneDayRange({ timeZone, reference: coerceToDate(scheduledFor), dayOffset: offset }).label;
 };

@@ -27,14 +27,14 @@ struct PreviewRunsService: RunsServicing {
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 1,
                             coilItemId: "coil-item-2",
-                            sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix"),
+                            sku: .init(id: "sku-1", code: "SKU-001", name: "Trail Mix", type: "Sour"),
                             machine: .init(id: "machine-2", code: "B-204", description: "Breakroom"),
                             coil: .init(id: "coil-2", code: "C2")
                         ),
                         ExpiringItemsRunResponse.Section.Item(
                             quantity: 3,
                             coilItemId: "coil-item-1",
-                            sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers"),
+                            sku: .init(id: "sku-3", code: "SKU-003", name: "Cheese & Crackers", type: "Sharp"),
                             machine: .init(id: "machine-1", code: "A-101", description: "Lobby"),
                             coil: .init(id: "coil-1", code: "C1")
                         )
@@ -51,6 +51,10 @@ struct PreviewRunsService: RunsServicing {
             coilCode: "C2",
             runDate: "2025-11-06"
         )
+    }
+
+    func createPickEntry(runId: String, coilItemId: String, count: Int, credentials: AuthCredentials) async throws {
+        return
     }
     
     func fetchAllRuns(startDayOffset: Int, endDayOffset: Int?, companyId: String? = nil, credentials: AuthCredentials) async throws -> [RunSummary] {
@@ -119,9 +123,9 @@ struct PreviewRunsService: RunsServicing {
             countNeededPointer: "current"
         )
 
-        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
-        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
-        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, overrideCount: nil, current: 11, par: 15, need: 9, forecast: 10, total: 18, isPicked: true, pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown, packingSessionId: nil)
+        let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, expiryDate: "2025-03-11", isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: skuSnack, machine: machineA, location: downtown, packingSessionId: nil)
+        let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, expiryDate: "2025-03-11", isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: skuCheese, machine: machineB, location: downtown, packingSessionId: "preview-packing-session")
+        let pickC = RunDetail.PickItem(id: "pick-3", count: 9, overrideCount: nil, current: 11, par: 15, need: 9, forecast: 10, total: 18, expiryDate: "2025-03-12", isPicked: true, pickedAt: Date().addingTimeInterval(-1200), coilItem: coilItemC, sku: skuDrink, machine: machineC, location: uptown, packingSessionId: nil)
 
         let chocolateBox1 = RunDetail.ChocolateBox(id: "box-1", number: 1, machine: machineA)
         let chocolateBox2 = RunDetail.ChocolateBox(id: "box-2", number: 34, machine: machineB)

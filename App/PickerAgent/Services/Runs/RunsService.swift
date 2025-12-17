@@ -14,6 +14,7 @@ protocol RunsServicing {
     func fetchRunDetail(withId runId: String, credentials: AuthCredentials) async throws -> RunDetail
     func fetchExpiringItems(for runId: String, credentials: AuthCredentials) async throws -> ExpiringItemsRunResponse
     func addNeededForExpiringItem(runId: String, coilItemId: String, credentials: AuthCredentials) async throws -> AddNeededForExpiryResponse
+    func createPickEntry(runId: String, coilItemId: String, count: Int, credentials: AuthCredentials) async throws
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws
     func fetchCompanyUsers(credentials: AuthCredentials) async throws -> [CompanyUser]
     func updatePickItemStatuses(runId: String, pickIds: [String], isPicked: Bool, credentials: AuthCredentials) async throws
@@ -164,6 +165,7 @@ struct ExpiringItemsRunResponse: Equatable, Decodable {
                 let id: String
                 let code: String
                 let name: String
+                let type: String
             }
 
             struct Machine: Equatable, Decodable {
@@ -202,6 +204,24 @@ struct AddNeededForExpiryResponse: Equatable, Decodable {
     let expiringQuantity: Int
     let coilCode: String
     let runDate: String
+}
+
+private struct CreatePickEntryResponse: Decodable {
+    let id: String
+    let runId: String
+    let coilItemId: String
+    let count: Int
+    let overrideCount: Int?
+    let expiryDate: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case runId
+        case coilItemId
+        case count
+        case overrideCount = "override"
+        case expiryDate
+    }
 }
 
 struct RunDetail: Equatable {
@@ -300,6 +320,7 @@ struct RunDetail: Equatable {
         let need: Int?
         let forecast: Int?
         let total: Int?
+        let expiryDate: String?
         let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -608,6 +629,46 @@ final class RunsService: RunsServicing {
         }
 
         return try decoder.decode(AddNeededForExpiryResponse.self, from: data)
+    }
+
+    func createPickEntry(runId: String, coilItemId: String, count: Int, credentials: AuthCredentials) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("runs")
+        url.appendPathComponent(runId)
+        url.appendPathComponent("picks")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "coilItemId": coilItemId,
+            "count": count
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RunsServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            if httpResponse.statusCode == 404 {
+                throw RunsServiceError.runNotFound
+            }
+            if httpResponse.statusCode == 409 {
+                throw RunsServiceError.pickEntryConflict
+            }
+            throw RunsServiceError.serverError(code: httpResponse.statusCode)
+        }
+
+        _ = try decoder.decode(CreatePickEntryResponse.self, from: data)
     }
 
     func assignUser(to runId: String, userId: String, role: String, credentials: AuthCredentials) async throws {
@@ -1600,6 +1661,7 @@ private struct RunDetailResponse: Decodable {
         let need: Int?
         let forecast: Int?
         let total: Int?
+        let expiryDate: String?
         let isPicked: Bool
         let pickedAt: Date?
         let coilItem: CoilItem
@@ -1618,6 +1680,7 @@ private struct RunDetailResponse: Decodable {
             case need
             case forecast
             case total
+            case expiryDate
             case isPicked
             case pickedAt
             case coilItem
@@ -1639,6 +1702,7 @@ private struct RunDetailResponse: Decodable {
                 need: need,
                 forecast: forecast,
                 total: total,
+                expiryDate: expiryDate,
                 isPicked: isPicked,
                 pickedAt: pickedAt,
                 coilItem: coilItem.toCoilItem(with: coilDomain),

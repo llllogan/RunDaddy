@@ -19,15 +19,21 @@ struct ExpiringItemsView: View {
                 } else {
                     List {
                         ForEach(response.sections) { section in
-                            Section(header: Text(sectionHeaderText(for: section))) {
+                            Section() {
                                 ForEach(section.items) { item in
-                                    ExpiringItemRow(item: item)
+                                    ExpiringItemRowView(
+                                        skuName: item.sku.name,
+                                        skuType: item.sku.type,
+                                        machineCode: item.machine.code,
+                                        coilCode: item.coil.code,
+                                        quantity: item.quantity
+                                    )
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             if section.dayOffset == 0 {
                                                 Button {
                                                     addNeeded(for: item, runDate: section.expiryDate)
                                                 } label: {
-                                                    Label("Add Needed", systemImage: "arrow.up.to.line")
+                                                    Label("Add \(item.quantity) to coil", systemImage: "plus")
                                                 }
                                                 .tint(.blue)
                                                 .disabled(isAddingNeeded)
@@ -60,8 +66,34 @@ struct ExpiringItemsView: View {
         }
     }
 
-    private func sectionHeaderText(for section: ExpiringItemsRunResponse.Section) -> String {
-        "On day of run (\(section.expiryDate))"
+    private func formattedExpiryDateLabel(_ expiryDate: String) -> String {
+        guard let date = Self.expiryFormatter.date(from: expiryDate) else {
+            return expiryDate
+        }
+
+        let calendar = Calendar.current
+        let dayTitle: String
+        if calendar.isDateInToday(date) {
+            dayTitle = "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            dayTitle = "Tomorrow"
+        } else {
+            dayTitle = Self.weekdayFormatter.string(from: date)
+        }
+
+        let dayNumber = Self.dayFormatter.string(from: date)
+        let rawMonth = Self.monthFormatter.string(from: date)
+        let month = rawMonth.first.map { String($0).uppercased() + rawMonth.dropFirst().lowercased() } ?? rawMonth
+        return "\(dayTitle)  \(dayNumber) \(month)"
+    }
+
+    private func machineDisplayName(for item: ExpiringItemsRunResponse.Section.Item) -> String {
+        let description = item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return description.isEmpty ? item.machine.code : description
+    }
+
+    private func itemLabel(for count: Int) -> String {
+        count == 1 ? "item" : "items"
     }
 
     private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {
@@ -74,10 +106,10 @@ struct ExpiringItemsView: View {
             defer { isAddingNeeded = false }
             do {
                 let result = try await viewModel.addNeededForExpiringItem(coilItemId: item.coilItemId)
-                let added = result.addedQuantity
-                let coil = result.coilCode
+                let added = result.expiringQuantity > 0 ? result.expiringQuantity : item.quantity
                 let dateLabel = result.runDate.isEmpty ? runDate : result.runDate
-                addedAlertMessage = "\(added) items have been added to coil \(coil) on \(dateLabel)."
+                let machineName = machineDisplayName(for: item)
+                addedAlertMessage = "Added \(added) \(itemLabel(for: added)) to \(machineName) for \(formattedExpiryDateLabel(dateLabel))."
                 isShowingAddedAlert = true
             } catch {
                 addedAlertMessage = "We couldn't add the needed items right now. Please try again."
@@ -85,35 +117,36 @@ struct ExpiringItemsView: View {
             }
         }
     }
-}
 
-private struct ExpiringItemRow: View {
-    let item: ExpiringItemsRunResponse.Section.Item
+    private static let expiryFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.sku.name)
-                    .font(.headline)
-                    .lineLimit(2)
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
 
-                Text("\(item.machine.code) • Coil \(item.coil.code)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "dd"
+        return formatter
+    }()
 
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(item.quantity)")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text("EXPIRING")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "MMM"
+        return formatter
+    }()
 }

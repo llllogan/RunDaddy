@@ -72,7 +72,11 @@ struct SkuDetailView: View {
                             labelColour: $selectedLabelColour,
                             isUpdatingLabelColour: isUpdatingLabelColour,
                             canEditLabelColour: canEditSku,
+                            canEditWeight: canEditSku,
+                            isUpdatingWeight: isUpdatingWeight,
+                            onConfigureWeight: { openWeightEditor() },
                             isUpdatingExpiryDays: isUpdatingExpiryDays,
+                            firstSeen: skuStats.firstSeen,
                             onConfigureExpiryDays: { openExpiryDaysEditor() }
                         )
                     } else if isLoadingStats {
@@ -118,7 +122,6 @@ struct SkuDetailView: View {
                             SkuPerformanceBento(
                                 percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: skuStats.bestMachine,
-                                firstSeen: skuStats.firstSeen,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: { bestMachine in
                                     navigateToMachineDetail(bestMachine)
@@ -135,7 +138,6 @@ struct SkuDetailView: View {
                             SkuPerformanceBento(
                                 percentageChange: chartsViewModel.skuBreakdownPercentageChange,
                                 bestMachine: nil,
-                                firstSeen: nil,
                                 selectedPeriod: selectedPeriod,
                                 onBestMachineTap: nil,
                                 highMark: chartsViewModel.skuBreakdownHighMark,
@@ -220,32 +222,23 @@ struct SkuDetailView: View {
                     Label(selectedPeriod.displayName, systemImage: "calendar")
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                if isUpdatingWeight {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                } else {
-                    Button {
-                        openWeightEditor()
-                    } label: {
-                        Label("Update Weight", systemImage: "scalemass")
-                            .labelStyle(.iconOnly)
-                    }
-                    .disabled(!canEditSku || sku == nil)
-                    .accessibilityLabel("Update SKU weight")
-                }
-            }
         }
         .textFieldAlert(
             isPresented: $isShowingWeightAlert,
             text: $weightInputText,
-            title: "Update Weight",
+            title: "Update Weight (grams)",
             message: weightUpdateError,
             confirmTitle: "Save",
             cancelTitle: "Cancel",
+            secondaryTitle: sku?.weight != nil ? "Clear" : nil,
+            secondaryStyle: .destructive,
             keyboardType: .decimalPad,
             allowedCharacterSet: CharacterSet(charactersIn: "0123456789.,"),
             onConfirm: {
+                Task { await submitWeightUpdate() }
+            },
+            onSecondary: {
+                weightInputText = ""
                 Task { await submitWeightUpdate() }
             },
             onCancel: {
@@ -432,6 +425,7 @@ struct SkuDetailView: View {
     }
 
     private func openWeightEditor() {
+        guard canEditSku else { return }
         guard sku != nil else { return }
         weightUpdateError = nil
         weightInputText = formattedWeightInput(from: sku?.weight)

@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { getTimezoneDayRange } from '../../lib/timezone.js';
 import { ensureRun } from './runs.js';
@@ -11,11 +10,18 @@ type ExpiringItemsSectionItem = {
     id: string;
     code: string;
     name: string;
+    type: string;
   };
   machine: {
     id: string;
     code: string;
     description: string | null;
+    locationId: string | null;
+    location: {
+      id: string;
+      name: string | null;
+      address: string | null;
+    } | null;
   };
   coil: {
     id: string;
@@ -32,6 +38,36 @@ export type ExpiringItemsSection = {
 export type ExpiringItemsRunResponse = {
   warningCount: number;
   sections: ExpiringItemsSection[];
+};
+
+type UpcomingExpiringItemsSectionItem = ExpiringItemsSectionItem & {
+  plannedQuantity: number;
+  expiringQuantity: number;
+  stockingRun: {
+    id: string;
+    runDate: string; // YYYY-MM-DD in company timezone
+  } | null;
+};
+
+export type UpcomingExpiringItemsSection = {
+  expiryDate: string; // YYYY-MM-DD, in company timezone
+  items: UpcomingExpiringItemsSectionItem[];
+  runs: Array<{
+    id: string;
+    runDate: string; // YYYY-MM-DD, in company timezone
+    locationIds: string[];
+    machineIds: string[];
+    locations: Array<{
+      id: string;
+      name: string | null;
+      address: string | null;
+    }>;
+  }>;
+};
+
+export type UpcomingExpiringItemsResponse = {
+  warningCount: number;
+  sections: UpcomingExpiringItemsSection[];
 };
 
 export type AddNeededForExpiryResult = {
@@ -87,40 +123,60 @@ const resolvePickEntryCount = (entry: PickEntryCountSource): number => {
   return resolvePointerCount(entry);
 };
 
-type ExpiringQuantityRow = {
-  coil_item_id: string;
-  sku_id: string;
-  sku_code: string;
-  sku_name: string;
-  coil_id: string;
-  coil_code: string;
-  machine_id: string;
-  machine_code: string;
-  machine_description: string | null;
-  expiry_date: string;
-  expiring_quantity: bigint | number | string;
+type PlannedRunEntry = {
+  runAtMs: number;
+  plannedQuantity: number;
 };
 
-const parseQueryNumber = (value: bigint | number | string): number => {
-  if (typeof value === 'bigint') {
-    return Number(value);
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  return Number.parseInt(value, 10);
+type PlannedIndex = {
+  runAtMs: number[];
+  prefixSum: number[];
+  total: number;
 };
 
-const buildResolvedCountSql = () => Prisma.sql`
-  CASE
-    WHEN pe.override IS NOT NULL THEN pe.override
-    WHEN LOWER(COALESCE(s.countNeededPointer, 'total')) = 'current' THEN COALESCE(pe.current, pe.count)
-    WHEN LOWER(COALESCE(s.countNeededPointer, 'total')) = 'par' THEN COALESCE(pe.par, pe.count)
-    WHEN LOWER(COALESCE(s.countNeededPointer, 'total')) = 'need' THEN COALESCE(pe.need, pe.count)
-    WHEN LOWER(COALESCE(s.countNeededPointer, 'total')) = 'forecast' THEN COALESCE(pe.forecast, pe.count)
-    ELSE COALESCE(pe.total, pe.count)
-  END
-`;
+const buildPlannedIndex = (entries: PlannedRunEntry[]): PlannedIndex => {
+  const sorted = entries
+    .filter((entry) => entry.plannedQuantity > 0)
+    .sort((a, b) => a.runAtMs - b.runAtMs);
+
+  const runAtMs: number[] = [];
+  const prefixSum: number[] = [];
+  let total = 0;
+
+  for (const entry of sorted) {
+    runAtMs.push(entry.runAtMs);
+    total += entry.plannedQuantity;
+    prefixSum.push(total);
+  }
+
+  return { runAtMs, prefixSum, total };
+};
+
+const findFirstGreater = (values: number[], target: number): number => {
+  let low = 0;
+  let high = values.length;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if ((values[mid] ?? 0) <= target) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return low;
+};
+
+const sumPlannedAfter = (index: PlannedIndex, afterMs: number): number => {
+  const startIndex = findFirstGreater(index.runAtMs, afterMs);
+  if (startIndex >= index.runAtMs.length) {
+    return 0;
+  }
+
+  const sumBefore = startIndex > 0 ? (index.prefixSum[startIndex - 1] ?? 0) : 0;
+  return Math.max(0, index.total - sumBefore);
+};
 
 export async function buildExpiringItemsForRun(
   companyId: string,
@@ -137,6 +193,10 @@ export async function buildExpiringItemsForRun(
   const timeZone = await resolveCompanyTimezone(companyId);
 
   const runDayRange = getTimezoneDayRange({ timeZone, reference: run.scheduledFor!, dayOffset: 0 });
+  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 }).label;
+  if (runDayRange.label < windowStartLabel) {
+    return { warningCount: 0, sections: [] };
+  }
 
   const coilItemIds = Array.from(
     new Set(run.pickEntries.map((entry) => entry.coilItemId).filter((value): value is string => Boolean(value))),
@@ -146,146 +206,629 @@ export async function buildExpiringItemsForRun(
     return { warningCount: 0, sections: [] };
   }
 
-  const plannedRestocks = new Map<string, number>();
+  const plannedByCoilItemId = new Map<string, number>();
+  const detailsByCoilItemId = new Map<string, Omit<ExpiringItemsSectionItem, 'quantity'>>();
+
   run.pickEntries.forEach((entry) => {
-    const plannedCount = resolvePickEntryCount(entry as unknown as PickEntryCountSource);
-    if (plannedCount <= 0) {
-      return;
-    }
-    plannedRestocks.set(entry.coilItemId, (plannedRestocks.get(entry.coilItemId) ?? 0) + plannedCount);
-  });
+    plannedByCoilItemId.set(entry.coilItemId, Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource)));
 
-  const currentByCoilItemId = new Map<string, number>();
-  run.pickEntries.forEach((entry) => {
-    if (typeof entry.current !== 'number' || !Number.isFinite(entry.current)) {
-      return;
-    }
-    currentByCoilItemId.set(entry.coilItemId, Math.max(0, entry.current));
-  });
-
-  const resolvedCountSql = buildResolvedCountSql();
-  const targetLabels = [runDayRange.label];
-
-  const expiringRows = await prisma.$queryRaw<ExpiringQuantityRow[]>(
-    Prisma.sql`
-      SELECT
-        pe.coilItemId AS coil_item_id,
-        s.id AS sku_id,
-        s.code AS sku_code,
-        s.name AS sku_name,
-        c.id AS coil_id,
-        c.code AS coil_code,
-        m.id AS machine_id,
-        m.code AS machine_code,
-        m.description AS machine_description,
-        DATE_FORMAT(
-          DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), INTERVAL (s.expiryDays - 1) DAY),
-          '%Y-%m-%d'
-        ) AS expiry_date,
-        SUM(${resolvedCountSql}) AS expiring_quantity
-      FROM PickEntry pe
-        INNER JOIN Run r ON r.id = pe.runId
-        INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
-        INNER JOIN Coil c ON c.id = ci.coilId
-        INNER JOIN Machine m ON m.id = c.machineId
-        INNER JOIN SKU s ON s.id = ci.skuId
-      WHERE r.companyId = ${companyId}
-        AND pe.coilItemId IN (${Prisma.join(coilItemIds)})
-        AND r.scheduledFor IS NOT NULL
-        AND s.expiryDays > 0
-      GROUP BY
-        coil_item_id,
-        sku_id,
-        sku_code,
-        sku_name,
-        coil_id,
-        coil_code,
-        machine_id,
-        machine_code,
-        machine_description,
-        expiry_date
-      HAVING expiry_date IN (${Prisma.join(targetLabels)})
-        AND expiring_quantity > 0
-    `,
-  );
-
-  if (!expiringRows.length) {
-    return { warningCount: 0, sections: [] };
-  }
-
-  const expiringByCoilItem = new Map<string, number>();
-  const detailsByCoilItemByDate = new Map<string, ExpiringItemsSectionItem>();
-
-  expiringRows.forEach((row) => {
-    const expiringQty = parseQueryNumber(row.expiring_quantity);
-    if (!Number.isFinite(expiringQty) || expiringQty <= 0) {
-      return;
-    }
-
-    expiringByCoilItem.set(row.coil_item_id, (expiringByCoilItem.get(row.coil_item_id) ?? 0) + expiringQty);
-
-    const detailKey = `${row.coil_item_id}:${row.expiry_date}`;
-    if (!detailsByCoilItemByDate.has(detailKey)) {
-      detailsByCoilItemByDate.set(detailKey, {
-        quantity: 0,
-        coilItemId: row.coil_item_id,
+    if (!detailsByCoilItemId.has(entry.coilItemId)) {
+      detailsByCoilItemId.set(entry.coilItemId, {
+        coilItemId: entry.coilItemId,
         sku: {
-          id: row.sku_id,
-          code: row.sku_code,
-          name: row.sku_name,
+          id: entry.coilItem.sku.id,
+          code: entry.coilItem.sku.code,
+          name: entry.coilItem.sku.name,
+          type: entry.coilItem.sku.type,
         },
         machine: {
-          id: row.machine_id,
-          code: row.machine_code,
-          description: row.machine_description,
+          id: entry.coilItem.coil.machine.id,
+          code: entry.coilItem.coil.machine.code,
+          description: entry.coilItem.coil.machine.description,
+          locationId: entry.coilItem.coil.machine.location?.id ?? null,
+          location: entry.coilItem.coil.machine.location
+            ? {
+                id: entry.coilItem.coil.machine.location.id,
+                name: entry.coilItem.coil.machine.location.name,
+                address: entry.coilItem.coil.machine.location.address,
+              }
+            : null,
         },
         coil: {
-          id: row.coil_id,
-          code: row.coil_code,
+          id: entry.coilItem.coil.id,
+          code: entry.coilItem.coil.code,
         },
       });
     }
   });
 
-  const warningItemsByDate = new Map<string, { dayOffset: 0; items: ExpiringItemsSectionItem[] }>();
+  const expiringPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId: { in: coilItemIds },
+      expiryDate: runDayRange.label,
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: runDayRange.end,
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
 
-  const addWarningItem = (coilItemId: string, expiryDate: string, quantity: number) => {
-    if (quantity <= 0) {
-      return;
-    }
-
-    const detailKey = `${coilItemId}:${expiryDate}`;
-    const baseDetails = detailsByCoilItemByDate.get(detailKey);
-    if (!baseDetails) {
-      return;
-    }
-
-    const warningItem: ExpiringItemsSectionItem = {
-      ...baseDetails,
-      quantity,
-    };
-
-    if (!warningItemsByDate.has(expiryDate)) {
-      warningItemsByDate.set(expiryDate, { dayOffset: 0, items: [] });
-    }
-    warningItemsByDate.get(expiryDate)!.items.push(warningItem);
-  };
-
-  for (const [coilItemId, expiringQty] of expiringByCoilItem.entries()) {
-    const currentCount = currentByCoilItemId.get(coilItemId);
-    const expToday = currentCount === undefined ? (expiringQty ?? 0) : Math.min(expiringQty ?? 0, currentCount);
-    const restToday = plannedRestocks.get(coilItemId) ?? 0;
-
-    const missingToday = Math.max(0, expToday - restToday);
-
-    addWarningItem(coilItemId, runDayRange.label, missingToday);
+  if (!expiringPickEntries.length) {
+    return { warningCount: 0, sections: [] };
   }
 
-  const sections: ExpiringItemsSection[] = Array.from(warningItemsByDate.entries())
-    .map(([expiryDate, group]) => ({
+  let earliestRunAtMs: number | null = null;
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    earliestRunAtMs = earliestRunAtMs === null ? runAt : Math.min(earliestRunAtMs, runAt);
+  }
+
+  if (earliestRunAtMs === null) {
+    return { warningCount: 0, sections: [] };
+  }
+
+  const restockPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId: { in: coilItemIds },
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: runDayRange.end,
+          gte: new Date(earliestRunAtMs),
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  const restockEntriesByCoilItemId = new Map<string, PlannedRunEntry[]>();
+
+  for (const entry of restockPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    const plannedQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (!restockEntriesByCoilItemId.has(entry.coilItemId)) {
+      restockEntriesByCoilItemId.set(entry.coilItemId, []);
+    }
+    restockEntriesByCoilItemId.get(entry.coilItemId)!.push({ runAtMs: runAt, plannedQuantity });
+  }
+
+  const restockIndexByCoilItemId = new Map<string, PlannedIndex>();
+  for (const [coilItemId, entries] of restockEntriesByCoilItemId.entries()) {
+    restockIndexByCoilItemId.set(coilItemId, buildPlannedIndex(entries));
+  }
+
+  const expiringRemainingByCoilItemId = new Map<string, number>();
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+
+    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (expiringQuantity <= 0) {
+      continue;
+    }
+
+    const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
+    const restockedAfter = sumPlannedAfter(index, runAt);
+    const remaining = Math.max(0, expiringQuantity - restockedAfter);
+    if (remaining <= 0) {
+      continue;
+    }
+
+    expiringRemainingByCoilItemId.set(entry.coilItemId, (expiringRemainingByCoilItemId.get(entry.coilItemId) ?? 0) + remaining);
+  }
+
+  const items: ExpiringItemsSectionItem[] = [];
+  for (const [coilItemId, expiringRemaining] of expiringRemainingByCoilItemId.entries()) {
+    if (expiringRemaining <= 0) {
+      continue;
+    }
+    const base = detailsByCoilItemId.get(coilItemId);
+    if (!base) {
+      continue;
+    }
+    items.push({ ...base, quantity: expiringRemaining });
+  }
+
+  if (!items.length) {
+    return { warningCount: 0, sections: [] };
+  }
+
+  items.sort((a, b) => {
+    const skuCompare = a.sku.name.localeCompare(b.sku.name);
+    if (skuCompare !== 0) {
+      return skuCompare;
+    }
+    const machineCompare = a.machine.code.localeCompare(b.machine.code);
+    if (machineCompare !== 0) {
+      return machineCompare;
+    }
+    return a.coil.code.localeCompare(b.coil.code);
+  });
+
+  return {
+    warningCount: items.length,
+    sections: [
+      {
+        expiryDate: runDayRange.label,
+        dayOffset: 0,
+        items,
+      },
+    ],
+  };
+}
+
+export async function buildUpcomingExpiringItems({
+  companyId,
+  daysAhead = 14,
+}: {
+  companyId: string;
+  daysAhead?: number;
+}): Promise<UpcomingExpiringItemsResponse> {
+  const resolvedDaysAhead = Number.isFinite(daysAhead) ? Math.max(0, Math.min(28, Math.floor(daysAhead))) : 14;
+
+  const timeZone = await resolveCompanyTimezone(companyId);
+  const windowStart = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 });
+  const windowEnd = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead });
+  const windowEndExclusive = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead + 1 });
+
+  const expiringPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      expiryDate: {
+        gte: windowStart.label,
+        lte: windowEnd.label,
+      },
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: windowEndExclusive.start,
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      expiryDate: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              type: true,
+              countNeededPointer: true,
+            },
+          },
+          coil: {
+            select: {
+              id: true,
+              code: true,
+              machine: {
+                select: {
+                  id: true,
+                  code: true,
+                  description: true,
+                  location: {
+                    select: {
+                      id: true,
+                      name: true,
+                      address: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  if (!expiringPickEntries.length) {
+    return { warningCount: 0, sections: [] };
+  }
+
+  const coilItemIds = Array.from(new Set(expiringPickEntries.map((entry) => entry.coilItemId)));
+
+  let earliestRunAtMs: number | null = null;
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    earliestRunAtMs = earliestRunAtMs === null ? runAt : Math.min(earliestRunAtMs, runAt);
+  }
+
+  if (earliestRunAtMs === null) {
+    return { warningCount: 0, sections: [] };
+  }
+
+  const restockPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId: { in: coilItemIds },
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: windowEndExclusive.start,
+          gte: new Date(earliestRunAtMs),
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  const restockEntriesByCoilItemId = new Map<string, PlannedRunEntry[]>();
+  for (const entry of restockPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    const plannedQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (!restockEntriesByCoilItemId.has(entry.coilItemId)) {
+      restockEntriesByCoilItemId.set(entry.coilItemId, []);
+    }
+    restockEntriesByCoilItemId.get(entry.coilItemId)!.push({ runAtMs: runAt, plannedQuantity });
+  }
+
+  const restockIndexByCoilItemId = new Map<string, PlannedIndex>();
+  for (const [coilItemId, entries] of restockEntriesByCoilItemId.entries()) {
+    restockIndexByCoilItemId.set(coilItemId, buildPlannedIndex(entries));
+  }
+
+  const plannedPickEntriesByDate = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId: { in: coilItemIds },
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          gte: windowStart.start,
+          lt: windowEndExclusive.start,
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          id: true,
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  const plannedByCoilItemIdByDate = new Map<string, number>();
+  const stockingRunByCoilItemIdByDate = new Map<string, { runId: string; runAtMs: number }>();
+
+  for (const entry of plannedPickEntriesByDate) {
+    if (!entry.run?.scheduledFor) {
+      continue;
+    }
+
+    const runDate = getTimezoneDayRange({ timeZone, reference: entry.run.scheduledFor, dayOffset: 0 }).label;
+    const key = `${entry.coilItemId}:${runDate}`;
+    const plannedQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+
+    plannedByCoilItemIdByDate.set(key, (plannedByCoilItemIdByDate.get(key) ?? 0) + plannedQuantity);
+
+    const runAtMs = entry.run.scheduledFor.getTime();
+    const existing = stockingRunByCoilItemIdByDate.get(key);
+    if (!existing || runAtMs < existing.runAtMs) {
+      stockingRunByCoilItemIdByDate.set(key, { runId: entry.run.id, runAtMs });
+    }
+  }
+
+  const expiringRemainingByCoilItemIdByDate = new Map<string, number>();
+  const detailsByCoilItemId = new Map<string, Omit<ExpiringItemsSectionItem, 'quantity'>>();
+
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt || !entry.expiryDate) {
+      continue;
+    }
+
+    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (expiringQuantity <= 0) {
+      continue;
+    }
+
+    const index = restockIndexByCoilItemId.get(entry.coilItemId) ?? buildPlannedIndex([]);
+    const restockedAfter = sumPlannedAfter(index, runAt);
+    const remaining = Math.max(0, expiringQuantity - restockedAfter);
+    if (remaining <= 0) {
+      continue;
+    }
+
+    const detailKey = `${entry.coilItemId}:${entry.expiryDate}`;
+    expiringRemainingByCoilItemIdByDate.set(detailKey, (expiringRemainingByCoilItemIdByDate.get(detailKey) ?? 0) + remaining);
+
+    if (!detailsByCoilItemId.has(entry.coilItemId)) {
+      detailsByCoilItemId.set(entry.coilItemId, {
+        coilItemId: entry.coilItemId,
+        sku: {
+          id: entry.coilItem.sku.id,
+          code: entry.coilItem.sku.code,
+          name: entry.coilItem.sku.name,
+          type: entry.coilItem.sku.type,
+        },
+        machine: {
+          id: entry.coilItem.coil.machine.id,
+          code: entry.coilItem.coil.machine.code,
+          description: entry.coilItem.coil.machine.description,
+          locationId: entry.coilItem.coil.machine.location?.id ?? null,
+          location: entry.coilItem.coil.machine.location
+            ? {
+                id: entry.coilItem.coil.machine.location.id,
+                name: entry.coilItem.coil.machine.location.name,
+                address: entry.coilItem.coil.machine.location.address,
+              }
+            : null,
+        },
+        coil: {
+          id: entry.coilItem.coil.id,
+          code: entry.coilItem.coil.code,
+        },
+      });
+    }
+  }
+
+  const sectionsByDate = new Map<string, UpcomingExpiringItemsSectionItem[]>();
+
+  for (const [detailKey, expiringRemaining] of expiringRemainingByCoilItemIdByDate.entries()) {
+    const [coilItemId, expiryDate] = detailKey.split(':');
+    if (!coilItemId || !expiryDate) {
+      continue;
+    }
+
+    const base = detailsByCoilItemId.get(coilItemId);
+    if (!base) {
+      continue;
+    }
+
+    const plannedQuantity = plannedByCoilItemIdByDate.get(detailKey) ?? 0;
+    if (expiringRemaining <= 0) {
+      continue;
+    }
+
+    const stockingRun = stockingRunByCoilItemIdByDate.get(detailKey);
+
+    const item: UpcomingExpiringItemsSectionItem = {
+      ...base,
+      quantity: expiringRemaining,
+      plannedQuantity,
+      expiringQuantity: expiringRemaining,
+      stockingRun: stockingRun
+        ? {
+            id: stockingRun.runId,
+            runDate: expiryDate,
+          }
+        : null,
+    };
+
+    if (!sectionsByDate.has(expiryDate)) {
+      sectionsByDate.set(expiryDate, []);
+    }
+    sectionsByDate.get(expiryDate)!.push(item);
+  }
+
+  const expiryDates = Array.from(sectionsByDate.keys());
+  const runs = expiryDates.length
+    ? await prisma.run.findMany({
+        where: {
+          companyId,
+          scheduledFor: {
+            not: null,
+            gte: windowStart.start,
+            lt: windowEndExclusive.start,
+          },
+        },
+        select: {
+          id: true,
+          scheduledFor: true,
+          pickEntries: {
+            select: {
+              coilItem: {
+                select: {
+                  coil: {
+                    select: {
+                      machine: {
+                        select: {
+                          id: true,
+                          location: {
+                            select: {
+                              id: true,
+                              name: true,
+                              address: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          locationOrders: {
+            select: {
+              location: {
+                select: {
+                  id: true,
+                  name: true,
+                  address: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+
+  const runsByDate = new Map<
+    string,
+    Array<{
+      id: string;
+      runDate: string;
+      locationIds: string[];
+      machineIds: string[];
+      locations: Array<{ id: string; name: string | null; address: string | null }>;
+    }>
+  >();
+
+  for (const run of runs) {
+    if (!run.scheduledFor) {
+      continue;
+    }
+    const runDate = getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 0 }).label;
+    if (!runsByDate.has(runDate)) {
+      runsByDate.set(runDate, []);
+    }
+
+    const machineIds = new Set<string>();
+    const locationsById = new Map<string, { id: string; name: string | null; address: string | null }>();
+
+    for (const pickEntry of run.pickEntries) {
+      const machine = pickEntry.coilItem.coil.machine;
+      machineIds.add(machine.id);
+      if (machine.location) {
+        locationsById.set(machine.location.id, machine.location);
+      }
+    }
+
+    for (const order of run.locationOrders) {
+      if (order.location) {
+        locationsById.set(order.location.id, order.location);
+      }
+    }
+
+    const locations = Array.from(locationsById.values());
+    const locationIds = locations.map((location) => location.id);
+
+    runsByDate.get(runDate)!.push({
+      id: run.id,
+      runDate,
+      locationIds,
+      machineIds: Array.from(machineIds),
+      locations,
+    });
+  }
+
+  const sections: UpcomingExpiringItemsSection[] = Array.from(sectionsByDate.entries())
+    .map(([expiryDate, items]) => ({
       expiryDate,
-      dayOffset: group.dayOffset,
-      items: group.items.sort((a, b) => {
+      items: items.sort((a, b) => {
         const skuCompare = a.sku.name.localeCompare(b.sku.name);
         if (skuCompare !== 0) {
           return skuCompare;
@@ -296,6 +839,7 @@ export async function buildExpiringItemsForRun(
         }
         return a.coil.code.localeCompare(b.coil.code);
       }),
+      runs: runsByDate.get(expiryDate) ?? [],
     }))
     .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
 
@@ -303,10 +847,6 @@ export async function buildExpiringItemsForRun(
 
   return { warningCount, sections };
 }
-
-type ExpiringSumRow = {
-  expiring_quantity: bigint | number | string | null;
-};
 
 export async function addNeededForRunDayExpiry({
   companyId,
@@ -333,6 +873,10 @@ export async function addNeededForRunDayExpiry({
 
   const timeZone = await resolveCompanyTimezone(companyId);
   const runDayLabel = getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 0 }).label;
+  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 }).label;
+  if (runDayLabel < windowStartLabel) {
+    return null;
+  }
 
   const pickEntry = await prisma.pickEntry.findUnique({
     where: {
@@ -357,36 +901,129 @@ export async function addNeededForRunDayExpiry({
 
   const plannedCount = resolvePickEntryCount(pickEntry as unknown as PickEntryCountSource);
 
-  const resolvedCountSql = buildResolvedCountSql();
-  const expiringSum = await prisma.$queryRaw<ExpiringSumRow[]>(
-    Prisma.sql`
-      SELECT
-        SUM(${resolvedCountSql}) AS expiring_quantity
-      FROM PickEntry pe
-        INNER JOIN Run r ON r.id = pe.runId
-        INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
-        INNER JOIN SKU s ON s.id = ci.skuId
-      WHERE r.companyId = ${companyId}
-        AND pe.coilItemId = ${coilItemId}
-        AND r.scheduledFor IS NOT NULL
-        AND s.expiryDays > 0
-        AND DATE_FORMAT(
-          DATE_ADD(CONVERT_TZ(r.scheduledFor, 'UTC', ${timeZone}), INTERVAL (s.expiryDays - 1) DAY),
-          '%Y-%m-%d'
-        ) = ${runDayLabel}
-    `,
-  );
+  const expiringPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId,
+      expiryDate: runDayLabel,
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 1 }).start,
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
 
-  const expiringQuantity = expiringSum.length
-    ? parseQueryNumber(expiringSum[0]?.expiring_quantity ?? 0)
-    : 0;
-  const currentCount = typeof pickEntry.current === 'number' && Number.isFinite(pickEntry.current)
-    ? Math.max(0, pickEntry.current)
-    : null;
-  const remainingExpiringQuantity = currentCount === null ? expiringQuantity : Math.min(expiringQuantity, currentCount);
-  const addedQuantity = Math.max(0, remainingExpiringQuantity - plannedCount);
+  if (!expiringPickEntries.length) {
+    return {
+      addedQuantity: 0,
+      expiringQuantity: 0,
+      coilCode: pickEntry.coilItem.coil.code,
+      runDate: runDayLabel,
+    };
+  }
 
-  if (addedQuantity <= 0) {
+  let earliestRunAtMs: number | null = null;
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    earliestRunAtMs = earliestRunAtMs === null ? runAt : Math.min(earliestRunAtMs, runAt);
+  }
+
+  const restockPickEntries = await prisma.pickEntry.findMany({
+    where: {
+      coilItemId,
+      run: {
+        companyId,
+        scheduledFor: {
+          not: null,
+          lt: getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 1 }).start,
+          ...(earliestRunAtMs ? { gte: new Date(earliestRunAtMs) } : {}),
+        },
+      },
+    },
+    select: {
+      coilItemId: true,
+      count: true,
+      override: true,
+      current: true,
+      par: true,
+      need: true,
+      forecast: true,
+      total: true,
+      coilItem: {
+        select: {
+          sku: {
+            select: {
+              countNeededPointer: true,
+            },
+          },
+        },
+      },
+      run: {
+        select: {
+          scheduledFor: true,
+        },
+      },
+    },
+  });
+
+  const plannedEntries: PlannedRunEntry[] = [];
+  for (const entry of restockPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    plannedEntries.push({
+      runAtMs: runAt,
+      plannedQuantity: Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource)),
+    });
+  }
+
+  const index = buildPlannedIndex(plannedEntries);
+
+  let remainingExpiringQuantity = 0;
+  for (const entry of expiringPickEntries) {
+    const runAt = entry.run?.scheduledFor?.getTime();
+    if (!runAt) {
+      continue;
+    }
+    const expiringQuantity = Math.max(0, resolvePickEntryCount(entry as unknown as PickEntryCountSource));
+    if (expiringQuantity <= 0) {
+      continue;
+    }
+    const restockedAfter = sumPlannedAfter(index, runAt);
+    remainingExpiringQuantity += Math.max(0, expiringQuantity - restockedAfter);
+  }
+
+  if (remainingExpiringQuantity <= 0) {
     return {
       addedQuantity: 0,
       expiringQuantity: remainingExpiringQuantity,
@@ -394,6 +1031,9 @@ export async function addNeededForRunDayExpiry({
       runDate: runDayLabel,
     };
   }
+
+  const overrideCount = Math.max(0, plannedCount) + remainingExpiringQuantity;
+  const addedQuantity = remainingExpiringQuantity;
 
   await prisma.pickEntry.update({
     where: {
@@ -403,8 +1043,8 @@ export async function addNeededForRunDayExpiry({
       },
     },
     data: {
-      override: remainingExpiringQuantity,
-      count: remainingExpiringQuantity,
+      override: overrideCount,
+      count: overrideCount,
     },
   });
 
@@ -413,7 +1053,7 @@ export async function addNeededForRunDayExpiry({
       companyId,
       runId,
       machineId: pickEntry.coilItem.coil.machineId,
-      body: `Coil ${pickEntry.coilItem.coil.code} has ${addedQuantity} items expiring`,
+      body: `Coil ${pickEntry.coilItem.coil.code} has ${remainingExpiringQuantity} items expiring`,
       createdBy: userId,
     },
   });

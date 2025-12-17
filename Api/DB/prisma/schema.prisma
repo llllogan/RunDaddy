@@ -240,6 +240,8 @@ model PickEntry {
   need       Int?
   forecast   Int?
   total      Int?
+  /// YYYY-MM-DD in the owning company's timezone, derived from the run date + SKU expiryDays at creation time.
+  expiryDate String? @db.VarChar(10)
   isPicked   Boolean @default(false)
   pickedAt   DateTime?
 
@@ -250,6 +252,8 @@ model PickEntry {
   @@unique([runId, coilItemId])
   @@index([runId])
   @@index([coilItemId])
+  @@index([expiryDate])
+  @@index([coilItemId, expiryDate])
   @@index([packingSessionId])
 }
 

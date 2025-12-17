@@ -834,6 +834,10 @@ struct PickEntryRow: View {
                     }
                     
                     InfoChip(title: "Coil", text: pickItem.coilItem.coil.code)
+
+                    if let expiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines), !expiryDate.isEmpty {
+                        InfoChip(title: "Exp", text: expiryDate, icon: "calendar")
+                    }
                     
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
                         let chipColour = colorForCategoryChip(category)
@@ -934,8 +938,8 @@ private func colorForCategoryChip(_ category: String) -> Color {
         countNeededPointer: "total"
     )
 
-    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
-    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
+    let pickA = RunDetail.PickItem(id: "pick-1", count: 6, overrideCount: nil, current: 8, par: 10, need: 6, forecast: 7, total: 12, expiryDate: "2025-03-11", isPicked: true, pickedAt: Date(), coilItem: coilItemA, sku: sku, machine: machineA, location: location, packingSessionId: nil)
+    let pickB = RunDetail.PickItem(id: "pick-2", count: 4, overrideCount: 5, current: 3, par: 8, need: 4, forecast: 5, total: 9, expiryDate: "2025-03-11", isPicked: false, pickedAt: nil, coilItem: coilItemB, sku: sku, machine: machineB, location: location, packingSessionId: nil)
 
     let section = RunLocationSection(
         id: location.id,
