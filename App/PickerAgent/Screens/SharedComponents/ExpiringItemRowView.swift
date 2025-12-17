@@ -7,6 +7,7 @@ struct ExpiringItemRowView: View {
     let coilCode: String
     let quantity: Int
     let stockingMessage: String?
+    let stockingMessageColor: Color
 
     init(
         skuName: String,
@@ -14,7 +15,8 @@ struct ExpiringItemRowView: View {
         machineCode: String,
         coilCode: String,
         quantity: Int,
-        stockingMessage: String? = nil
+        stockingMessage: String? = nil,
+        stockingMessageColor: Color = .secondary
     ) {
         self.skuName = skuName
         self.skuType = skuType
@@ -22,6 +24,7 @@ struct ExpiringItemRowView: View {
         self.coilCode = coilCode
         self.quantity = quantity
         self.stockingMessage = stockingMessage
+        self.stockingMessageColor = stockingMessageColor
     }
 
     var body: some View {
@@ -44,7 +47,7 @@ struct ExpiringItemRowView: View {
                 if let stockingMessage, !stockingMessage.isEmpty {
                     Text(stockingMessage)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(stockingMessageColor)
                         .lineLimit(2)
                 }
             }

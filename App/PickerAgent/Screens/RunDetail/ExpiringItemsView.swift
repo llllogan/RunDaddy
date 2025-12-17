@@ -19,7 +19,7 @@ struct ExpiringItemsView: View {
                 } else {
                     List {
                         ForEach(response.sections) { section in
-                            Section(header: Text(sectionHeaderText(for: section))) {
+                            Section() {
                                 ForEach(section.items) { item in
                                     ExpiringItemRowView(
                                         skuName: item.sku.name,
@@ -33,7 +33,7 @@ struct ExpiringItemsView: View {
                                                 Button {
                                                     addNeeded(for: item, runDate: section.expiryDate)
                                                 } label: {
-                                                    Label("Add Needed", systemImage: "arrow.up.to.line")
+                                                    Label("Add \(item.quantity) to coil", systemImage: "plus.circle.fill")
                                                 }
                                                 .tint(.blue)
                                                 .disabled(isAddingNeeded)
@@ -80,7 +80,7 @@ struct ExpiringItemsView: View {
             defer { isAddingNeeded = false }
             do {
                 let result = try await viewModel.addNeededForExpiringItem(coilItemId: item.coilItemId)
-                let added = result.addedQuantity
+                let added = result.expiringQuantity > 0 ? result.expiringQuantity : item.quantity
                 let coil = result.coilCode
                 let dateLabel = result.runDate.isEmpty ? runDate : result.runDate
                 addedAlertMessage = "\(added) items have been added to coil \(coil) on \(dateLabel)."

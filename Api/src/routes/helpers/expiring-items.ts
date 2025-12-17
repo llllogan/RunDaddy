@@ -889,8 +889,8 @@ export async function addNeededForRunDayExpiry({
     };
   }
 
-  const overrideCount = remainingExpiringQuantity;
-  const addedQuantity = Math.max(0, overrideCount - plannedCount);
+  const overrideCount = Math.max(0, plannedCount) + remainingExpiringQuantity;
+  const addedQuantity = remainingExpiringQuantity;
 
   await prisma.pickEntry.update({
     where: {

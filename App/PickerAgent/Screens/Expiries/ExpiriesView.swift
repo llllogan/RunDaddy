@@ -38,13 +38,17 @@ struct ExpiriesView: View {
                         ForEach(response.sections) { section in
                             Section(header: Text(sectionHeaderText(section.expiryDate))) {
                                 ForEach(section.items) { item in
+                                    let stockingStatus = stockingStatus(for: item)
                                     ExpiringItemRowView(
                                         skuName: item.sku.name,
                                         skuType: item.sku.type,
-                                        machineCode: item.machine.code,
+                                        machineCode: item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                                            ? item.machine.description!
+                                            : item.machine.code,
                                         coilCode: item.coil.code,
                                         quantity: item.expiringQuantity,
-                                        stockingMessage: stockingMessage(for: item)
+                                        stockingMessage: stockingStatus.message,
+                                        stockingMessageColor: stockingStatus.color
                                     )
                                 }
                             }
@@ -90,12 +94,12 @@ struct ExpiriesView: View {
         return "\(dayTitle)  \(dayNumber) \(month)"
     }
 
-    private func stockingMessage(for item: UpcomingExpiringItemsResponse.Section.Item) -> String? {
+    private func stockingStatus(for item: UpcomingExpiringItemsResponse.Section.Item) -> (message: String, color: Color) {
         guard let stockingRun = item.stockingRun else {
-            return nil
+            return (message: "Not stocked in a run", color: .red)
         }
 
-        return "\(item.plannedQuantity) will be stocked on \(stockingRun.runDate), need \(item.expiringQuantity) more"
+        return (message: "\(item.plannedQuantity) will be stocked, need \(item.expiringQuantity) more", color: .secondary)
     }
 
     private static let expiryFormatter: DateFormatter = {
