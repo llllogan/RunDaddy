@@ -246,7 +246,7 @@ struct RunLocationDetailView: View {
                             }
                             .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+	                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
                                 pickItemPendingSubstitution = pickItem
                             } label: {
@@ -270,14 +270,14 @@ struct RunLocationDetailView: View {
                             }
                             .tint(.blue)
                             
-                            Button {
-                                pickItemPendingDeletion = pickItem
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .tint(.red)
-                        }
-                    }
+	                            Button {
+	                                pickItemPendingDeletion = pickItem
+	                            } label: {
+	                                Label("Remove", systemImage: "minus.circle")
+	                            }
+	                            .tint(.red)
+	                        }
+	                    }
                 }
             } header: {
                 Text("Picks")
@@ -342,16 +342,16 @@ struct RunLocationDetailView: View {
             )
         }
 
-        .alert(item: $pickItemPendingDeletion) { pickItem in
-            Alert(
-                title: Text("Are you sure?"),
-                message: Text("This will permanently delete \(pickItem.sku?.name ?? "this pick entry")."),
-                primaryButton: .destructive(Text("Delete")) {
-                    Task {
-                        await deletePickItem(pickItem)
-                    }
-                },
-                secondaryButton: .cancel {
+	        .alert(item: $pickItemPendingDeletion) { pickItem in
+	            Alert(
+	                title: Text("Remove item?"),
+	                message: Text("This will remove \(pickItem.sku?.name ?? "this coil") from this run."),
+	                primaryButton: .destructive(Text("Remove")) {
+	                    Task {
+	                        await deletePickItem(pickItem)
+	                    }
+	                },
+	                secondaryButton: .cancel {
                     pickItemPendingDeletion = nil
                 }
             )

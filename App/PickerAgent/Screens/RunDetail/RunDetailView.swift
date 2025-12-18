@@ -283,15 +283,15 @@ struct RunDetailView: View {
                 sections: viewModel.locationSections
             )
         }
-        .alert(item: $locationPendingDeletion) { section in
-            Alert(
-                title: Text("Delete picks at \(section.title)?"),
-                message: Text(locationDeletionMessage(for: section)),
-                primaryButton: .destructive(Text("Delete")) {
-                    locationPendingDeletion = nil
-                    Task {
-                        await deleteLocationPickEntries(for: section)
-                    }
+	        .alert(item: $locationPendingDeletion) { section in
+	            Alert(
+	                title: Text("Remove \(section.title)?"),
+	                message: Text(locationDeletionMessage(for: section)),
+	                primaryButton: .destructive(Text("Remove")) {
+	                    locationPendingDeletion = nil
+	                    Task {
+	                        await deleteLocationPickEntries(for: section)
+	                    }
                 },
                 secondaryButton: .cancel {
                     locationPendingDeletion = nil
@@ -523,15 +523,15 @@ private extension RunDetailView {
         _ = await viewModel.resetPickStatuses(for: pickItems)
     }
 
-    private func locationDeletionMessage(for section: RunLocationSection) -> String {
-        let pickCount = viewModel.pickItemCount(for: section.id)
-        if pickCount == 0 {
-            return "There are no pick entries to delete for this location."
-        }
+	    private func locationDeletionMessage(for section: RunLocationSection) -> String {
+	        let pickCount = viewModel.pickItemCount(for: section.id)
+	        if pickCount == 0 {
+	            return "There are no coils to remove for this location."
+	        }
 
-        let entryLabel = pickCount == 1 ? "pick entry" : "pick entries"
-        return "This will permanently delete \(pickCount) \(entryLabel) for this location in this run."
-    }
+	        let entryLabel = pickCount == 1 ? "coil" : "coils"
+	        return "This will remove this location and \(pickCount) \(entryLabel)."
+	    }
 
     @MainActor
     private func deleteLocationPickEntries(for section: RunLocationSection) async {
@@ -610,15 +610,15 @@ private extension RunDetailView {
         }
         .opacity(isDeleting ? 0.45 : 1)
         .contentShape(Rectangle())
-        .swipeActions(edge: .trailing, allowsFullSwipe: pickCount > 0) {
-            Button(role: .destructive) {
-                locationPendingDeletion = section
-            } label: {
-                Label("Delete Location", systemImage: "trash")
-            }
-            .disabled(isDeleting || pickCount == 0)
-        }
-    }
+	        .swipeActions(edge: .trailing, allowsFullSwipe: pickCount > 0) {
+	            Button(role: .destructive) {
+	                locationPendingDeletion = section
+	            } label: {
+	                Label("Remove Location", systemImage: "minus.circle")
+	            }
+	            .disabled(isDeleting || pickCount == 0)
+	        }
+	    }
 }
 
 private struct SkuCategoryOption: Identifiable, Hashable {
