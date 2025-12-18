@@ -28,6 +28,7 @@ struct PackingSessionSheet: View {
     @State private var chocolateBoxErrorMessage: String?
     @State private var isCreatingChocolateBox = false
     @State private var targetMachineForChocolateBox: RunDetail.Machine?
+    @State private var pickItemPendingExpiryUpdate: RunDetail.PickItem?
     @State private var abandonOnDisappear = true
     @State private var lastEndAction: SessionEndAction = .none
     
@@ -83,7 +84,7 @@ struct PackingSessionSheet: View {
                             await viewModel.skipCurrent()
                         }
                     }
-                    .disabled(viewModel.isSessionComplete || viewModel.isSpeaking)
+                    .disabled(viewModel.isSessionComplete)
                     
                     Spacer()
                     
@@ -94,7 +95,7 @@ struct PackingSessionSheet: View {
                     } label: {
                         Image(systemName: "backward.fill")
                     }
-                    .disabled(!viewModel.canGoBack || viewModel.isSpeaking)
+                    .disabled(!viewModel.canGoBack)
                     
                     Button {
                         Task {
@@ -103,7 +104,7 @@ struct PackingSessionSheet: View {
                     } label: {
                         Image(systemName: "repeat")
                     }
-                    .disabled(viewModel.currentCommand == nil || viewModel.isSpeaking)
+                    .disabled(viewModel.currentCommand == nil)
                     
                     Button {
                         Task {
@@ -123,7 +124,7 @@ struct PackingSessionSheet: View {
                         Image(systemName: viewModel.isSessionComplete ? "checkmark.circle.fill" : "forward.fill")
                     }
                     .tint(viewModel.isSessionComplete ? .green : .blue)
-                    .disabled(viewModel.isSpeaking || viewModel.isStoppingSession)
+                    .disabled(viewModel.isStoppingSession)
                 }
                 
             }
@@ -149,6 +150,24 @@ struct PackingSessionSheet: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
+        }
+        .sheet(item: $pickItemPendingExpiryUpdate) { pickItem in
+            UpdateExpirySheet(
+                pickItem: pickItem,
+                onDismiss: {
+                    pickItemPendingExpiryUpdate = nil
+                },
+                onSave: { overrides in
+                    Task {
+                        await viewModel.replaceExpiryOverrides(pickItem, overrides: overrides)
+                        await MainActor.run {
+                            pickItemPendingExpiryUpdate = nil
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .textFieldAlert(
             isPresented: $showingAddChocolateBoxAlert,
@@ -260,19 +279,17 @@ struct PackingSessionSheet: View {
                     command: command,
                     machineCompletionInfo: viewModel.machineCompletionInfo,
                     skuType: viewModel.currentPickItem?.sku?.type,
+                    pickItem: viewModel.currentPickItem,
                     progressInfo: progressInfo(for: command),
                     chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
-                    isFreshOrFrozen: viewModel.currentPickItem?.sku?.isFreshOrFrozen ?? false,
                     canAddChocolateBox: viewModel.currentMachine != nil,
-                    canToggleColdChestStatus: viewModel.currentPickItem != nil,
+                    canConfigureExpiry: viewModel.currentPickItem?.isExpiringConfigured == true,
                     onAddChocolateBoxTap: viewModel.currentMachine != nil ? {
                         beginAddChocolateBoxFlow()
                     } : nil,
-                    onToggleColdChestTap: viewModel.currentPickItem != nil ? {
+                    onConfigureExpiryTap: viewModel.currentPickItem?.isExpiringConfigured == true ? {
                         if let pickItem = viewModel.currentPickItem {
-                            Task {
-                                await viewModel.toggleColdChestStatus(pickItem)
-                            }
+                            pickItemPendingExpiryUpdate = pickItem
                         }
                     } : nil,
                     onChangeInputFieldTap: viewModel.currentPickItem != nil ? {
@@ -434,13 +451,13 @@ fileprivate struct CurrentCommandView: View {
     let command: AudioCommandsResponse.AudioCommand
     let machineCompletionInfo: MachineCompletionInfo?
     let skuType: String?
+    let pickItem: RunDetail.PickItem?
     let progressInfo: PackingInstructionProgress
     let chocolateBoxNumbers: [Int]
-    let isFreshOrFrozen: Bool
     let canAddChocolateBox: Bool
-    let canToggleColdChestStatus: Bool
+    let canConfigureExpiry: Bool
     let onAddChocolateBoxTap: (() -> Void)?
-    let onToggleColdChestTap: (() -> Void)?
+    let onConfigureExpiryTap: (() -> Void)?
     let onChangeInputFieldTap: (() -> Void)?
 
     private var coilCount: Int {
@@ -544,12 +561,45 @@ fileprivate struct CurrentCommandView: View {
         machineCompletionInfo != nil
     }
 
-    private var coldChestButtonTitle: String {
-        isFreshOrFrozen ? "Remove from Cold Chest" : "Add to Cold Chest"
+    private struct ExpiryChipItem: Identifiable {
+        let expiryDate: String
+        let quantity: Int
+        
+        var id: String { expiryDate }
     }
 
-    private var coldChestButtonTint: Color {
-        Theme.coldChestTint
+    private var expiryChipItems: [ExpiryChipItem] {
+        guard command.type == "item" else { return [] }
+        guard let pickItem else { return [] }
+        let baseExpiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !baseExpiryDate.isEmpty else { return [] }
+
+        var counts: [String: Int] = [:]
+        var overrideTotal = 0
+
+        for row in pickItem.expiryOverrides {
+            let date = row.expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !date.isEmpty else { continue }
+            let qty = max(0, row.quantity)
+            guard qty > 0 else { continue }
+            counts[date, default: 0] += qty
+            overrideTotal += qty
+        }
+
+        let baseQuantity = max(0, pickItem.count - overrideTotal)
+        if baseQuantity > 0 {
+            counts[baseExpiryDate, default: 0] += baseQuantity
+        }
+
+        return counts
+            .map { ExpiryChipItem(expiryDate: $0.key, quantity: $0.value) }
+            .sorted(by: { $0.expiryDate < $1.expiryDate })
+    }
+    
+    private func formattedExpiryDateLabel(_ expiryDate: String) -> String {
+        let parts = expiryDate.split(separator: "-")
+        guard parts.count == 3 else { return expiryDate }
+        return "\(parts[2])-\(parts[1])-\(parts[0])"
     }
 
     private var progressCard: some View {
@@ -578,6 +628,21 @@ fileprivate struct CurrentCommandView: View {
                     Text(tertiaryTitle)
                         .font(.headline)
                         .foregroundStyle(.secondary)
+                }
+                
+                if !expiryChipItems.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(expiryChipItems) { chip in
+                            InfoChip(
+                                title: "EXP,\(chip.quantity)",
+                                text: formattedExpiryDateLabel(chip.expiryDate),
+                                colour: Color.orange.opacity(0.2),
+                                foregroundColour: .orange,
+                                icon: "calendar",
+                                iconColour: .orange
+                            )
+                        }
+                    }
                 }
                 Spacer(minLength: 0)
                 if let machineLine = detailMachineText, !machineLine.isEmpty {
@@ -642,16 +707,16 @@ fileprivate struct CurrentCommandView: View {
     }
 
 
-    private var coldChestButton: some View {
+    private var configExpiryButton: some View {
         Button {
-            onToggleColdChestTap?()
+            onConfigureExpiryTap?()
         } label: {
-            Label(coldChestButtonTitle, systemImage: "snowflake")
+            Label("Config Expiry", systemImage: "calendar")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(coldChestButtonTint)
-        .disabled(onToggleColdChestTap == nil || !canToggleColdChestStatus || shouldDisableAccessoryButtons)
+        .tint(.orange)
+        .disabled(onConfigureExpiryTap == nil || !canConfigureExpiry || shouldDisableAccessoryButtons)
     }
 
     private var addChocolateBoxButton: some View {
@@ -682,12 +747,12 @@ fileprivate struct CurrentCommandView: View {
         if layout == .stacked {
             HStack(spacing: 8) {
                 addChocolateBoxButton
-                coldChestButton
+                configExpiryButton
             }
         } else {
             VStack(spacing: 8) {
                 addChocolateBoxButton
-                coldChestButton
+                configExpiryButton
             }
         }
     }
@@ -706,7 +771,7 @@ fileprivate struct CurrentCommandView: View {
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
-                        coldChestButton
+                        configExpiryButton
                         wideChocolateBoxCard
                         addChocolateBoxButton
                     }

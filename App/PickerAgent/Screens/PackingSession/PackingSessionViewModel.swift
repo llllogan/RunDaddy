@@ -219,6 +219,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func goForward() async {
+        interruptSpeechPlayback()
         if await acknowledgeMachineCompletionIfNeeded() {
             return
         }
@@ -240,6 +241,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func goBack() async {
+        interruptSpeechPlayback()
         if machineCompletionInfo != nil {
             machineCompletionInfo = nil
             return
@@ -253,6 +255,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func skipCurrent() async {
+        interruptSpeechPlayback()
         if await acknowledgeMachineCompletionIfNeeded() {
             return
         }
@@ -274,6 +277,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func repeatCurrent() async {
+        interruptSpeechPlayback()
         if let completionInfo = machineCompletionInfo {
             speakMachineCompletion(message: completionInfo.message)
             return
@@ -369,6 +373,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         clearNowPlayingInfo()
         machineCompletionInfo = nil
     }
+
+    private func interruptSpeechPlayback() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        isSpeaking = false
+        updatePlaybackState()
+    }
     
     private func speakCurrentCommand(skippingCompleted: Bool = true) async {
         guard !audioCommands.isEmpty else { return }
@@ -386,7 +398,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         guard let command = currentCommand else { return }
-        
+
+        interruptSpeechPlayback()
+
         let utterance = AVSpeechUtterance(string: command.audioCommand)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         utterance.pitchMultiplier = 1.0
@@ -531,6 +545,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         updateNowPlayingInfoForCompletion()
         
+        interruptSpeechPlayback()
+
         // Announce completion with enhanced voice
         let utterance = AVSpeechUtterance(string: "Packing session complete. Great job.")
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
@@ -542,6 +558,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     private func speakMachineCompletion(message: String) {
+        interruptSpeechPlayback()
         let utterance = AVSpeechUtterance(string: message)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         utterance.pitchMultiplier = 1.05
@@ -773,6 +790,24 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         updatingSkuIds.remove(skuId)
+    }
+
+    // MARK: - Expiry Override Management
+    func replaceExpiryOverrides(_ pickItem: RunDetail.PickItem, overrides: [UpdateExpirySheet.OverridePayload]) async {
+        updatingPickIds.insert(pickItem.id)
+        defer { updatingPickIds.remove(pickItem.id) }
+
+        do {
+            try await service.replacePickEntryExpiryOverrides(
+                runId: runId,
+                pickId: pickItem.id,
+                overrides: overrides.map { (expiryDate: $0.expiryDate, quantity: $0.quantity) },
+                credentials: session.credentials
+            )
+            await refreshRunDetail()
+        } catch {
+            print("Failed to update pick entry expiry: \(error)")
+        }
     }
     
     // MARK: - Count Pointer Management
