@@ -240,13 +240,13 @@ struct RunLocationDetailView: View {
                                 }
                             } label: {
                                 Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove" : "Cold Chest",
+                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
                                     systemImage: "snowflake"
                                 )
                             }
                             .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                         }
-	                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
                                 pickItemPendingSubstitution = pickItem
                             } label: {
@@ -258,7 +258,7 @@ struct RunLocationDetailView: View {
                                 Button {
                                     pickItemPendingExpiryUpdate = pickItem
                                 } label: {
-                                    Label("Update Expiry", systemImage: "calendar.badge.clock")
+                                    Label("Edit Expiry", systemImage: "ellipsis.calendar")
                                 }
                                 .tint(.orange)
                             }
@@ -266,7 +266,7 @@ struct RunLocationDetailView: View {
                             Button {
                                 selectedPickItemForCountPointer = pickItem
                             } label: {
-                                Label("Edit Count", systemImage: "square.and.pencil")
+                                Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
                             }
                             .tint(.blue)
                             
