@@ -209,6 +209,7 @@ struct AddChocolateBoxSheet: View {
                     .disabled(!isFormValid || isCreating)
                 }
             }
+            .keyboardDismissToolbar()
             .disabled(isCreating)
             .overlay {
                 if isCreating {

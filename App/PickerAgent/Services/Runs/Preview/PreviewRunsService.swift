@@ -178,6 +178,14 @@ struct PreviewRunsService: RunsServicing {
     func updatePickEntryOverride(runId: String, pickId: String, overrideCount: Int?, credentials: AuthCredentials) async throws {
         // Preview does nothing
     }
+    
+    func addPickEntryExpiryOverride(runId: String, pickId: String, expiryDate: String, quantity: Int, credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
+    
+    func replacePickEntryExpiryOverrides(runId: String, pickId: String, overrides: [(expiryDate: String, quantity: Int)], credentials: AuthCredentials) async throws {
+        // Preview does nothing
+    }
 
     func substitutePickEntrySku(runId: String, pickId: String, skuId: String, credentials: AuthCredentials) async throws {
         // Preview does nothing
@@ -485,7 +493,8 @@ extension RunSummary {
                 RunSummary.ChocolateBox(id: "box-1", number: 1, machine: nil),
                 RunSummary.ChocolateBox(id: "box-2", number: 3, machine: nil)
             ],
-            runner: nil
+            runner: nil,
+            hasPackingSessionForCurrentUser: false
         )
     }
 
@@ -507,7 +516,8 @@ extension RunSummary {
                 id: "runner-1",
                 firstName: "Morgan",
                 lastName: "Lee"
-            )
+            ),
+            hasPackingSessionForCurrentUser: false
         )
     }
 
@@ -527,7 +537,8 @@ extension RunSummary {
                 id: "runner-2",
                 firstName: "Alex",
                 lastName: "Johnson"
-            )
+            ),
+            hasPackingSessionForCurrentUser: false
         )
     }
 

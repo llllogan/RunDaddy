@@ -60,7 +60,7 @@ struct MachineInfoBento: View {
             id: "machine-info-last-stocked",
             title: title,
             value: formatStockedDate(stats?.lastStocked?.stockedAt),
-            symbolName: "clock.arrow.circlepath",
+            symbolName: "clock",
             symbolTint: .indigo,
             allowsMultilineValue: true
         )

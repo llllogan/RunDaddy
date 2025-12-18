@@ -158,6 +158,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .keyboardDismissToolbar()
         .task {
             await viewModel.loadRuns()
             await momentumViewModel.loadSnapshot()
@@ -312,6 +313,7 @@ struct DashboardView: View {
         if !viewModel.todayRuns.isEmpty
             || (viewModel.isLoading && viewModel.todayRuns.isEmpty)
         {
+            let showPackedByYouChip = !viewModel.todayRuns.contains { $0.runner?.id == session.credentials.userID }
             Section("Runs for Today") {
                 if viewModel.isLoading && viewModel.todayRuns.isEmpty {
                     LoadingStateRow()
@@ -320,7 +322,11 @@ struct DashboardView: View {
                         NavigationLink {
                             RunDetailView(runId: run.id, session: session)
                         } label: {
-                            RunRow(run: run, currentUserId: session.credentials.userID)
+                            RunRow(
+                                run: run,
+                                currentUserId: session.credentials.userID,
+                                showPackedByYouChip: showPackedByYouChip
+                            )
                         }
                     }
                     if viewModel.todayRuns.count > 3 {
@@ -341,6 +347,7 @@ struct DashboardView: View {
 
         if !viewModel.tomorrowRuns.isEmpty || (viewModel.isLoading && viewModel.tomorrowRuns.isEmpty)
         {
+            let showPackedByYouChip = !viewModel.tomorrowRuns.contains { $0.runner?.id == session.credentials.userID }
             Section("Runs for Tomorrow") {
                 if viewModel.isLoading && viewModel.tomorrowRuns.isEmpty {
                     LoadingStateRow()
@@ -349,7 +356,11 @@ struct DashboardView: View {
                         NavigationLink {
                             RunDetailView(runId: run.id, session: session)
                         } label: {
-                            RunRow(run: run, currentUserId: session.credentials.userID)
+                            RunRow(
+                                run: run,
+                                currentUserId: session.credentials.userID,
+                                showPackedByYouChip: showPackedByYouChip
+                            )
                         }
                     }
                     if viewModel.tomorrowRuns.count > 3 {

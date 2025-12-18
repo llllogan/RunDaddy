@@ -252,6 +252,7 @@ private struct SearchTab: View {
             }
             .searchable(text: $searchText, prompt: "Search locations, machines, SKUs...")
             .searchFocused($isSearchFocused)
+            .keyboardDismissToolbar()
             .onSubmit(of: .search) {
                 performSearch()
             }

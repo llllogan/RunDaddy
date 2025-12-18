@@ -47,6 +47,7 @@ struct RunLocationDetailView: View {
     @State private var selectedPickItemForCountPointer: RunDetail.PickItem?
     @State private var pickItemPendingDeletion: RunDetail.PickItem?
     @State private var pickItemPendingSubstitution: RunDetail.PickItem?
+    @State private var pickItemPendingExpiryUpdate: RunDetail.PickItem?
     @State private var locationNavigationTarget: RunLocationDetailSearchNavigation?
     @State private var machineNavigationTarget: RunLocationDetailMachineNavigation?
 
@@ -71,9 +72,9 @@ struct RunLocationDetailView: View {
         detail.machines
     }
 
-    private var availableSkuCategories: [String] {
-        var seen = Set<String>()
-        var categories: [String] = []
+	    private var availableSkuCategories: [String] {
+	        var seen = Set<String>()
+	        var categories: [String] = []
 
         for category in detail.pickItems.compactMap({ $0.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines) }) {
             guard !category.isEmpty, !seen.contains(category.lowercased()) else { continue }
@@ -81,8 +82,20 @@ struct RunLocationDetailView: View {
             categories.append(category)
         }
 
-        return categories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
+	        return categories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+	    }
+	    
+	    private var selectedMachineFilterLabel: String {
+	        guard let machineId = selectedMachineFilter else {
+	            return "All Machines"
+	        }
+	        
+	        guard let machine = machines.first(where: { $0.id == machineId }) else {
+	            return "Unknown"
+	        }
+	        
+	        return machine.description ?? machine.code
+	    }
 
     private var filteredPickItems: [RunDetail.PickItem] {
         let allPickItems = detail.pickItems
@@ -151,27 +164,27 @@ struct RunLocationDetailView: View {
                 Text("Location Overview")
             }
 
-            Section {
-                HStack {
-                    Menu {
-                        Button("All Machines") {
-                            selectedMachineFilter = nil
-                        }
-                        Divider()
-                        ForEach(machines, id: \.id) { machine in
-                    Button(machine.description ?? machine.code) {
-                        selectedMachineFilter = machine.id
-                    }
-                }
-            } label: {
-                filterChip(label: selectedMachineFilter == nil ? "All Machines" : (machines.first { $0.id == selectedMachineFilter }?.description ?? machines.first { $0.id == selectedMachineFilter }?.code ?? "Unknown"))
-            }
-            .foregroundStyle(.secondary)
-            
-            Menu {
-                Button("All Categories") {
-                    selectedCategoryFilter = nil
-                }
+	            Section {
+	                HStack {
+	                    Menu {
+	                        Button("All Machines") {
+	                            selectedMachineFilter = nil
+	                        }
+	                        Divider()
+	                        ForEach(machines, id: \.id) { machine in
+	                            Button(machine.description ?? machine.code) {
+	                                selectedMachineFilter = machine.id
+	                            }
+	                        }
+	                    } label: {
+	                        filterChip(label: selectedMachineFilterLabel)
+	                    }
+	                    .foregroundStyle(.secondary)
+	            
+	            Menu {
+	                Button("All Categories") {
+	                    selectedCategoryFilter = nil
+	                }
 
                 if !availableSkuCategories.isEmpty {
                     Divider()
@@ -220,6 +233,19 @@ struct RunLocationDetailView: View {
                             }
                         )
                         .disabled(isUpdatingPick)
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                Task {
+                                    await toggleColdChestStatus(pickItem)
+                                }
+                            } label: {
+                                Label(
+                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
+                                    systemImage: "snowflake"
+                                )
+                            }
+                            .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button {
                                 pickItemPendingSubstitution = pickItem
@@ -228,33 +254,30 @@ struct RunLocationDetailView: View {
                             }
                             .tint(.indigo)
                             
-                            Button {
-                                Task {
-                                    await toggleColdChestStatus(pickItem)
+                            if pickItem.isExpiringConfigured {
+                                Button {
+                                    pickItemPendingExpiryUpdate = pickItem
+                                } label: {
+                                    Label("Edit Expiry", systemImage: "ellipsis.calendar")
                                 }
-                            } label: {
-                                Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove" : "Cold Chest",
-                                    systemImage: "snowflake"
-                                )
+                                .tint(.orange)
                             }
-                            .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                             
                             Button {
                                 selectedPickItemForCountPointer = pickItem
                             } label: {
-                                Label("Edit Count", systemImage: "square.and.pencil")
+                                Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
                             }
                             .tint(.blue)
                             
-                            Button {
-                                pickItemPendingDeletion = pickItem
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .tint(.red)
-                        }
-                    }
+	                            Button {
+	                                pickItemPendingDeletion = pickItem
+	                            } label: {
+	                                Label("Remove", systemImage: "minus.circle")
+	                            }
+	                            .tint(.red)
+	                        }
+	                    }
                 }
             } header: {
                 Text("Picks")
@@ -294,6 +317,21 @@ struct RunLocationDetailView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $pickItemPendingExpiryUpdate) { pickItem in
+            UpdateExpirySheet(
+                pickItem: pickItem,
+                onDismiss: {
+                    pickItemPendingExpiryUpdate = nil
+                },
+                onSave: { overrides in
+                    Task {
+                        await replaceExpiryOverrides(pickItem, overrides: overrides)
+                    }
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .fullScreenCover(item: $pickItemPendingSubstitution) { pickItem in
             SubstituteSkuSearchView(
                 pickItem: pickItem,
@@ -304,16 +342,16 @@ struct RunLocationDetailView: View {
             )
         }
 
-        .alert(item: $pickItemPendingDeletion) { pickItem in
-            Alert(
-                title: Text("Are you sure?"),
-                message: Text("This will permanently delete \(pickItem.sku?.name ?? "this pick entry")."),
-                primaryButton: .destructive(Text("Delete")) {
-                    Task {
-                        await deletePickItem(pickItem)
-                    }
-                },
-                secondaryButton: .cancel {
+	        .alert(item: $pickItemPendingDeletion) { pickItem in
+	            Alert(
+	                title: Text("Remove item?"),
+	                message: Text("This will remove \(pickItem.sku?.name ?? "this coil") from this run."),
+	                primaryButton: .destructive(Text("Remove")) {
+	                    Task {
+	                        await deletePickItem(pickItem)
+	                    }
+	                },
+	                secondaryButton: .cancel {
                     pickItemPendingDeletion = nil
                 }
             )
@@ -479,6 +517,29 @@ struct RunLocationDetailView: View {
         }
     }
     
+    private func replaceExpiryOverrides(_ pickItem: RunDetail.PickItem, overrides: [UpdateExpirySheet.OverridePayload]) async {
+        updatingPickIds.insert(pickItem.id)
+        
+        do {
+            try await service.replacePickEntryExpiryOverrides(
+                runId: runId,
+                pickId: pickItem.id,
+                overrides: overrides.map { (expiryDate: $0.expiryDate, quantity: $0.quantity) },
+                credentials: session.credentials
+            )
+            await onPickStatusChanged()
+            await MainActor.run {
+                pickItemPendingExpiryUpdate = nil
+            }
+        } catch {
+            print("Failed to update pick entry expiry: \(error)")
+        }
+        
+        _ = await MainActor.run {
+            updatingPickIds.remove(pickItem.id)
+        }
+    }
+    
     private var preferredDirectionsApp: DirectionsApp {
         DirectionsApp(rawValue: preferredDirectionsAppRawValue) ?? .appleMaps
     }
@@ -557,14 +618,14 @@ private enum RunLocationDetailSheet: Identifiable {
     case chocolateBoxes
     case addChocolateBox
     
-    var id: String {
-        switch self {
-        case .chocolateBoxes:
-            return "chocolateBoxes"
-        case .addChocolateBox:
-            return "addChocolateBox"
-        }
-    }
+	    var id: String {
+	        switch self {
+	        case .chocolateBoxes:
+	            return "chocolateBoxes"
+	        case .addChocolateBox:
+	            return "addChocolateBox"
+	        }
+	    }
 }
 
 struct CountPointerSelectionSheet: View {
@@ -574,6 +635,7 @@ struct CountPointerSelectionSheet: View {
     let onOverrideSaved: (Int?) async -> Void
     @ObservedObject var viewModel: RunDetailViewModel
     
+    @FocusState private var isOverrideFocused: Bool
     @State private var overrideInput: String = ""
     @State private var isSavingOverride = false
     @State private var overrideError: String?
@@ -634,6 +696,7 @@ struct CountPointerSelectionSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         TextField("Override count", text: $overrideInput)
                             .keyboardType(.numberPad)
+                            .focused($isOverrideFocused)
                         
                         if let defaultPointerCount {
                             Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")
@@ -675,6 +738,16 @@ struct CountPointerSelectionSheet: View {
                         }
                     }
                     .disabled(isSavingOverride)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        isOverrideFocused = false
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Dismiss Keyboard")
                 }
             }
         }
@@ -758,6 +831,13 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
+    
+    private struct ExpiryChipItem: Identifiable {
+        let expiryDate: String
+        let quantity: Int
+        
+        var id: String { expiryDate }
+    }
 
     init(
         pickItem: RunDetail.PickItem,
@@ -783,6 +863,40 @@ struct PickEntryRow: View {
         }
 
         return nil
+    }
+    
+    private var expiryChipItems: [ExpiryChipItem] {
+        let baseExpiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !baseExpiryDate.isEmpty else {
+            return []
+        }
+        
+        var counts: [String: Int] = [:]
+        var overrideTotal = 0
+        
+        for row in pickItem.expiryOverrides {
+            let date = row.expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !date.isEmpty else { continue }
+            let qty = max(0, row.quantity)
+            guard qty > 0 else { continue }
+            counts[date, default: 0] += qty
+            overrideTotal += qty
+        }
+        
+        let baseQuantity = max(0, pickItem.count - overrideTotal)
+        if baseQuantity > 0 {
+            counts[baseExpiryDate, default: 0] += baseQuantity
+        }
+        
+        return counts
+            .map { ExpiryChipItem(expiryDate: $0.key, quantity: $0.value) }
+            .sorted(by: { $0.expiryDate < $1.expiryDate })
+    }
+    
+    private func formattedExpiryDateLabel(_ expiryDate: String) -> String {
+        let parts = expiryDate.split(separator: "-")
+        guard parts.count == 3 else { return expiryDate }
+        return "\(parts[2])-\(parts[1])-\(parts[0])"
     }
     
     var body: some View {
@@ -835,8 +949,14 @@ struct PickEntryRow: View {
                     
                     InfoChip(title: "Coil", text: pickItem.coilItem.coil.code)
 
-                    if let expiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines), !expiryDate.isEmpty {
-                        InfoChip(title: "Exp", text: expiryDate, icon: "calendar")
+                    ForEach(expiryChipItems) { chip in
+                        InfoChip(
+                            title: "EXP,\(chip.quantity)",
+                            text: formattedExpiryDateLabel(chip.expiryDate),
+                            colour: Color.orange.opacity(0.2),
+                            foregroundColour: .orange,
+                            iconColour: .orange
+                        )
                     }
                     
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {

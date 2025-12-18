@@ -13,6 +13,10 @@ struct RunsListView: View {
     let runs: [RunSummary]
     var emptyStateMessage = "No runs to show."
 
+    private var showPackedByYouChip: Bool {
+        !runs.contains { $0.runner?.id == session.credentials.userID }
+    }
+
     private var sortedRuns: [RunSummary] {
         runs.sorted { lhs, rhs in
             let lhsDate = lhs.scheduledFor ?? lhs.createdAt
@@ -33,7 +37,11 @@ struct RunsListView: View {
                         NavigationLink {
                             RunDetailView(runId: run.id, session: session)
                         } label: {
-                            RunRow(run: run, currentUserId: session.credentials.userID)
+                            RunRow(
+                                run: run,
+                                currentUserId: session.credentials.userID,
+                                showPackedByYouChip: showPackedByYouChip
+                            )
                         }
                     }
                 }
@@ -72,7 +80,8 @@ struct RunsListView: View {
             createdAt: Date(),
             locationCount: 3,
             chocolateBoxes: [],
-            runner: nil
+            runner: nil,
+            hasPackingSessionForCurrentUser: false
         )
     }
 

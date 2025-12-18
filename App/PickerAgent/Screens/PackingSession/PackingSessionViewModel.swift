@@ -9,6 +9,7 @@ import Foundation
 import AVFoundation
 import Combine
 import MediaPlayer
+import UIKit
 
 struct MachineCompletionInfo: Equatable, Identifiable {
     let id = UUID()
@@ -48,9 +49,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private let silentLoop = SilentLoopPlayer()
     private var audioSessionConfigured = false
     private var remoteCommandCenterConfigured = false
+    private var isObservingAudioSession = false
     private var announcedMachineIdentifiers: Set<String> = []
     private var hasSyncedFinishedSession = false
     private var isFinishingSessionRemotely = false
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
     
     var currentCommand: AudioCommandsResponse.AudioCommand? {
         guard currentIndex >= 0 && currentIndex < audioCommands.count else { return nil }
@@ -219,6 +225,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func goForward() async {
+        interruptSpeechPlayback()
         if await acknowledgeMachineCompletionIfNeeded() {
             return
         }
@@ -240,6 +247,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func goBack() async {
+        interruptSpeechPlayback()
         if machineCompletionInfo != nil {
             machineCompletionInfo = nil
             return
@@ -253,6 +261,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func skipCurrent() async {
+        interruptSpeechPlayback()
         if await acknowledgeMachineCompletionIfNeeded() {
             return
         }
@@ -274,6 +283,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     func repeatCurrent() async {
+        interruptSpeechPlayback()
         if let completionInfo = machineCompletionInfo {
             speakMachineCompletion(message: completionInfo.message)
             return
@@ -369,6 +379,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         clearNowPlayingInfo()
         machineCompletionInfo = nil
     }
+
+    private func interruptSpeechPlayback() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        isSpeaking = false
+        updatePlaybackState()
+    }
     
     private func speakCurrentCommand(skippingCompleted: Bool = true) async {
         guard !audioCommands.isEmpty else { return }
@@ -386,7 +404,9 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         guard let command = currentCommand else { return }
-        
+
+        interruptSpeechPlayback()
+
         let utterance = AVSpeechUtterance(string: command.audioCommand)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         utterance.pitchMultiplier = 1.0
@@ -531,6 +551,8 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         
         updateNowPlayingInfoForCompletion()
         
+        interruptSpeechPlayback()
+
         // Announce completion with enhanced voice
         let utterance = AVSpeechUtterance(string: "Packing session complete. Great job.")
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
@@ -542,6 +564,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     }
     
     private func speakMachineCompletion(message: String) {
+        interruptSpeechPlayback()
         let utterance = AVSpeechUtterance(string: message)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         utterance.pitchMultiplier = 1.05
@@ -612,24 +635,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             let audioSession = AVAudioSession.sharedInstance()
             
             // Use modern audio session configuration with playback control support
-            try audioSession.setCategory(
-                .playback,
-                mode: .spokenAudio,
-                policy: .default,
-                options: [
-                    .duckOthers,
-                    .interruptSpokenAudioAndMixWithOthers,
-                    .allowBluetoothA2DP,
-                    .allowAirPlay,
-                    .allowBluetoothHFP
-                ]
-            )
+            try configureAudioSession(audioSession)
             
             // Configure for optimal speech playback
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             
             // Note: routeSharingPolicy is get-only in iOS 15.0+
             
+            startObservingAudioSession()
             audioSessionConfigured = true
         } catch {
             print("Failed to configure audio session: \(error)")
@@ -640,11 +653,131 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         guard audioSessionConfigured else { return }
         
         do {
+            stopObservingAudioSession()
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
         print("Failed to deactivate audio session: \(error)")
         }
         audioSessionConfigured = false
+    }
+
+    private func configureAudioSession(_ audioSession: AVAudioSession) throws {
+        try audioSession.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            policy: .default,
+            options: [
+                .duckOthers,
+                .interruptSpokenAudioAndMixWithOthers,
+                .allowBluetoothA2DP,
+                .allowAirPlay,
+                .allowBluetoothHFP
+            ]
+        )
+    }
+
+    private func startObservingAudioSession() {
+        guard !isObservingAudioSession else { return }
+
+        let center = NotificationCenter.default
+        center.addObserver(
+            self,
+            selector: #selector(audioSessionRouteChanged(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(audioSessionInterrupted(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(mediaServicesWereReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive(_:)),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        isObservingAudioSession = true
+    }
+
+    private func stopObservingAudioSession() {
+        guard isObservingAudioSession else { return }
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        center.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        center.removeObserver(self, name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        center.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        isObservingAudioSession = false
+    }
+
+    @objc private func audioSessionRouteChanged(_ notification: Notification) {
+        guard audioSessionConfigured else { return }
+        guard let userInfo = notification.userInfo,
+              let rawValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: rawValue) else {
+            return
+        }
+
+        switch reason {
+        case .newDeviceAvailable,
+             .oldDeviceUnavailable,
+             .routeConfigurationChange,
+             .categoryChange:
+            refreshAudioSessionAndRoute()
+        default:
+            break
+        }
+    }
+
+    @objc private func audioSessionInterrupted(_ notification: Notification) {
+        guard audioSessionConfigured else { return }
+        guard let userInfo = notification.userInfo,
+              let rawValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let interruptionType = AVAudioSession.InterruptionType(rawValue: rawValue) else {
+            return
+        }
+
+        switch interruptionType {
+        case .began:
+            if synthesizer.isSpeaking {
+                synthesizer.stopSpeaking(at: .immediate)
+                isSpeaking = false
+                updatePlaybackState()
+            }
+        case .ended:
+            refreshAudioSessionAndRoute()
+        @unknown default:
+            break
+        }
+    }
+
+    @objc private func mediaServicesWereReset(_ notification: Notification) {
+        refreshAudioSessionAndRoute()
+    }
+
+    @objc private func appDidBecomeActive(_ notification: Notification) {
+        refreshAudioSessionAndRoute()
+    }
+
+    private func refreshAudioSessionAndRoute() {
+        guard audioSessionConfigured else { return }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try configureAudioSession(audioSession)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to refresh audio session on route change: \(error)")
+        }
+
+        silentLoop.restart()
     }
 
     private func handleSessionLoadFailure(_ message: String) async {
@@ -773,6 +906,24 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         }
         
         updatingSkuIds.remove(skuId)
+    }
+
+    // MARK: - Expiry Override Management
+    func replaceExpiryOverrides(_ pickItem: RunDetail.PickItem, overrides: [UpdateExpirySheet.OverridePayload]) async {
+        updatingPickIds.insert(pickItem.id)
+        defer { updatingPickIds.remove(pickItem.id) }
+
+        do {
+            try await service.replacePickEntryExpiryOverrides(
+                runId: runId,
+                pickId: pickItem.id,
+                overrides: overrides.map { (expiryDate: $0.expiryDate, quantity: $0.quantity) },
+                credentials: session.credentials
+            )
+            await refreshRunDetail()
+        } catch {
+            print("Failed to update pick entry expiry: \(error)")
+        }
     }
     
     // MARK: - Count Pointer Management
@@ -996,6 +1147,14 @@ private final class SilentLoopPlayer {
         engine.stop()
         engine.reset()
         isRunning = false
+    }
+
+    func restart() {
+        let wasRunning = isRunning
+        stop()
+        if wasRunning {
+            start()
+        }
     }
 
     var currentTime: TimeInterval {

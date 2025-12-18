@@ -241,6 +241,7 @@ struct SkuBulkActionView: View {
                     .disabled(isActionDisabled)
                 }
             }
+            .keyboardDismissToolbar()
             .task {
                 await loadInitialData()
             }

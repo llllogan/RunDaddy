@@ -225,7 +225,7 @@ struct SearchLocationDetailView: View {
                         }
                     }
                 } label: {
-                    Label(selectedPeriod.displayName, systemImage: "calendar")
+                    Label(selectedPeriod.displayName, systemImage: "ellipsis.calendar")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {

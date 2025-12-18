@@ -615,6 +615,7 @@ private struct RunNoteComposer: View {
                 }
             }
         }
+        .keyboardDismissToolbar()
         .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Yes") {

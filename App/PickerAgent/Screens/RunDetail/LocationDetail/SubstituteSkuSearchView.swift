@@ -117,6 +117,7 @@ struct SubstituteSkuSearchView: View {
                     .disabled(!isSubstituteEnabled)
                 }
             }
+            .keyboardDismissToolbar()
             .onChange(of: searchText) { _, newValue in
                 handleSearchTextChange(newValue)
             }

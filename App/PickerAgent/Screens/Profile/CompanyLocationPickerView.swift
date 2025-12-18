@@ -117,6 +117,7 @@ struct CompanyLocationPickerView: View {
                 }
             }
         }
+        .keyboardDismissToolbar()
     }
 
     private func scheduleSearch(for text: String) {

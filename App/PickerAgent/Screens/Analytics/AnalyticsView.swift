@@ -102,7 +102,7 @@ struct AnalyticsView: View {
                         }
                     }
                 } label: {
-                    Label(selectedAggregation.displayName, systemImage: "calendar")
+                    Label(selectedAggregation.displayName, systemImage: "ellipsis.calendar")
                 }
             }
         }

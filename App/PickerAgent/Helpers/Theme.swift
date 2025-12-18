@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import UIKit
 
 enum Theme {
     /// Theme color that switches between black (light mode) and white (dark mode).
@@ -42,5 +43,27 @@ enum Theme {
         Color(UIColor { traitCollection in
             traitCollection.userInterfaceStyle == .dark ? .systemGray4 : .systemGray5
         })
+    }
+}
+
+extension View {
+    func keyboardDismissToolbar() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button {
+                    UIApplication.shared.dismissKeyboard()
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                }
+                .accessibilityLabel("Dismiss Keyboard")
+            }
+        }
+    }
+}
+
+extension UIApplication {
+    func dismissKeyboard() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }

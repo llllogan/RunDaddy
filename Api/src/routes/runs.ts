@@ -76,6 +76,24 @@ const substitutePickEntrySchema = z.object({
   skuId: z.string().trim().min(1),
 });
 
+const addPickEntryExpiryOverrideSchema = z.object({
+  expiryDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
+  quantity: z.number().int().min(1),
+});
+
+const replacePickEntryExpiryOverridesSchema = z.object({
+  overrides: z
+    .array(
+      z.object({
+        expiryDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
+        quantity: z.number().int().min(1),
+      }),
+    )
+    .max(25)
+    .optional()
+    .default([]),
+});
+
 const createRunPickEntrySchema = z.object({
   coilItemId: z.string().trim().min(1),
   count: z.number().int().min(0),
@@ -194,6 +212,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
   const filters: RunRangeFilters = {
     companyId: effectiveCompanyId,
+    currentUserId: req.auth.userId,
     start: rangeStart,
     limit: limitNum,
     offset: offsetNum,
@@ -854,7 +873,7 @@ router.get('/all', async (req, res) => {
     `
   );
 
-  const runs = await buildRunResponses(rows);
+  const runs = await buildRunResponses(rows, req.auth.userId);
 
   return res.json(runs);
 });
@@ -1314,6 +1333,239 @@ router.patch('/:runId/picks/:pickId/override', setLogConfig({ level: 'minimal' }
     runId: updated.runId,
     count: updated.count,
     override: updated.override,
+  });
+});
+
+router.post('/:runId/picks/:pickId/expiry-overrides', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update pick expiries' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const parsed = addPickEntryExpiryOverrideSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const pickEntry = await prisma.pickEntry.findFirst({
+    where: {
+      id: pickId,
+      runId: runId,
+    },
+    include: {
+      run: { select: { companyId: true } },
+      coilItem: {
+        select: {
+          sku: { select: { countNeededPointer: true } },
+        },
+      },
+      expiryOverrides: {
+        select: { expiryDate: true, quantity: true },
+      },
+    },
+  });
+
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  if (pickEntry.run.companyId !== req.auth.companyId) {
+    return res.status(403).json({ error: 'Pick entry does not belong to your company' });
+  }
+
+  const baseExpiryDate = pickEntry.expiryDate?.trim() ?? '';
+  if (!baseExpiryDate) {
+    return res.status(400).json({ error: 'Pick entry does not support expiry overrides' });
+  }
+
+  const targetExpiryDate = parsed.data.expiryDate.trim();
+  if (targetExpiryDate === baseExpiryDate) {
+    return res.status(400).json({ error: 'Override expiry date must differ from the pick entry expiry date' });
+  }
+
+  const plannedCount = Math.max(0, resolvePickEntryCount(pickEntry as unknown as PickEntryCountSource));
+  const existingOverrideTotal = pickEntry.expiryOverrides.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
+
+  if (existingOverrideTotal + parsed.data.quantity > plannedCount) {
+    return res.status(400).json({
+      error: 'Override quantity exceeds pick entry count',
+      remaining: Math.max(0, plannedCount - existingOverrideTotal),
+    });
+  }
+
+  await prisma.pickEntryExpiryOverride.upsert({
+    where: {
+      pickEntryId_expiryDate: {
+        pickEntryId: pickEntry.id,
+        expiryDate: targetExpiryDate,
+      },
+    },
+    create: {
+      pickEntryId: pickEntry.id,
+      expiryDate: targetExpiryDate,
+      quantity: parsed.data.quantity,
+    },
+    update: {
+      quantity: { increment: parsed.data.quantity },
+    },
+  });
+
+  const updatedOverrides = await prisma.pickEntryExpiryOverride.findMany({
+    where: { pickEntryId: pickEntry.id },
+    select: { expiryDate: true, quantity: true },
+    orderBy: { expiryDate: 'asc' },
+  });
+
+  const expiryDates = Array.from(new Set([baseExpiryDate, ...updatedOverrides.map((row) => row.expiryDate)]))
+    .filter((value) => value.trim().length > 0)
+    .sort((a, b) => a.localeCompare(b));
+
+  return res.json({
+    pickEntryId: pickEntry.id,
+    expiryDate: baseExpiryDate,
+    expiryDates,
+    expiryOverrides: updatedOverrides,
+  });
+});
+
+router.put('/:runId/picks/:pickId/expiry-overrides', setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!req.auth.companyId) {
+    return res.status(403).json({ error: 'Company membership required to update pick expiries' });
+  }
+
+  const { runId, pickId } = req.params;
+  if (!runId || !pickId) {
+    return res.status(400).json({ error: 'Run ID and Pick ID are required' });
+  }
+
+  const parsed = replacePickEntryExpiryOverridesSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+  }
+
+  const pickEntry = await prisma.pickEntry.findFirst({
+    where: {
+      id: pickId,
+      runId: runId,
+    },
+    include: {
+      run: { select: { companyId: true } },
+      coilItem: {
+        select: {
+          sku: { select: { countNeededPointer: true } },
+        },
+      },
+      expiryOverrides: {
+        select: { expiryDate: true, quantity: true },
+      },
+    },
+  });
+
+  if (!pickEntry) {
+    return res.status(404).json({ error: 'Pick entry not found' });
+  }
+
+  if (pickEntry.run.companyId !== req.auth.companyId) {
+    return res.status(403).json({ error: 'Pick entry does not belong to your company' });
+  }
+
+  const baseExpiryDate = pickEntry.expiryDate?.trim() ?? '';
+  if (!baseExpiryDate) {
+    return res.status(400).json({ error: 'Pick entry does not support expiry overrides' });
+  }
+
+  const plannedCount = Math.max(0, resolvePickEntryCount(pickEntry as unknown as PickEntryCountSource));
+
+  const normalizedOverrides = parsed.data.overrides
+    .map((row) => ({
+      expiryDate: row.expiryDate.trim(),
+      quantity: row.quantity,
+    }))
+    .filter((row) => row.expiryDate.length > 0 && row.expiryDate !== baseExpiryDate && row.quantity > 0);
+
+  const overridesByDate = new Map<string, number>();
+  for (const row of normalizedOverrides) {
+    overridesByDate.set(row.expiryDate, (overridesByDate.get(row.expiryDate) ?? 0) + row.quantity);
+  }
+
+  const uniqueOverrides = Array.from(overridesByDate.entries())
+    .map(([expiryDate, quantity]) => ({ expiryDate, quantity }))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+
+  const overrideTotal = uniqueOverrides.reduce((sum, row) => sum + row.quantity, 0);
+  if (overrideTotal > plannedCount) {
+    return res.status(400).json({
+      error: 'Override quantity exceeds pick entry count',
+      remaining: Math.max(0, plannedCount - overrideTotal),
+    });
+  }
+
+  const overrideDates = uniqueOverrides.map((row) => row.expiryDate);
+
+  await prisma.$transaction(async (tx) => {
+    if (!overrideDates.length) {
+      await tx.pickEntryExpiryOverride.deleteMany({
+        where: {
+          pickEntryId: pickEntry.id,
+        },
+      });
+      return;
+    }
+
+    await tx.pickEntryExpiryOverride.deleteMany({
+      where: {
+        pickEntryId: pickEntry.id,
+        expiryDate: { notIn: overrideDates },
+      },
+    });
+
+    for (const row of uniqueOverrides) {
+      await tx.pickEntryExpiryOverride.upsert({
+        where: {
+          pickEntryId_expiryDate: {
+            pickEntryId: pickEntry.id,
+            expiryDate: row.expiryDate,
+          },
+        },
+        create: {
+          pickEntryId: pickEntry.id,
+          expiryDate: row.expiryDate,
+          quantity: row.quantity,
+        },
+        update: {
+          quantity: row.quantity,
+        },
+      });
+    }
+  });
+
+  const updatedOverrides = await prisma.pickEntryExpiryOverride.findMany({
+    where: { pickEntryId: pickEntry.id },
+    select: { expiryDate: true, quantity: true },
+    orderBy: { expiryDate: 'asc' },
+  });
+
+  const expiryDates = Array.from(new Set([baseExpiryDate, ...updatedOverrides.map((row) => row.expiryDate)]))
+    .filter((value) => value.trim().length > 0)
+    .sort((a, b) => a.localeCompare(b));
+
+  return res.json({
+    pickEntryId: pickEntry.id,
+    expiryDate: baseExpiryDate,
+    expiryDates,
+    expiryOverrides: updatedOverrides,
   });
 });
 
@@ -1921,6 +2173,8 @@ type PickItemPayload = {
   forecast: number | null;
   total: number | null;
   expiryDate: string | null;
+  expiryDates: string[];
+  expiryOverrides: Array<{ expiryDate: string; quantity: number }>;
   isPicked: boolean;
   pickedAt: Date | null;
   packingSessionId: string | null;
@@ -1963,21 +2217,23 @@ type RunDetailPayload = {
   locations: LocationPayload[];
   machines: MachinePayload[];
   pickItems: PickItemPayload[];
-  pickEntries: Array<{
-    id: string;
-    count: number;
-    override: number | null;
-    current: number | null;
-    par: number | null;
-    need: number | null;
-    forecast: number | null;
-    total: number | null;
-    expiryDate: string | null;
-    isPicked: boolean;
-    pickedAt: Date | null;
-    coilItem: {
-      id: string;
-      par: number;
+	  pickEntries: Array<{
+	    id: string;
+	    count: number;
+	    override: number | null;
+	    current: number | null;
+	    par: number | null;
+	    need: number | null;
+	    forecast: number | null;
+	    total: number | null;
+	    expiryDate: string | null;
+	    expiryDates: string[];
+	    expiryOverrides: Array<{ expiryDate: string; quantity: number }>;
+	    isPicked: boolean;
+	    pickedAt: Date | null;
+	    coilItem: {
+	      id: string;
+	      par: number;
       coil: {
         id: string;
         code: string;
@@ -2117,6 +2373,16 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     const serializedLocation = machine ? serializeLocation(machine.location) : null;
 
     const calculatedCount = resolvePickEntryCount(entry);
+    const expiryOverrides = (entry.expiryOverrides ?? [])
+      .map((row) => ({
+        expiryDate: row.expiryDate,
+        quantity: row.quantity,
+      }))
+      .filter((row) => row.expiryDate.trim().length > 0 && row.quantity > 0)
+      .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+    const expiryDates = Array.from(new Set([entry.expiryDate ?? '', ...expiryOverrides.map((row) => row.expiryDate)]))
+      .filter((value) => value.trim().length > 0)
+      .sort((a, b) => a.localeCompare(b));
 
     return {
       id: entry.id,
@@ -2128,6 +2394,8 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
       forecast: entry.forecast,
       total: entry.total,
       expiryDate: entry.expiryDate ?? null,
+      expiryDates,
+      expiryOverrides,
       isPicked: !!entry.isPicked,
       pickedAt: entry.pickedAt,
       packingSessionId: entry.packingSessionId,
@@ -2208,8 +2476,18 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
     locations: Array.from(locationsById.values()),
     machines: Array.from(machinesById.values()),
     pickItems,
-  pickEntries: run.pickEntries.map((entry) => {
+    pickEntries: run.pickEntries.map((entry) => {
       const calculatedCount = resolvePickEntryCount(entry);
+      const expiryOverrides = (entry.expiryOverrides ?? [])
+        .map((row) => ({
+          expiryDate: row.expiryDate,
+          quantity: row.quantity,
+        }))
+        .filter((row) => row.expiryDate.trim().length > 0 && row.quantity > 0)
+        .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+      const expiryDates = Array.from(new Set([entry.expiryDate ?? '', ...expiryOverrides.map((row) => row.expiryDate)]))
+        .filter((value) => value.trim().length > 0)
+        .sort((a, b) => a.localeCompare(b));
 
       return {
         id: entry.id,
@@ -2221,15 +2499,17 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
         forecast: entry.forecast,
         total: entry.total,
         expiryDate: entry.expiryDate ?? null,
+        expiryDates,
+        expiryOverrides,
         isPicked: !!entry.isPicked,
         pickedAt: entry.pickedAt,
         packingSessionId: entry.packingSessionId,
-      coilItem: {
-        id: entry.coilItem.id,
-        par: entry.coilItem.par,
-        coil: {
-          id: entry.coilItem.coil.id,
-          code: entry.coilItem.coil.code,
+        coilItem: {
+          id: entry.coilItem.id,
+          par: entry.coilItem.par,
+          coil: {
+            id: entry.coilItem.coil.id,
+            code: entry.coilItem.coil.code,
           machine: serializeMachine(entry.coilItem.coil.machine),
         },
         sku: entry.coilItem.sku
@@ -2244,8 +2524,8 @@ function buildRunDetailPayload(run: RunDetailSource): RunDetailPayload {
               isFreshOrFrozen: entry.coilItem.sku.isFreshOrFrozen,
             }
           : null,
-      },
-    };
+        },
+      };
     }),
     packers: Array.from(packersById.values()).sort((first, second) => {
       const normalizedName = (packer: { firstName: string | null; lastName: string | null; email: string | null; id: string }) => {
@@ -2301,6 +2581,7 @@ type RunDailyResponse = {
   pickingEndedAt: Date | null;
   createdAt: Date;
   runnerId: string | null;
+  hasPackingSessionForCurrentUser: boolean;
   locationCount: number;
   chocolateBoxes: Array<{
     id: string;
@@ -2330,6 +2611,7 @@ type RunDailyResponse = {
 
 type RunRangeFilters = {
   companyId: string;
+  currentUserId?: string;
   start: Date;
   end?: Date;
   status?: PrismaRunStatus;
@@ -2368,15 +2650,27 @@ async function fetchRunsWithinRange(filters: RunRangeFilters): Promise<RunDailyR
     `,
   );
 
-  return buildRunResponses(rows);
+  return buildRunResponses(rows, filters.currentUserId);
 }
 
-async function buildRunResponses(rows: RunDailyLocationRow[]): Promise<RunDailyResponse[]> {
+async function buildRunResponses(rows: RunDailyLocationRow[], currentUserId?: string): Promise<RunDailyResponse[]> {
   if (!rows.length) {
     return [];
   }
 
   const runIds = rows.map((row) => row.run_id);
+  const runsWithPackingSessionsForUser =
+    currentUserId && runIds.length > 0
+      ? await prisma.packingSession.findMany({
+          where: {
+            runId: { in: runIds },
+            userId: currentUserId,
+          },
+          select: { runId: true },
+          distinct: ['runId'],
+        })
+      : [];
+  const runIdsWithPackingSessionsForUser = new Set(runsWithPackingSessionsForUser.map((session) => session.runId));
   const chocolateBoxes =
     runIds.length > 0
       ? await prisma.chocolateBox.findMany({
@@ -2418,6 +2712,7 @@ async function buildRunResponses(rows: RunDailyLocationRow[]): Promise<RunDailyR
     pickingEndedAt: row.picking_ended_at,
     createdAt: row.run_created_at,
     runnerId: row.runner_id,
+    hasPackingSessionForCurrentUser: runIdsWithPackingSessionsForUser.has(row.run_id),
     locationCount: Number(row.location_count ?? 0),
     chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
     runner: buildParticipant(row.runner_id, row.runner_first_name, row.runner_last_name),
