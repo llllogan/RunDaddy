@@ -30,14 +30,17 @@ struct ExpiringItemRowView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(skuName)
-                    .font(.headline)
-                    .lineLimit(2)
+                
+                HStack(spacing: 4) {
+                    Text(skuName)
+                        .font(.headline)
+                        .lineLimit(2)
 
-                if let skuType, !skuType.isEmpty {
-                    Text(skuType)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    if let skuType, !skuType.isEmpty, skuType != "General", skuType != "general" {
+                        Text(skuType)
+                            .font(.headline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Text("\(machineCode) • Coil \(coilCode)")

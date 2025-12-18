@@ -329,7 +329,7 @@ struct RunLocationDetailView: View {
                     }
                 }
             )
-            .presentationDetents([.fraction(0.4), .large])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $pickItemPendingSubstitution) { pickItem in
