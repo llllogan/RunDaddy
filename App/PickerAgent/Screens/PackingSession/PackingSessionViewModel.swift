@@ -9,6 +9,7 @@ import Foundation
 import AVFoundation
 import Combine
 import MediaPlayer
+import UIKit
 
 struct MachineCompletionInfo: Equatable, Identifiable {
     let id = UUID()
@@ -48,9 +49,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     private let silentLoop = SilentLoopPlayer()
     private var audioSessionConfigured = false
     private var remoteCommandCenterConfigured = false
+    private var isObservingAudioSession = false
     private var announcedMachineIdentifiers: Set<String> = []
     private var hasSyncedFinishedSession = false
     private var isFinishingSessionRemotely = false
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
     
     var currentCommand: AudioCommandsResponse.AudioCommand? {
         guard currentIndex >= 0 && currentIndex < audioCommands.count else { return nil }
@@ -629,24 +635,14 @@ class PackingSessionViewModel: NSObject, ObservableObject {
             let audioSession = AVAudioSession.sharedInstance()
             
             // Use modern audio session configuration with playback control support
-            try audioSession.setCategory(
-                .playback,
-                mode: .spokenAudio,
-                policy: .default,
-                options: [
-                    .duckOthers,
-                    .interruptSpokenAudioAndMixWithOthers,
-                    .allowBluetoothA2DP,
-                    .allowAirPlay,
-                    .allowBluetoothHFP
-                ]
-            )
+            try configureAudioSession(audioSession)
             
             // Configure for optimal speech playback
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             
             // Note: routeSharingPolicy is get-only in iOS 15.0+
             
+            startObservingAudioSession()
             audioSessionConfigured = true
         } catch {
             print("Failed to configure audio session: \(error)")
@@ -657,11 +653,131 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         guard audioSessionConfigured else { return }
         
         do {
+            stopObservingAudioSession()
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
         print("Failed to deactivate audio session: \(error)")
         }
         audioSessionConfigured = false
+    }
+
+    private func configureAudioSession(_ audioSession: AVAudioSession) throws {
+        try audioSession.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            policy: .default,
+            options: [
+                .duckOthers,
+                .interruptSpokenAudioAndMixWithOthers,
+                .allowBluetoothA2DP,
+                .allowAirPlay,
+                .allowBluetoothHFP
+            ]
+        )
+    }
+
+    private func startObservingAudioSession() {
+        guard !isObservingAudioSession else { return }
+
+        let center = NotificationCenter.default
+        center.addObserver(
+            self,
+            selector: #selector(audioSessionRouteChanged(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(audioSessionInterrupted(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(mediaServicesWereReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive(_:)),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        isObservingAudioSession = true
+    }
+
+    private func stopObservingAudioSession() {
+        guard isObservingAudioSession else { return }
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        center.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        center.removeObserver(self, name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        center.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        isObservingAudioSession = false
+    }
+
+    @objc private func audioSessionRouteChanged(_ notification: Notification) {
+        guard audioSessionConfigured else { return }
+        guard let userInfo = notification.userInfo,
+              let rawValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: rawValue) else {
+            return
+        }
+
+        switch reason {
+        case .newDeviceAvailable,
+             .oldDeviceUnavailable,
+             .routeConfigurationChange,
+             .categoryChange:
+            refreshAudioSessionAndRoute()
+        default:
+            break
+        }
+    }
+
+    @objc private func audioSessionInterrupted(_ notification: Notification) {
+        guard audioSessionConfigured else { return }
+        guard let userInfo = notification.userInfo,
+              let rawValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let interruptionType = AVAudioSession.InterruptionType(rawValue: rawValue) else {
+            return
+        }
+
+        switch interruptionType {
+        case .began:
+            if synthesizer.isSpeaking {
+                synthesizer.stopSpeaking(at: .immediate)
+                isSpeaking = false
+                updatePlaybackState()
+            }
+        case .ended:
+            refreshAudioSessionAndRoute()
+        @unknown default:
+            break
+        }
+    }
+
+    @objc private func mediaServicesWereReset(_ notification: Notification) {
+        refreshAudioSessionAndRoute()
+    }
+
+    @objc private func appDidBecomeActive(_ notification: Notification) {
+        refreshAudioSessionAndRoute()
+    }
+
+    private func refreshAudioSessionAndRoute() {
+        guard audioSessionConfigured else { return }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try configureAudioSession(audioSession)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to refresh audio session on route change: \(error)")
+        }
+
+        silentLoop.restart()
     }
 
     private func handleSessionLoadFailure(_ message: String) async {
@@ -1031,6 +1147,14 @@ private final class SilentLoopPlayer {
         engine.stop()
         engine.reset()
         isRunning = false
+    }
+
+    func restart() {
+        let wasRunning = isRunning
+        stop()
+        if wasRunning {
+            start()
+        }
     }
 
     var currentTime: TimeInterval {
