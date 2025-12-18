@@ -819,6 +819,13 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
+    
+    private struct ExpiryChipItem: Identifiable {
+        let expiryDate: String
+        let quantity: Int
+        
+        var id: String { expiryDate }
+    }
 
     init(
         pickItem: RunDetail.PickItem,
@@ -844,6 +851,40 @@ struct PickEntryRow: View {
         }
 
         return nil
+    }
+    
+    private var expiryChipItems: [ExpiryChipItem] {
+        let baseExpiryDate = pickItem.expiryDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !baseExpiryDate.isEmpty else {
+            return []
+        }
+        
+        var counts: [String: Int] = [:]
+        var overrideTotal = 0
+        
+        for row in pickItem.expiryOverrides {
+            let date = row.expiryDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !date.isEmpty else { continue }
+            let qty = max(0, row.quantity)
+            guard qty > 0 else { continue }
+            counts[date, default: 0] += qty
+            overrideTotal += qty
+        }
+        
+        let baseQuantity = max(0, pickItem.count - overrideTotal)
+        if baseQuantity > 0 {
+            counts[baseExpiryDate, default: 0] += baseQuantity
+        }
+        
+        return counts
+            .map { ExpiryChipItem(expiryDate: $0.key, quantity: $0.value) }
+            .sorted(by: { $0.expiryDate < $1.expiryDate })
+    }
+    
+    private func formattedExpiryDateLabel(_ expiryDate: String) -> String {
+        let parts = expiryDate.split(separator: "-")
+        guard parts.count == 3 else { return expiryDate }
+        return "\(parts[2])-\(parts[1])-\(parts[0])"
     }
     
     var body: some View {
@@ -896,9 +937,14 @@ struct PickEntryRow: View {
                     
                     InfoChip(title: "Coil", text: pickItem.coilItem.coil.code)
 
-                    let expiryDates = pickItem.displayExpiryDates
-                    ForEach(Array(expiryDates.enumerated()), id: \.offset) { offset, expiryDate in
-                        InfoChip(title: offset == 0 ? "Exp" : nil, text: expiryDate, icon: "calendar")
+                    ForEach(expiryChipItems) { chip in
+                        InfoChip(
+                            title: "EXP,\(chip.quantity)",
+                            text: formattedExpiryDateLabel(chip.expiryDate),
+                            colour: Color.orange.opacity(0.2),
+                            foregroundColour: .orange,
+                            iconColour: .orange
+                        )
                     }
                     
                     if let category = pickItem.sku?.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
