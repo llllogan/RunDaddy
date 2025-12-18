@@ -38,9 +38,10 @@ struct AllRunsView: View {
                     if pastRunsInsertionIndex == index {
                         pastRunsTitleRow
                     }
+                    let showPackedByYouChip = !dateSection.runs.contains { $0.runner?.id == session.credentials.userID }
                     Section(dateSection.headerText) {
                         if dateSection.kind == .today || dateSection.kind == .tomorrow {
-                            StaggeredBentoGrid(items: bentoItems(for: dateSection.runs), columnCount: 2)
+                            StaggeredBentoGrid(items: bentoItems(for: dateSection.runs, showPackedByYouChip: showPackedByYouChip), columnCount: 2)
                                 .padding(.vertical, 2)
                                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                                 .listRowBackground(Color.clear)
@@ -50,7 +51,11 @@ struct AllRunsView: View {
                                 NavigationLink {
                                     RunDetailView(runId: run.id, session: session)
                                 } label: {
-                                    RunRow(run: run, currentUserId: session.credentials.userID)
+                                    RunRow(
+                                        run: run,
+                                        currentUserId: session.credentials.userID,
+                                        showPackedByYouChip: showPackedByYouChip
+                                    )
                                 }
                                 .disabled(deletingRunIds.contains(run.id))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -151,7 +156,7 @@ struct AllRunsView: View {
             .listRowSeparator(.hidden)
     }
 
-    private func bentoItems(for runs: [RunSummary]) -> [BentoItem] {
+    private func bentoItems(for runs: [RunSummary], showPackedByYouChip: Bool) -> [BentoItem] {
         runs.map { run in
             BentoItem(
                 id: "run-summary-\(run.id)",
@@ -166,7 +171,11 @@ struct AllRunsView: View {
                 onTap: { selectedRun = SelectedRunDestination(id: run.id) },
                 showsChevron: true,
                 customContent: AnyView(
-                    RunSummaryInfoChips(run: run, currentUserId: session.credentials.userID)
+                    RunSummaryInfoChips(
+                        run: run,
+                        currentUserId: session.credentials.userID,
+                        showPackedByYouChip: showPackedByYouChip
+                    )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contextMenu {
                             Button(role: .destructive) {

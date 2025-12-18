@@ -109,6 +109,7 @@ struct RunSummary: Identifiable, Equatable {
     let locationCount: Int
     let chocolateBoxes: [ChocolateBox]
     let runner: Participant?
+    let hasPackingSessionForCurrentUser: Bool
 
     var statusDisplay: String {
         status
@@ -1642,6 +1643,7 @@ private struct RunResponse: Decodable {
     let chocolateBoxes: [ChocolateBox]
     let runnerId: String?
     let runner: Participant?
+    let hasPackingSessionForCurrentUser: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -1654,6 +1656,7 @@ private struct RunResponse: Decodable {
         case chocolateBoxes
         case runnerId
         case runner
+        case hasPackingSessionForCurrentUser
     }
 
     func toSummary() -> RunSummary {
@@ -1692,7 +1695,8 @@ private struct RunResponse: Decodable {
                     }
                 )
             },
-            runner: resolvedParticipant(from: runner, fallbackID: runnerId)
+            runner: resolvedParticipant(from: runner, fallbackID: runnerId),
+            hasPackingSessionForCurrentUser: hasPackingSessionForCurrentUser ?? false
         )
     }
 

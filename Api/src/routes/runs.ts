@@ -212,6 +212,7 @@ router.get('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
   const filters: RunRangeFilters = {
     companyId: effectiveCompanyId,
+    currentUserId: req.auth.userId,
     start: rangeStart,
     limit: limitNum,
     offset: offsetNum,
@@ -872,7 +873,7 @@ router.get('/all', async (req, res) => {
     `
   );
 
-  const runs = await buildRunResponses(rows);
+  const runs = await buildRunResponses(rows, req.auth.userId);
 
   return res.json(runs);
 });
@@ -2580,6 +2581,7 @@ type RunDailyResponse = {
   pickingEndedAt: Date | null;
   createdAt: Date;
   runnerId: string | null;
+  hasPackingSessionForCurrentUser: boolean;
   locationCount: number;
   chocolateBoxes: Array<{
     id: string;
@@ -2609,6 +2611,7 @@ type RunDailyResponse = {
 
 type RunRangeFilters = {
   companyId: string;
+  currentUserId?: string;
   start: Date;
   end?: Date;
   status?: PrismaRunStatus;
@@ -2647,15 +2650,27 @@ async function fetchRunsWithinRange(filters: RunRangeFilters): Promise<RunDailyR
     `,
   );
 
-  return buildRunResponses(rows);
+  return buildRunResponses(rows, filters.currentUserId);
 }
 
-async function buildRunResponses(rows: RunDailyLocationRow[]): Promise<RunDailyResponse[]> {
+async function buildRunResponses(rows: RunDailyLocationRow[], currentUserId?: string): Promise<RunDailyResponse[]> {
   if (!rows.length) {
     return [];
   }
 
   const runIds = rows.map((row) => row.run_id);
+  const runsWithPackingSessionsForUser =
+    currentUserId && runIds.length > 0
+      ? await prisma.packingSession.findMany({
+          where: {
+            runId: { in: runIds },
+            userId: currentUserId,
+          },
+          select: { runId: true },
+          distinct: ['runId'],
+        })
+      : [];
+  const runIdsWithPackingSessionsForUser = new Set(runsWithPackingSessionsForUser.map((session) => session.runId));
   const chocolateBoxes =
     runIds.length > 0
       ? await prisma.chocolateBox.findMany({
@@ -2697,6 +2712,7 @@ async function buildRunResponses(rows: RunDailyLocationRow[]): Promise<RunDailyR
     pickingEndedAt: row.picking_ended_at,
     createdAt: row.run_created_at,
     runnerId: row.runner_id,
+    hasPackingSessionForCurrentUser: runIdsWithPackingSessionsForUser.has(row.run_id),
     locationCount: Number(row.location_count ?? 0),
     chocolateBoxes: chocolateBoxesByRun.get(row.run_id) || [],
     runner: buildParticipant(row.runner_id, row.runner_first_name, row.runner_last_name),

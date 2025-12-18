@@ -493,7 +493,8 @@ extension RunSummary {
                 RunSummary.ChocolateBox(id: "box-1", number: 1, machine: nil),
                 RunSummary.ChocolateBox(id: "box-2", number: 3, machine: nil)
             ],
-            runner: nil
+            runner: nil,
+            hasPackingSessionForCurrentUser: false
         )
     }
 
@@ -515,7 +516,8 @@ extension RunSummary {
                 id: "runner-1",
                 firstName: "Morgan",
                 lastName: "Lee"
-            )
+            ),
+            hasPackingSessionForCurrentUser: false
         )
     }
 
@@ -535,7 +537,8 @@ extension RunSummary {
                 id: "runner-2",
                 firstName: "Alex",
                 lastName: "Johnson"
-            )
+            ),
+            hasPackingSessionForCurrentUser: false
         )
     }
 

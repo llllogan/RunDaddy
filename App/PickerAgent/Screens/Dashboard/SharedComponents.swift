@@ -83,10 +83,12 @@ struct FlowLayout: Layout {
 struct RunRow: View {
     let run: RunSummary
     let currentUserId: String?
+    let showPackedByYouChip: Bool
 
-    init(run: RunSummary, currentUserId: String? = nil) {
+    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true) {
         self.run = run
         self.currentUserId = currentUserId
+        self.showPackedByYouChip = showPackedByYouChip
     }
 
     var body: some View {
@@ -94,7 +96,7 @@ struct RunRow: View {
             Text("\(run.locationCount) \(run.locationCount > 1 ? "Locations" : "Location")")
                 .font(.headline)
                 .fontWeight(.semibold)
-            RunSummaryInfoChips(run: run, currentUserId: currentUserId)
+            RunSummaryInfoChips(run: run, currentUserId: currentUserId, showPackedByYouChip: showPackedByYouChip)
         }
         .padding(.vertical, 0)
     }
@@ -103,6 +105,13 @@ struct RunRow: View {
 struct RunSummaryInfoChips: View {
     let run: RunSummary
     let currentUserId: String?
+    let showPackedByYouChip: Bool
+
+    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true) {
+        self.run = run
+        self.currentUserId = currentUserId
+        self.showPackedByYouChip = showPackedByYouChip
+    }
 
     var body: some View {
         FlowLayout(spacing: 6) {
@@ -111,6 +120,14 @@ struct RunSummaryInfoChips: View {
             if isAssignedToCurrentUser {
                 InfoChip(
                     text: "Assigned to you",
+                    colour: Color.blue.opacity(0.15),
+                    foregroundColour: .blue
+                )
+            }
+
+            if shouldShowPackedByYouChip {
+                InfoChip(
+                    text: "Packed by you",
                     colour: Color.blue.opacity(0.15),
                     foregroundColour: .blue
                 )
@@ -140,6 +157,12 @@ struct RunSummaryInfoChips: View {
         }
 
         return run.runner?.id == currentUserId
+    }
+
+    private var shouldShowPackedByYouChip: Bool {
+        guard showPackedByYouChip else { return false }
+        guard !isAssignedToCurrentUser else { return false }
+        return run.hasPackingSessionForCurrentUser
     }
 
     private var statusBackgroundColor: Color {
