@@ -199,7 +199,7 @@ struct MachineDetailView: View {
                         }
                     }
                 } label: {
-                    Label(selectedPeriod.displayName, systemImage: "calendar")
+                    Label(selectedPeriod.displayName, systemImage: "ellipsis.calendar")
                 }
             }
         }
