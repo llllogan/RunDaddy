@@ -60,6 +60,7 @@ struct ConfigureHoursSheet: View {
             }
         }
         .listStyle(.insetGrouped)
+        .keyboardDismissToolbar()
     }
 
     private func timeRow(title: String, isEnabled: Binding<Bool>, time: Binding<Date>) -> some View {

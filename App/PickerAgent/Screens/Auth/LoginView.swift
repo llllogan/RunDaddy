@@ -45,6 +45,7 @@ struct LoginView: View {
             .navigationTitle(isShowingSignup ? "Create Account" : "Login")
             .navigationBarTitleDisplayMode(.large)
         }
+        .keyboardDismissToolbar()
         .onSubmit {
             switch focusedField {
             case .firstName:

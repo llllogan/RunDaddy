@@ -111,6 +111,7 @@ struct CompanyTimezonePickerView: View {
         .navigationTitle("Company Timezone")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search timezones")
+        .keyboardDismissToolbar()
     }
 
     private func select(_ identifier: String) {

@@ -158,6 +158,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .keyboardDismissToolbar()
         .task {
             await viewModel.loadRuns()
             await momentumViewModel.loadSnapshot()

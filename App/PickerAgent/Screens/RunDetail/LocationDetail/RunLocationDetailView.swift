@@ -635,6 +635,7 @@ struct CountPointerSelectionSheet: View {
     let onOverrideSaved: (Int?) async -> Void
     @ObservedObject var viewModel: RunDetailViewModel
     
+    @FocusState private var isOverrideFocused: Bool
     @State private var overrideInput: String = ""
     @State private var isSavingOverride = false
     @State private var overrideError: String?
@@ -695,6 +696,7 @@ struct CountPointerSelectionSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         TextField("Override count", text: $overrideInput)
                             .keyboardType(.numberPad)
+                            .focused($isOverrideFocused)
                         
                         if let defaultPointerCount {
                             Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")
@@ -736,6 +738,16 @@ struct CountPointerSelectionSheet: View {
                         }
                     }
                     .disabled(isSavingOverride)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        isOverrideFocused = false
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Dismiss Keyboard")
                 }
             }
         }

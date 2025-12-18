@@ -645,6 +645,7 @@ private struct NotesTargetFilterPickerSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .keyboardDismissToolbar()
             .onDisappear {
                 searchDebounceTask?.cancel()
             }
@@ -838,6 +839,7 @@ private struct CompanyNoteComposer: View {
                 }
             }
         }
+        .keyboardDismissToolbar()
         .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Yes") {
