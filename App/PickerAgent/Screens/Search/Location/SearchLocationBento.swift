@@ -68,7 +68,7 @@ struct SearchLocationInfoBento: View {
                 id: "location-info-last-packed",
                 title: lastPackedTitle,
                 value: lastPackedValue,
-                symbolName: "clock.arrow.circlepath",
+                symbolName: "clock",
                 symbolTint: .indigo,
                 allowsMultilineValue: true
             )
