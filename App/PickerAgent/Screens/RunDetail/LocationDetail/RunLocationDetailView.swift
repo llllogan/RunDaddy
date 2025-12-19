@@ -85,6 +85,10 @@ struct RunLocationDetailView: View {
         )
     }
 
+    private var locationNotesTagOptions: [NoteTagOption] {
+        NotesViewModel.buildTagOptions(from: detail)
+    }
+
 	    private var availableSkuCategories: [String] {
 	        var seen = Set<String>()
 	        var categories: [String] = []
@@ -461,8 +465,10 @@ struct RunLocationDetailView: View {
         .navigationDestination(isPresented: $showingLocationNotes) {
             if let tag = locationNotesTag {
                 NotesView(
+                    scopedTag: tag,
                     session: session,
-                    initialFilterTag: tag,
+                    runId: runId,
+                    tagOptions: locationNotesTagOptions,
                     onNotesUpdated: { updatedCount in
                         locationNoteCount = updatedCount
                     }

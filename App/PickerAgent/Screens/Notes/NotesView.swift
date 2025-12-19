@@ -75,6 +75,37 @@ struct NotesView: View {
                 session: session,
                 runId: runId,
                 runDetail: runDetail,
+                filterTag: nil,
+                tagOptions: [],
+                allowsRunAssociation: true,
+                notesService: notesService,
+                searchService: searchService,
+                runsService: runsService
+            )
+        )
+        self.onNotesUpdated = onNotesUpdated
+    }
+
+    init(
+        scopedTag: NoteTagOption,
+        session: AuthSession,
+        runId: String?,
+        tagOptions: [NoteTagOption],
+        notesService: NotesServicing? = nil,
+        searchService: SearchServicing? = nil,
+        runsService: RunsServicing? = nil,
+        onNotesUpdated: ((Int) -> Void)? = nil
+    ) {
+        self.session = session
+        _viewModel = StateObject(
+            wrappedValue: NotesViewModel(
+                mode: .scoped,
+                session: session,
+                runId: runId,
+                runDetail: nil,
+                filterTag: scopedTag,
+                tagOptions: tagOptions,
+                allowsRunAssociation: runId != nil,
                 notesService: notesService,
                 searchService: searchService,
                 runsService: runsService
@@ -85,6 +116,18 @@ struct NotesView: View {
 
     private var isCompanyMode: Bool {
         viewModel.mode == .company
+    }
+
+    private var currentFilterTag: NoteTagOption? {
+        if viewModel.mode == .scoped {
+            return viewModel.filterTag
+        }
+
+        if isCompanyMode {
+            return activeFilterTag
+        }
+
+        return nil
     }
 
     var body: some View {
@@ -113,7 +156,7 @@ struct NotesView: View {
                 Section {
                     Text(isCompanyMode
                          ? (activeFilterTag == nil ? "No notes have been created yet." : "No notes found for this item.")
-                         : "No notes have been added to this run yet."
+                         : (viewModel.mode == .run ? "No notes have been added to this run yet." : "No notes found for this item.")
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -168,10 +211,10 @@ struct NotesView: View {
             }
         }
         .refreshable {
-            await viewModel.loadNotes(force: true, filterTag: activeFilterTag)
+            await viewModel.loadNotes(force: true, filterTag: currentFilterTag)
         }
         .task {
-            await viewModel.loadNotes(filterTag: activeFilterTag)
+            await viewModel.loadNotes(filterTag: currentFilterTag)
             if isCompanyMode {
                 await viewModel.loadSuggestedTags()
             }
@@ -179,7 +222,7 @@ struct NotesView: View {
         .onChange(of: session.credentials.accessToken) {
             viewModel.resetSession(session)
             Task {
-                await viewModel.loadNotes(force: true, filterTag: activeFilterTag)
+                await viewModel.loadNotes(force: true, filterTag: currentFilterTag)
                 if isCompanyMode {
                     await viewModel.loadSuggestedTags()
                 }
@@ -269,6 +312,8 @@ struct NotesView: View {
             return viewModel.runDates[runId]
         case .run:
             return viewModel.runDate
+        case .scoped:
+            return nil
         }
     }
 
@@ -316,6 +361,7 @@ final class NotesViewModel: ObservableObject {
     enum Mode {
         case company
         case run
+        case scoped
     }
 
     @Published private(set) var notes: [Note] = []
@@ -335,6 +381,8 @@ final class NotesViewModel: ObservableObject {
     let mode: Mode
     let runId: String?
     let runDate: Date?
+    let filterTag: NoteTagOption?
+    let allowsRunAssociation: Bool
 
     private var session: AuthSession
     private let notesService: NotesServicing
@@ -348,6 +396,9 @@ final class NotesViewModel: ObservableObject {
         session: AuthSession,
         runId: String?,
         runDetail: RunDetail?,
+        filterTag: NoteTagOption? = nil,
+        tagOptions: [NoteTagOption] = [],
+        allowsRunAssociation: Bool = false,
         notesService: NotesServicing? = nil,
         searchService: SearchServicing? = nil,
         runsService: RunsServicing? = nil
@@ -356,12 +407,20 @@ final class NotesViewModel: ObservableObject {
         self.session = session
         self.runId = runId
         self.runDate = runDetail?.runDate
+        self.filterTag = filterTag
+        self.allowsRunAssociation = allowsRunAssociation
         self.notesService = notesService ?? NotesService()
         self.searchService = searchService ?? SearchService()
         self.runsService = runsService ?? RunsService()
         if mode == .run {
             self.tagOptions = NotesViewModel.buildTagOptions(from: runDetail)
+        } else if mode == .scoped {
+            self.tagOptions = tagOptions
         }
+    }
+
+    var usesStaticTags: Bool {
+        mode == .run || mode == .scoped
     }
 
     func resetSession(_ session: AuthSession) {
@@ -381,7 +440,7 @@ final class NotesViewModel: ObservableObject {
     }
 
     var isAddDisabled: Bool {
-        mode == .run && tagOptions.isEmpty
+        usesStaticTags && tagOptions.isEmpty
     }
 
     func loadNotes(force: Bool = false, filterTag: NoteTagOption? = nil) async {
@@ -464,9 +523,10 @@ final class NotesViewModel: ObservableObject {
 
         do {
             let isGeneral = tag.type == .general
+            let shouldAssociate = associateWithRun && allowsRunAssociation
             let request = CreateNoteRequest(
                 body: trimmedBody,
-                runId: mode == .run && associateWithRun ? runId : nil,
+                runId: shouldAssociate ? runId : nil,
                 targetType: tag.type,
                 targetId: isGeneral ? nil : tag.id
             )
@@ -599,6 +659,16 @@ final class NotesViewModel: ObservableObject {
             )
         }
 
+        if mode == .scoped, let filterTag {
+            return try await notesService.fetchNotes(
+                targetType: filterTag.type,
+                targetId: filterTag.id,
+                limit: pageSize,
+                offset: offset,
+                credentials: session.credentials
+            )
+        }
+
         if let filterTag {
             return try await notesService.fetchNotes(
                 targetType: filterTag.type,
@@ -654,7 +724,7 @@ final class NotesViewModel: ObservableObject {
         }
     }
 
-    private static func buildTagOptions(from detail: RunDetail?) -> [NoteTagOption] {
+    static func buildTagOptions(from detail: RunDetail?) -> [NoteTagOption] {
         guard let detail else { return [] }
 
         var options: [NoteTagOption] = []
@@ -716,6 +786,73 @@ final class NotesViewModel: ObservableObject {
                     type: .location,
                     label: (title?.isEmpty == false ? title : nil) ?? "Location",
                     subtitle: (subtitle?.isEmpty == false ? subtitle : nil)
+                )
+            )
+        }
+
+        return options.sorted { lhs, rhs in
+            lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        }
+    }
+
+    static func buildTagOptions(from detail: RunLocationDetail) -> [NoteTagOption] {
+        var options: [NoteTagOption] = []
+        var seen = Set<String>()
+
+        if let location = detail.section.location {
+            let title = location.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = location.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+            seen.insert(location.id)
+            options.append(
+                NoteTagOption(
+                    id: location.id,
+                    type: .location,
+                    label: (title?.isEmpty == false ? title : nil) ?? "Location",
+                    subtitle: (subtitle?.isEmpty == false ? subtitle : nil)
+                )
+            )
+        }
+
+        for machine in detail.machines {
+            guard !seen.contains(machine.id) else { continue }
+            seen.insert(machine.id)
+            let subtitleParts = [
+                machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+            ].compactMap { part -> String? in
+                if let part, !part.isEmpty {
+                    return part
+                }
+                return nil
+            }
+
+            options.append(
+                NoteTagOption(
+                    id: machine.id,
+                    type: .machine,
+                    label: machine.code,
+                    subtitle: subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: " • ")
+                )
+            )
+        }
+
+        for item in detail.pickItems {
+            guard let sku = item.sku, !seen.contains(sku.id) else { continue }
+            seen.insert(sku.id)
+            let subtitleParts = [
+                sku.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                Self.normalizedSkuType(sku.type)
+            ].compactMap { value -> String? in
+                guard let value else { return nil }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            let subtitle = subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: " • ")
+            options.append(
+                NoteTagOption(
+                    id: sku.id,
+                    type: .sku,
+                    label: sku.code,
+                    subtitle: subtitle
                 )
             )
         }
@@ -968,7 +1105,7 @@ private struct NotesComposer: View {
         } else {
             _selectedTag = State(initialValue: nil)
             _savedTag = State(initialValue: nil)
-            _associateWithRun = State(initialValue: true)
+            _associateWithRun = State(initialValue: viewModel.allowsRunAssociation)
         }
     }
 
@@ -977,7 +1114,7 @@ private struct NotesComposer: View {
     }
 
     private var isRunMode: Bool {
-        viewModel.mode == .run
+        viewModel.usesStaticTags
     }
 
     private var visibleTags: [NoteTagOption] {
@@ -1030,7 +1167,7 @@ private struct NotesComposer: View {
                     }
                 }
 
-                if !isEditing && isRunMode && !isReadOnly {
+                if !isEditing && viewModel.allowsRunAssociation && !isReadOnly {
                     Section {
                         Toggle("Associate with this run", isOn: $associateWithRun)
                     } footer: {
@@ -1046,10 +1183,10 @@ private struct NotesComposer: View {
                                 handleSearchChange(newValue)
                             }
 
-                        if isRunMode {
-                            if viewModel.tagOptions.isEmpty {
-                                Text("Tags are unavailable until the run details finish loading.")
-                                    .font(.footnote)
+                    if isRunMode {
+                        if viewModel.tagOptions.isEmpty {
+                            Text("Tags are unavailable until the run details finish loading.")
+                                .font(.footnote)
                                     .foregroundStyle(.secondary)
                                     .padding(.vertical, 4)
                             } else if visibleTags.isEmpty {
@@ -1255,7 +1392,7 @@ private struct NotesComposer: View {
         bodyText = savedBodyText
         searchText = ""
         selectedTag = savedTag
-        associateWithRun = isRunMode ? true : associateWithRun
+        associateWithRun = viewModel.allowsRunAssociation ? true : associateWithRun
     }
 }
 
