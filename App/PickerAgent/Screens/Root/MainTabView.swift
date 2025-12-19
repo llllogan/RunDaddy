@@ -186,7 +186,7 @@ private struct NotesTab: View {
 
     var body: some View {
         NavigationStack {
-            CompanyNotesView(session: session)
+            NotesView(session: session)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         profileButton

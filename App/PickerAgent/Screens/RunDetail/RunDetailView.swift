@@ -115,7 +115,7 @@ struct RunDetailView: View {
             )
         }
         .navigationDestination(isPresented: $showingRunNotes) {
-            RunNotesView(
+            NotesView(
                 runId: viewModel.detail?.id ?? viewModel.runId,
                 session: viewModel.session,
                 runDetail: viewModel.detail,

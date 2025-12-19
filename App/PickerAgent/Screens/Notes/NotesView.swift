@@ -24,8 +24,8 @@ private enum NoteComposerIntent: Identifiable {
     }
 }
 
-struct CompanyNotesView: View {
-    @StateObject private var viewModel: CompanyNotesViewModel
+struct NotesView: View {
+    @StateObject private var viewModel: NotesViewModel
     let onNotesUpdated: ((Int) -> Void)?
     @State private var composerIntent: NoteComposerIntent?
     @State private var selectedNoteForPreview: Note?
@@ -46,8 +46,11 @@ struct CompanyNotesView: View {
         self.session = session
         self._activeFilterTag = State(initialValue: initialFilterTag)
         _viewModel = StateObject(
-            wrappedValue: CompanyNotesViewModel(
+            wrappedValue: NotesViewModel(
+                mode: .company,
                 session: session,
+                runId: nil,
+                runDetail: nil,
                 notesService: notesService,
                 searchService: searchService,
                 runsService: runsService
@@ -56,20 +59,50 @@ struct CompanyNotesView: View {
         self.onNotesUpdated = onNotesUpdated
     }
 
+    init(
+        runId: String,
+        session: AuthSession,
+        runDetail: RunDetail?,
+        notesService: NotesServicing? = nil,
+        searchService: SearchServicing? = nil,
+        runsService: RunsServicing? = nil,
+        onNotesUpdated: ((Int) -> Void)? = nil
+    ) {
+        self.session = session
+        _viewModel = StateObject(
+            wrappedValue: NotesViewModel(
+                mode: .run,
+                session: session,
+                runId: runId,
+                runDetail: runDetail,
+                notesService: notesService,
+                searchService: searchService,
+                runsService: runsService
+            )
+        )
+        self.onNotesUpdated = onNotesUpdated
+    }
+
+    private var isCompanyMode: Bool {
+        viewModel.mode == .company
+    }
+
     var body: some View {
         List {
-            Section {
-                NotesFilterBar(
-                    selectedTag: activeFilterTag,
-                    onSelectAll: {
-                        activeFilterTag = nil
-                        Task { await viewModel.loadNotes(force: true, filterTag: nil) }
-                    },
-                    onSelectType: { type in
-                        filterPickerType = type
-                        isShowingFilterPicker = true
-                    }
-                )
+            if isCompanyMode {
+                Section {
+                    NotesFilterBar(
+                        selectedTag: activeFilterTag,
+                        onSelectAll: {
+                            activeFilterTag = nil
+                            Task { await viewModel.loadNotes(force: true, filterTag: nil) }
+                        },
+                        onSelectType: { type in
+                            filterPickerType = type
+                            isShowingFilterPicker = true
+                        }
+                    )
+                }
             }
 
             if viewModel.isLoading && viewModel.notes.isEmpty {
@@ -78,16 +111,21 @@ struct CompanyNotesView: View {
                 }
             } else if viewModel.notes.isEmpty {
                 Section {
-                    Text(activeFilterTag == nil ? "No notes have been created yet." : "No notes found for this item.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
+                    Text(isCompanyMode
+                         ? (activeFilterTag == nil ? "No notes have been created yet." : "No notes found for this item.")
+                         : "No notes have been added to this run yet."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
                 }
             } else {
                 ForEach(viewModel.groupedNotes, id: \.dateLabel) { group in
-                    CompanyNotesSection(
+                    NotesSection(
                         group: group,
-                        runDates: viewModel.runDates,
+                        runDateProvider: { note in
+                            runDate(for: note)
+                        },
                         onSelect: { note in
                             selectedNoteForPreview = note
                             isPreviewReadOnly = true
@@ -97,7 +135,7 @@ struct CompanyNotesView: View {
                     )
                 }
 
-                if viewModel.hasMoreNotes {
+                if isCompanyMode && viewModel.hasMoreNotes {
                     Section {
                         Button {
                             Task { await viewModel.loadMoreNotes(filterTag: activeFilterTag) }
@@ -118,7 +156,7 @@ struct CompanyNotesView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Notes")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(isCompanyMode ? .large : .inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -126,6 +164,7 @@ struct CompanyNotesView: View {
                 } label: {
                     Label("Add Note", systemImage: "plus")
                 }
+                .disabled(viewModel.isAddDisabled)
             }
         }
         .refreshable {
@@ -133,20 +172,24 @@ struct CompanyNotesView: View {
         }
         .task {
             await viewModel.loadNotes(filterTag: activeFilterTag)
-            await viewModel.loadSuggestedTags()
+            if isCompanyMode {
+                await viewModel.loadSuggestedTags()
+            }
         }
         .onChange(of: session.credentials.accessToken) {
             viewModel.resetSession(session)
             Task {
                 await viewModel.loadNotes(force: true, filterTag: activeFilterTag)
-                await viewModel.loadSuggestedTags()
+                if isCompanyMode {
+                    await viewModel.loadSuggestedTags()
+                }
             }
         }
         .onChange(of: viewModel.total) { _, newValue in
             onNotesUpdated?(newValue)
         }
         .sheet(item: $composerIntent) { intent in
-            CompanyNoteComposer(
+            NotesComposer(
                 viewModel: viewModel,
                 isPresented: Binding(
                     get: { composerIntent != nil },
@@ -166,7 +209,7 @@ struct CompanyNotesView: View {
         .sheet(item: $selectedNoteForPreview, onDismiss: {
             isPreviewReadOnly = true
         }) { note in
-            CompanyNoteComposer(
+            NotesComposer(
                 viewModel: viewModel,
                 isPresented: Binding(
                     get: { selectedNoteForPreview != nil },
@@ -217,8 +260,13 @@ struct CompanyNotesView: View {
     }
 
     private func runDate(for note: Note) -> Date? {
-        guard let runId = note.runId else { return nil }
-        return viewModel.runDates[runId]
+        switch viewModel.mode {
+        case .company:
+            guard let runId = note.runId else { return nil }
+            return viewModel.runDates[runId]
+        case .run:
+            return viewModel.runDate
+        }
     }
 
     private func handleDeleteFromPreview(_ note: Note) async {
@@ -230,9 +278,9 @@ struct CompanyNotesView: View {
     }
 }
 
-private struct CompanyNotesSection: View {
+private struct NotesSection: View {
     let group: NoteDayGroup
-    let runDates: [String: Date]
+    let runDateProvider: (Note) -> Date?
     let onSelect: (Note) -> Void
     let onEdit: (Note) -> Void
     let onDelete: (Note) -> Void
@@ -240,7 +288,7 @@ private struct CompanyNotesSection: View {
     var body: some View {
         Section(group.dateLabel) {
             ForEach(group.notes) { note in
-                NoteRowView(note: note, runDate: runDate(for: note))
+                NoteRowView(note: note, runDate: runDateProvider(note))
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onSelect(note)
@@ -258,15 +306,15 @@ private struct CompanyNotesSection: View {
             }
         }
     }
-
-    private func runDate(for note: Note) -> Date? {
-        guard let runId = note.runId else { return nil }
-        return runDates[runId]
-    }
 }
 
 @MainActor
-final class CompanyNotesViewModel: ObservableObject {
+final class NotesViewModel: ObservableObject {
+    enum Mode {
+        case company
+        case run
+    }
+
     @Published private(set) var notes: [Note] = []
     @Published private(set) var total: Int = 0
     @Published private(set) var isLoading = false
@@ -279,6 +327,11 @@ final class CompanyNotesViewModel: ObservableObject {
     @Published var tagResults: [NoteTagOption] = []
     @Published private(set) var groupedNotes: [NoteDayGroup] = []
     @Published private(set) var runDates: [String: Date] = [:]
+    @Published private(set) var tagOptions: [NoteTagOption] = []
+
+    let mode: Mode
+    let runId: String?
+    let runDate: Date?
 
     private var session: AuthSession
     private let notesService: NotesServicing
@@ -288,15 +341,24 @@ final class CompanyNotesViewModel: ObservableObject {
     private let pageSize = 100
 
     init(
+        mode: Mode,
         session: AuthSession,
+        runId: String?,
+        runDetail: RunDetail?,
         notesService: NotesServicing? = nil,
         searchService: SearchServicing? = nil,
         runsService: RunsServicing? = nil
     ) {
+        self.mode = mode
         self.session = session
+        self.runId = runId
+        self.runDate = runDetail?.runDate
         self.notesService = notesService ?? NotesService()
         self.searchService = searchService ?? SearchService()
         self.runsService = runsService ?? RunsService()
+        if mode == .run {
+            self.tagOptions = NotesViewModel.buildTagOptions(from: runDetail)
+        }
     }
 
     func resetSession(_ session: AuthSession) {
@@ -311,7 +373,12 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     var hasMoreNotes: Bool {
-        notes.count < total
+        guard mode == .company else { return false }
+        return notes.count < total
+    }
+
+    var isAddDisabled: Bool {
+        mode == .run && tagOptions.isEmpty
     }
 
     func loadNotes(force: Bool = false, filterTag: NoteTagOption? = nil) async {
@@ -344,7 +411,9 @@ final class CompanyNotesViewModel: ObservableObject {
             } else if let notesError = error as? NotesServiceError {
                 errorMessage = notesError.localizedDescription
             } else {
-                errorMessage = "We couldn't load notes right now. Please pull to refresh."
+                errorMessage = mode == .run
+                    ? "We couldn't load notes for this run. Please pull to refresh."
+                    : "We couldn't load notes right now. Please pull to refresh."
             }
         }
 
@@ -352,6 +421,7 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     func loadMoreNotes(filterTag: NoteTagOption? = nil) async {
+        guard mode == .company else { return }
         if isLoadingMore || isLoading || !hasMoreNotes {
             return
         }
@@ -379,7 +449,7 @@ final class CompanyNotesViewModel: ObservableObject {
         }
     }
 
-    func addNote(body: String, tag: NoteTagOption) async -> Note? {
+    func addNote(body: String, tag: NoteTagOption, associateWithRun: Bool = true) async -> Note? {
         if isSaving {
             return nil
         }
@@ -393,7 +463,7 @@ final class CompanyNotesViewModel: ObservableObject {
             let isGeneral = tag.type == .general
             let request = CreateNoteRequest(
                 body: trimmedBody,
-                runId: nil,
+                runId: mode == .run && associateWithRun ? runId : nil,
                 targetType: tag.type,
                 targetId: isGeneral ? nil : tag.id
             )
@@ -478,6 +548,7 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     func loadSuggestedTags() async {
+        guard mode == .company else { return }
         do {
             let suggestions = try await searchService.fetchSuggestions(lookbackDays: 7)
             tagSuggestions = suggestions.results.compactMap { result in
@@ -490,6 +561,7 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     func searchTags(matching query: String) async {
+        guard mode == .company else { return }
         if isSearchingTags {
             return
         }
@@ -513,6 +585,17 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     private func fetchNotesPage(offset: Int, filterTag: NoteTagOption?) async throws -> NotesResponse {
+        if mode == .run, let runId {
+            return try await notesService.fetchNotes(
+                runId: runId,
+                includePersistentForRun: true,
+                recentDays: nil,
+                limit: 50,
+                offset: nil,
+                credentials: session.credentials
+            )
+        }
+
         if let filterTag {
             return try await notesService.fetchNotes(
                 targetType: filterTag.type,
@@ -550,6 +633,7 @@ final class CompanyNotesViewModel: ObservableObject {
     }
 
     private func loadRunDates(for notes: [Note]) async {
+        guard mode == .company else { return }
         let uniqueRunIds = Set(notes.compactMap { $0.runId })
         let pendingRunIds = uniqueRunIds.filter { runId in
             runDates[runId] == nil && !failedRunIds.contains(runId)
@@ -566,6 +650,92 @@ final class CompanyNotesViewModel: ObservableObject {
             }
         }
     }
+
+    private static func buildTagOptions(from detail: RunDetail?) -> [NoteTagOption] {
+        guard let detail else { return [] }
+
+        var options: [NoteTagOption] = []
+        var seen = Set<String>()
+
+        for item in detail.pickItems {
+            guard let sku = item.sku, !seen.contains(sku.id) else { continue }
+            seen.insert(sku.id)
+            let subtitleParts = [
+                sku.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                Self.normalizedSkuType(sku.type)
+            ].compactMap { value -> String? in
+                guard let value else { return nil }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            let subtitle = subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: " • ")
+            options.append(
+                NoteTagOption(
+                    id: sku.id,
+                    type: .sku,
+                    label: sku.code,
+                    subtitle: subtitle
+                )
+            )
+        }
+
+        for machine in detail.machines {
+            guard !seen.contains(machine.id) else { continue }
+            seen.insert(machine.id)
+            let subtitleParts = [
+                machine.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+            ].compactMap { part -> String? in
+                if let part, !part.isEmpty {
+                    return part
+                }
+                return nil
+            }
+
+            options.append(
+                NoteTagOption(
+                    id: machine.id,
+                    type: .machine,
+                    label: machine.code,
+                    subtitle: subtitleParts.isEmpty ? nil : subtitleParts.joined(separator: " • ")
+                )
+            )
+        }
+
+        for location in detail.locations {
+            guard !seen.contains(location.id) else { continue }
+            seen.insert(location.id)
+            let title = location.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = location.address?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            options.append(
+                NoteTagOption(
+                    id: location.id,
+                    type: .location,
+                    label: (title?.isEmpty == false ? title : nil) ?? "Location",
+                    subtitle: (subtitle?.isEmpty == false ? subtitle : nil)
+                )
+            )
+        }
+
+        return options.sorted { lhs, rhs in
+            lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        }
+    }
+
+    private static func normalizedSkuType(_ raw: String?) -> String? {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased() == "general" {
+            return nil
+        }
+        return trimmed
+    }
+}
+
+struct NoteDayGroup: Identifiable {
+    let id = UUID()
+    let dateLabel: String
+    let notes: [Note]
 }
 
 private struct NotesFilterBar: View {
@@ -737,8 +907,8 @@ private struct NotesTargetFilterPickerSheet: View {
     }
 }
 
-private struct CompanyNoteComposer: View {
-    @ObservedObject var viewModel: CompanyNotesViewModel
+private struct NotesComposer: View {
+    @ObservedObject var viewModel: NotesViewModel
     @Binding var isPresented: Bool
     let editingNote: Note?
     let isReadOnly: Bool
@@ -757,9 +927,10 @@ private struct CompanyNoteComposer: View {
     @State private var isShowingDeleteConfirm = false
     @State private var savedBodyText: String
     @State private var savedTag: NoteTagOption?
+    @State private var associateWithRun = true
 
     init(
-        viewModel: CompanyNotesViewModel,
+        viewModel: NotesViewModel,
         isPresented: Binding<Bool>,
         editingNote: Note?,
         isReadOnly: Bool = false,
@@ -790,13 +961,35 @@ private struct CompanyNoteComposer: View {
             )
             _selectedTag = State(initialValue: initialTag)
             _savedTag = State(initialValue: initialTag)
+            _associateWithRun = State(initialValue: editingNote.runId != nil)
         } else {
             _selectedTag = State(initialValue: nil)
             _savedTag = State(initialValue: nil)
+            _associateWithRun = State(initialValue: true)
         }
     }
 
+    private var isEditing: Bool {
+        editingNote != nil
+    }
+
+    private var isRunMode: Bool {
+        viewModel.mode == .run
+    }
+
     private var visibleTags: [NoteTagOption] {
+        if isRunMode {
+            let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedSearch.isEmpty else {
+                return viewModel.tagOptions
+            }
+
+            return viewModel.tagOptions.filter { option in
+                option.label.localizedCaseInsensitiveContains(trimmedSearch)
+                    || (option.subtitle?.localizedCaseInsensitiveContains(trimmedSearch) == true)
+            }
+        }
+
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
             return viewModel.tagSuggestions
@@ -808,9 +1001,14 @@ private struct CompanyNoteComposer: View {
         bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving
     }
 
-    var body: some View {
-        let isEditing = editingNote != nil
+    private var runAssociationFooterText: String {
+        if associateWithRun {
+            return "This note is linked to this run. Turn it off to save the note without a run association."
+        }
+        return "This note will be saved without a run association."
+    }
 
+    var body: some View {
         NavigationStack {
             List {
                 Section {
@@ -829,47 +1027,71 @@ private struct CompanyNoteComposer: View {
                     }
                 }
 
+                if !isEditing && isRunMode && !isReadOnly {
+                    Section {
+                        Toggle("Associate with this run", isOn: $associateWithRun)
+                    } footer: {
+                        Text(runAssociationFooterText)
+                    }
+                }
+
                 if !isEditing {
                     Section("Apply to") {
                         TextField("Search SKUs, machines, or locations", text: $searchText)
                             .disabled(isReadOnly)
                             .onChange(of: searchText) { _, newValue in
-                                searchTask?.cancel()
-                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard trimmed.count >= 2 else {
-                                    viewModel.clearSearchResults()
-                                    return
-                                }
-
-                                searchTask = Task {
-                                    try? await Task.sleep(nanoseconds: 300_000_000)
-                                    await viewModel.searchTags(matching: trimmed)
-                                }
+                                handleSearchChange(newValue)
                             }
 
-                        if visibleTags.isEmpty {
-                            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
+                        if isRunMode {
+                            if viewModel.tagOptions.isEmpty {
+                                Text("Tags are unavailable until the run details finish loading.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            } else if visibleTags.isEmpty {
+                                Text("No tags match your search.")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                                     .padding(.vertical, 4)
                             } else {
-                                Text("No tags match your search yet.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 4)
+                                ForEach(visibleTags) { option in
+                                    Button {
+                                        selectedTag = option
+                                    } label: {
+                                        EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                            .frame(maxWidth: .infinity)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(isReadOnly)
+                                }
                             }
                         } else {
-                            ForEach(visibleTags) { option in
-                                Button {
-                                    selectedTag = option
-                                } label: {
-                                    EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
-                                        .frame(maxWidth: .infinity)
-                                        .contentShape(Rectangle())
+                            if visibleTags.isEmpty {
+                                if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.vertical, 4)
+                                } else {
+                                    Text("No tags match your search yet.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.vertical, 4)
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(isReadOnly)
+                            } else {
+                                ForEach(visibleTags) { option in
+                                    Button {
+                                        selectedTag = option
+                                    } label: {
+                                        EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                            .frame(maxWidth: .infinity)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(isReadOnly)
+                                }
                             }
                         }
                     }
@@ -890,17 +1112,22 @@ private struct CompanyNoteComposer: View {
                 if isReadOnly {
                     if onRequestDelete != nil {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Delete", role: .destructive) {
+                            Button(role: .destructive) {
                                 isShowingDeleteConfirm = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
 
                     if onRequestEdit != nil {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Edit") {
+                            Button {
                                 onRequestEdit?()
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
                             }
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                 } else {
@@ -927,7 +1154,11 @@ private struct CompanyNoteComposer: View {
                                         isShowingGeneralConfirm = true
                                         return
                                     }
-                                    note = await viewModel.addNote(body: bodyText, tag: tag)
+                                    note = await viewModel.addNote(
+                                        body: bodyText,
+                                        tag: tag,
+                                        associateWithRun: associateWithRun
+                                    )
                                 }
                                 if note != nil {
                                     savedBodyText = bodyText
@@ -972,7 +1203,7 @@ private struct CompanyNoteComposer: View {
             Button("Yes") {
                 Task {
                     let tag = NoteTagOption(id: "general", type: .general, label: "General", subtitle: nil)
-                    let note = await viewModel.addNote(body: bodyText, tag: tag)
+                    let note = await viewModel.addNote(body: bodyText, tag: tag, associateWithRun: associateWithRun)
                     if note != nil {
                         savedBodyText = bodyText
                         savedTag = selectedTag
@@ -997,10 +1228,31 @@ private struct CompanyNoteComposer: View {
         }
     }
 
+    private func handleSearchChange(_ newValue: String) {
+        guard !isReadOnly else { return }
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if isRunMode {
+            return
+        }
+
+        searchTask?.cancel()
+        guard trimmed.count >= 2 else {
+            viewModel.clearSearchResults()
+            return
+        }
+
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            await viewModel.searchTags(matching: trimmed)
+        }
+    }
+
     private func resetComposerState() {
         bodyText = savedBodyText
         searchText = ""
         selectedTag = savedTag
+        associateWithRun = isRunMode ? true : associateWithRun
     }
 }
 

@@ -658,7 +658,7 @@ struct DashboardView: View {
 private extension DashboardView {
     var notesNavigationLink: some View {
         NavigationLink(
-            destination: CompanyNotesView(session: session) { updatedCount in
+            destination: NotesView(session: session) { updatedCount in
                 viewModel.recentNotesCount = updatedCount
             },
             isActive: $showingCompanyNotes
