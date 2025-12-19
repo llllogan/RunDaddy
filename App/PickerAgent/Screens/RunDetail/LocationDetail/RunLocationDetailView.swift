@@ -150,6 +150,8 @@ struct RunLocationDetailView: View {
                         activeSheet = .addChocolateBox
                     },
                     coldChestItems: coldChestItems,
+                    showsColdChest: viewModel.showsColdChest,
+                    showsChocolateBoxes: viewModel.showsChocolateBoxes,
                     onLocationTap: {
                         navigateToSearchLocation()
                     },
@@ -224,60 +226,103 @@ struct RunLocationDetailView: View {
                 } else {
                     ForEach(filteredPickItems, id: \.id) { pickItem in
                         let isUpdatingPick = updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? "")
-                        PickEntryRow(
-                            pickItem: pickItem,
-                            onToggle: {
-                                Task {
-                                    await togglePickStatus(pickItem)
+                        if viewModel.showsColdChest {
+                            PickEntryRow(
+                                pickItem: pickItem,
+                                onToggle: {
+                                    Task {
+                                        await togglePickStatus(pickItem)
+                                    }
                                 }
-                            }
-                        )
-                        .disabled(isUpdatingPick)
-                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                            Button {
-                                Task {
-                                    await toggleColdChestStatus(pickItem)
-                                }
-                            } label: {
-                                Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
-                                    systemImage: "snowflake"
-                                )
-                            }
-                            .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                pickItemPendingSubstitution = pickItem
-                            } label: {
-                                Label("Substitute", systemImage: "rectangle.2.swap")
-                            }
-                            .tint(.indigo)
-                            
-                            if pickItem.isExpiringConfigured {
+                            )
+                            .disabled(isUpdatingPick)
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    pickItemPendingExpiryUpdate = pickItem
+                                    Task {
+                                        await toggleColdChestStatus(pickItem)
+                                    }
                                 } label: {
-                                    Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    Label(
+                                        pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
+                                        systemImage: "snowflake"
+                                    )
                                 }
-                                .tint(.orange)
+                                .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                             }
-                            
-                            Button {
-                                selectedPickItemForCountPointer = pickItem
-                            } label: {
-                                Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    pickItemPendingSubstitution = pickItem
+                                } label: {
+                                    Label("Substitute", systemImage: "rectangle.2.swap")
+                                }
+                                .tint(.indigo)
+                                
+                                if pickItem.isExpiringConfigured {
+                                    Button {
+                                        pickItemPendingExpiryUpdate = pickItem
+                                    } label: {
+                                        Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    }
+                                    .tint(.orange)
+                                }
+                                
+                                Button {
+                                    selectedPickItemForCountPointer = pickItem
+                                } label: {
+                                    Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                                }
+                                .tint(.blue)
+                                
+                                Button {
+                                    pickItemPendingDeletion = pickItem
+                                } label: {
+                                    Label("Remove", systemImage: "minus.circle")
+                                }
+                                .tint(.red)
                             }
-                            .tint(.blue)
-                            
-	                            Button {
-	                                pickItemPendingDeletion = pickItem
-	                            } label: {
-	                                Label("Remove", systemImage: "minus.circle")
-	                            }
-	                            .tint(.red)
-	                        }
-	                    }
+                        } else {
+                            PickEntryRow(
+                                pickItem: pickItem,
+                                onToggle: {
+                                    Task {
+                                        await togglePickStatus(pickItem)
+                                    }
+                                }
+                            )
+                            .disabled(isUpdatingPick)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    pickItemPendingSubstitution = pickItem
+                                } label: {
+                                    Label("Substitute", systemImage: "rectangle.2.swap")
+                                }
+                                .tint(.indigo)
+                                
+                                if pickItem.isExpiringConfigured {
+                                    Button {
+                                        pickItemPendingExpiryUpdate = pickItem
+                                    } label: {
+                                        Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    }
+                                    .tint(.orange)
+                                }
+                                
+                                Button {
+                                    selectedPickItemForCountPointer = pickItem
+                                } label: {
+                                    Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                                }
+                                .tint(.blue)
+                                
+                                Button {
+                                    pickItemPendingDeletion = pickItem
+                                } label: {
+                                    Label("Remove", systemImage: "minus.circle")
+                                }
+                                .tint(.red)
+                            }
+                        }
+                    }
                 }
             } header: {
                 Text("Picks")

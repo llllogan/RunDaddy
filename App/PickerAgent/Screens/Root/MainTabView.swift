@@ -224,9 +224,11 @@ private struct SearchTab: View {
     @State private var isShowingColdChest = false
     @State private var notifications: [InAppNotification] = []
     @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var showsColdChest = true
     @FocusState private var isSearchFocused: Bool
     private let searchService = SearchService()
     private let skusService: SkusServicing = SkusService()
+    private let authService: AuthServicing = AuthService()
 
     private var isShowingSuggestions: Bool {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -296,8 +298,11 @@ private struct SearchTab: View {
                 if suggestions.isEmpty {
                     loadSuggestionsIfNeeded()
                 }
-                if isShowingSuggestions {
-                    loadSkuToolsIfNeeded(force: true)
+                Task {
+                    await loadCompanyVisibility()
+                    if isShowingSuggestions {
+                        loadSkuToolsIfNeeded(force: true)
+                    }
                 }
             }
             .onDisappear {
@@ -330,6 +335,7 @@ private struct SearchTab: View {
                 coldChestSkuCount: coldChestSkuCount,
                 missingWeightSkuCount: missingWeightSkuCount,
                 isLoading: isLoadingSkuTools,
+                showsColdChest: showsColdChest,
                 onBulkSetSkuWeight: { isShowingBulkSetSkuWeight = true },
                 onColdChestTap: { isShowingColdChest = true }
             )
@@ -451,7 +457,7 @@ private struct SearchTab: View {
             return
         }
 
-        if !force, coldChestSkuCount != nil, missingWeightSkuCount != nil {
+        if !force, (showsColdChest == false || coldChestSkuCount != nil), missingWeightSkuCount != nil {
             return
         }
 
@@ -459,9 +465,9 @@ private struct SearchTab: View {
         skuToolsErrorMessage = nil
         Task {
             do {
-                async let coldChestCount = skusService.getColdChestSkuCount()
                 async let missingWeightCount = skusService.getSkusMissingWeightCount()
-                let (resolvedColdChestCount, resolvedMissingWeightCount) = try await (coldChestCount, missingWeightCount)
+                let resolvedColdChestCount = showsColdChest ? try await skusService.getColdChestSkuCount() : nil
+                let resolvedMissingWeightCount = try await missingWeightCount
                 await MainActor.run {
                     coldChestSkuCount = resolvedColdChestCount
                     missingWeightSkuCount = resolvedMissingWeightCount
@@ -474,6 +480,18 @@ private struct SearchTab: View {
                     isLoadingSkuTools = false
                 }
             }
+        }
+    }
+
+    private func loadCompanyVisibility() async {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            showsColdChest = profile.currentCompany?.showColdChest ?? true
+            if !showsColdChest {
+                coldChestSkuCount = nil
+            }
+        } catch {
+            showsColdChest = true
         }
     }
 

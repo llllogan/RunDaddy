@@ -37,6 +37,7 @@ struct CompanyFeatures: Equatable, Decodable {
 protocol CompanyServicing {
     func updateTimezone(companyId: String, timezoneIdentifier: String, credentials: AuthCredentials) async throws -> CompanyInfo
     func updateLocation(companyId: String, address: String?, credentials: AuthCredentials) async throws -> CompanyInfo
+    func updateVisibility(companyId: String, showColdChest: Bool?, showChocolateBoxes: Bool?, credentials: AuthCredentials) async throws -> CompanyInfo
     func fetchFeatures(companyId: String, credentials: AuthCredentials) async throws -> CompanyFeatures
 }
 
@@ -48,6 +49,7 @@ enum CompanyServiceError: LocalizedError {
     case notFound
     case invalidTimezone
     case invalidLocation
+    case invalidVisibility
 
     var errorDescription: String? {
         switch self {
@@ -65,6 +67,8 @@ enum CompanyServiceError: LocalizedError {
             return "That timezone is not valid."
         case .invalidLocation:
             return "Please pick a valid address."
+        case .invalidVisibility:
+            return "Please provide valid visibility settings."
         }
     }
 }
@@ -177,6 +181,50 @@ final class CompanyService: CompanyServicing {
             return payload.company
         case 400:
             throw CompanyServiceError.invalidLocation
+        case 401:
+            throw CompanyServiceError.unauthorized
+        case 403:
+            throw CompanyServiceError.forbidden
+        case 404:
+            throw CompanyServiceError.notFound
+        default:
+            throw CompanyServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func updateVisibility(companyId: String, showColdChest: Bool?, showChocolateBoxes: Bool?, credentials: AuthCredentials) async throws -> CompanyInfo {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("companies")
+        url.appendPathComponent(companyId)
+        url.appendPathComponent("visibility")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var body: [String: Any] = [:]
+        if let showColdChest {
+            body["showColdChest"] = showColdChest
+        }
+        if let showChocolateBoxes {
+            body["showChocolateBoxes"] = showChocolateBoxes
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CompanyServiceError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200..<300:
+            let payload = try decoder.decode(CompanyResponse.self, from: data)
+            return payload.company
+        case 400:
+            throw CompanyServiceError.invalidVisibility
         case 401:
             throw CompanyServiceError.unauthorized
         case 403:

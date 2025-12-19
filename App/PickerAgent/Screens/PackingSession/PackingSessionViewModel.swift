@@ -26,6 +26,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     let packingSessionId: String
     let session: AuthSession
     let service: RunsServicing
+    private let authService: AuthServicing
     
     @Published var audioCommands: [AudioCommandsResponse.AudioCommand] = []
     @Published var currentIndex: Int = 0
@@ -42,6 +43,7 @@ class PackingSessionViewModel: NSObject, ObservableObject {
     @Published var updatingSkuIds: Set<String> = []
     @Published private(set) var runDetail: RunDetail?
     @Published private(set) var chocolateBoxes: [RunDetail.ChocolateBox] = []
+    @Published private(set) var showsChocolateBoxes = true
     @Published var machineCompletionInfo: MachineCompletionInfo?
     @Published var isStoppingSession = false
     
@@ -154,11 +156,18 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         return runDetail.pickItems.first { $0.id == pickEntryId }
     }
     
-    init(runId: String, packingSessionId: String, session: AuthSession, service: RunsServicing) {
+    init(
+        runId: String,
+        packingSessionId: String,
+        session: AuthSession,
+        service: RunsServicing,
+        authService: AuthServicing = AuthService()
+    ) {
         self.runId = runId
         self.packingSessionId = packingSessionId
         self.session = session
         self.service = service
+        self.authService = authService
         super.init()
         synthesizer.delegate = self
     }
@@ -174,11 +183,21 @@ class PackingSessionViewModel: NSObject, ObservableObject {
         do {
             async let audioCommandsTask = service.fetchAudioCommands(for: runId, packingSessionId: packingSessionId, credentials: session.credentials)
             async let runDetailTask = service.fetchRunDetail(withId: runId, credentials: session.credentials)
-            async let chocolateBoxesTask = service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
-            
+
+            let profile: CurrentUserProfile?
+            do {
+                profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            } catch {
+                profile = nil
+            }
+            let canShowChocolateBoxes = profile?.currentCompany?.showChocolateBoxes ?? true
+            showsChocolateBoxes = canShowChocolateBoxes
+
             let response = try await audioCommandsTask
             let detail = try await runDetailTask
-            let boxes = try await chocolateBoxesTask
+            let boxes = canShowChocolateBoxes
+                ? try await service.fetchChocolateBoxes(for: runId, credentials: session.credentials)
+                : []
 
             audioCommands = response.audioCommands
             let sessionPickIds = Set(response.audioCommands.filter { $0.type == "item" }.flatMap { $0.pickEntryIds })

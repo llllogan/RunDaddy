@@ -262,7 +262,9 @@ private struct AddressSearchResult: Identifiable {
         name: "Preview Co",
         role: "OWNER",
         location: "123 Main St, Springfield",
-        timeZone: "America/Chicago"
+        timeZone: "America/Chicago",
+        showColdChest: true,
+        showChocolateBoxes: true
     )
     viewModel.companyLocationAddress = viewModel.currentCompany?.location ?? ""
 

@@ -135,7 +135,15 @@ struct CompanyTimezonePickerView: View {
 #Preview {
     NavigationStack {
         CompanyTimezonePickerView(
-            company: CompanyInfo(id: "company-1", name: "Milk House", role: "owner", location: "123 Main St", timeZone: "America/Chicago"),
+            company: CompanyInfo(
+                id: "company-1",
+                name: "Milk House",
+                role: "owner",
+                location: "123 Main St",
+                timeZone: "America/Chicago",
+                showColdChest: true,
+                showChocolateBoxes: true
+            ),
             selectedIdentifier: TimeZone.current.identifier,
             onSelect: { _ in }
         )

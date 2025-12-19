@@ -24,6 +24,9 @@ class ProfileViewModel: ObservableObject {
     @Published var companyTimezoneIdentifier: String = TimeZone.current.identifier
     @Published var companyLocationAddress: String = ""
     @Published var isUpdatingLocation = false
+    @Published var showColdChestSetting = true
+    @Published var showChocolateBoxesSetting = true
+    @Published var isUpdatingVisibility = false
     
     private let selectedCompanyDefaultsKey = "pickeragent_selected_company_id"
     
@@ -57,6 +60,7 @@ class ProfileViewModel: ObservableObject {
                     companies = profile.companies
                     companyLocationAddress = profile.currentCompany?.location ?? ""
                     companyTimezoneIdentifier = profile.currentCompany?.timeZone ?? TimeZone.current.identifier
+                    updateVisibilitySettings(from: profile.currentCompany)
                     if let companyId = profile.currentCompany?.id {
                         UserDefaults.standard.set(companyId, forKey: selectedCompanyDefaultsKey)
                     }
@@ -114,13 +118,16 @@ class ProfileViewModel: ObservableObject {
                     name: updatedMembership.company?.name ?? "Company",
                     role: updatedMembership.role.rawValue,
                     location: updatedMembership.company?.location,
-                    timeZone: updatedMembership.company?.timeZone
+                    timeZone: updatedMembership.company?.timeZone,
+                    showColdChest: updatedMembership.company?.showColdChest,
+                    showChocolateBoxes: updatedMembership.company?.showChocolateBoxes
                 )
             } else {
                 currentCompany = nil
             }
             companyLocationAddress = currentCompany?.location ?? ""
             companyTimezoneIdentifier = currentCompany?.timeZone ?? TimeZone.current.identifier
+            updateVisibilitySettings(from: currentCompany)
             
             // Reload user info to reflect the change
             loadUserInfo()
@@ -208,6 +215,7 @@ class ProfileViewModel: ObservableObject {
                 guard company.id == updatedCompany.id else { return company }
                 return updatedCompany
             }
+            updateVisibilitySettings(from: updatedCompany)
             return true
         } catch {
             if let authError = error as? AuthError {
@@ -240,6 +248,7 @@ class ProfileViewModel: ObservableObject {
                         guard company.id == updatedCompany.id else { return company }
                         return updatedCompany
                     }
+                    updateVisibilitySettings(from: updatedCompany)
                 }
             } catch {
                 await MainActor.run {
@@ -279,6 +288,61 @@ class ProfileViewModel: ObservableObject {
             inviteRoleCapacities = []
             rebuildInvitePermissions()
         }
+    }
+
+    func updateVisibility(for companyId: String, showColdChest: Bool? = nil, showChocolateBoxes: Bool? = nil) async -> Bool {
+        guard let credentials = authService.loadStoredCredentials() else {
+            errorMessage = "Not authenticated"
+            return false
+        }
+
+        let previousColdChest = showColdChestSetting
+        let previousChocolateBoxes = showChocolateBoxesSetting
+
+        if let showColdChest {
+            showColdChestSetting = showColdChest
+        }
+        if let showChocolateBoxes {
+            showChocolateBoxesSetting = showChocolateBoxes
+        }
+
+        isUpdatingVisibility = true
+        errorMessage = nil
+        defer { isUpdatingVisibility = false }
+
+        do {
+            let updatedCompany = try await companyService.updateVisibility(
+                companyId: companyId,
+                showColdChest: showColdChest,
+                showChocolateBoxes: showChocolateBoxes,
+                credentials: credentials
+            )
+            companyLocationAddress = updatedCompany.location ?? ""
+            companyTimezoneIdentifier = updatedCompany.timeZone ?? TimeZone.current.identifier
+            currentCompany = updatedCompany
+            companies = companies.map { company in
+                guard company.id == updatedCompany.id else { return company }
+                return updatedCompany
+            }
+            updateVisibilitySettings(from: updatedCompany)
+            return true
+        } catch {
+            showColdChestSetting = previousColdChest
+            showChocolateBoxesSetting = previousChocolateBoxes
+            if let authError = error as? AuthError {
+                errorMessage = authError.localizedDescription
+            } else if let companyError = error as? CompanyServiceError {
+                errorMessage = companyError.localizedDescription
+            } else {
+                errorMessage = "Failed to update visibility: \(error.localizedDescription)"
+            }
+            return false
+        }
+    }
+
+    private func updateVisibilitySettings(from company: CompanyInfo?) {
+        showColdChestSetting = company?.showColdChest ?? true
+        showChocolateBoxesSetting = company?.showChocolateBoxes ?? true
     }
 
     private func rebuildInvitePermissions() {

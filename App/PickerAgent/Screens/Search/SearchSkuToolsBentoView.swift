@@ -4,11 +4,14 @@ struct SearchSkuToolsBentoView: View {
     let coldChestSkuCount: Int?
     let missingWeightSkuCount: Int?
     let isLoading: Bool
+    let showsColdChest: Bool
     let onBulkSetSkuWeight: () -> Void
     let onColdChestTap: () -> Void
 
     var body: some View {
-        StaggeredBentoGrid(items: [bulkSetSkuWeightItem, coldChestItem], columnCount: 2)
+        let items = showsColdChest ? [bulkSetSkuWeightItem, coldChestItem] : [bulkSetSkuWeightItem]
+        let columnCount = showsColdChest ? 2 : 1
+        StaggeredBentoGrid(items: items, columnCount: columnCount)
     }
 
     private var bulkSetSkuWeightItem: BentoItem {

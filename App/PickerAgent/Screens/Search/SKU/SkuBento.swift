@@ -12,6 +12,7 @@ struct SkuInfoBento: View {
     let isUpdatingColdChestStatus: Bool
     let onToggleColdChestStatus: () -> Void
     let mostRecentPick: MostRecentPick?
+    let showsColdChest: Bool
     let labelColour: Binding<Color>
     let isUpdatingLabelColour: Bool
     let canEditLabelColour: Bool
@@ -47,52 +48,54 @@ struct SkuInfoBento: View {
                       ))
         )
         
-        cards.append(
-            BentoItem(id: "sku-info-fresh",
-              title: "Cold Chest",
-              value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
-              symbolName: "snowflake",
-              symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
-              showsChevron: false,
-              customContent: AnyView(
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        if isUpdatingColdChestStatus {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
-                                .font(.headline)
+        if showsColdChest {
+            cards.append(
+                BentoItem(id: "sku-info-fresh",
+                  title: "Cold Chest",
+                  value: sku.isFreshOrFrozen ? "Enabled" : "Disabled",
+                  symbolName: "snowflake",
+                  symbolTint: sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary,
+                  showsChevron: false,
+                  customContent: AnyView(
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            if isUpdatingColdChestStatus {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Text(sku.isFreshOrFrozen ? "In Cold Chest" : "Not in Cold Chest")
+                                    .font(.headline)
+                                    .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
+                            }
+                            Spacer()
+                            Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
                         }
-                        Spacer()
-                        Image(systemName: sku.isFreshOrFrozen ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(sku.isFreshOrFrozen ? Theme.coldChestTint : .secondary)
-                    }
 
-                    Text("Tap to toggle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        Text("Tap to toggle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
-                    if sku.isFreshOrFrozen {
-                        labelColourSelection
-                    }
-                }
-                .background(
-                    Button {
-                        if isUpdatingColdChestStatus {
-                            return
+                        if sku.isFreshOrFrozen {
+                            labelColourSelection
                         }
-                        onToggleColdChestStatus()
-                    } label: {
-                        Color.clear
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isUpdatingColdChestStatus)
-                )
-            ))
-        )
+                    .background(
+                        Button {
+                            if isUpdatingColdChestStatus {
+                                return
+                            }
+                            onToggleColdChestStatus()
+                        } label: {
+                            Color.clear
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isUpdatingColdChestStatus)
+                    )
+                ))
+            )
+        }
         
         cards.append(weightCard)
         

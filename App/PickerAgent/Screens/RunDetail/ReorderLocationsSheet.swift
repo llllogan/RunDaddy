@@ -312,7 +312,9 @@ struct ReorderLocationsSheet: View {
             name: "Company",
             role: role,
             location: viewModel.companyLocation,
-            timeZone: nil
+            timeZone: nil,
+            showColdChest: nil,
+            showChocolateBoxes: nil
         )
     }
 
