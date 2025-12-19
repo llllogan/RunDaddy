@@ -15,6 +15,8 @@ struct AllRunsView: View {
     @State private var runToDelete: RunSummary?
     @State private var deletingRunIds: Set<String> = []
     @State private var selectedRun: SelectedRunDestination?
+    @State private var showChocolateBoxesChip = true
+    private let authService: AuthServicing = AuthService()
     
     init(session: AuthSession) {
         self.session = session
@@ -41,7 +43,14 @@ struct AllRunsView: View {
                     let showPackedByYouChip = !dateSection.runs.contains { $0.runner?.id == session.credentials.userID }
                     Section(dateSection.headerText) {
                         if dateSection.kind == .today || dateSection.kind == .tomorrow {
-                            StaggeredBentoGrid(items: bentoItems(for: dateSection.runs, showPackedByYouChip: showPackedByYouChip), columnCount: 2)
+                            StaggeredBentoGrid(
+                                items: bentoItems(
+                                    for: dateSection.runs,
+                                    showPackedByYouChip: showPackedByYouChip,
+                                    showChocolateBoxesChip: showChocolateBoxesChip
+                                ),
+                                columnCount: 2
+                            )
                                 .padding(.vertical, 2)
                                 .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
                                 .listRowBackground(Color.clear)
@@ -54,7 +63,8 @@ struct AllRunsView: View {
                                     RunRow(
                                         run: run,
                                         currentUserId: session.credentials.userID,
-                                        showPackedByYouChip: showPackedByYouChip
+                                        showPackedByYouChip: showPackedByYouChip,
+                                        showChocolateBoxesChip: showChocolateBoxesChip
                                     )
                                 }
                                 .disabled(deletingRunIds.contains(run.id))
@@ -79,13 +89,18 @@ struct AllRunsView: View {
             RunDetailView(runId: destination.id, session: session)
         }
         .task {
+            await loadCompanyVisibility()
             await viewModel.loadRuns()
         }
         .onChange(of: session) { _, newSession in
             viewModel.resetForNewSession(newSession)
-            Task { await viewModel.loadRuns(force: true) }
+            Task {
+                await loadCompanyVisibility()
+                await viewModel.loadRuns(force: true)
+            }
         }
         .refreshable {
+            await loadCompanyVisibility()
             await viewModel.loadRuns(force: true)
         }
         .alert("Delete Run", isPresented: $showingDeleteAlert) {
@@ -156,7 +171,7 @@ struct AllRunsView: View {
             .listRowSeparator(.hidden)
     }
 
-    private func bentoItems(for runs: [RunSummary], showPackedByYouChip: Bool) -> [BentoItem] {
+    private func bentoItems(for runs: [RunSummary], showPackedByYouChip: Bool, showChocolateBoxesChip: Bool) -> [BentoItem] {
         runs.map { run in
             BentoItem(
                 id: "run-summary-\(run.id)",
@@ -174,7 +189,8 @@ struct AllRunsView: View {
                     RunSummaryInfoChips(
                         run: run,
                         currentUserId: session.credentials.userID,
-                        showPackedByYouChip: showPackedByYouChip
+                        showPackedByYouChip: showPackedByYouChip,
+                        showChocolateBoxesChip: showChocolateBoxesChip
                     )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contextMenu {
@@ -187,6 +203,15 @@ struct AllRunsView: View {
                         }
                 )
             )
+        }
+    }
+    
+    private func loadCompanyVisibility() async {
+        do {
+            let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            showChocolateBoxesChip = profile.currentCompany?.showChocolateBoxes ?? true
+        } catch {
+            showChocolateBoxesChip = true
         }
     }
 }

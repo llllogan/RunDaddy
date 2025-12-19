@@ -56,7 +56,7 @@ struct RunLocationOverviewBento: View {
 
     private var items: [BentoItem] {
         var cards: [BentoItem] = []
-
+        
         cards.append(
             BentoItem(title: "Location",
                       value: summary.title,
@@ -66,6 +66,48 @@ struct RunLocationOverviewBento: View {
                       allowsMultilineValue: true,
                       onTap: onLocationTap,
                       showsChevron: onLocationTap != nil)
+        )
+        
+        cards.append(
+            BentoItem(title: "Machines",
+                      value: "",
+                      symbolName: "building.2",
+                      symbolTint: .purple,
+                      customContent: AnyView(
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(machines, id: \.id) { machine in
+                                machineRow(for: machine)
+                                    .padding(.vertical, 2)
+                            }
+                            
+                            if machines.isEmpty {
+                                Text("No machines")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                      ))
+        )
+        
+//        if summary.totalItems > 0 {
+//            cards.append(
+//                BentoItem(title: "Total Items",
+//                          value: "\(summary.totalItems)",
+//                          symbolName: "tag",
+//                          symbolTint: .cyan,
+//                          isProminent: true)
+//            )
+//        }
+        
+        cards.append(
+            BentoItem(title: "Remaining",
+                      value: "\(summary.remainingCoils)",
+                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
+                      symbolName: "cart",
+                      symbolTint: .pink,
+                      isProminent: summary.remainingCoils > 0)
         )
         
         if summary.totalCoils > 0 {
@@ -88,6 +130,39 @@ struct RunLocationOverviewBento: View {
                           symbolTint: .green)
             )
         }
+        
+        if showsChocolateBoxes {
+            cards.append(
+                BentoItem(title: "Chocolate Boxes",
+                          value: "",
+                          symbolName: "shippingbox",
+                          symbolTint: .brown,
+                          showsChevron: false,
+                          customContent: AnyView(
+                            VStack(alignment: .leading, spacing: 12) {
+                                if locationChocolateBoxes.isEmpty {
+                                    Text("No chocolate boxes")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(locationChocolateBoxes) { box in
+                                            chocolateBoxRow(for: box)
+                                        }
+                                    }
+                                }
+                                
+                                HStack {
+                                    chocolateBoxesButton
+                                    Spacer()
+                                    addChocolateBoxButton
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                          ))
+            )
+        }
+        
         
         if showsColdChest {
             cards.append(
@@ -116,89 +191,6 @@ struct RunLocationOverviewBento: View {
                                         }
                                         .padding(.vertical, 2)
                                     }
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                          ))
-            )
-        }
-
-        cards.append(
-            BentoItem(title: "Machines",
-                      value: "",
-                      symbolName: "building.2",
-                      symbolTint: .purple,
-                      customContent: AnyView(
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(machines, id: \.id) { machine in
-                                machineRow(for: machine)
-                                    .padding(.vertical, 2)
-                            }
-                            
-                            if machines.isEmpty {
-                                Text("No machines")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .italic()
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                      ))
-        )
-
-//        cards.append(
-//            BentoItem(title: "Total Coils",
-//                      value: "\(summary.totalCoils)",
-//                      symbolName: "scope",
-//                      symbolTint: .purple)
-//        )
-
-        
-
-//        if summary.totalItems > 0 {
-//            cards.append(
-//                BentoItem(title: "Total Items",
-//                          value: "\(summary.totalItems)",
-//                          symbolName: "cube",
-//                          symbolTint: .indigo,
-//                          isProminent: true)
-//            )
-//        }
-
-//        cards.append(
-//            BentoItem(title: "Remaining",
-//                      value: "\(summary.remainingCoils)",
-//                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
-//                      symbolName: "cart",
-//                      symbolTint: .pink,
-//                      isProminent: summary.remainingCoils > 0)
-//        )
-        
-        if showsChocolateBoxes {
-            cards.append(
-                BentoItem(title: "Chocolate Boxes",
-                          value: "",
-                          symbolName: "shippingbox",
-                          symbolTint: .brown,
-                          showsChevron: false,
-                          customContent: AnyView(
-                            VStack(alignment: .leading, spacing: 12) {
-                                if locationChocolateBoxes.isEmpty {
-                                    Text("No chocolate boxes")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(locationChocolateBoxes) { box in
-                                            chocolateBoxRow(for: box)
-                                        }
-                                    }
-                                }
-                                
-                                HStack {
-                                    chocolateBoxesButton
-                                    Spacer()
-                                    addChocolateBoxButton
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
