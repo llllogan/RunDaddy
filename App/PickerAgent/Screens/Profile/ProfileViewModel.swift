@@ -325,6 +325,9 @@ class ProfileViewModel: ObservableObject {
                 return updatedCompany
             }
             updateVisibilitySettings(from: updatedCompany)
+            let featureFlagsKey = "pickeragent_feature_flags_version"
+            let currentVersion = UserDefaults.standard.integer(forKey: featureFlagsKey)
+            UserDefaults.standard.set(currentVersion + 1, forKey: featureFlagsKey)
             return true
         } catch {
             showColdChestSetting = previousColdChest

@@ -1379,6 +1379,12 @@ private struct NotesComposer: View {
                 isBodyFocused = true
             }
         }
+        .onChange(of: isReadOnly) { _, newValue in
+            guard !newValue else { return }
+            Task { @MainActor in
+                isBodyFocused = true
+            }
+        }
     }
 
     private func handleSearchChange(_ newValue: String) {

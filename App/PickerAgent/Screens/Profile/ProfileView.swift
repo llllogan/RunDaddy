@@ -217,30 +217,6 @@ struct ProfileView: View {
                         }
                     }
                 }
-
-                if let company = viewModel.currentCompany {
-                    Section(header: Text("Visibility")) {
-                        Toggle("Cold Chest", isOn: Binding(
-                            get: { viewModel.showColdChestSetting },
-                            set: { newValue in
-                                Task {
-                                    _ = await viewModel.updateVisibility(for: company.id, showColdChest: newValue)
-                                }
-                            }
-                        ))
-                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
-
-                        Toggle("Chocolate Boxes", isOn: Binding(
-                            get: { viewModel.showChocolateBoxesSetting },
-                            set: { newValue in
-                                Task {
-                                    _ = await viewModel.updateVisibility(for: company.id, showChocolateBoxes: newValue)
-                                }
-                            }
-                        ))
-                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
-                    }
-                }
                 
                 // Company Actions Section
                 if viewModel.currentCompany != nil {
@@ -281,6 +257,30 @@ struct ProfileView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+                
+                if let company = viewModel.currentCompany {
+                    Section(header: Text("Features")) {
+                        Toggle("Cold Chest", isOn: Binding(
+                            get: { viewModel.showColdChestSetting },
+                            set: { newValue in
+                                Task {
+                                    _ = await viewModel.updateVisibility(for: company.id, showColdChest: newValue)
+                                }
+                            }
+                        ))
+                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
+
+                        Toggle("Chocolate Boxes", isOn: Binding(
+                            get: { viewModel.showChocolateBoxesSetting },
+                            set: { newValue in
+                                Task {
+                                    _ = await viewModel.updateVisibility(for: company.id, showChocolateBoxes: newValue)
+                                }
+                            }
+                        ))
+                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
                     }
                 }
                 

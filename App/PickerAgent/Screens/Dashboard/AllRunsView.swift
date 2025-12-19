@@ -92,6 +92,11 @@ struct AllRunsView: View {
             await loadCompanyVisibility()
             await viewModel.loadRuns()
         }
+        .onAppear {
+            Task {
+                await loadCompanyVisibility()
+            }
+        }
         .onChange(of: session) { _, newSession in
             viewModel.resetForNewSession(newSession)
             Task {

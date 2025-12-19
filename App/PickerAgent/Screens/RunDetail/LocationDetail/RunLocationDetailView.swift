@@ -255,7 +255,8 @@ struct RunLocationDetailView: View {
                                     Task {
                                         await togglePickStatus(pickItem)
                                     }
-                                }
+                                },
+                                showsColdChest: viewModel.showsColdChest
                             )
                             .disabled(isUpdatingPick)
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -309,7 +310,8 @@ struct RunLocationDetailView: View {
                                     Task {
                                         await togglePickStatus(pickItem)
                                     }
-                                }
+                                },
+                                showsColdChest: viewModel.showsColdChest
                             )
                             .disabled(isUpdatingPick)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -951,6 +953,7 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
+    var showsColdChest: Bool = true
     
     private struct ExpiryChipItem: Identifiable {
         let expiryDate: String
@@ -962,11 +965,13 @@ struct PickEntryRow: View {
     init(
         pickItem: RunDetail.PickItem,
         onToggle: @escaping () -> Void,
-        showsLocation: Bool = false
+        showsLocation: Bool = false,
+        showsColdChest: Bool = true
     ) {
         self.pickItem = pickItem
         self.onToggle = onToggle
         self.showsLocation = showsLocation
+        self.showsColdChest = showsColdChest
     }
 
     private var locationLabel: String? {
@@ -1089,7 +1094,7 @@ struct PickEntryRow: View {
                         )
                     }
 
-                    if pickItem.sku?.isFreshOrFrozen == true {
+                    if showsColdChest, pickItem.sku?.isFreshOrFrozen == true {
                         InfoChip(
                             text: "Cold Chest",
                             colour: Theme.coldChestTint.opacity(0.2),

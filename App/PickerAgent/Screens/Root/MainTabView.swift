@@ -5,6 +5,7 @@ struct MainTabView: View {
     let logoutAction: () -> Void
 
     @State private var isShowingProfile = false
+    @AppStorage("pickeragent_feature_flags_version") private var featureFlagsVersion = 0
 
     private var requiresCompanyContext: Bool {
         JwtPayload.companyId(from: session.credentials.accessToken) == nil
@@ -64,7 +65,7 @@ private extension MainTabView {
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
-                .id(session.credentials.accessToken)
+                .id("\(session.credentials.accessToken)-\(featureFlagsVersion)")
             }
             
             Tab("Notes", systemImage: "list.bullet.clipboard") {
@@ -97,6 +98,7 @@ private extension MainTabView {
                     session: session,
                     isShowingProfile: $isShowingProfile
                 )
+                .id(session.credentials.accessToken)
             }
         }
     }
