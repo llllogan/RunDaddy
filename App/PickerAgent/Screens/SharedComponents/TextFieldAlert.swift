@@ -45,7 +45,6 @@ struct TextFieldAlert: UIViewControllerRepresentable {
                 field.clearButtonMode = .whileEditing
                 field.text = text
                 field.placeholder = "Enter value"
-                field.inputAccessoryView = makeKeyboardAccessoryView(for: field)
                 field.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
             }
             
@@ -90,17 +89,6 @@ struct TextFieldAlert: UIViewControllerRepresentable {
         }
     }
 
-    private func makeKeyboardAccessoryView(for field: UITextField) -> UIView {
-        let toolbar = UIToolbar()
-        toolbar.sizeToFit()
-        let flexible = UIBarButtonItem(systemItem: .flexibleSpace)
-        let doneImage = UIImage(systemName: "keyboard.chevron.compact.down")
-        let done = UIBarButtonItem(image: doneImage, style: .done, target: field, action: #selector(UIResponder.resignFirstResponder))
-        done.accessibilityLabel = "Dismiss Keyboard"
-        toolbar.items = [flexible, done]
-        return toolbar
-    }
-    
     class Coordinator: NSObject {
         var alert: UIAlertController?
         private let allowedCharacterSet: CharacterSet?

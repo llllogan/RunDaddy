@@ -698,12 +698,6 @@ struct CountPointerSelectionSheet: View {
                             .keyboardType(.numberPad)
                             .focused($isOverrideFocused)
                         
-                        if let defaultPointerCount {
-                            Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
                         if let overrideError {
                             Text(overrideError)
                                 .font(.caption)

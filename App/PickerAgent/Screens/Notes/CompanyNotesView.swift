@@ -837,9 +837,18 @@ private struct CompanyNoteComposer: View {
                     }
                     .disabled(isSaveDisabled)
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        UIApplication.shared.dismissKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Dismiss Keyboard")
+                }
             }
         }
-        .keyboardDismissToolbar()
         .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Yes") {
