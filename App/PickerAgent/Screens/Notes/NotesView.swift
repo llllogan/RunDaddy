@@ -32,8 +32,7 @@ struct NotesView: View {
     @State private var isPreviewReadOnly = true
     let session: AuthSession
     @State private var activeFilterTag: NoteTagOption?
-    @State private var isShowingFilterPicker = false
-    @State private var filterPickerType: NoteTargetType = .sku
+    @State private var activeFilterPickerType: NoteTargetType?
 
     init(
         session: AuthSession,
@@ -132,22 +131,6 @@ struct NotesView: View {
 
     var body: some View {
         List {
-            if isCompanyMode {
-                Section {
-                    NotesFilterBar(
-                        selectedTag: activeFilterTag,
-                        onSelectAll: {
-                            activeFilterTag = nil
-                            Task { await viewModel.loadNotes(force: true, filterTag: nil) }
-                        },
-                        onSelectType: { type in
-                            filterPickerType = type
-                            isShowingFilterPicker = true
-                        }
-                    )
-                }
-            }
-
             if viewModel.isLoading && viewModel.notes.isEmpty {
                 Section {
                     LoadingNotesRow(message: "Loading notes…")
@@ -201,7 +184,31 @@ struct NotesView: View {
         .navigationTitle("Notes")
         .navigationBarTitleDisplayMode(isCompanyMode ? .large : .inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if isCompanyMode {
+                    Menu {
+                        Button(selectedFilterLabel(for: .sku)) {
+                            activeFilterPickerType = .sku
+                        }
+                        Button(selectedFilterLabel(for: .machine)) {
+                            activeFilterPickerType = .machine
+                        }
+                        Button(selectedFilterLabel(for: .location)) {
+                            activeFilterPickerType = .location
+                        }
+
+                        if activeFilterTag != nil {
+                            Divider()
+                            Button("Clear Filter", role: .destructive) {
+                                activeFilterTag = nil
+                                Task { await viewModel.loadNotes(force: true, filterTag: nil) }
+                            }
+                        }
+                    } label: {
+                        Label("Filter Notes", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                }
+
                 Button {
                     composerIntent = .add
                 } label: {
@@ -284,10 +291,10 @@ struct NotesView: View {
             )
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $isShowingFilterPicker) {
+        .sheet(item: $activeFilterPickerType) { targetType in
             NotesTargetFilterPickerSheet(
                 session: session,
-                targetType: filterPickerType,
+                targetType: targetType,
                 selectedTag: $activeFilterTag,
                 onSelected: { tag in
                     activeFilterTag = tag
@@ -315,6 +322,18 @@ struct NotesView: View {
         case .scoped:
             return nil
         }
+    }
+
+    private func selectedFilterLabel(for type: NoteTargetType) -> String {
+        guard let activeFilterTag, activeFilterTag.type == type else {
+            switch type {
+            case .sku: return "SKU"
+            case .machine: return "Machine"
+            case .location: return "Location"
+            case .general: return "General"
+            }
+        }
+        return activeFilterTag.label
     }
 
     private func handleDeleteFromPreview(_ note: Note) async {
@@ -878,6 +897,10 @@ struct NoteDayGroup: Identifiable {
     let notes: [Note]
 }
 
+extension NoteTargetType: Identifiable {
+    var id: String { rawValue }
+}
+
 private struct NotesFilterBar: View {
     let selectedTag: NoteTagOption?
     let onSelectAll: () -> Void
@@ -1010,7 +1033,9 @@ private struct NotesTargetFilterPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button { dismiss() } label: {
+                        Label("Cancel", systemImage: "xmark")
+                    }
                 }
             }
             .keyboardDismissToolbar()
