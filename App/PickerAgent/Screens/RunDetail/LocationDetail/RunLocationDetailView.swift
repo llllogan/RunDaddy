@@ -305,9 +305,7 @@ struct RunLocationDetailView: View {
                     selectedPickItemForCountPointer = nil
                 },
                 onPointerSelected: { newPointer in
-                    Task {
-                        await updateCountPointer(pickItem, newPointer: newPointer)
-                    }
+                    await updateCountPointer(pickItem, newPointer: newPointer)
                 },
                 onOverrideSaved: { overrideValue in
                     await updateOverrideCount(pickItem, newOverride: overrideValue)
@@ -631,13 +629,14 @@ private enum RunLocationDetailSheet: Identifiable {
 struct CountPointerSelectionSheet: View {
     let pickItem: RunDetail.PickItem
     let onDismiss: () -> Void
-    let onPointerSelected: (String) -> Void
+    let onPointerSelected: (String) async -> Void
     let onOverrideSaved: (Int?) async -> Void
     @ObservedObject var viewModel: RunDetailViewModel
     
     @FocusState private var isOverrideFocused: Bool
     @State private var overrideInput: String = ""
     @State private var isSavingOverride = false
+    @State private var isUpdatingPointer = false
     @State private var overrideError: String?
     
     private let countPointers = [
@@ -659,6 +658,10 @@ struct CountPointerSelectionSheet: View {
     private var currentOverride: Int? {
         latestPickItem.overrideCount
     }
+
+    private var hasOverride: Bool {
+        currentOverride != nil
+    }
     
     private var defaultPointerCount: Int? {
         let pointerKey = latestPickItem.sku?.countNeededPointer ?? "total"
@@ -679,11 +682,10 @@ struct CountPointerSelectionSheet: View {
                         CountPointerRow(
                             pointer: pointer,
                             currentCount: latestPickItem.countForPointer(pointer.0),
-                            isSelected: pointer.0 == currentSelection
+                            isSelected: !hasOverride && pointer.0 == currentSelection,
+                            showsDefaultLabel: hasOverride && pointer.0 == currentSelection
                         ) {
-                            if !isSavingOverride {
-                                onPointerSelected(pointer.0)
-                            }
+                            handlePointerSelection(pointer.0)
                         }
                     }
                 } header: {
@@ -707,21 +709,14 @@ struct CountPointerSelectionSheet: View {
                     .padding(.vertical, 4)
                 } header: {
                     Text("Manual Override")
+                } footer: {
+                    Text("This count will be used for this run only.")
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle(pickItem.sku?.name ?? "Unknown SKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if currentOverride != nil {
-                        Button("Clear Override") {
-                            clearOverride()
-                        }
-                        .disabled(isSavingOverride)
-                    }
-                }
-                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     let hasTypedOverride = parsedOverride != nil
                     Button(hasTypedOverride ? "Save" : "Done") {
@@ -767,13 +762,19 @@ struct CountPointerSelectionSheet: View {
             await onOverrideSaved(resolved)
         }
     }
-    
-    private func clearOverride() {
+
+    private func handlePointerSelection(_ pointerKey: String) {
+        guard !isSavingOverride && !isUpdatingPointer else { return }
         Task {
-            isSavingOverride = true
-            defer { isSavingOverride = false }
-            await onOverrideSaved(nil)
-            overrideInput = ""
+            isUpdatingPointer = true
+            defer { isUpdatingPointer = false }
+            if hasOverride {
+                await onOverrideSaved(nil)
+                await MainActor.run {
+                    overrideInput = ""
+                }
+            }
+            await onPointerSelected(pointerKey)
         }
     }
 }
@@ -782,6 +783,7 @@ private struct CountPointerRow: View {
     let pointer: (String, String, String)
     let currentCount: Int?
     let isSelected: Bool
+    let showsDefaultLabel: Bool
     let onTap: () -> Void
     
     var body: some View {
@@ -799,21 +801,35 @@ private struct CountPointerRow: View {
                 
                 Spacer()
                 
-                if let count = currentCount {
-                    Text("\(count)")
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("N/A")
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
+                VStack {
+                    
+                    HStack {
+                        
+                        if let count = currentCount {
+                            Text("\(count)")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("N/A")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                            .foregroundColor(isSelected ? .blue : .gray)
+                            .font(.title2)
+                        
+                    }
+                    
+                    if showsDefaultLabel {
+                        Text("default")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    
                 }
-                
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .foregroundColor(isSelected ? .blue : .gray)
-                    .font(.title2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
