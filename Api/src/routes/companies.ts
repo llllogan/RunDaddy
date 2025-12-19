@@ -245,6 +245,8 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
             name: true,
             location: true,
             timeZone: true,
+            showColdChest: true,
+            showChocolateBoxes: true,
           },
         },
       },
@@ -302,6 +304,8 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
             name: activeMembership.company.name,
             location: activeMembership.company.location ?? null,
             timeZone: activeMembership.company.timeZone ?? null,
+            showColdChest: activeMembership.company.showColdChest,
+            showChocolateBoxes: activeMembership.company.showChocolateBoxes,
           },
         }
       : null;
@@ -466,6 +470,8 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
         role: membership?.role ?? UserRole.OWNER,
         location: updated.location ?? null,
         timeZone: updated.timeZone ?? null,
+        showColdChest: updated.showColdChest,
+        showChocolateBoxes: updated.showChocolateBoxes,
       },
     });
   } catch (error) {
@@ -523,11 +529,78 @@ router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minima
         role: membership?.role ?? UserRole.OWNER,
         location: updated.location ?? null,
         timeZone: updated.timeZone ?? null,
+        showColdChest: updated.showColdChest,
+        showChocolateBoxes: updated.showChocolateBoxes,
       },
     });
   } catch (error) {
     console.error('Error updating company location:', error);
     return res.status(500).json({ error: 'Unable to update company location' });
+  }
+});
+
+router.patch('/:companyId/visibility', authenticate, setLogConfig({ level: 'minimal' }), async (req, res) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { companyId } = req.params;
+  const { showColdChest, showChocolateBoxes } = req.body ?? {};
+
+  if (!companyId) {
+    return res.status(400).json({ error: 'companyId is required' });
+  }
+
+  if (showColdChest === undefined && showChocolateBoxes === undefined) {
+    return res.status(400).json({ error: 'No visibility changes provided' });
+  }
+
+  if (showColdChest !== undefined && typeof showColdChest !== 'boolean') {
+    return res.status(400).json({ error: 'showColdChest must be a boolean' });
+  }
+
+  if (showChocolateBoxes !== undefined && typeof showChocolateBoxes !== 'boolean') {
+    return res.status(400).json({ error: 'showChocolateBoxes must be a boolean' });
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      userId: req.auth!.userId,
+      companyId,
+      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+    },
+    include: {
+      company: true,
+    },
+  });
+
+  if (!membership && !req.auth.lighthouse) {
+    return res.status(403).json({ error: 'Not authorized to update this company' });
+  }
+
+  try {
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        showColdChest: showColdChest ?? undefined,
+        showChocolateBoxes: showChocolateBoxes ?? undefined,
+      },
+    });
+
+    return res.json({
+      company: {
+        id: updated.id,
+        name: updated.name,
+        role: membership?.role ?? UserRole.OWNER,
+        location: updated.location ?? null,
+        timeZone: updated.timeZone ?? null,
+        showColdChest: updated.showColdChest,
+        showChocolateBoxes: updated.showChocolateBoxes,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating company visibility:', error);
+    return res.status(500).json({ error: 'Unable to update company visibility' });
   }
 });
 

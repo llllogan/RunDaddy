@@ -81,6 +81,8 @@ model Company {
   location  String?
   timeZone  String?
   tierId    String
+  showColdChest      Boolean  @default(true)
+  showChocolateBoxes Boolean  @default(true)
 
   memberships    Membership[]
   runs           Run[]

@@ -43,6 +43,10 @@ struct ProfileView: View {
     private var canEditCompanyLocation: Bool {
         viewModel.userRole == .owner || viewModel.userRole == .admin || viewModel.userRole == .god
     }
+    
+    private var canEditCompanyVisibility: Bool {
+        viewModel.userRole == .owner || viewModel.userRole == .admin || viewModel.userRole == .god
+    }
 
     private func roleDisplay(for company: CompanyInfo) -> String {
         if let role = UserRole(rawValue: company.role.uppercased()) {
@@ -253,6 +257,30 @@ struct ProfileView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+                
+                if let company = viewModel.currentCompany {
+                    Section(header: Text("Features")) {
+                        Toggle("Cold Chest", isOn: Binding(
+                            get: { viewModel.showColdChestSetting },
+                            set: { newValue in
+                                Task {
+                                    _ = await viewModel.updateVisibility(for: company.id, showColdChest: newValue)
+                                }
+                            }
+                        ))
+                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
+
+                        Toggle("Chocolate Boxes", isOn: Binding(
+                            get: { viewModel.showChocolateBoxesSetting },
+                            set: { newValue in
+                                Task {
+                                    _ = await viewModel.updateVisibility(for: company.id, showChocolateBoxes: newValue)
+                                }
+                            }
+                        ))
+                        .disabled(!canEditCompanyVisibility || viewModel.isUpdatingVisibility)
                     }
                 }
                 

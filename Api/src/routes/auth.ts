@@ -257,7 +257,14 @@ router.post('/login', setLogConfig({ level: 'minimal' }), async (req, res) => {
 
     const companies = await prisma.company.findMany({
       where: { id: { not: PLATFORM_ADMIN_COMPANY_ID } },
-      select: { id: true, name: true, location: true, timeZone: true },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        timeZone: true,
+        showColdChest: true,
+        showChocolateBoxes: true,
+      },
       orderBy: { name: 'asc' },
     });
 
@@ -838,6 +845,8 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
         name: true,
         location: true,
         timeZone: true,
+        showColdChest: true,
+        showChocolateBoxes: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -852,6 +861,8 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
           role: UserRole.OWNER,
           location: currentCompanyRecord.location ?? null,
           timeZone: currentCompanyRecord.timeZone ?? null,
+          showColdChest: currentCompanyRecord.showColdChest,
+          showChocolateBoxes: currentCompanyRecord.showChocolateBoxes,
         }
       : null;
 
@@ -862,6 +873,8 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
         role: UserRole.OWNER,
         location: company.location ?? null,
         timeZone: company.timeZone ?? null,
+        showColdChest: company.showColdChest,
+        showChocolateBoxes: company.showChocolateBoxes,
       })),
       currentCompany,
       user: {
@@ -894,6 +907,8 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
     role: membership.role,
     location: membership.company.location ?? null,
     timeZone: membership.company.timeZone ?? null,
+    showColdChest: membership.company.showColdChest,
+    showChocolateBoxes: membership.company.showChocolateBoxes,
   }));
 
   const platformAdmin = memberships.some(
@@ -951,6 +966,8 @@ router.get('/me', authenticate, setLogConfig({ level: 'minimal' }), async (req, 
           role: currentMembership.role,
           location: currentMembership.company.location ?? null,
           timeZone: currentMembership.company.timeZone ?? null,
+          showColdChest: currentMembership.company.showColdChest,
+          showChocolateBoxes: currentMembership.company.showChocolateBoxes,
         };
       }
     }

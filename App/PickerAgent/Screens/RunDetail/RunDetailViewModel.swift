@@ -115,6 +115,8 @@ final class RunDetailViewModel: ObservableObject {
     @Published private(set) var isLoadingNoteCounts = false
     @Published private(set) var expiringItems: ExpiringItemsRunResponse?
     @Published private(set) var isLoadingExpiringItems = false
+    @Published private(set) var showsColdChest = true
+    @Published private(set) var showsChocolateBoxes = true
     
     // MARK: - Haptic Feedback Triggers
     @Published var resetTrigger = false
@@ -178,6 +180,8 @@ final class RunDetailViewModel: ObservableObject {
             self.locationOrders = detail.locationOrders.sorted { $0.position < $1.position }
             self.companyLocation = companyContext.location
             self.currentMembershipRole = companyContext.role
+            self.showsColdChest = companyContext.showColdChest
+            self.showsChocolateBoxes = companyContext.showChocolateBoxes
             rebuildLocationData(from: detail)
             await refreshLocationSchedules(from: detail.locations)
             Task {
@@ -844,16 +848,26 @@ final class RunDetailViewModel: ObservableObject {
         return result
     }
 
-    private func fetchCompanyContext() async -> (location: String?, role: String?) {
+    private func fetchCompanyContext() async -> (location: String?, role: String?, showColdChest: Bool, showChocolateBoxes: Bool) {
         do {
             let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
             let location = profile.currentCompany?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedLocation = (location?.isEmpty == true) ? nil : location
             let role = profile.currentCompany?.role.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedRole = (role?.isEmpty == true) ? nil : role
-            return (normalizedLocation, normalizedRole)
+            return (
+                normalizedLocation,
+                normalizedRole,
+                profile.currentCompany?.showColdChest ?? true,
+                profile.currentCompany?.showChocolateBoxes ?? true
+            )
         } catch {
-            return (companyLocation, currentMembershipRole)
+            return (
+                companyLocation,
+                currentMembershipRole,
+                showsColdChest,
+                showsChocolateBoxes
+            )
         }
     }
 }

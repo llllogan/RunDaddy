@@ -84,11 +84,13 @@ struct RunRow: View {
     let run: RunSummary
     let currentUserId: String?
     let showPackedByYouChip: Bool
+    let showChocolateBoxesChip: Bool
 
-    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true) {
+    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true, showChocolateBoxesChip: Bool = true) {
         self.run = run
         self.currentUserId = currentUserId
         self.showPackedByYouChip = showPackedByYouChip
+        self.showChocolateBoxesChip = showChocolateBoxesChip
     }
 
     var body: some View {
@@ -96,7 +98,12 @@ struct RunRow: View {
             Text("\(run.locationCount) \(run.locationCount > 1 ? "Locations" : "Location")")
                 .font(.headline)
                 .fontWeight(.semibold)
-            RunSummaryInfoChips(run: run, currentUserId: currentUserId, showPackedByYouChip: showPackedByYouChip)
+            RunSummaryInfoChips(
+                run: run,
+                currentUserId: currentUserId,
+                showPackedByYouChip: showPackedByYouChip,
+                showChocolateBoxesChip: showChocolateBoxesChip
+            )
         }
         .padding(.vertical, 0)
     }
@@ -106,11 +113,13 @@ struct RunSummaryInfoChips: View {
     let run: RunSummary
     let currentUserId: String?
     let showPackedByYouChip: Bool
+    let showChocolateBoxesChip: Bool
 
-    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true) {
+    init(run: RunSummary, currentUserId: String? = nil, showPackedByYouChip: Bool = true, showChocolateBoxesChip: Bool = true) {
         self.run = run
         self.currentUserId = currentUserId
         self.showPackedByYouChip = showPackedByYouChip
+        self.showChocolateBoxesChip = showChocolateBoxesChip
     }
 
     var body: some View {
@@ -133,7 +142,7 @@ struct RunSummaryInfoChips: View {
                 )
             }
 
-            if !run.chocolateBoxes.isEmpty {
+            if showChocolateBoxesChip, !run.chocolateBoxes.isEmpty {
                 InfoChip(
                     text: run.chocolateBoxesDisplay,
                     colour: Color.brown.opacity(0.15),

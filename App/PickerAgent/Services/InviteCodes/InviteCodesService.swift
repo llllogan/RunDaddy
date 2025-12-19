@@ -87,6 +87,8 @@ struct Membership: Identifiable, Equatable, Codable {
         let name: String
         let location: String?
         let timeZone: String?
+        let showColdChest: Bool?
+        let showChocolateBoxes: Bool?
     }
     
     var roleDisplay: String {
@@ -358,6 +360,8 @@ private struct SessionResponse: Decodable {
         let name: String
         let location: String?
         let timeZone: String?
+        let showColdChest: Bool?
+        let showChocolateBoxes: Bool?
     }
     
     struct MembershipResponse: Decodable {
@@ -373,7 +377,15 @@ private struct SessionResponse: Decodable {
                 userId: userId,
                 companyId: companyId,
                 role: UserRole(rawValue: role) ?? .picker,
-                company: company.map { Membership.MembershipCompanyInfo(name: $0.name, location: $0.location, timeZone: $0.timeZone) }
+                company: company.map {
+                    Membership.MembershipCompanyInfo(
+                        name: $0.name,
+                        location: $0.location,
+                        timeZone: $0.timeZone,
+                        showColdChest: $0.showColdChest,
+                        showChocolateBoxes: $0.showChocolateBoxes
+                    )
+                }
             )
         }
     }

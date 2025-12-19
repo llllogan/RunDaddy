@@ -65,7 +65,7 @@ struct RunDetailView: View {
                                 pendingItemsTap: {
                                     showingPendingEntries = true
                                 },
-                                coldChestChips: viewModel.runColdChestChips
+                                coldChestChips: viewModel.showsColdChest ? viewModel.runColdChestChips : []
                             )
 
                             RunBottomBento(
@@ -115,7 +115,7 @@ struct RunDetailView: View {
             )
         }
         .navigationDestination(isPresented: $showingRunNotes) {
-            RunNotesView(
+            NotesView(
                 runId: viewModel.detail?.id ?? viewModel.runId,
                 session: viewModel.session,
                 runDetail: viewModel.detail,
@@ -570,8 +570,8 @@ private extension RunDetailView {
     private func locationRow(for section: RunLocationSection) -> some View {
         let isDeleting = deletingLocationIDs.contains(section.id)
         let pickCount = viewModel.pickItemCount(for: section.id)
-        let coldChestSkuChips = viewModel.coldChestSkuChips(for: section.id)
-        let chocolateBoxesLabel = chocolateBoxDisplay(for: section)
+        let coldChestSkuChips = viewModel.showsColdChest ? viewModel.coldChestSkuChips(for: section.id) : []
+        let chocolateBoxesLabel = viewModel.showsChocolateBoxes ? chocolateBoxDisplay(for: section) : nil
         let locationDetail = viewModel.locationDetail(for: section.id)
         let machines = locationDetail?.machines ?? []
 

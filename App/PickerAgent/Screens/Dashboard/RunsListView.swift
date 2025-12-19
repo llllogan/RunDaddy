@@ -12,6 +12,7 @@ struct RunsListView: View {
     let title: String
     let runs: [RunSummary]
     var emptyStateMessage = "No runs to show."
+    var showChocolateBoxesChip = true
 
     private var showPackedByYouChip: Bool {
         !runs.contains { $0.runner?.id == session.credentials.userID }
@@ -40,7 +41,8 @@ struct RunsListView: View {
                             RunRow(
                                 run: run,
                                 currentUserId: session.credentials.userID,
-                                showPackedByYouChip: showPackedByYouChip
+                                showPackedByYouChip: showPackedByYouChip,
+                                showChocolateBoxesChip: showChocolateBoxesChip
                             )
                         }
                     }

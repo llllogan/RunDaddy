@@ -159,7 +159,7 @@ struct SearchLocationDetailView: View {
                         }
 
                         NavigationLink("View all notes") {
-                            CompanyNotesView(
+                            NotesView(
                                 session: session,
                                 initialFilterTag: NoteTagOption(
                                     id: locationId,

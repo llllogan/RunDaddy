@@ -281,10 +281,11 @@ struct PackingSessionSheet: View {
                     skuType: viewModel.currentPickItem?.sku?.type,
                     pickItem: viewModel.currentPickItem,
                     progressInfo: progressInfo(for: command),
-                    chocolateBoxNumbers: chocolateBoxNumbersForCurrentMachine,
+                    chocolateBoxNumbers: viewModel.showsChocolateBoxes ? chocolateBoxNumbersForCurrentMachine : [],
+                    showsChocolateBoxes: viewModel.showsChocolateBoxes,
                     canAddChocolateBox: viewModel.currentMachine != nil,
                     canConfigureExpiry: viewModel.currentPickItem?.isExpiringConfigured == true,
-                    onAddChocolateBoxTap: viewModel.currentMachine != nil ? {
+                    onAddChocolateBoxTap: viewModel.showsChocolateBoxes && viewModel.currentMachine != nil ? {
                         beginAddChocolateBoxFlow()
                     } : nil,
                     onConfigureExpiryTap: viewModel.currentPickItem?.isExpiringConfigured == true ? {
@@ -454,6 +455,7 @@ fileprivate struct CurrentCommandView: View {
     let pickItem: RunDetail.PickItem?
     let progressInfo: PackingInstructionProgress
     let chocolateBoxNumbers: [Int]
+    let showsChocolateBoxes: Bool
     let canAddChocolateBox: Bool
     let canConfigureExpiry: Bool
     let onAddChocolateBoxTap: (() -> Void)?
@@ -746,12 +748,16 @@ fileprivate struct CurrentCommandView: View {
     private var actionsView: some View {
         if layout == .stacked {
             HStack(spacing: 8) {
-                addChocolateBoxButton
+                if showsChocolateBoxes {
+                    addChocolateBoxButton
+                }
                 configExpiryButton
             }
         } else {
             VStack(spacing: 8) {
-                addChocolateBoxButton
+                if showsChocolateBoxes {
+                    addChocolateBoxButton
+                }
                 configExpiryButton
             }
         }
@@ -765,15 +771,19 @@ fileprivate struct CurrentCommandView: View {
                     progressCard
                     countCard
                     detailCard
-                    chocolateBoxCard
+                    if showsChocolateBoxes {
+                        chocolateBoxCard
+                    }
                     actionsView
                 }
             case .wide:
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 12) {
                         configExpiryButton
-                        wideChocolateBoxCard
-                        addChocolateBoxButton
+                        if showsChocolateBoxes {
+                            wideChocolateBoxCard
+                            addChocolateBoxButton
+                        }
                     }
                     .frame(maxWidth: 260)
                     detailCard

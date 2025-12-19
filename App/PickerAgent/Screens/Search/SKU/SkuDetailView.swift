@@ -26,6 +26,7 @@ struct SkuDetailView: View {
     @State private var suppressLabelColourSync = false
     @State private var desiredLabelColour: Color?
     @State private var labelColourSaveTask: Task<Void, Never>?
+    @State private var showsColdChest = true
     @StateObject private var chartsViewModel: ChartsViewModel
     @State private var recentNotes: [Note] = []
     @State private var isLoadingNotes = false
@@ -69,6 +70,7 @@ struct SkuDetailView: View {
                             isUpdatingColdChestStatus: isUpdatingColdChestStatus,
                             onToggleColdChestStatus: { toggleColdChestStatus() },
                             mostRecentPick: skuStats.mostRecentPick,
+                            showsColdChest: showsColdChest,
                             labelColour: $selectedLabelColour,
                             isUpdatingLabelColour: isUpdatingLabelColour,
                             canEditLabelColour: canEditSku,
@@ -161,7 +163,7 @@ struct SkuDetailView: View {
                         }
 
                         NavigationLink("View all notes") {
-                            CompanyNotesView(
+                            NotesView(
                                 session: session,
                                 initialFilterTag: NoteTagOption(
                                     id: skuId,
@@ -581,6 +583,7 @@ struct SkuDetailView: View {
     private func loadEffectiveRole() async {
         do {
             let profile = try await authService.fetchCurrentUserProfile(credentials: session.credentials)
+            showsColdChest = profile.currentCompany?.showColdChest ?? true
             if let companyRole = profile.currentCompany?.role
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .uppercased(),

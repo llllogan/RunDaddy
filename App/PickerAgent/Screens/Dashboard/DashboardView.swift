@@ -56,6 +56,10 @@ struct DashboardView: View {
     private var shouldShowInsights: Bool {
         viewModel.currentUserProfile?.hasCompany == true && !isPickerUser
     }
+    
+    private var showsChocolateBoxes: Bool {
+        viewModel.currentUserProfile?.currentCompany?.showChocolateBoxes ?? true
+    }
 
     private var totalRunsBentoItem: BentoItem? {
         guard let totalRuns = viewModel.totalRuns else {
@@ -325,7 +329,8 @@ struct DashboardView: View {
                             RunRow(
                                 run: run,
                                 currentUserId: session.credentials.userID,
-                                showPackedByYouChip: showPackedByYouChip
+                                showPackedByYouChip: showPackedByYouChip,
+                                showChocolateBoxesChip: showsChocolateBoxes
                             )
                         }
                     }
@@ -334,7 +339,8 @@ struct DashboardView: View {
                             RunsListView(
                                 session: session,
                                 title: "Runs for Today",
-                                runs: viewModel.todayRuns
+                                runs: viewModel.todayRuns,
+                                showChocolateBoxesChip: showsChocolateBoxes
                             )
                         } label: {
                             ViewMoreRow(title: "View \(viewModel.todayRuns.count - 3) more")
@@ -359,7 +365,8 @@ struct DashboardView: View {
                             RunRow(
                                 run: run,
                                 currentUserId: session.credentials.userID,
-                                showPackedByYouChip: showPackedByYouChip
+                                showPackedByYouChip: showPackedByYouChip,
+                                showChocolateBoxesChip: showsChocolateBoxes
                             )
                         }
                     }
@@ -368,7 +375,8 @@ struct DashboardView: View {
                             RunsListView(
                                 session: session,
                                 title: "Runs for Tomorrow",
-                                runs: viewModel.tomorrowRuns
+                                runs: viewModel.tomorrowRuns,
+                                showChocolateBoxesChip: showsChocolateBoxes
                             )
                         } label: {
                             ViewMoreRow(title: "View \(viewModel.tomorrowRuns.count - 3) more")
@@ -658,7 +666,7 @@ struct DashboardView: View {
 private extension DashboardView {
     var notesNavigationLink: some View {
         NavigationLink(
-            destination: CompanyNotesView(session: session) { updatedCount in
+            destination: NotesView(session: session) { updatedCount in
                 viewModel.recentNotesCount = updatedCount
             },
             isActive: $showingCompanyNotes

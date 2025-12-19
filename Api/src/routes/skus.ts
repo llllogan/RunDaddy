@@ -347,6 +347,19 @@ router.patch('/:skuId/expiry-days', setLogConfig({ level: 'minimal' }), async (r
   if (updatedSku.expiryDays <= 0) {
     await prisma.$executeRaw(
       Prisma.sql`
+        DELETE peo
+        FROM PickEntryExpiryOverride peo
+          INNER JOIN PickEntry pe ON pe.id = peo.pickEntryId
+          INNER JOIN Run r ON r.id = pe.runId
+          INNER JOIN CoilItem ci ON ci.id = pe.coilItemId
+        WHERE r.companyId = ${companyId}
+          AND ci.skuId = ${skuId}
+          AND r.scheduledFor IS NOT NULL
+          AND r.scheduledFor >= ${lookbackStart};
+      `,
+    );
+    await prisma.$executeRaw(
+      Prisma.sql`
         UPDATE PickEntry pe
           INNER JOIN Run r ON r.id = pe.runId
           INNER JOIN CoilItem ci ON ci.id = pe.coilItemId

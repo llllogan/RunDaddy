@@ -98,8 +98,10 @@ struct ReorderLocationsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
                     }
                     .disabled(isSaving)
                 }
@@ -110,13 +112,11 @@ struct ReorderLocationsSheet: View {
                             await persistChanges()
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            if isSaving {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .scaleEffect(0.9)
-                            }
-                            Text(isSaving ? "Saving" : "Save")
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        } else {
+                            Label("Save", systemImage: "checkmark")
                         }
                     }
                     .disabled(isSaving || draftSections.count < 2)
@@ -312,7 +312,9 @@ struct ReorderLocationsSheet: View {
             name: "Company",
             role: role,
             location: viewModel.companyLocation,
-            timeZone: nil
+            timeZone: nil,
+            showColdChest: nil,
+            showChocolateBoxes: nil
         )
     }
 

@@ -50,6 +50,9 @@ struct RunLocationDetailView: View {
     @State private var pickItemPendingExpiryUpdate: RunDetail.PickItem?
     @State private var locationNavigationTarget: RunLocationDetailSearchNavigation?
     @State private var machineNavigationTarget: RunLocationDetailMachineNavigation?
+    @State private var showingLocationNotes = false
+    @State private var locationNoteCount: Int?
+    @State private var isLoadingLocationNoteCount = false
 
     private var overviewSummary: RunLocationOverviewSummary {
         RunLocationOverviewSummary(
@@ -70,6 +73,20 @@ struct RunLocationDetailView: View {
 
     private var machines: [RunDetail.Machine] {
         detail.machines
+    }
+
+    private var locationNotesTag: NoteTagOption? {
+        guard let locationId = detail.section.location?.id else { return nil }
+        return NoteTagOption(
+            id: locationId,
+            type: .location,
+            label: detail.section.title,
+            subtitle: detail.section.subtitle
+        )
+    }
+
+    private var locationNotesTagOptions: [NoteTagOption] {
+        NotesViewModel.buildTagOptions(from: detail)
     }
 
 	    private var availableSkuCategories: [String] {
@@ -143,6 +160,8 @@ struct RunLocationDetailView: View {
                     summary: overviewSummary,
                     machines: machines,
                     viewModel: viewModel,
+                    locationNoteCount: locationNoteCount,
+                    isLoadingLocationNotes: isLoadingLocationNoteCount,
                     onChocolateBoxesTap: {
                         activeSheet = .chocolateBoxes
                     },
@@ -150,11 +169,16 @@ struct RunLocationDetailView: View {
                         activeSheet = .addChocolateBox
                     },
                     coldChestItems: coldChestItems,
+                    showsColdChest: viewModel.showsColdChest,
+                    showsChocolateBoxes: viewModel.showsChocolateBoxes,
                     onLocationTap: {
                         navigateToSearchLocation()
                     },
                     onMachineTap: { machine in
                         navigateToMachineDetail(machine)
+                    },
+                    onNotesTap: locationNotesTag == nil ? nil : {
+                        showingLocationNotes = true
                     }
                 )
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
@@ -224,60 +248,105 @@ struct RunLocationDetailView: View {
                 } else {
                     ForEach(filteredPickItems, id: \.id) { pickItem in
                         let isUpdatingPick = updatingPickIds.contains(pickItem.id) || updatingSkuIds.contains(pickItem.sku?.id ?? "")
-                        PickEntryRow(
-                            pickItem: pickItem,
-                            onToggle: {
-                                Task {
-                                    await togglePickStatus(pickItem)
-                                }
-                            }
-                        )
-                        .disabled(isUpdatingPick)
-                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                            Button {
-                                Task {
-                                    await toggleColdChestStatus(pickItem)
-                                }
-                            } label: {
-                                Label(
-                                    pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
-                                    systemImage: "snowflake"
-                                )
-                            }
-                            .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                pickItemPendingSubstitution = pickItem
-                            } label: {
-                                Label("Substitute", systemImage: "rectangle.2.swap")
-                            }
-                            .tint(.indigo)
-                            
-                            if pickItem.isExpiringConfigured {
+                        if viewModel.showsColdChest {
+                            PickEntryRow(
+                                pickItem: pickItem,
+                                onToggle: {
+                                    Task {
+                                        await togglePickStatus(pickItem)
+                                    }
+                                },
+                                showsColdChest: viewModel.showsColdChest
+                            )
+                            .disabled(isUpdatingPick)
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    pickItemPendingExpiryUpdate = pickItem
+                                    Task {
+                                        await toggleColdChestStatus(pickItem)
+                                    }
                                 } label: {
-                                    Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    Label(
+                                        pickItem.sku?.isFreshOrFrozen == true ? "Remove from Cold Chest" : "Add to Cold Chest",
+                                        systemImage: "snowflake"
+                                    )
                                 }
-                                .tint(.orange)
+                                .tint(Theme.coldChestTint.opacity(pickItem.sku?.isFreshOrFrozen == true ? 1 : 0.9))
                             }
-                            
-                            Button {
-                                selectedPickItemForCountPointer = pickItem
-                            } label: {
-                                Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    pickItemPendingSubstitution = pickItem
+                                } label: {
+                                    Label("Substitute", systemImage: "rectangle.2.swap")
+                                }
+                                .tint(.indigo)
+                                
+                                if pickItem.isExpiringConfigured {
+                                    Button {
+                                        pickItemPendingExpiryUpdate = pickItem
+                                    } label: {
+                                        Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    }
+                                    .tint(.orange)
+                                }
+                                
+                                Button {
+                                    selectedPickItemForCountPointer = pickItem
+                                } label: {
+                                    Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                                }
+                                .tint(.blue)
+                                
+                                Button {
+                                    pickItemPendingDeletion = pickItem
+                                } label: {
+                                    Label("Remove", systemImage: "minus.circle")
+                                }
+                                .tint(.red)
                             }
-                            .tint(.blue)
-                            
-	                            Button {
-	                                pickItemPendingDeletion = pickItem
-	                            } label: {
-	                                Label("Remove", systemImage: "minus.circle")
-	                            }
-	                            .tint(.red)
-	                        }
-	                    }
+                        } else {
+                            PickEntryRow(
+                                pickItem: pickItem,
+                                onToggle: {
+                                    Task {
+                                        await togglePickStatus(pickItem)
+                                    }
+                                },
+                                showsColdChest: viewModel.showsColdChest
+                            )
+                            .disabled(isUpdatingPick)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    pickItemPendingSubstitution = pickItem
+                                } label: {
+                                    Label("Substitute", systemImage: "rectangle.2.swap")
+                                }
+                                .tint(.indigo)
+                                
+                                if pickItem.isExpiringConfigured {
+                                    Button {
+                                        pickItemPendingExpiryUpdate = pickItem
+                                    } label: {
+                                        Label("Edit Expiry", systemImage: "ellipsis.calendar")
+                                    }
+                                    .tint(.orange)
+                                }
+                                
+                                Button {
+                                    selectedPickItemForCountPointer = pickItem
+                                } label: {
+                                    Label("Edit Count", systemImage: "square.3.layers.3d.down.backward")
+                                }
+                                .tint(.blue)
+                                
+                                Button {
+                                    pickItemPendingDeletion = pickItem
+                                } label: {
+                                    Label("Remove", systemImage: "minus.circle")
+                                }
+                                .tint(.red)
+                            }
+                        }
+                    }
                 }
             } header: {
                 Text("Picks")
@@ -305,9 +374,7 @@ struct RunLocationDetailView: View {
                     selectedPickItemForCountPointer = nil
                 },
                 onPointerSelected: { newPointer in
-                    Task {
-                        await updateCountPointer(pickItem, newPointer: newPointer)
-                    }
+                    await updateCountPointer(pickItem, newPointer: newPointer)
                 },
                 onOverrideSaved: { overrideValue in
                     await updateOverrideCount(pickItem, newOverride: overrideValue)
@@ -396,6 +463,49 @@ struct RunLocationDetailView: View {
         }
         .navigationDestination(item: $machineNavigationTarget) { target in
             MachineDetailView(machineId: target.id, session: session)
+        }
+        .navigationDestination(isPresented: $showingLocationNotes) {
+            if let tag = locationNotesTag {
+                NotesView(
+                    scopedTag: tag,
+                    session: session,
+                    runId: runId,
+                    tagOptions: locationNotesTagOptions,
+                    onNotesUpdated: { updatedCount in
+                        locationNoteCount = updatedCount
+                    }
+                )
+            }
+        }
+        .task {
+            await loadLocationNoteCount()
+        }
+    }
+
+    private func loadLocationNoteCount(force: Bool = false) async {
+        guard let locationId = detail.section.location?.id else {
+            locationNoteCount = nil
+            return
+        }
+
+        if isLoadingLocationNoteCount && !force {
+            return
+        }
+
+        isLoadingLocationNoteCount = true
+        defer { isLoadingLocationNoteCount = false }
+
+        do {
+            let response = try await NotesService().fetchNotes(
+                targetType: .location,
+                targetId: locationId,
+                limit: 1,
+                offset: nil,
+                credentials: session.credentials
+            )
+            locationNoteCount = response.total
+        } catch {
+            locationNoteCount = nil
         }
     }
     
@@ -631,13 +741,14 @@ private enum RunLocationDetailSheet: Identifiable {
 struct CountPointerSelectionSheet: View {
     let pickItem: RunDetail.PickItem
     let onDismiss: () -> Void
-    let onPointerSelected: (String) -> Void
+    let onPointerSelected: (String) async -> Void
     let onOverrideSaved: (Int?) async -> Void
     @ObservedObject var viewModel: RunDetailViewModel
     
     @FocusState private var isOverrideFocused: Bool
     @State private var overrideInput: String = ""
     @State private var isSavingOverride = false
+    @State private var isUpdatingPointer = false
     @State private var overrideError: String?
     
     private let countPointers = [
@@ -659,6 +770,10 @@ struct CountPointerSelectionSheet: View {
     private var currentOverride: Int? {
         latestPickItem.overrideCount
     }
+
+    private var hasOverride: Bool {
+        currentOverride != nil
+    }
     
     private var defaultPointerCount: Int? {
         let pointerKey = latestPickItem.sku?.countNeededPointer ?? "total"
@@ -679,11 +794,10 @@ struct CountPointerSelectionSheet: View {
                         CountPointerRow(
                             pointer: pointer,
                             currentCount: latestPickItem.countForPointer(pointer.0),
-                            isSelected: pointer.0 == currentSelection
+                            isSelected: !hasOverride && pointer.0 == currentSelection,
+                            showsDefaultLabel: hasOverride && pointer.0 == currentSelection
                         ) {
-                            if !isSavingOverride {
-                                onPointerSelected(pointer.0)
-                            }
+                            handlePointerSelection(pointer.0)
                         }
                     }
                 } header: {
@@ -698,12 +812,6 @@ struct CountPointerSelectionSheet: View {
                             .keyboardType(.numberPad)
                             .focused($isOverrideFocused)
                         
-                        if let defaultPointerCount {
-                            Text("Default from \(currentSelection.uppercased()): \(defaultPointerCount)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
                         if let overrideError {
                             Text(overrideError)
                                 .font(.caption)
@@ -713,21 +821,14 @@ struct CountPointerSelectionSheet: View {
                     .padding(.vertical, 4)
                 } header: {
                     Text("Manual Override")
+                } footer: {
+                    Text("This count will be used for this run only.")
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle(pickItem.sku?.name ?? "Unknown SKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if currentOverride != nil {
-                        Button("Clear Override") {
-                            clearOverride()
-                        }
-                        .disabled(isSavingOverride)
-                    }
-                }
-                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     let hasTypedOverride = parsedOverride != nil
                     Button(hasTypedOverride ? "Save" : "Done") {
@@ -773,13 +874,19 @@ struct CountPointerSelectionSheet: View {
             await onOverrideSaved(resolved)
         }
     }
-    
-    private func clearOverride() {
+
+    private func handlePointerSelection(_ pointerKey: String) {
+        guard !isSavingOverride && !isUpdatingPointer else { return }
         Task {
-            isSavingOverride = true
-            defer { isSavingOverride = false }
-            await onOverrideSaved(nil)
-            overrideInput = ""
+            isUpdatingPointer = true
+            defer { isUpdatingPointer = false }
+            if hasOverride {
+                await onOverrideSaved(nil)
+                await MainActor.run {
+                    overrideInput = ""
+                }
+            }
+            await onPointerSelected(pointerKey)
         }
     }
 }
@@ -788,6 +895,7 @@ private struct CountPointerRow: View {
     let pointer: (String, String, String)
     let currentCount: Int?
     let isSelected: Bool
+    let showsDefaultLabel: Bool
     let onTap: () -> Void
     
     var body: some View {
@@ -805,21 +913,35 @@ private struct CountPointerRow: View {
                 
                 Spacer()
                 
-                if let count = currentCount {
-                    Text("\(count)")
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("N/A")
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
+                VStack {
+                    
+                    HStack {
+                        
+                        if let count = currentCount {
+                            Text("\(count)")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("N/A")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                            .foregroundColor(isSelected ? .blue : .gray)
+                            .font(.title2)
+                        
+                    }
+                    
+                    if showsDefaultLabel {
+                        Text("default")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    
                 }
-                
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .foregroundColor(isSelected ? .blue : .gray)
-                    .font(.title2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -831,6 +953,7 @@ struct PickEntryRow: View {
     let pickItem: RunDetail.PickItem
     let onToggle: () -> Void
     var showsLocation: Bool = false
+    var showsColdChest: Bool = true
     
     private struct ExpiryChipItem: Identifiable {
         let expiryDate: String
@@ -842,11 +965,13 @@ struct PickEntryRow: View {
     init(
         pickItem: RunDetail.PickItem,
         onToggle: @escaping () -> Void,
-        showsLocation: Bool = false
+        showsLocation: Bool = false,
+        showsColdChest: Bool = true
     ) {
         self.pickItem = pickItem
         self.onToggle = onToggle
         self.showsLocation = showsLocation
+        self.showsColdChest = showsColdChest
     }
 
     private var locationLabel: String? {
@@ -969,7 +1094,7 @@ struct PickEntryRow: View {
                         )
                     }
 
-                    if pickItem.sku?.isFreshOrFrozen == true {
+                    if showsColdChest, pickItem.sku?.isFreshOrFrozen == true {
                         InfoChip(
                             text: "Cold Chest",
                             colour: Theme.coldChestTint.opacity(0.2),
