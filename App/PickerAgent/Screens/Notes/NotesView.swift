@@ -1067,7 +1067,7 @@ private struct NotesComposer: View {
     @State private var isShowingDeleteConfirm = false
     @State private var savedBodyText: String
     @State private var savedTag: NoteTagOption?
-    @State private var associateWithRun = true
+    @State private var addToFutureRuns = false
 
     init(
         viewModel: NotesViewModel,
@@ -1101,11 +1101,11 @@ private struct NotesComposer: View {
             )
             _selectedTag = State(initialValue: initialTag)
             _savedTag = State(initialValue: initialTag)
-            _associateWithRun = State(initialValue: editingNote.runId != nil)
+            _addToFutureRuns = State(initialValue: editingNote.runId == nil)
         } else {
             _selectedTag = State(initialValue: nil)
             _savedTag = State(initialValue: nil)
-            _associateWithRun = State(initialValue: viewModel.allowsRunAssociation)
+            _addToFutureRuns = State(initialValue: false)
         }
     }
 
@@ -1142,10 +1142,23 @@ private struct NotesComposer: View {
     }
 
     private var runAssociationFooterText: String {
-        if associateWithRun {
-            return "This note is linked to this run. Turn it off to save the note without a run association."
+        if addToFutureRuns {
+            return "This note will appear in future runs when \(tagScopeLabel) is present. It can also be found in the notes tab."
         }
-        return "This note will be saved without a run association."
+        return "This note will only appear for this run. It can still be found later in the notes tab."
+    }
+
+    private var tagScopeLabel: String {
+        switch selectedTag?.type {
+        case .location:
+            return "this location"
+        case .machine:
+            return "this machine"
+        case .sku:
+            return "this SKU"
+        default:
+            return "this item"
+        }
     }
 
     var body: some View {
@@ -1169,7 +1182,7 @@ private struct NotesComposer: View {
 
                 if !isEditing && viewModel.allowsRunAssociation && !isReadOnly {
                     Section {
-                        Toggle("Associate with this run", isOn: $associateWithRun)
+                        Toggle("Add to future runs", isOn: $addToFutureRuns)
                     } footer: {
                         Text(runAssociationFooterText)
                     }
@@ -1297,7 +1310,7 @@ private struct NotesComposer: View {
                                     note = await viewModel.addNote(
                                         body: bodyText,
                                         tag: tag,
-                                        associateWithRun: associateWithRun
+                                        associateWithRun: !addToFutureRuns
                                     )
                                 }
                                 if note != nil {
@@ -1343,7 +1356,7 @@ private struct NotesComposer: View {
             Button("Yes") {
                 Task {
                     let tag = NoteTagOption(id: "general", type: .general, label: "General", subtitle: nil)
-                    let note = await viewModel.addNote(body: bodyText, tag: tag, associateWithRun: associateWithRun)
+                    let note = await viewModel.addNote(body: bodyText, tag: tag, associateWithRun: !addToFutureRuns)
                     if note != nil {
                         savedBodyText = bodyText
                         savedTag = selectedTag
@@ -1392,7 +1405,7 @@ private struct NotesComposer: View {
         bodyText = savedBodyText
         searchText = ""
         selectedTag = savedTag
-        associateWithRun = viewModel.allowsRunAssociation ? true : associateWithRun
+        addToFutureRuns = false
     }
 }
 
