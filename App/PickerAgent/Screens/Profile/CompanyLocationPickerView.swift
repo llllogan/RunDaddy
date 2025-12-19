@@ -14,6 +14,7 @@ struct CompanyLocationPickerView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var isSearching = false
     @State private var localErrorMessage: String?
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         List {
@@ -38,6 +39,7 @@ struct CompanyLocationPickerView: View {
 
             Section {
                 TextField("Search for an address", text: $query)
+                    .focused($isSearchFocused)
                     .textInputAutocapitalization(.words)
                     .disableAutocorrection(true)
                     .onSubmit {
@@ -99,8 +101,10 @@ struct CompanyLocationPickerView: View {
         .toolbar {
             if showsCancel {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
                     }
                     .disabled(viewModel.isUpdatingLocation)
                 }
@@ -110,14 +114,19 @@ struct CompanyLocationPickerView: View {
                 if viewModel.isUpdatingLocation {
                     ProgressView()
                 } else {
-                    Button("Save") {
+                    Button {
                         saveAddress(viewModel.companyLocationAddress)
+                    } label: {
+                        Label("Save", systemImage: "checkmark")
                     }
                     .disabled(viewModel.companyLocationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
         .keyboardDismissToolbar()
+        .task {
+            isSearchFocused = true
+        }
     }
 
     private func scheduleSearch(for text: String) {

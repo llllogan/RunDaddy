@@ -948,6 +948,7 @@ private struct NotesTargetFilterPickerSheet: View {
     @State private var isSearching = false
     @State private var searchResults: [SearchResult] = []
     @State private var searchDebounceTask: Task<Void, Never>?
+    @FocusState private var isSearchFocused: Bool
 
     private let searchService = SearchService()
 
@@ -965,6 +966,7 @@ private struct NotesTargetFilterPickerSheet: View {
             List {
                 Section("Search") {
                     TextField("Search…", text: $searchText)
+                        .focused($isSearchFocused)
                         .onChange(of: searchText) { _, newValue in
                             handleSearchTextChange(newValue)
                         }
@@ -1014,6 +1016,9 @@ private struct NotesTargetFilterPickerSheet: View {
             .keyboardDismissToolbar()
             .onDisappear {
                 searchDebounceTask?.cancel()
+            }
+            .task {
+                isSearchFocused = true
             }
         }
     }
@@ -1163,102 +1168,13 @@ private struct NotesComposer: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $bodyText)
-                            .frame(minHeight: 120)
-                            .focused($isBodyFocused)
-                            .disabled(isReadOnly)
-
-                        if bodyText.isEmpty {
-                            Text("Add context or reminders for your team…")
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 10)
-                        }
-                    }
-                }
-
-                if !isEditing && viewModel.allowsRunAssociation && !isReadOnly {
-                    Section {
-                        Toggle("Add to future runs", isOn: $addToFutureRuns)
-                    } footer: {
-                        Text(runAssociationFooterText)
-                    }
-                }
-
-                if !isEditing {
-                    Section("Apply to") {
-                        TextField("Search SKUs, machines, or locations", text: $searchText)
-                            .disabled(isReadOnly)
-                            .onChange(of: searchText) { _, newValue in
-                                handleSearchChange(newValue)
-                            }
-
-                    if isRunMode {
-                        if viewModel.tagOptions.isEmpty {
-                            Text("Tags are unavailable until the run details finish loading.")
-                                .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 4)
-                            } else if visibleTags.isEmpty {
-                                Text("No tags match your search.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 4)
-                            } else {
-                                ForEach(visibleTags) { option in
-                                    Button {
-                                        selectedTag = option
-                                    } label: {
-                                        EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
-                                            .frame(maxWidth: .infinity)
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(isReadOnly)
-                                }
-                            }
-                        } else {
-                            if visibleTags.isEmpty {
-                                if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.vertical, 4)
-                                } else {
-                                    Text("No tags match your search yet.")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.vertical, 4)
-                                }
-                            } else {
-                                ForEach(visibleTags) { option in
-                                    Button {
-                                        selectedTag = option
-                                    } label: {
-                                        EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
-                                            .frame(maxWidth: .infinity)
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(isReadOnly)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if let error = viewModel.errorMessage {
-                    Section {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
+            Group {
+                if isEditing || isReadOnly {
+                    fullScreenEditor
+                } else {
+                    notesList.listStyle(.insetGrouped)
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(isReadOnly ? "Note" : (editingNote == nil ? "Add Note" : "Edit Note"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1285,18 +1201,20 @@ private struct NotesComposer: View {
                     }
                 } else {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
+                        Button {
                             resetComposerState()
                             if let onCancel {
                                 onCancel()
                             } else {
                                 isPresented = false
                             }
+                        } label: {
+                            Label("Cancel", systemImage: "xmark")
                         }
                     }
 
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
+                        Button {
                             Task {
                                 let note: Note?
                                 if let editingNote {
@@ -1325,7 +1243,10 @@ private struct NotesComposer: View {
                                     }
                                 }
                             }
+                        } label: {
+                            Label("Save", systemImage: "checkmark")
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(isSaveDisabled)
                     }
 
@@ -1383,6 +1304,125 @@ private struct NotesComposer: View {
             guard !newValue else { return }
             Task { @MainActor in
                 isBodyFocused = true
+            }
+        }
+    }
+
+    private var fullScreenEditor: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $bodyText)
+                .focused($isBodyFocused)
+                .disabled(isReadOnly)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+            if bodyText.isEmpty {
+                Text("Add context or reminders for your team…")
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+            }
+        }
+    }
+
+    private var notesList: some View {
+        List {
+            Section {
+                ZStack(alignment: .topLeading) {
+                    if isReadOnly {
+                        TextEditor(text: $bodyText)
+                            .disabled(true)
+                    } else {
+                        TextEditor(text: $bodyText)
+                            .focused($isBodyFocused)
+
+                        if bodyText.isEmpty {
+                            Text("Add context or reminders for your team…")
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 10)
+                        }
+                    }
+                }
+            }
+
+            if !isEditing && viewModel.allowsRunAssociation && !isReadOnly {
+                Section {
+                    Toggle("Add to future runs", isOn: $addToFutureRuns)
+                } footer: {
+                    Text(runAssociationFooterText)
+                }
+            }
+
+            if !isEditing {
+                Section("Apply to") {
+                    TextField("Search SKUs, machines, or locations", text: $searchText)
+                        .disabled(isReadOnly)
+                        .onChange(of: searchText) { _, newValue in
+                            handleSearchChange(newValue)
+                        }
+
+                    if isRunMode {
+                        if viewModel.tagOptions.isEmpty {
+                            Text("Tags are unavailable until the run details finish loading.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        } else if visibleTags.isEmpty {
+                            Text("No tags match your search.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        } else {
+                            ForEach(visibleTags) { option in
+                                Button {
+                                    selectedTag = option
+                                } label: {
+                                    EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isReadOnly)
+                            }
+                        }
+                    } else {
+                        if visibleTags.isEmpty {
+                            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Start typing to find SKUs, machines, or locations. Recent suggestions will appear here.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            } else {
+                                Text("No tags match your search yet.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            }
+                        } else {
+                            ForEach(visibleTags) { option in
+                                Button {
+                                    selectedTag = option
+                                } label: {
+                                    EntityResultRow(option: option, isSelected: selectedTag?.id == option.id)
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isReadOnly)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let error = viewModel.errorMessage {
+                Section {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
             }
         }
     }
