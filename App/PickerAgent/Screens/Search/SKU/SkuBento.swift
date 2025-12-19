@@ -246,7 +246,7 @@ struct SkuInfoBento: View {
         if let expiryDays = sku.expiryDays, expiryDays > 0 {
             valueText = "\(expiryDays) days"
         } else {
-            valueText = "Not set"
+            valueText = "No Expiry"
         }
 
         return BentoItem(
