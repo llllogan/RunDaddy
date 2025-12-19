@@ -205,6 +205,7 @@ struct NotesView: View {
                     onNotesUpdated?(viewModel.total)
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedNoteForPreview, onDismiss: {
             isPreviewReadOnly = true
@@ -238,6 +239,7 @@ struct NotesView: View {
                     onNotesUpdated?(viewModel.total)
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $isShowingFilterPicker) {
             NotesTargetFilterPickerSheet(
@@ -249,6 +251,7 @@ struct NotesView: View {
                     Task { await viewModel.loadNotes(force: true, filterTag: tag) }
                 }
             )
+            .presentationDragIndicator(.visible)
         }
     }
 
