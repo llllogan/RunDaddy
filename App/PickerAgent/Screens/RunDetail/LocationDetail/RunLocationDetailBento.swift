@@ -24,6 +24,8 @@ struct RunLocationOverviewBento: View {
     let summary: RunLocationOverviewSummary
     let machines: [RunDetail.Machine]
     let viewModel: RunDetailViewModel
+    let locationNoteCount: Int?
+    let isLoadingLocationNotes: Bool
     let onChocolateBoxesTap: (() -> Void)?
     let onAddChocolateBoxTap: (() -> Void)?
     let coldChestItems: [RunDetail.PickItem]
@@ -31,20 +33,26 @@ struct RunLocationOverviewBento: View {
     let showsChocolateBoxes: Bool
     let onLocationTap: (() -> Void)?
     let onMachineTap: ((RunDetail.Machine) -> Void)?
+    let onNotesTap: (() -> Void)?
 
     init(summary: RunLocationOverviewSummary,
          machines: [RunDetail.Machine] = [],
          viewModel: RunDetailViewModel,
+         locationNoteCount: Int? = nil,
+         isLoadingLocationNotes: Bool = false,
          onChocolateBoxesTap: (() -> Void)? = nil,
          onAddChocolateBoxTap: (() -> Void)? = nil,
          coldChestItems: [RunDetail.PickItem] = [],
          showsColdChest: Bool = true,
          showsChocolateBoxes: Bool = true,
          onLocationTap: (() -> Void)? = nil,
-         onMachineTap: ((RunDetail.Machine) -> Void)? = nil) {
+         onMachineTap: ((RunDetail.Machine) -> Void)? = nil,
+         onNotesTap: (() -> Void)? = nil) {
         self.summary = summary
         self.machines = machines
         self.viewModel = viewModel
+        self.locationNoteCount = locationNoteCount
+        self.isLoadingLocationNotes = isLoadingLocationNotes
         self.onChocolateBoxesTap = onChocolateBoxesTap
         self.onAddChocolateBoxTap = onAddChocolateBoxTap
         self.coldChestItems = coldChestItems
@@ -52,6 +60,20 @@ struct RunLocationOverviewBento: View {
         self.showsChocolateBoxes = showsChocolateBoxes
         self.onLocationTap = onLocationTap
         self.onMachineTap = onMachineTap
+        self.onNotesTap = onNotesTap
+    }
+
+    private var notesValueText: String {
+        if isLoadingLocationNotes {
+            return "…"
+        }
+
+        guard let count = locationNoteCount else {
+            return "—"
+        }
+
+        let label = count == 1 ? "note" : "notes"
+        return "\(count) \(label)"
     }
 
     private var items: [BentoItem] {
@@ -102,12 +124,14 @@ struct RunLocationOverviewBento: View {
 //        }
         
         cards.append(
-            BentoItem(title: "Remaining",
-                      value: "\(summary.remainingCoils)",
-                      subtitle: summary.remainingCoils == 0 ? "All coils picked" : "Coils waiting to pack",
-                      symbolName: "cart",
-                      symbolTint: .pink,
-                      isProminent: summary.remainingCoils > 0)
+            BentoItem(title: "Notes",
+                      value: notesValueText,
+                      subtitle: "View Notes",
+                      symbolName: "note.text",
+                      symbolTint: .purple,
+                      isProminent: false,
+                      onTap: onNotesTap,
+                      showsChevron: onNotesTap != nil)
         )
         
         if summary.totalCoils > 0 {

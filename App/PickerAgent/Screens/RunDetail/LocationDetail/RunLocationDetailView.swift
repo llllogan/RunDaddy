@@ -50,6 +50,9 @@ struct RunLocationDetailView: View {
     @State private var pickItemPendingExpiryUpdate: RunDetail.PickItem?
     @State private var locationNavigationTarget: RunLocationDetailSearchNavigation?
     @State private var machineNavigationTarget: RunLocationDetailMachineNavigation?
+    @State private var showingLocationNotes = false
+    @State private var locationNoteCount: Int?
+    @State private var isLoadingLocationNoteCount = false
 
     private var overviewSummary: RunLocationOverviewSummary {
         RunLocationOverviewSummary(
@@ -70,6 +73,16 @@ struct RunLocationDetailView: View {
 
     private var machines: [RunDetail.Machine] {
         detail.machines
+    }
+
+    private var locationNotesTag: NoteTagOption? {
+        guard let locationId = detail.section.location?.id else { return nil }
+        return NoteTagOption(
+            id: locationId,
+            type: .location,
+            label: detail.section.title,
+            subtitle: detail.section.subtitle
+        )
     }
 
 	    private var availableSkuCategories: [String] {
@@ -143,6 +156,8 @@ struct RunLocationDetailView: View {
                     summary: overviewSummary,
                     machines: machines,
                     viewModel: viewModel,
+                    locationNoteCount: locationNoteCount,
+                    isLoadingLocationNotes: isLoadingLocationNoteCount,
                     onChocolateBoxesTap: {
                         activeSheet = .chocolateBoxes
                     },
@@ -157,6 +172,9 @@ struct RunLocationDetailView: View {
                     },
                     onMachineTap: { machine in
                         navigateToMachineDetail(machine)
+                    },
+                    onNotesTap: locationNotesTag == nil ? nil : {
+                        showingLocationNotes = true
                     }
                 )
                     .listRowInsets(.init(top: 0, leading: 0, bottom: 8, trailing: 0))
@@ -439,6 +457,47 @@ struct RunLocationDetailView: View {
         }
         .navigationDestination(item: $machineNavigationTarget) { target in
             MachineDetailView(machineId: target.id, session: session)
+        }
+        .navigationDestination(isPresented: $showingLocationNotes) {
+            if let tag = locationNotesTag {
+                NotesView(
+                    session: session,
+                    initialFilterTag: tag,
+                    onNotesUpdated: { updatedCount in
+                        locationNoteCount = updatedCount
+                    }
+                )
+            }
+        }
+        .task {
+            await loadLocationNoteCount()
+        }
+    }
+
+    private func loadLocationNoteCount(force: Bool = false) async {
+        guard let locationId = detail.section.location?.id else {
+            locationNoteCount = nil
+            return
+        }
+
+        if isLoadingLocationNoteCount && !force {
+            return
+        }
+
+        isLoadingLocationNoteCount = true
+        defer { isLoadingLocationNoteCount = false }
+
+        do {
+            let response = try await NotesService().fetchNotes(
+                targetType: .location,
+                targetId: locationId,
+                limit: 1,
+                offset: nil,
+                credentials: session.credentials
+            )
+            locationNoteCount = response.total
+        } catch {
+            locationNoteCount = nil
         }
     }
     
