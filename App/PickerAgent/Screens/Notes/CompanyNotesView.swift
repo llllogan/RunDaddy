@@ -28,6 +28,8 @@ struct CompanyNotesView: View {
     @StateObject private var viewModel: CompanyNotesViewModel
     let onNotesUpdated: ((Int) -> Void)?
     @State private var composerIntent: NoteComposerIntent?
+    @State private var selectedNoteForPreview: Note?
+    @State private var isPreviewReadOnly = true
     let session: AuthSession
     @State private var activeFilterTag: NoteTagOption?
     @State private var isShowingFilterPicker = false
@@ -86,6 +88,10 @@ struct CompanyNotesView: View {
                     CompanyNotesSection(
                         group: group,
                         runDates: viewModel.runDates,
+                        onSelect: { note in
+                            selectedNoteForPreview = note
+                            isPreviewReadOnly = true
+                        },
                         onEdit: { note in composerIntent = .edit(note) },
                         onDelete: { note in handleDelete(note) }
                     )
@@ -157,6 +163,39 @@ struct CompanyNotesView: View {
                 }
             )
         }
+        .sheet(item: $selectedNoteForPreview, onDismiss: {
+            isPreviewReadOnly = true
+        }) { note in
+            CompanyNoteComposer(
+                viewModel: viewModel,
+                isPresented: Binding(
+                    get: { selectedNoteForPreview != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            selectedNoteForPreview = nil
+                        }
+                    }
+                ),
+                editingNote: note,
+                isReadOnly: isPreviewReadOnly,
+                onRequestEdit: {
+                    isPreviewReadOnly = false
+                },
+                onRequestDelete: {
+                    await handleDeleteFromPreview(note)
+                },
+                onCancel: {
+                    isPreviewReadOnly = true
+                },
+                onSaveComplete: {
+                    selectedNoteForPreview = nil
+                    isPreviewReadOnly = true
+                },
+                onNoteSaved: {
+                    onNotesUpdated?(viewModel.total)
+                }
+            )
+        }
         .sheet(isPresented: $isShowingFilterPicker) {
             NotesTargetFilterPickerSheet(
                 session: session,
@@ -176,11 +215,25 @@ struct CompanyNotesView: View {
             onNotesUpdated?(viewModel.total)
         }
     }
+
+    private func runDate(for note: Note) -> Date? {
+        guard let runId = note.runId else { return nil }
+        return viewModel.runDates[runId]
+    }
+
+    private func handleDeleteFromPreview(_ note: Note) async {
+        _ = await viewModel.delete(note: note)
+        await MainActor.run {
+            selectedNoteForPreview = nil
+            onNotesUpdated?(viewModel.total)
+        }
+    }
 }
 
 private struct CompanyNotesSection: View {
     let group: NoteDayGroup
     let runDates: [String: Date]
+    let onSelect: (Note) -> Void
     let onEdit: (Note) -> Void
     let onDelete: (Note) -> Void
 
@@ -189,6 +242,9 @@ private struct CompanyNotesSection: View {
             ForEach(group.notes) { note in
                 NoteRowView(note: note, runDate: runDate(for: note))
                     .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(note)
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button { onEdit(note) } label: {
                             Label("Edit", systemImage: "pencil")
@@ -685,6 +741,11 @@ private struct CompanyNoteComposer: View {
     @ObservedObject var viewModel: CompanyNotesViewModel
     @Binding var isPresented: Bool
     let editingNote: Note?
+    let isReadOnly: Bool
+    let onRequestEdit: (() -> Void)?
+    let onRequestDelete: (() async -> Void)?
+    let onCancel: (() -> Void)?
+    let onSaveComplete: (() -> Void)?
     let onNoteSaved: () -> Void
 
     @FocusState private var isBodyFocused: Bool
@@ -693,18 +754,33 @@ private struct CompanyNoteComposer: View {
     @State private var selectedTag: NoteTagOption?
     @State private var searchTask: Task<Void, Never>?
     @State private var isShowingGeneralConfirm = false
+    @State private var isShowingDeleteConfirm = false
+    @State private var savedBodyText: String
+    @State private var savedTag: NoteTagOption?
 
     init(
         viewModel: CompanyNotesViewModel,
         isPresented: Binding<Bool>,
         editingNote: Note?,
+        isReadOnly: Bool = false,
+        onRequestEdit: (() -> Void)? = nil,
+        onRequestDelete: (() async -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
+        onSaveComplete: (() -> Void)? = nil,
         onNoteSaved: @escaping () -> Void
     ) {
         self.viewModel = viewModel
         self._isPresented = isPresented
         self.editingNote = editingNote
+        self.isReadOnly = isReadOnly
+        self.onRequestEdit = onRequestEdit
+        self.onRequestDelete = onRequestDelete
+        self.onCancel = onCancel
+        self.onSaveComplete = onSaveComplete
         self.onNoteSaved = onNoteSaved
-        _bodyText = State(initialValue: editingNote?.body ?? "")
+        let initialBody = editingNote?.body ?? ""
+        _bodyText = State(initialValue: initialBody)
+        _savedBodyText = State(initialValue: initialBody)
         if let editingNote {
             let initialTag = NoteTagOption(
                 id: editingNote.target.id,
@@ -713,8 +789,10 @@ private struct CompanyNoteComposer: View {
                 subtitle: editingNote.target.subtitle
             )
             _selectedTag = State(initialValue: initialTag)
+            _savedTag = State(initialValue: initialTag)
         } else {
             _selectedTag = State(initialValue: nil)
+            _savedTag = State(initialValue: nil)
         }
     }
 
@@ -735,11 +813,12 @@ private struct CompanyNoteComposer: View {
 
         NavigationStack {
             List {
-                Section("Note") {
+                Section {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 120)
                             .focused($isBodyFocused)
+                            .disabled(isReadOnly)
 
                         if bodyText.isEmpty {
                             Text("Add context or reminders for your team…")
@@ -753,6 +832,7 @@ private struct CompanyNoteComposer: View {
                 if !isEditing {
                     Section("Apply to") {
                         TextField("Search SKUs, machines, or locations", text: $searchText)
+                            .disabled(isReadOnly)
                             .onChange(of: searchText) { _, newValue in
                                 searchTask?.cancel()
                                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -789,6 +869,7 @@ private struct CompanyNoteComposer: View {
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(isReadOnly)
                             }
                         }
                     }
@@ -803,51 +884,88 @@ private struct CompanyNoteComposer: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(editingNote == nil ? "Add Note" : "Edit Note")
+            .navigationTitle(isReadOnly ? "Note" : (editingNote == nil ? "Add Note" : "Edit Note"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            let note: Note?
-                            if let editingNote {
-                                guard let tag = selectedTag else { return }
-                                note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
-                            } else {
-                                guard let tag = selectedTag else {
-                                    isShowingGeneralConfirm = true
-                                    return
-                                }
-                                note = await viewModel.addNote(body: bodyText, tag: tag)
-                            }
-                            if note != nil {
-                                onNoteSaved()
-                                isPresented = false
-                                bodyText = ""
-                                searchText = ""
-                                selectedTag = nil
+                if isReadOnly {
+                    if onRequestDelete != nil {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Delete", role: .destructive) {
+                                isShowingDeleteConfirm = true
                             }
                         }
                     }
-                    .disabled(isSaveDisabled)
-                }
 
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button {
-                        UIApplication.shared.dismissKeyboard()
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
+                    if onRequestEdit != nil {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Edit") {
+                                onRequestEdit?()
+                            }
+                        }
                     }
-                    .accessibilityLabel("Dismiss Keyboard")
+                } else {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            resetComposerState()
+                            if let onCancel {
+                                onCancel()
+                            } else {
+                                isPresented = false
+                            }
+                        }
+                    }
+
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            Task {
+                                let note: Note?
+                                if let editingNote {
+                                    guard let tag = selectedTag else { return }
+                                    note = await viewModel.update(note: editingNote, body: bodyText, tag: tag)
+                                } else {
+                                    guard let tag = selectedTag else {
+                                        isShowingGeneralConfirm = true
+                                        return
+                                    }
+                                    note = await viewModel.addNote(body: bodyText, tag: tag)
+                                }
+                                if note != nil {
+                                    savedBodyText = bodyText
+                                    savedTag = selectedTag
+                                    onNoteSaved()
+                                    if let onSaveComplete {
+                                        onSaveComplete()
+                                    } else {
+                                        isPresented = false
+                                        resetComposerState()
+                                    }
+                                }
+                            }
+                        }
+                        .disabled(isSaveDisabled)
+                    }
+
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button {
+                            UIApplication.shared.dismissKeyboard()
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                        }
+                        .accessibilityLabel("Dismiss Keyboard")
+                    }
                 }
             }
+        }
+        .alert("Delete note?", isPresented: $isShowingDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    await onRequestDelete?()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this note?")
         }
         .alert("No tag selected", isPresented: $isShowingGeneralConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -856,11 +974,15 @@ private struct CompanyNoteComposer: View {
                     let tag = NoteTagOption(id: "general", type: .general, label: "General", subtitle: nil)
                     let note = await viewModel.addNote(body: bodyText, tag: tag)
                     if note != nil {
+                        savedBodyText = bodyText
+                        savedTag = selectedTag
                         onNoteSaved()
-                        isPresented = false
-                        bodyText = ""
-                        searchText = ""
-                        selectedTag = nil
+                        if let onSaveComplete {
+                            onSaveComplete()
+                        } else {
+                            isPresented = false
+                            resetComposerState()
+                        }
                     }
                 }
             }
@@ -868,11 +990,17 @@ private struct CompanyNoteComposer: View {
             Text("Are you sure you dont want to tag this note with a SKU, machine, or location?")
         }
         .task {
-            guard !isEditing else { return }
+            guard !isEditing, !isReadOnly else { return }
             await MainActor.run {
                 isBodyFocused = true
             }
         }
+    }
+
+    private func resetComposerState() {
+        bodyText = savedBodyText
+        searchText = ""
+        selectedTag = savedTag
     }
 }
 
