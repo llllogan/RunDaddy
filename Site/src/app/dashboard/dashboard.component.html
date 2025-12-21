@@ -1,12 +1,12 @@
 <section *ngIf="session$ | async as session; else loading" class="space-y-8">
-  <div class="soft-card p-8">
-    <h1 class="mt-2 text-4xl font-semibold text-gray-900">Upload your run</h1>
+  <div class="rounded-xl border border-slate-200 bg-white p-8">
+    <h1 class="mt-2 text-3xl font-semibold text-slate-900">Upload your run</h1>
     <div
-      class="mt-8 rounded-[32px] border-2 border-dashed bg-white px-8 py-16 text-center transition-all duration-200 ease-out"
+      class="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-8 py-16 text-center transition-all duration-200 ease-out"
       [ngClass]="{
-        'border-gray-200 shadow-xl': !isDragging && !isValidHover,
-        'border-gray-400 bg-gray-50 shadow-2xl shadow-gray-200': isDragging && !isValidHover,
-        'border-emerald-500 bg-emerald-50 shadow-emerald-200 shadow-2xl': isValidHover
+        'border-slate-300 bg-slate-50': !isDragging && !isValidHover,
+        'border-slate-400 bg-slate-100': isDragging && !isValidHover,
+        'border-emerald-500 bg-emerald-50': isValidHover
       }"
       (dragover)="handleDragOver($event)"
       (dragleave)="handleDragLeave($event)"
@@ -14,24 +14,24 @@
     >
       <div class="flex flex-col items-center justify-center gap-4">
         <div
-          class="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-current text-gray-700 transition"
+          class="flex h-16 w-16 items-center justify-center rounded-2xl border border-current text-slate-600 transition"
           [ngClass]="{ 'text-emerald-600 border-emerald-500 bg-white': isValidHover }"
         >
           <span class="text-3xl" aria-hidden="true">{{ isValidHover ? '✓' : '⇪' }}</span>
         </div>
         <div class="space-y-2">
-          <p class="text-lg font-semibold text-gray-900">
+          <p class="text-lg font-semibold text-slate-900">
             {{ isValidHover ? 'Drop to upload' : 'Drop your file here' }}
           </p>
-          <p class="text-sm text-gray-600">
+          <p class="text-sm text-slate-500">
             {{ isUploading ? 'Uploading… hang tight.' : 'Accepted formats: .xlsx, .xls' }}
           </p>
         </div>
-        <div class="text-sm text-gray-500">or</div>
+        <div class="text-sm text-slate-400">or</div>
         <div>
           <button
             type="button"
-            class="rounded-full border border-gray-900 px-6 py-2 text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+            class="rounded-md px-6 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
             (click)="fileInput.click()"
             [disabled]="isUploading"
           >
@@ -41,39 +41,41 @@
         </div>
       </div>
     </div>
-    <div *ngIf="isUploading" class="mt-6 flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-      <span class="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-gray-900 border-t-transparent"></span>
+    <div *ngIf="isUploading" class="mt-6 flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      <span class="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-transparent"></span>
       Uploading {{ lastUploadedFile || 'your file' }}
     </div>
     <div
       *ngIf="feedbackVariant === 'success'"
-      class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+      class="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
     >
       {{ feedbackMessage }}
     </div>
-    <div *ngIf="uploadSummary" class="mt-4 rounded-2xl border border-gray-200 bg-white/80 px-4 py-3">
-      <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">Import summary</p>
-      <dl class="mt-2 grid grid-cols-1 gap-3 text-sm text-gray-700 sm:grid-cols-3">
-        <div class="rounded-xl bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-500">Runs</dt>
-          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.runs }}</dd>
+    <div *ngIf="uploadSummary" class="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Import summary</p>
+      <dl class="mt-2 grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-3">
+        <div class="rounded-lg bg-slate-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Runs</dt>
+          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.runs }}</dd>
         </div>
-        <div class="rounded-xl bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-500">Machines</dt>
-          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.machines }}</dd>
+        <div class="rounded-lg bg-slate-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Machines</dt>
+          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.machines }}</dd>
         </div>
-        <div class="rounded-xl bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-500">Coils</dt>
-          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.pickEntries }}</dd>
+        <div class="rounded-lg bg-slate-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Coils</dt>
+          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.pickEntries }}</dd>
         </div>
       </dl>
     </div>
-    <div *ngIf="feedbackVariant === 'error'" class="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+    <div *ngIf="feedbackVariant === 'error'" class="mt-6 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">
       {{ feedbackMessage }}
     </div>
   </div>
 </section>
 
 <ng-template #loading>
-  <div class="soft-card p-8 text-center text-sm text-gray-600">Loading your dashboard…</div>
+  <div class="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">
+    Loading your dashboard…
+  </div>
 </ng-template>

@@ -1,13 +1,14 @@
-<section class="soft-card mx-auto max-w-md p-8">
+<section class="mx-auto max-w-md">
   <div class="mb-8 text-left">
-    <h1 class="mt-2 text-3xl font-semibold text-gray-900">Log in</h1>
+    <h1 class="mt-2 text-3xl font-semibold text-slate-900">Log in</h1>
+    <p class="mt-2 text-sm text-slate-500">Use your account credentials to access the dashboard.</p>
   </div>
 
   <form class="space-y-6" [formGroup]="form" (ngSubmit)="submit()">
-    <label class="block text-sm font-medium text-gray-900">
+    <label class="block text-sm font-medium text-slate-700">
       Email
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="email"
         formControlName="email"
         autocomplete="username"
@@ -15,10 +16,10 @@
       />
     </label>
 
-    <label class="block text-sm font-medium text-gray-900">
+    <label class="block text-sm font-medium text-slate-700">
       Password
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="password"
         formControlName="password"
         autocomplete="current-password"
@@ -27,7 +28,7 @@
     </label>
 
     <button
-      class="w-full rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full rounded-md px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
       type="submit"
       [disabled]="form.invalid || isSubmitting"
     >
@@ -35,36 +36,26 @@
     </button>
   </form>
 
-  <p *ngIf="errorMessage" class="mt-6 rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-800">
+  <p *ngIf="errorMessage" class="mt-6 rounded-md border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
     {{ errorMessage }}
   </p>
 
-  <div *ngIf="membershipChoices.length" class="mt-6 space-y-3 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-    <p class="font-semibold text-gray-900">Select a company to continue:</p>
+  <div *ngIf="membershipChoices.length" class="mt-6 space-y-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+    <p class="font-semibold text-slate-900">Select a company to continue:</p>
     <ul class="space-y-2">
-      <li *ngFor="let item of membershipChoices" class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+      <li *ngFor="let item of membershipChoices" class="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="text-base font-semibold text-gray-900">{{ item.companyName }}</p>
-          <p class="text-xs uppercase tracking-wide text-gray-500">{{ item.role }}</p>
+          <p class="text-base font-semibold text-slate-900">{{ item.companyName }}</p>
+          <p class="text-xs uppercase tracking-wide text-slate-500">{{ item.role }}</p>
         </div>
         <button
           type="button"
           (click)="selectCompany(item.companyId)"
-          class="rounded-full border border-gray-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white"
+          class="rounded-md px-3 py-1 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
         >
           Use this company
         </button>
       </li>
     </ul>
-  </div>
-
-  <div class="mt-8 border-t border-gray-200 pt-6 text-left">
-    <p class="text-sm text-gray-700">Don't have an account?</p>
-    <a
-      routerLink="/signup"
-      class="mt-3 inline-flex items-center rounded-full border border-gray-900 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white"
-    >
-      Create one
-    </a>
   </div>
 </section>

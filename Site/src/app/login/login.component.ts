@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, inject } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { Subject, filter, finalize, takeUntil } from 'rxjs';
 import { AuthService, AuthSession, LoginPayload, UserRole } from '../auth/auth.service';
 
@@ -15,7 +15,7 @@ interface MembershipChoice {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './login.component.html',
 })
 export class LoginComponent implements OnDestroy {
