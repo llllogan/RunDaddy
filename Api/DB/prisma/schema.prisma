@@ -36,6 +36,15 @@ enum AuthContext {
   APP
 }
 
+enum BillingStatus {
+  ACTIVE
+  TRIALING
+  INCOMPLETE
+  PAST_DUE
+  UNPAID
+  CANCELED
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -83,6 +92,13 @@ model Company {
   tierId    String
   showColdChest      Boolean  @default(true)
   showChocolateBoxes Boolean  @default(true)
+  billingStatus      BillingStatus @default(ACTIVE)
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  stripePriceId      String?
+  billingEmail       String?
+  currentPeriodEnd   DateTime?
+  billingUpdatedAt   DateTime?
 
   memberships    Membership[]
   runs           Run[]
@@ -94,6 +110,8 @@ model Company {
   tier           TierConsts @relation(fields: [tierId], references: [id], onDelete: Restrict)
 
   @@index([tierId])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
 }
 
 model MachineType {

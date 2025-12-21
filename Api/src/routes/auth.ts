@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
-import { AccountRole, AuthContext, UserRole } from '../types/enums.js';
+import { AccountRole, AuthContext, BillingStatus, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { createTokenPair, verifyRefreshToken, verifyAccessToken } from '../lib/tokens.js';
@@ -111,7 +111,11 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
   const passwordHash = await hashPassword(userPassword);
 
   const company = await prisma.company.create({
-    data: { name: companyName, tierId: DEFAULT_COMPANY_TIER_ID },
+    data: {
+      name: companyName,
+      tierId: DEFAULT_COMPANY_TIER_ID,
+      billingStatus: BillingStatus.INCOMPLETE,
+    },
   });
   const user = await prisma.user.create({
     data: {

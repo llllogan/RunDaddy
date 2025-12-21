@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { verifyAccessToken } from '../lib/tokens.js';
 import { prisma } from '../lib/prisma.js';
-import { AccountRole, UserRole } from '../types/enums.js';
+import { AccountRole, BillingStatus, UserRole } from '../types/enums.js';
 
 const FALLBACK_ROLE = UserRole.PICKER;
 
@@ -132,6 +132,30 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       lighthouse: false,
       accountRole: (membership.user.role as AccountRole | null | undefined) ?? null,
     };
+
+    const isWriteMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+    const isBillingRoute = req.originalUrl.startsWith('/api/billing');
+
+    if (req.auth.lighthouse || !isWriteMethod || isBillingRoute || !req.auth.companyId) {
+      return next();
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: req.auth.companyId },
+      select: { billingStatus: true },
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    if (![BillingStatus.ACTIVE, BillingStatus.TRIALING].includes(company.billingStatus)) {
+      return res.status(402).json({
+        error: 'Company subscription is inactive',
+        billingStatus: company.billingStatus,
+      });
+    }
+
     return next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token', detail: (error as Error).message });

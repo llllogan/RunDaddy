@@ -5,6 +5,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterModule } from '@angular/router';
 import { Subject, filter, finalize, takeUntil } from 'rxjs';
 import { AuthService, AuthSession, RegisterPayload } from '../auth/auth.service';
+import { BillingService } from '../billing/billing.service';
 
 @Component({
   selector: 'app-signup',
@@ -26,12 +27,14 @@ export class SignupComponent implements OnDestroy {
 
   errorMessage = '';
   isSubmitting = false;
+  private allowAutoRedirect = true;
 
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly authService: AuthService,
     private readonly router: Router,
+    private readonly billingService: BillingService,
   ) {
     this.authService.ensureBootstrap();
 
@@ -41,6 +44,9 @@ export class SignupComponent implements OnDestroy {
         filter((session): session is AuthSession => Boolean(session)),
       )
       .subscribe(() => {
+        if (!this.allowAutoRedirect) {
+          return;
+        }
         void this.router.navigate(['/dashboard']);
       });
   }
@@ -63,6 +69,7 @@ export class SignupComponent implements OnDestroy {
 
     this.isSubmitting = true;
     this.errorMessage = '';
+    this.allowAutoRedirect = false;
 
     const { companyName, userFirstName, userLastName, userEmail, userPassword, userPhone } =
       this.form.getRawValue();
@@ -79,16 +86,37 @@ export class SignupComponent implements OnDestroy {
     this.authService
       .registerCompanyAccount(payload)
       .pipe(
-        finalize(() => {
-          this.isSubmitting = false;
-        }),
         takeUntil(this.destroy$),
       )
       .subscribe({
         next: () => {
-          void this.router.navigate(['/dashboard']);
+          this.billingService
+            .createCheckoutSession()
+            .pipe(
+              finalize(() => {
+                this.isSubmitting = false;
+              }),
+              takeUntil(this.destroy$),
+            )
+            .subscribe({
+              next: (response) => {
+                if (response.url) {
+                  window.location.href = response.url;
+                  return;
+                }
+                this.errorMessage =
+                  'Unable to start billing checkout right now. Please try again.';
+              },
+              error: (error: HttpErrorResponse) => {
+                this.errorMessage =
+                  error.error?.error ??
+                  'Unable to start billing checkout right now. Please try again.';
+              },
+            });
         },
         error: (error: HttpErrorResponse) => {
+          this.isSubmitting = false;
+          this.allowAutoRedirect = true;
           this.errorMessage =
             error.error?.error ?? 'Unable to create your account right now. Please try again.';
         },

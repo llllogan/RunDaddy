@@ -29,6 +29,17 @@ export const AuthContext = {
 
 export type AuthContext = typeof AuthContext[keyof typeof AuthContext];
 
+export const BillingStatus = {
+  ACTIVE: 'ACTIVE',
+  TRIALING: 'TRIALING',
+  INCOMPLETE: 'INCOMPLETE',
+  PAST_DUE: 'PAST_DUE',
+  UNPAID: 'UNPAID',
+  CANCELED: 'CANCELED',
+} as const;
+
+export type BillingStatus = typeof BillingStatus[keyof typeof BillingStatus];
+
 export const isRunStatus = (value: unknown): value is RunStatus => {
   return typeof value === 'string' && (Object.values(RunStatus) as string[]).includes(value);
 };
