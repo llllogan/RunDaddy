@@ -81,7 +81,8 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
     return res.status(404).json({ error: 'Company not found' });
   }
 
-  if ([BillingStatus.ACTIVE, BillingStatus.TRIALING].includes(company.billingStatus)) {
+  const activeStatuses: BillingStatus[] = [BillingStatus.ACTIVE, BillingStatus.TRIALING];
+  if (activeStatuses.includes(company.billingStatus)) {
     return res.status(409).json({ error: 'Company subscription already active' });
   }
 
@@ -92,11 +93,9 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
 
   const stripe = getStripe();
 
-  const session = await stripe.checkout.sessions.create({
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
-    customer: company.stripeCustomerId ?? undefined,
-    customer_email: company.stripeCustomerId ? undefined : req.auth.email,
     metadata: {
       companyId: company.id,
       userId: req.auth.userId,
@@ -111,7 +110,15 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
     client_reference_id: company.id,
     success_url: STRIPE_SUCCESS_URL,
     cancel_url: STRIPE_CANCEL_URL,
-  });
+  };
+
+  if (company.stripeCustomerId) {
+    sessionParams.customer = company.stripeCustomerId;
+  } else {
+    sessionParams.customer_email = req.auth.email;
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
 
   await prisma.company.update({
     where: { id: company.id },
@@ -216,12 +223,17 @@ export const billingWebhookHandler = async (req: Request, res: Response) => {
             data: {
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
-              stripePriceId: priceId ?? undefined,
+              stripePriceId: priceId ?? null,
               billingStatus: status,
-              billingEmail: session.customer_details?.email ?? undefined,
-              currentPeriodEnd: subscription.current_period_end
-                ? new Date(subscription.current_period_end * 1000)
-                : undefined,
+              billingEmail: session.customer_details?.email ?? null,
+              currentPeriodEnd:
+                (subscription as Stripe.Subscription & { current_period_end?: number })
+                  .current_period_end
+                  ? new Date(
+                      (subscription as Stripe.Subscription & { current_period_end?: number })
+                        .current_period_end! * 1000,
+                    )
+                  : null,
               billingUpdatedAt: new Date(),
             },
           });
@@ -240,12 +252,17 @@ export const billingWebhookHandler = async (req: Request, res: Response) => {
             data: {
               stripeSubscriptionId: subscription.id,
               stripeCustomerId:
-                typeof subscription.customer === 'string' ? subscription.customer : undefined,
-              stripePriceId: subscription.items.data[0]?.price?.id ?? undefined,
+                typeof subscription.customer === 'string' ? subscription.customer : null,
+              stripePriceId: subscription.items.data[0]?.price?.id ?? null,
               billingStatus: mapStripeStatus(subscription.status),
-              currentPeriodEnd: subscription.current_period_end
-                ? new Date(subscription.current_period_end * 1000)
-                : undefined,
+              currentPeriodEnd:
+                (subscription as Stripe.Subscription & { current_period_end?: number })
+                  .current_period_end
+                  ? new Date(
+                      (subscription as Stripe.Subscription & { current_period_end?: number })
+                        .current_period_end! * 1000,
+                    )
+                  : null,
               billingUpdatedAt: new Date(),
             },
           });
@@ -271,7 +288,9 @@ export const billingWebhookHandler = async (req: Request, res: Response) => {
         break;
       }
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as Stripe.Invoice & {
+          subscription?: string | Stripe.Subscription | null;
+        };
         const company = await resolveCompanyForStripe({
           subscriptionId: typeof invoice.subscription === 'string' ? invoice.subscription : null,
           customerId: typeof invoice.customer === 'string' ? invoice.customer : null,
@@ -288,7 +307,9 @@ export const billingWebhookHandler = async (req: Request, res: Response) => {
         break;
       }
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as Stripe.Invoice & {
+          subscription?: string | Stripe.Subscription | null;
+        };
         const stripe = getStripe();
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
         const company = await resolveCompanyForStripe({
@@ -301,9 +322,14 @@ export const billingWebhookHandler = async (req: Request, res: Response) => {
             where: { id: company.id },
             data: {
               billingStatus: mapStripeStatus(subscription.status),
-              currentPeriodEnd: subscription.current_period_end
-                ? new Date(subscription.current_period_end * 1000)
-                : undefined,
+              currentPeriodEnd:
+                (subscription as Stripe.Subscription & { current_period_end?: number })
+                  .current_period_end
+                  ? new Date(
+                      (subscription as Stripe.Subscription & { current_period_end?: number })
+                        .current_period_end! * 1000,
+                    )
+                  : null,
               billingUpdatedAt: new Date(),
             },
           });

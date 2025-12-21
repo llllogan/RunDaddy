@@ -149,7 +149,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    if (![BillingStatus.ACTIVE, BillingStatus.TRIALING].includes(company.billingStatus)) {
+    const activeStatuses: BillingStatus[] = [BillingStatus.ACTIVE, BillingStatus.TRIALING];
+    if (!activeStatuses.includes(company.billingStatus)) {
       return res.status(402).json({
         error: 'Company subscription is inactive',
         billingStatus: company.billingStatus,

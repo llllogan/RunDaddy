@@ -10,7 +10,6 @@ export const getStripe = (): Stripe => {
 
   if (!stripeClient) {
     stripeClient = new Stripe(secretKey, {
-      apiVersion: '2024-06-20',
     });
   }
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
+import type Stripe from 'stripe';
 import { AccountRole, AuthContext, BillingStatus, UserRole } from '../types/enums.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
@@ -162,7 +163,7 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
     const priceId = STRIPE_PRICE_IDS[DEFAULT_COMPANY_TIER_ID];
     if (priceId) {
       const stripe = getStripe();
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: 'subscription',
         line_items: [{ price: priceId, quantity: 1 }],
         customer_email: user.email,
@@ -180,7 +181,9 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
         client_reference_id: company.id,
         success_url: STRIPE_SUCCESS_URL,
         cancel_url: STRIPE_CANCEL_URL,
-      });
+      };
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
 
       checkoutUrl = session.url ?? null;
 
