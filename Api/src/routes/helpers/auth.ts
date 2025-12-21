@@ -77,12 +77,12 @@ export const formatMembershipChoices = (memberships: MembershipSummary[]) =>
 
 const isProductionEnv = () => process.env.NODE_ENV === 'production';
 
-export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'strict' } => {
+export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'lax' } => {
   const isProduction = isProductionEnv();
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/api',
     ...(isProduction ? {} : { domain: 'localhost' }),
   };

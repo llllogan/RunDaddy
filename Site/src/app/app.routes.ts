@@ -5,6 +5,7 @@ import { authGuard } from './auth/auth.guard';
 import { PeopleComponent } from './people/people.component';
 import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
 import { adminGuard } from './auth/admin.guard';
+import { SignupComponent } from './signup/signup.component';
 
 export const appRoutes: Routes = [
   {
@@ -15,6 +16,10 @@ export const appRoutes: Routes = [
   {
     path: 'login',
     component: LoginComponent,
+  },
+  {
+    path: 'signup',
+    component: SignupComponent,
   },
   {
     path: 'dashboard',

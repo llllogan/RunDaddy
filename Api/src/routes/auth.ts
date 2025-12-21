@@ -9,6 +9,8 @@ import { setLogConfig } from '../middleware/logging.js';
 import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 import { DEFAULT_COMPANY_TIER_ID } from '../config/tiers.js';
+import { STRIPE_PRICE_IDS, STRIPE_SUCCESS_URL, STRIPE_CANCEL_URL } from '../config/stripe.js';
+import { getStripe } from '../lib/stripe.js';
 import {
   registerSchema,
   signupSchema,
@@ -155,6 +157,45 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
     },
   });
 
+  let checkoutUrl: string | null = null;
+  try {
+    const priceId = STRIPE_PRICE_IDS[DEFAULT_COMPANY_TIER_ID];
+    if (priceId) {
+      const stripe = getStripe();
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        customer_email: user.email,
+        metadata: {
+          companyId: company.id,
+          userId: user.id,
+          tierId: company.tierId,
+        },
+        subscription_data: {
+          metadata: {
+            companyId: company.id,
+            tierId: company.tierId,
+          },
+        },
+        client_reference_id: company.id,
+        success_url: STRIPE_SUCCESS_URL,
+        cancel_url: STRIPE_CANCEL_URL,
+      });
+
+      checkoutUrl = session.url ?? null;
+
+      await prisma.company.update({
+        where: { id: company.id },
+        data: {
+          stripePriceId: priceId,
+          billingUpdatedAt: new Date(),
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Failed to create Stripe checkout session during signup:', error);
+  }
+
   return respondWithSession(
     res,
     buildSessionPayload(
@@ -174,6 +215,7 @@ router.post('/register', setLogConfig({ level: 'minimal' }), async (req, res) =>
       null,
     ),
     201,
+    { checkoutUrl },
   );
 });
 

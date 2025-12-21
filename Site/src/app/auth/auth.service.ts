@@ -12,6 +12,10 @@ type LoginResponse = {
   platformAdminCompanyId: string | null;
 };
 
+type RegisterResponse = LoginResponse & {
+  checkoutUrl?: string | null;
+};
+
 type SessionMeResponse = {
   user: SessionUser;
   currentCompany: SessionCompany | null;
@@ -124,10 +128,15 @@ export class AuthService {
     );
   }
 
-  registerCompanyAccount(payload: RegisterPayload): Observable<AuthSession> {
-    return this.http.post<LoginResponse>(buildApiUrl('/auth/register'), payload).pipe(
-      map((response) => this.mapSessionFromAuthResponse(response)),
-      tap((session) => {
+  registerCompanyAccount(
+    payload: RegisterPayload,
+  ): Observable<{ session: AuthSession; checkoutUrl: string | null }> {
+    return this.http.post<RegisterResponse>(buildApiUrl('/auth/register'), payload).pipe(
+      map((response) => ({
+        session: this.mapSessionFromAuthResponse(response),
+        checkoutUrl: response.checkoutUrl ?? null,
+      })),
+      tap(({ session }) => {
         this.sessionSubject.next(session);
         this.bootstrappedSubject.next(true);
       }),

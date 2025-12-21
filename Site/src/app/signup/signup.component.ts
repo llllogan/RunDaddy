@@ -89,7 +89,12 @@ export class SignupComponent implements OnDestroy {
         takeUntil(this.destroy$),
       )
       .subscribe({
-        next: () => {
+        next: ({ checkoutUrl }) => {
+          if (checkoutUrl) {
+            window.location.href = checkoutUrl;
+            return;
+          }
+
           this.billingService
             .createCheckoutSession()
             .pipe(

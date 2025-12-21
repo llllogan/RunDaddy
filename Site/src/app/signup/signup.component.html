@@ -1,15 +1,17 @@
-<section class="soft-card mx-auto max-w-xl p-8">
-  <div class="mb-6 text-left">
-    <p class="text-sm uppercase tracking-wide text-gray-500">Get started</p>
-    <h1 class="mt-1 text-3xl font-semibold text-gray-900">Create your company account</h1>
-    <p class="mt-2 text-sm text-gray-600">We will set up your organization and owner dashboard access in one step.</p>
+<section class="mx-auto max-w-md">
+  <div class="mb-8 text-left">
+    <p class="text-xs uppercase tracking-wide text-slate-500">Get started</p>
+    <h1 class="mt-2 text-3xl font-semibold text-slate-900">Create Company</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      We will set up your organization and owner dashboard access in one step.
+    </p>
   </div>
 
-  <form class="space-y-5" [formGroup]="form" (ngSubmit)="submit()">
-    <label class="block text-sm font-medium text-gray-900">
+  <form class="space-y-6" [formGroup]="form" (ngSubmit)="submit()">
+    <label class="block text-sm font-medium text-slate-700">
       Company name
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="text"
         formControlName="companyName"
         autocomplete="organization"
@@ -18,10 +20,10 @@
     </label>
 
     <div class="grid gap-4 sm:grid-cols-2">
-      <label class="block text-sm font-medium text-gray-900">
+      <label class="block text-sm font-medium text-slate-700">
         First name
         <input
-          class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           type="text"
           formControlName="userFirstName"
           autocomplete="given-name"
@@ -29,10 +31,10 @@
         />
       </label>
 
-      <label class="block text-sm font-medium text-gray-900">
+      <label class="block text-sm font-medium text-slate-700">
         Last name
         <input
-          class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           type="text"
           formControlName="userLastName"
           autocomplete="family-name"
@@ -41,10 +43,10 @@
       </label>
     </div>
 
-    <label class="block text-sm font-medium text-gray-900">
+    <label class="block text-sm font-medium text-slate-700">
       Your email
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="email"
         formControlName="userEmail"
         autocomplete="email"
@@ -52,10 +54,10 @@
       />
     </label>
 
-    <label class="block text-sm font-medium text-gray-900">
+    <label class="block text-sm font-medium text-slate-700">
       Password
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="password"
         formControlName="userPassword"
         autocomplete="new-password"
@@ -63,10 +65,10 @@
       />
     </label>
 
-    <label class="block text-sm font-medium text-gray-900">
+    <label class="block text-sm font-medium text-slate-700">
       Phone (optional)
       <input
-        class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200"
+        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         type="tel"
         formControlName="userPhone"
         autocomplete="tel"
@@ -75,24 +77,21 @@
     </label>
 
     <button
-      class="w-full rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full rounded-md px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
       type="submit"
       [disabled]="form.invalid || isSubmitting || requiresPhoneCode"
     >
-      {{ isSubmitting ? 'Creating account…' : 'Create account' }}
+      {{ isSubmitting ? 'Creating account…' : 'Create company' }}
     </button>
   </form>
 
-  <p *ngIf="errorMessage" class="mt-6 rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-800">
+  <p *ngIf="errorMessage" class="mt-6 rounded-md border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
     {{ errorMessage }}
   </p>
 
-  <div class="mt-8 border-t border-gray-200 pt-6 text-left">
-    <p class="text-sm text-gray-700">Already registered?</p>
-    <a
-      routerLink="/login"
-      class="mt-3 inline-flex items-center rounded-full border border-gray-900 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-900 hover:text-white"
-    >
+  <div class="mt-8 text-left">
+    <p class="text-sm text-slate-500">Already registered?</p>
+    <a class="mt-2 inline-flex text-sm font-semibold text-slate-700 hover:text-slate-900" routerLink="/login">
       Back to log in
     </a>
   </div>
