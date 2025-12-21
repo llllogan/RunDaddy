@@ -18,7 +18,7 @@
             @let canManage = membershipRole === 'OWNER' || membershipRole === 'ADMIN' || membershipRole === 'GOD';
             @let isPlatformAdminCompany =
               session?.platformAdminCompanyId && session?.company?.id === session?.platformAdminCompanyId;
-            <table mat-table [dataSource]="people" class="min-w-full text-sm text-slate-800">
+            <table mat-table [dataSource]="people" class="min-w-full text-sm text-slate-800 people-table">
               <ng-container matColumnDef="member">
                 <th
                   mat-header-cell

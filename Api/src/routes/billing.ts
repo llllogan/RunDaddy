@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { getStripe } from '../lib/stripe.js';
 import { STRIPE_CANCEL_URL, STRIPE_PRICE_IDS, STRIPE_SUCCESS_URL } from '../config/stripe.js';
+import { TIER_IDS } from '../config/tiers.js';
 import { BillingStatus } from '../types/enums.js';
 import { isCompanyManager } from './helpers/authorization.js';
 
@@ -73,6 +74,11 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
     return res.status(403).json({ error: 'Only owners/admins can manage billing' });
   }
 
+  const requestedTierId = typeof req.body?.tierId === 'string' ? req.body.tierId : null;
+  if (requestedTierId && !Object.values(TIER_IDS).includes(requestedTierId as string)) {
+    return res.status(400).json({ error: 'Invalid tier selection' });
+  }
+
   const company = await prisma.company.findUnique({
     where: { id: req.auth.companyId },
   });
@@ -86,9 +92,19 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
     return res.status(409).json({ error: 'Company subscription already active' });
   }
 
-  const priceId = getStripePriceId(company.tierId);
+  const tierId = requestedTierId ?? company.tierId;
+  const priceId = getStripePriceId(tierId);
   if (!priceId) {
     return res.status(500).json({ error: 'Stripe price is not configured for this tier' });
+  }
+
+  if (requestedTierId && requestedTierId !== company.tierId) {
+    await prisma.company.update({
+      where: { id: company.id },
+      data: {
+        tierId: requestedTierId,
+      },
+    });
   }
 
   const stripe = getStripe();
@@ -99,12 +115,12 @@ router.post('/checkout', authenticate, setLogConfig({ level: 'minimal' }), async
     metadata: {
       companyId: company.id,
       userId: req.auth.userId,
-      tierId: company.tierId,
+      tierId,
     },
     subscription_data: {
       metadata: {
         companyId: company.id,
-        tierId: company.tierId,
+        tierId,
       },
     },
     client_reference_id: company.id,

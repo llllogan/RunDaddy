@@ -9,10 +9,36 @@ body {
   color-scheme: light;
 }
 
+:root {
+  --mdc-typography-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
   @apply text-base;
 }
 
 .soft-card {
   @apply rounded-xl border border-slate-200 bg-white;
+}
+
+.mat-mdc-table,
+.mat-mdc-header-cell,
+.mat-mdc-cell {
+  font-family: inherit !important;
+}
+
+.mat-typography {
+  font-family: inherit !important;
+}
+
+.people-table,
+.people-table .mat-mdc-header-cell,
+.people-table .mat-mdc-cell {
+  font-family: inherit !important;
+}
+
+.mat-mdc-table .mdc-data-table__header-cell,
+.mat-mdc-table .mdc-data-table__cell {
+  font-family: inherit !important;
 }

@@ -6,6 +6,7 @@ import { PeopleComponent } from './people/people.component';
 import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
 import { adminGuard } from './auth/admin.guard';
 import { SignupComponent } from './signup/signup.component';
+import { BillingComponent } from './billing/billing.component';
 
 export const appRoutes: Routes = [
   {
@@ -37,6 +38,10 @@ export const appRoutes: Routes = [
       {
         path: 'people',
         component: PeopleComponent,
+      },
+      {
+        path: 'billing',
+        component: BillingComponent,
       },
       {
         path: 'admin',

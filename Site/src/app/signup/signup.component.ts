@@ -3,8 +3,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, inject } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { Subject, filter, finalize, takeUntil } from 'rxjs';
-import { AuthService, AuthSession, RegisterPayload } from '../auth/auth.service';
+import { Subject, finalize, takeUntil } from 'rxjs';
+import { AuthService, RegisterPayload } from '../auth/auth.service';
 import { BillingService } from '../billing/billing.service';
 
 @Component({
@@ -18,6 +18,7 @@ export class SignupComponent implements OnDestroy {
 
   readonly form = this.fb.group({
     companyName: ['', [Validators.required, Validators.minLength(2)]],
+    tierId: ['tier-business', [Validators.required]],
     userFirstName: ['', [Validators.required]],
     userLastName: ['', [Validators.required]],
     userEmail: ['', [Validators.required, Validators.email]],
@@ -25,9 +26,30 @@ export class SignupComponent implements OnDestroy {
     userPhone: ['', [Validators.required]],
   });
 
+  readonly planOptions = [
+    {
+      id: 'tier-individual',
+      name: 'Individual',
+      price: '$60',
+      description: '1 user account',
+    },
+    {
+      id: 'tier-business',
+      name: 'Business',
+      price: '$100',
+      description: '1 owner, 1 admin, 2 pickers/drivers',
+    },
+    {
+      id: 'tier-enterprise-10',
+      name: 'Enterprise 10',
+      price: '$200',
+      description: '1 owner, 1 admin, 10 pickers/drivers',
+    },
+  ];
+
   errorMessage = '';
   isSubmitting = false;
-  private allowAutoRedirect = true;
+  step: 'details' | 'plan' = 'details';
 
   private readonly destroy$ = new Subject<void>();
 
@@ -37,18 +59,6 @@ export class SignupComponent implements OnDestroy {
     private readonly billingService: BillingService,
   ) {
     this.authService.ensureBootstrap();
-
-    this.authService.session$
-      .pipe(
-        takeUntil(this.destroy$),
-        filter((session): session is AuthSession => Boolean(session)),
-      )
-      .subscribe(() => {
-        if (!this.allowAutoRedirect) {
-          return;
-        }
-        void this.router.navigate(['/dashboard']);
-      });
   }
 
   ngOnDestroy(): void {
@@ -62,6 +72,15 @@ export class SignupComponent implements OnDestroy {
   }
 
   submit(): void {
+    if (this.step === 'details') {
+      this.submitDetails();
+      return;
+    }
+
+    this.submitPlan();
+  }
+
+  private submitDetails(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -69,7 +88,6 @@ export class SignupComponent implements OnDestroy {
 
     this.isSubmitting = true;
     this.errorMessage = '';
-    this.allowAutoRedirect = false;
 
     const { companyName, userFirstName, userLastName, userEmail, userPassword, userPhone } =
       this.form.getRawValue();
@@ -89,41 +107,48 @@ export class SignupComponent implements OnDestroy {
         takeUntil(this.destroy$),
       )
       .subscribe({
-        next: ({ checkoutUrl }) => {
-          if (checkoutUrl) {
-            window.location.href = checkoutUrl;
-            return;
-          }
-
-          this.billingService
-            .createCheckoutSession()
-            .pipe(
-              finalize(() => {
-                this.isSubmitting = false;
-              }),
-              takeUntil(this.destroy$),
-            )
-            .subscribe({
-              next: (response) => {
-                if (response.url) {
-                  window.location.href = response.url;
-                  return;
-                }
-                this.errorMessage =
-                  'Unable to start billing checkout right now. Please try again.';
-              },
-              error: (error: HttpErrorResponse) => {
-                this.errorMessage =
-                  error.error?.error ??
-                  'Unable to start billing checkout right now. Please try again.';
-              },
-            });
+        next: () => {
+          this.isSubmitting = false;
+          this.step = 'plan';
         },
         error: (error: HttpErrorResponse) => {
           this.isSubmitting = false;
-          this.allowAutoRedirect = true;
           this.errorMessage =
             error.error?.error ?? 'Unable to create your account right now. Please try again.';
+        },
+      });
+  }
+
+  private submitPlan(): void {
+    if (this.form.get('tierId')?.invalid) {
+      this.form.get('tierId')?.markAsTouched();
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.errorMessage = '';
+
+    const tierId = this.form.getRawValue().tierId;
+
+    this.billingService
+      .createCheckoutSession(tierId)
+      .pipe(
+        finalize(() => {
+          this.isSubmitting = false;
+        }),
+        takeUntil(this.destroy$),
+      )
+      .subscribe({
+        next: (response) => {
+          if (response.url) {
+            window.location.href = response.url;
+            return;
+          }
+          this.errorMessage = 'Unable to start billing checkout right now. Please try again.';
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage =
+            error.error?.error ?? 'Unable to start billing checkout right now. Please try again.';
         },
       });
   }

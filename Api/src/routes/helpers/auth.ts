@@ -1,6 +1,12 @@
 import type { CookieOptions, Response } from 'express';
 import { z } from 'zod';
 import { AccountRole, AuthContext, UserRole } from '../../types/enums.js';
+import { DEFAULT_COMPANY_TIER_ID, TIER_IDS } from '../../config/tiers.js';
+
+const tierIdSchema = z
+  .enum([TIER_IDS.INDIVIDUAL, TIER_IDS.BUSINESS, TIER_IDS.ENTERPRISE_10])
+  .optional()
+  .default(DEFAULT_COMPANY_TIER_ID);
 
 export const registerSchema = z.object({
   companyName: z.string().min(2),
@@ -9,6 +15,7 @@ export const registerSchema = z.object({
   userEmail: z.string().email(),
   userPassword: z.string().min(8),
   userPhone: z.string().min(7).optional(),
+  tierId: tierIdSchema,
 });
 
 export const signupSchema = z.object({
@@ -77,12 +84,12 @@ export const formatMembershipChoices = (memberships: MembershipSummary[]) =>
 
 const isProductionEnv = () => process.env.NODE_ENV === 'production';
 
-export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'lax' } => {
+export const buildAuthCookieOptions = (): CookieOptions & { sameSite: 'strict' } => {
   const isProduction = isProductionEnv();
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/api',
     ...(isProduction ? {} : { domain: 'localhost' }),
   };

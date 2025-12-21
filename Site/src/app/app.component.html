@@ -1,6 +1,7 @@
 <div class="min-h-screen bg-slate-100 text-slate-900">
   @let session = session$ | async;
-  @if (session) {
+  @let isAuthRoute = isAuthRoute$ | async;
+  @if (session && !isAuthRoute) {
     <div class="flex min-h-screen">
       <aside class="flex w-64 flex-col border-r border-slate-200 bg-white px-5 py-6">
         <div class="mb-10">

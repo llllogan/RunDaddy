@@ -11,7 +11,12 @@ type BillingCheckoutResponse = {
 export class BillingService {
   constructor(private readonly http: HttpClient) {}
 
-  createCheckoutSession(): Observable<BillingCheckoutResponse> {
-    return this.http.post<BillingCheckoutResponse>(buildApiUrl('/billing/checkout'), {});
+  createCheckoutSession(tierId?: string): Observable<BillingCheckoutResponse> {
+    const payload = tierId ? { tierId } : {};
+    return this.http.post<BillingCheckoutResponse>(buildApiUrl('/billing/checkout'), payload);
+  }
+
+  createPortalSession(): Observable<BillingCheckoutResponse> {
+    return this.http.post<BillingCheckoutResponse>(buildApiUrl('/billing/portal'), {});
   }
 }

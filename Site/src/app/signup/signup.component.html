@@ -8,80 +8,105 @@
   </div>
 
   <form class="space-y-6" [formGroup]="form" (ngSubmit)="submit()">
-    <label class="block text-sm font-medium text-slate-700">
-      Company name
-      <input
-        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        type="text"
-        formControlName="companyName"
-        autocomplete="organization"
-        placeholder="Acme Logistics"
-      />
-    </label>
-
-    <div class="grid gap-4 sm:grid-cols-2">
+    @if (step === 'details') {
       <label class="block text-sm font-medium text-slate-700">
-        First name
+        Company name
         <input
           class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           type="text"
-          formControlName="userFirstName"
-          autocomplete="given-name"
-          placeholder="Sloan"
+          formControlName="companyName"
+          autocomplete="organization"
+          placeholder="Acme Logistics"
+        />
+      </label>
+    }
+
+    @if (step === 'details') {
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+          First name
+          <input
+            class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            type="text"
+            formControlName="userFirstName"
+            autocomplete="given-name"
+            placeholder="Sloan"
+          />
+        </label>
+
+        <label class="block text-sm font-medium text-slate-700">
+          Last name
+          <input
+            class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            type="text"
+            formControlName="userLastName"
+            autocomplete="family-name"
+            placeholder="Rivera"
+          />
+        </label>
+      </div>
+
+      <label class="block text-sm font-medium text-slate-700">
+        Your email
+        <input
+          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          type="email"
+          formControlName="userEmail"
+          autocomplete="email"
+          placeholder="owner@acme.com"
         />
       </label>
 
       <label class="block text-sm font-medium text-slate-700">
-        Last name
+        Password
         <input
           class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          type="text"
-          formControlName="userLastName"
-          autocomplete="family-name"
-          placeholder="Rivera"
+          type="password"
+          formControlName="userPassword"
+          autocomplete="new-password"
+          placeholder="Create a secure password"
         />
       </label>
-    </div>
 
-    <label class="block text-sm font-medium text-slate-700">
-      Your email
-      <input
-        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        type="email"
-        formControlName="userEmail"
-        autocomplete="email"
-        placeholder="owner@acme.com"
-      />
-    </label>
-
-    <label class="block text-sm font-medium text-slate-700">
-      Password
-      <input
-        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        type="password"
-        formControlName="userPassword"
-        autocomplete="new-password"
-        placeholder="Create a secure password"
-      />
-    </label>
-
-    <label class="block text-sm font-medium text-slate-700">
-      Phone (optional)
-      <input
-        class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        type="tel"
-        formControlName="userPhone"
-        autocomplete="tel"
-        placeholder="(555) 123-4567"
-      />
-    </label>
+      <label class="block text-sm font-medium text-slate-700">
+        Phone (optional)
+        <input
+          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          type="tel"
+          formControlName="userPhone"
+          autocomplete="tel"
+          placeholder="(555) 123-4567"
+        />
+      </label>
+    } @else {
+      <div>
+        <p class="text-sm font-medium text-slate-700">Plan</p>
+        <div class="mt-2 grid gap-3 sm:grid-cols-3">
+          <label
+            *ngFor="let plan of planOptions"
+            class="flex h-full flex-col gap-2 rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-700 transition hover:border-slate-300"
+          >
+            <span class="flex items-start gap-2">
+              <input class="mt-1" type="radio" formControlName="tierId" [value]="plan.id" />
+              <span class="block text-sm font-semibold text-slate-900">{{ plan.name }}</span>
+            </span>
+            <span class="text-lg font-semibold text-slate-900">{{ plan.price }} / month</span>
+            <span class="block text-xs uppercase tracking-wide text-slate-500">{{ plan.description }}</span>
+          </label>
+        </div>
+      </div>
+    }
 
     <button
       class="w-full rounded-md px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
       type="submit"
-      [disabled]="form.invalid || isSubmitting || requiresPhoneCode"
+      [disabled]="form.invalid || isSubmitting || (step === 'details' && requiresPhoneCode)"
     >
-      {{ isSubmitting ? 'Creating account…' : 'Create company' }}
+      @if (step === 'details') {
+        {{ isSubmitting ? 'Saving details…' : 'Next' }}
+      } @else {
+        {{ isSubmitting ? 'Redirecting…' : 'Continue to billing' }}
+      }
     </button>
   </form>
 
