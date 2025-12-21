@@ -90,14 +90,14 @@
                 <th
                   mat-header-cell
                   *matHeaderCellDef
-                  class="px-6 py-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  class="pl-4 pr-6 py-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-slate-500"
                 >
                   Actions
                 </th>
-                <td mat-cell *matCellDef="let person" class="px-6 py-5 align-middle whitespace-nowrap">
+                <td mat-cell *matCellDef="let person" class="pl-4 pr-6 py-5 align-middle whitespace-nowrap">
                   <button
                     type="button"
-                    class="rounded-md px-4 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="rounded-md border border-transparent px-4 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     (click)="removePerson(person)"
                     [disabled]="!canManage || isRemoveBusy(person.id) || isRoleBusy(person.id)"
                   >
