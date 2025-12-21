@@ -19,7 +19,7 @@
         <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ listError }}</div>
       }
 
-      <div class="rounded-xl border border-slate-200 bg-white">
+      <div>
         @if (isLoadingCompanies) {
           <div class="px-4 py-6 text-center text-sm text-slate-500">Loading companies…</div>
         } @else if (companies.length === 0) {
@@ -117,15 +117,15 @@
       }
 
       @if (isLoadingDetail) {
-        <div class="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-6 text-center text-sm text-slate-500">
+        <div class="px-6 py-6 text-center text-sm text-slate-500">
           Loading details…
         </div>
       } @else if (!selectedCompany) {
-        <div class="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-6 text-center text-sm text-slate-500">
+        <div class="px-6 py-6 text-center text-sm text-slate-500">
           Choose a company from the list to preview members and runs.
         </div>
       } @else {
-        <div class="rounded-xl border border-slate-200 bg-white space-y-6 p-6">
+        <div class="space-y-6">
           <div class="grid gap-4 sm:grid-cols-3">
             <div>
               <p class="text-xs uppercase tracking-wide text-slate-500">Members</p>

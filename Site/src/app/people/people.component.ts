@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { MatTableModule } from '@angular/material/table';
 import { finalize } from 'rxjs/operators';
 import { PeopleService, CompanyPerson } from './people.service';
 import { AuthService, UserRole } from '../auth/auth.service';
@@ -7,7 +8,7 @@ import { AuthService, UserRole } from '../auth/auth.service';
 @Component({
   selector: 'app-people',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MatTableModule],
   templateUrl: './people.component.html',
 })
 export class PeopleComponent implements OnInit {
@@ -24,6 +25,7 @@ export class PeopleComponent implements OnInit {
   ];
 
   people: CompanyPerson[] = [];
+  readonly displayedColumns: ReadonlyArray<string> = ['member', 'contact', 'role', 'actions'];
   isLoading = false;
   errorMessage = '';
   private readonly updatingRoleIds = new Set<string>();
@@ -54,10 +56,6 @@ export class PeopleComponent implements OnInit {
           this.markViewForCheck();
         },
       });
-  }
-
-  trackByPersonId(_: number, person: CompanyPerson): string {
-    return person.id;
   }
 
   isRoleBusy(personId: string): boolean {
