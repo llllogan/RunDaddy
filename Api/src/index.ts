@@ -18,9 +18,10 @@ import { locationsRouter } from './routes/locations.js';
 import { notesRouter } from './routes/notes.js';
 import { expiriesRouter } from './routes/expiries.js';
 import { billingRouter, billingWebhookHandler } from './routes/billing.js';
+import { lighthouseRouter } from './routes/lighthouse.js';
 
 const app = express();
-const defaultOrigins = ['http://localhost:4200'];
+const defaultOrigins = ['http://localhost:4200', 'http://localhost:4201'];
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
   : defaultOrigins;
@@ -59,6 +60,7 @@ app.use('/api/invite-codes', inviteCodesRouter);
 app.use('/api/companies', companyRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/lighthouse', lighthouseRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/expiries', expiriesRouter);
 app.use('/api/billing', billingRouter);

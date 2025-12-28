@@ -8,3 +8,4 @@ import { ShellLayoutComponent } from '@shared/layout/shell-layout.component';
   template: '<rd-shell-layout />',
 })
 export class App {}
+

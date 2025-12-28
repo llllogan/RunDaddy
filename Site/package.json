@@ -1,17 +1,24 @@
 {
   "name": "site",
   "version": "0.0.0",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "ng": "ng",
     "env:generate": "node ./scripts/write-env.cjs",
     "prestart": "npm run env:generate",
-    "start": "ng serve",
+    "start": "ng serve Site --port 4200",
+    "start:internal": "ng serve Internal --port 4201",
     "prebuild": "npm run env:generate",
-    "build": "ng build",
+    "build": "ng build Site",
+    "build:internal": "ng build Internal",
+    "build:all": "npm run build && npm run build:internal",
     "prewatch": "npm run env:generate",
-    "watch": "ng build --watch --configuration development",
+    "watch": "ng build Site --watch --configuration development",
+    "watch:internal": "ng build Internal --watch --configuration development",
     "pretest": "npm run env:generate",
-    "test": "ng test"
+    "test": "ng test Site"
   },
   "prettier": {
     "printWidth": 100,

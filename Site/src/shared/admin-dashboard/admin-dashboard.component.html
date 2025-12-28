@@ -74,7 +74,7 @@
           <h2 class="text-2xl font-semibold text-slate-900">
             {{ selectedCompany?.name ?? 'Select a company' }}
           </h2>
-          @if (selectedCompany) {
+          @if (selectedCompany && allowDelete) {
             <button
               type="button"
               class="rounded-md px-4 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"

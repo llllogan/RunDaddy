@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/internal",
+    "types": []
+  },
+  "include": ["src/**/*.ts", "../../src/shared/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts"]
+}
+

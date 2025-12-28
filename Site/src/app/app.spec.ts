@@ -4,9 +4,22 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { App } from './app';
 import { AuthService } from './auth/auth.service';
+import { provideShellConfig } from '@shared/layout/shell-config';
+import { provideLoginConfig } from '@shared/auth/login/login-config';
 
 class AuthServiceStub {
-  session$ = of(null);
+  session$ = of({
+    user: {
+      id: 'user-1',
+      email: 'admin@example.com',
+      firstName: 'Admin',
+      lastName: 'User',
+      role: 'OWNER',
+      platformAdmin: false,
+    },
+    company: null,
+    platformAdminCompanyId: null,
+  });
   isBootstrapped$ = of(true);
   ensureBootstrap = jasmine.createSpy('ensureBootstrap');
   logout = jasmine.createSpy('logout').and.returnValue(of(void 0));
@@ -20,6 +33,15 @@ describe('App', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: AuthService, useClass: AuthServiceStub },
+        provideShellConfig({
+          tabs: [],
+          authRoutePrefixes: ['/login', '/signup'],
+        }),
+        provideLoginConfig({
+          postLoginRedirect: '/dashboard',
+          allowSignup: true,
+          signupRoute: '/signup',
+        }),
       ],
     }).compileComponents();
   });
@@ -30,10 +52,11 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render the Picker Agent header', () => {
+  it('should render the Picker Agent sidebar', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('header a')?.textContent).toContain('Picker Agent');
+    expect(compiled.textContent).toContain('Picker Agent');
+    expect(compiled.textContent).toContain('Dashboard');
   });
 });

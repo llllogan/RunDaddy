@@ -7,10 +7,20 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 To start a local development server, run:
 
 ```bash
-ng serve
+npm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Once the server is running, open your browser and navigate to `http://localhost:4200/`.
+
+The API base URL is set via `API_BASE_URL` in `Site/.env.local` (or `Site/.env`). Copy `Site/.env.example` to get started.
+
+To run the internal admin site locally:
+
+```bash
+npm run start:internal
+```
+
+This serves at `http://localhost:4201/`.
 
 ## Code scaffolding
 
