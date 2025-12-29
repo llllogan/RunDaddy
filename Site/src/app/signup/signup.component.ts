@@ -6,6 +6,7 @@ import { Router, RouterModule } from '@angular/router';
 import { Subject, finalize, takeUntil } from 'rxjs';
 import { AuthService, RegisterPayload } from '../auth/auth.service';
 import { BillingService } from '../billing/billing.service';
+import { planTiers } from '../billing/plan-tiers';
 
 @Component({
   selector: 'app-signup',
@@ -26,26 +27,7 @@ export class SignupComponent implements OnDestroy {
     userPhone: ['', [Validators.required]],
   });
 
-  readonly planOptions = [
-    {
-      id: 'tier-individual',
-      name: 'Individual',
-      price: '$60',
-      description: '1 user account',
-    },
-    {
-      id: 'tier-business',
-      name: 'Business',
-      price: '$100',
-      description: '1 owner, 1 admin, 2 pickers/drivers',
-    },
-    {
-      id: 'tier-enterprise-10',
-      name: 'Enterprise 10',
-      price: '$200',
-      description: '1 owner, 1 admin, 10 pickers/drivers',
-    },
-  ];
+  readonly planOptions = planTiers;
 
   errorMessage = '';
   isSubmitting = false;

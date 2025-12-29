@@ -7,6 +7,12 @@ type BillingCheckoutResponse = {
   url: string | null;
 };
 
+export type BillingStatusResponse = {
+  billingStatus: string;
+  currentPeriodEnd: string | null;
+  tierId: string;
+};
+
 @Injectable({ providedIn: 'root' })
 export class BillingService {
   constructor(private readonly http: HttpClient) {}
@@ -18,5 +24,9 @@ export class BillingService {
 
   createPortalSession(): Observable<BillingCheckoutResponse> {
     return this.http.post<BillingCheckoutResponse>(buildApiUrl('/billing/portal'), {});
+  }
+
+  getStatus(): Observable<BillingStatusResponse> {
+    return this.http.get<BillingStatusResponse>(buildApiUrl('/billing/status'));
   }
 }
