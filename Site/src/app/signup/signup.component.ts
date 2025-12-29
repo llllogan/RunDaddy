@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, inject } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { Subject, finalize, takeUntil } from 'rxjs';
+import { Subject, finalize, switchMap, takeUntil } from 'rxjs';
 import { AuthService, RegisterPayload } from '../auth/auth.service';
 import { BillingService } from '../billing/billing.service';
 import { planTiers } from '../billing/plan-tiers';
@@ -32,6 +32,7 @@ export class SignupComponent implements OnDestroy {
   errorMessage = '';
   isSubmitting = false;
   step: 'details' | 'plan' = 'details';
+  private pendingRegistration: RegisterPayload | null = null;
 
   private readonly destroy$ = new Subject<void>();
 
@@ -68,13 +69,12 @@ export class SignupComponent implements OnDestroy {
       return;
     }
 
-    this.isSubmitting = true;
     this.errorMessage = '';
 
     const { companyName, userFirstName, userLastName, userEmail, userPassword, userPhone } =
       this.form.getRawValue();
 
-    const payload: RegisterPayload = {
+    this.pendingRegistration = {
       companyName: companyName.trim(),
       userFirstName: userFirstName.trim(),
       userLastName: userLastName.trim(),
@@ -83,22 +83,7 @@ export class SignupComponent implements OnDestroy {
       userPhone: userPhone.trim(),
     };
 
-    this.authService
-      .registerCompanyAccount(payload)
-      .pipe(
-        takeUntil(this.destroy$),
-      )
-      .subscribe({
-        next: () => {
-          this.isSubmitting = false;
-          this.step = 'plan';
-        },
-        error: (error: HttpErrorResponse) => {
-          this.isSubmitting = false;
-          this.errorMessage =
-            error.error?.error ?? 'Unable to create your account right now. Please try again.';
-        },
-      });
+    this.step = 'plan';
   }
 
   private submitPlan(): void {
@@ -107,14 +92,26 @@ export class SignupComponent implements OnDestroy {
       return;
     }
 
+    if (!this.pendingRegistration) {
+      this.errorMessage = 'Please complete your company details first.';
+      this.step = 'details';
+      return;
+    }
+
     this.isSubmitting = true;
     this.errorMessage = '';
 
     const tierId = this.form.getRawValue().tierId;
 
-    this.billingService
-      .createCheckoutSession(tierId)
+    const payload: RegisterPayload = {
+      ...this.pendingRegistration,
+      tierId,
+    };
+
+    this.authService
+      .registerCompanyAccount(payload)
       .pipe(
+        switchMap(() => this.billingService.createCheckoutSession(tierId)),
         finalize(() => {
           this.isSubmitting = false;
         }),
@@ -130,7 +127,7 @@ export class SignupComponent implements OnDestroy {
         },
         error: (error: HttpErrorResponse) => {
           this.errorMessage =
-            error.error?.error ?? 'Unable to start billing checkout right now. Please try again.';
+            error.error?.error ?? 'Unable to create your account right now. Please try again.';
         },
       });
   }
