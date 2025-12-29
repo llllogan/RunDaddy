@@ -1,18 +1,18 @@
 <section class="mx-auto max-w-md">
   <div class="mb-8 text-left">
-    <p class="text-xs uppercase tracking-wide text-slate-500">Get started</p>
-    <h1 class="mt-2 text-3xl font-semibold text-slate-900">Create Company</h1>
-    <p class="mt-2 text-sm text-slate-500">
+    <p class="text-xs uppercase tracking-wide text-gray-600">Get started</p>
+    <h1 class="mt-2 text-3xl font-semibold text-gray-900">Create Company</h1>
+    <p class="mt-2 text-sm text-gray-600">
       We will set up your organization and owner dashboard access in one step.
     </p>
   </div>
 
   <form class="space-y-6" [formGroup]="form" (ngSubmit)="submit()">
     @if (step === 'details') {
-      <label class="block text-sm font-medium text-slate-700">
+      <label class="block text-sm font-medium text-gray-700">
         Company name
         <input
-          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
           type="text"
           formControlName="companyName"
           autocomplete="organization"
@@ -23,10 +23,10 @@
 
     @if (step === 'details') {
       <div class="grid gap-4 sm:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
+        <label class="block text-sm font-medium text-gray-700">
           First name
           <input
-            class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
             type="text"
             formControlName="userFirstName"
             autocomplete="given-name"
@@ -34,10 +34,10 @@
           />
         </label>
 
-        <label class="block text-sm font-medium text-slate-700">
+        <label class="block text-sm font-medium text-gray-700">
           Last name
           <input
-            class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
             type="text"
             formControlName="userLastName"
             autocomplete="family-name"
@@ -46,10 +46,10 @@
         </label>
       </div>
 
-      <label class="block text-sm font-medium text-slate-700">
+      <label class="block text-sm font-medium text-gray-700">
         Your email
         <input
-          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
           type="email"
           formControlName="userEmail"
           autocomplete="email"
@@ -57,10 +57,10 @@
         />
       </label>
 
-      <label class="block text-sm font-medium text-slate-700">
+      <label class="block text-sm font-medium text-gray-700">
         Password
         <input
-          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
           type="password"
           formControlName="userPassword"
           autocomplete="new-password"
@@ -68,10 +68,10 @@
         />
       </label>
 
-      <label class="block text-sm font-medium text-slate-700">
+      <label class="block text-sm font-medium text-gray-700">
         Phone (optional)
         <input
-          class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          class="mt-2 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-base text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
           type="tel"
           formControlName="userPhone"
           autocomplete="tel"
@@ -80,25 +80,25 @@
       </label>
     } @else {
       <div>
-        <p class="text-sm font-medium text-slate-700">Plan</p>
+        <p class="text-sm font-medium text-gray-700">Plan</p>
         <div class="mt-2 grid gap-3 sm:grid-cols-3">
           <label
             *ngFor="let plan of planOptions"
-            class="flex h-full flex-col gap-2 rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-700 transition hover:border-slate-300"
+            class="flex h-full flex-col gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 text-left text-sm text-gray-700 transition hover:border-gray-300"
           >
             <span class="flex items-start gap-2">
               <input class="mt-1" type="radio" formControlName="tierId" [value]="plan.id" />
-              <span class="block text-sm font-semibold text-slate-900">{{ plan.name }}</span>
+              <span class="block text-sm font-semibold text-gray-900">{{ plan.name }}</span>
             </span>
-            <span class="text-lg font-semibold text-slate-900">{{ plan.price }} / month</span>
-            <span class="block text-xs uppercase tracking-wide text-slate-500">{{ plan.description }}</span>
+            <span class="text-lg font-semibold text-gray-900">{{ plan.price }} / month</span>
+            <span class="block text-xs uppercase tracking-wide text-gray-600">{{ plan.description }}</span>
           </label>
         </div>
       </div>
     }
 
     <button
-      class="w-full rounded-md px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
       type="submit"
       [disabled]="form.invalid || isSubmitting || (step === 'details' && requiresPhoneCode)"
     >
@@ -115,8 +115,8 @@
   </p>
 
   <div class="mt-8 text-left">
-    <p class="text-sm text-slate-500">Already registered?</p>
-    <a class="mt-2 inline-flex text-sm font-semibold text-slate-700 hover:text-slate-900" routerLink="/login">
+    <p class="text-sm text-gray-600">Already registered?</p>
+    <a class="mt-2 inline-flex text-sm font-semibold text-gray-800 hover:text-gray-900" routerLink="/login">
       Back to log in
     </a>
   </div>

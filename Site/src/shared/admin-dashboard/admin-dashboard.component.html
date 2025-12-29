@@ -1,14 +1,14 @@
 <section class="space-y-8">
-  <div class="rounded-xl border border-slate-200 bg-white p-8">
+  <div class="rounded-xl border border-gray-200 bg-white p-8">
     <div class="grid gap-8 lg:grid-cols-[minmax(0,2fr),minmax(0,3fr)]">
-    <div class="space-y-4 rounded-xl border border-slate-200 bg-white p-6">
+    <div class="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-900">Companies</h2>
+          <h2 class="text-2xl font-semibold text-gray-900">Companies</h2>
         </div>
         <button
           type="button"
-          class="rounded-md px-4 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
+          class="rounded-full border border-gray-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
           (click)="loadCompanies()"
           [disabled]="isLoadingCompanies"
         >
@@ -20,44 +20,44 @@
         <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ listError }}</div>
       }
 
-      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
         @if (isLoadingCompanies) {
-          <div class="px-4 py-6 text-center text-sm text-slate-500">Loading companies…</div>
+          <div class="px-4 py-6 text-center text-sm text-gray-600">Loading companies…</div>
         } @else if (companies.length === 0) {
-          <div class="px-4 py-6 text-center text-sm text-slate-500">No companies available.</div>
+          <div class="px-4 py-6 text-center text-sm text-gray-600">No companies available.</div>
         } @else {
-          <ul class="divide-y divide-slate-100">
+          <ul class="divide-y divide-gray-100">
             @for (company of companies; track trackByCompanyId($index, company)) {
               <li>
                 <button
                   type="button"
-                  class="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50"
-                  [class.bg-blue-50]="selectedCompanyId === company.id"
-                  [class.text-blue-700]="selectedCompanyId === company.id"
+                  class="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-gray-50"
+                  [class.bg-gray-100]="selectedCompanyId === company.id"
+                  [class.text-gray-900]="selectedCompanyId === company.id"
                   (click)="selectCompany(company.id)"
                 >
                   <div>
                     <p class="text-base font-semibold">{{ company.name }}</p>
-                    <p class="text-xs uppercase tracking-wide" [class.text-blue-600]="selectedCompanyId === company.id" [class.text-slate-500]="selectedCompanyId !== company.id">
+                    <p class="text-xs uppercase tracking-wide" [class.text-gray-900]="selectedCompanyId === company.id" [class.text-gray-600]="selectedCompanyId !== company.id">
                       {{ company.timeZone ?? '—' }} • Created {{ company.createdAt | date: 'MMM d, y' }}
                     </p>
                   </div>
                   <div class="flex items-center gap-4 text-sm">
                     
                     <div class="text-right text-xs">
-                      <p class="uppercase tracking-wide" [class.text-blue-600]="selectedCompanyId === company.id" [class.text-slate-500]="selectedCompanyId !== company.id">
+                      <p class="uppercase tracking-wide" [class.text-gray-900]="selectedCompanyId === company.id" [class.text-gray-600]="selectedCompanyId !== company.id">
                         Last Run
                       </p>
                       @if (company.lastRunAt) {
                         <p
                           class="font-semibold text-sm"
-                          [class.text-blue-700]="selectedCompanyId === company.id"
-                          [class.text-slate-600]="selectedCompanyId !== company.id"
+                          [class.text-gray-900]="selectedCompanyId === company.id"
+                          [class.text-gray-700]="selectedCompanyId !== company.id"
                         >
                           {{ company.lastRunAt | date: 'MMM d, y' }}
                         </p>
                       } @else {
-                        <p [class.text-blue-600]="selectedCompanyId === company.id" [class.text-slate-500]="selectedCompanyId !== company.id">—</p>
+                        <p [class.text-gray-900]="selectedCompanyId === company.id" [class.text-gray-600]="selectedCompanyId !== company.id">—</p>
                       }
                     </div>
                   </div>
@@ -72,13 +72,13 @@
     <div class="space-y-4">
       <div class="space-y-2">
         <div class="flex items-center justify-between gap-4">
-          <h2 class="text-2xl font-semibold text-slate-900">
+          <h2 class="text-2xl font-semibold text-gray-900">
             {{ selectedCompany?.name ?? 'Select a company' }}
           </h2>
           @if (selectedCompany && allowDelete) {
             <button
               type="button"
-              class="rounded-md px-4 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
+              class="rounded-full border border-gray-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
               (click)="promptDeleteCompany()"
               [disabled]="isLoadingDetail || isDeletingCompany"
             >
@@ -91,7 +91,7 @@
             <span>Are you sure you want to delete this company?</span>
             <button
               type="button"
-              class="rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
+              class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
               (click)="confirmDeleteCompany()"
               [disabled]="isDeletingCompany"
             >
@@ -99,7 +99,7 @@
             </button>
             <button
               type="button"
-              class="rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50"
+              class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50"
               (click)="cancelDelete()"
               [disabled]="isDeletingCompany"
             >
@@ -117,43 +117,43 @@
         <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ deleteError }}</div>
       }
 
-      @if (isLoadingDetail) {
-        <div class="px-6 py-6 text-center text-sm text-slate-500">
+        @if (isLoadingDetail) {
+        <div class="px-6 py-6 text-center text-sm text-gray-600">
           Loading details…
         </div>
       } @else if (!selectedCompany) {
-        <div class="px-6 py-6 text-center text-sm text-slate-500">
+        <div class="px-6 py-6 text-center text-sm text-gray-600">
           Choose a company from the list to preview members and runs.
         </div>
       } @else {
         <div class="space-y-6">
           <div class="grid gap-4 sm:grid-cols-3">
             <div>
-              <p class="text-xs uppercase tracking-wide text-slate-500">Members</p>
-              <p class="text-2xl font-semibold text-slate-900">{{ selectedCompany.memberCount }}</p>
+              <p class="text-xs uppercase tracking-wide text-gray-600">Members</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.memberCount }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-slate-500">Total Runs</p>
-              <p class="text-2xl font-semibold text-slate-900">{{ selectedCompany.runCount }}</p>
+              <p class="text-xs uppercase tracking-wide text-gray-600">Total Runs</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.runCount }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-slate-500">Active Runs</p>
-              <p class="text-2xl font-semibold text-slate-900">{{ selectedCompany.activeRunCount }}</p>
+              <p class="text-xs uppercase tracking-wide text-gray-600">Active Runs</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ selectedCompany.activeRunCount }}</p>
             </div>
           </div>
 
           <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-900">Members</h3>
-              <p class="text-xs uppercase tracking-wide text-slate-500">{{ selectedCompany.members.length }} total</p>
+              <h3 class="text-lg font-semibold text-gray-900">Members</h3>
+              <p class="text-xs uppercase tracking-wide text-gray-600">{{ selectedCompany.members.length }} total</p>
             </div>
             @if (selectedCompany.members.length === 0) {
-              <p class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No members on record.</p>
+              <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">No members on record.</p>
             } @else {
               <div class="overflow-x-auto">
-                <table class="min-w-full table-auto border-collapse text-sm text-slate-800">
+                <table class="min-w-full table-auto border-collapse text-sm text-gray-800">
                   <thead>
-                    <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
                       <th class="px-4 py-3 text-left">Name</th>
                       <th class="px-4 py-3 text-left">Role</th>
                       <th class="px-4 py-3 text-left">Contact</th>
@@ -161,15 +161,15 @@
                   </thead>
                   <tbody>
                     @for (member of selectedCompany.members; track trackByMemberId($index, member)) {
-                      <tr class="border-t border-slate-100">
+                      <tr class="border-t border-gray-100">
                         <td class="px-4 py-3">
-                          <p class="font-semibold text-slate-900">{{ member.firstName }} {{ member.lastName }}</p>
-                          <p class="text-xs uppercase tracking-wide text-slate-500">ID {{ member.userId }}</p>
+                          <p class="font-semibold text-gray-900">{{ member.firstName }} {{ member.lastName }}</p>
+                          <p class="text-xs uppercase tracking-wide text-gray-600">ID {{ member.userId }}</p>
                         </td>
-                        <td class="px-4 py-3 text-xs uppercase tracking-wide text-slate-600">{{ member.role }}</td>
+                        <td class="px-4 py-3 text-xs uppercase tracking-wide text-gray-700">{{ member.role }}</td>
                         <td class="px-4 py-3">
-                          <p class="text-sm text-slate-900">{{ member.email }}</p>
-                          <p class="text-xs text-slate-500">{{ member.phone ?? '—' }}</p>
+                          <p class="text-sm text-gray-900">{{ member.email }}</p>
+                          <p class="text-xs text-gray-600">{{ member.phone ?? '—' }}</p>
                         </td>
                       </tr>
                     }
@@ -181,25 +181,25 @@
 
           <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-900">Recent Runs</h3>
-              <p class="text-xs uppercase tracking-wide text-slate-500">{{ selectedCompany.recentRuns.length }} shown</p>
+              <h3 class="text-lg font-semibold text-gray-900">Recent Runs</h3>
+              <p class="text-xs uppercase tracking-wide text-gray-600">{{ selectedCompany.recentRuns.length }} shown</p>
             </div>
             @if (selectedCompany.recentRuns.length === 0) {
-              <p class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No recent runs scheduled.</p>
+              <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">No recent runs scheduled.</p>
             } @else {
-              <ul class="divide-y divide-slate-100">
+              <ul class="divide-y divide-gray-100">
                 @for (run of selectedCompany.recentRuns; track trackByRunId($index, run)) {
                   <li class="py-3">
                     <div class="flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <p class="text-sm font-semibold text-slate-900">Run {{ run.id }}</p>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">
+                        <p class="text-sm font-semibold text-gray-900">Run {{ run.id }}</p>
+                        <p class="text-xs uppercase tracking-wide text-gray-600">
                           {{ run.scheduledFor ? (run.scheduledFor | date: 'MMM d, y h:mm a') : 'Unscheduled' }}
                         </p>
                       </div>
                       <div class="text-right text-sm">
-                        <p class="font-semibold text-slate-900">{{ run.status }}</p>
-                        <p class="text-xs text-slate-500">
+                        <p class="font-semibold text-gray-900">{{ run.status }}</p>
+                        <p class="text-xs text-gray-600">
                           Picker: {{ run.picker?.name ?? '—' }} • Runner: {{ run.runner?.name ?? '—' }}
                         </p>
                       </div>

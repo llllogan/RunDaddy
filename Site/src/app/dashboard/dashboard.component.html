@@ -1,9 +1,9 @@
 <section *ngIf="session$ | async as session; else loading" class="space-y-8">
-  <div class="rounded-xl border border-slate-200 bg-white p-8">
+  <div class="rounded-xl border border-gray-200 bg-white p-8">
     <div
       class="mt-8 py-10 text-center transition-all duration-200 ease-out"
       [ngClass]="{
-        'text-slate-600': !isValidHover,
+        'text-gray-600': !isValidHover,
         'text-emerald-600': isValidHover
       }"
       (dragover)="handleDragOver($event)"
@@ -13,18 +13,18 @@
       <div class="flex flex-col items-center justify-center gap-4">
         <div class="text-3xl" aria-hidden="true">{{ isValidHover ? '✓' : '⇪' }}</div>
         <div class="space-y-2">
-          <p class="text-lg font-semibold text-slate-900">
+          <p class="text-lg font-semibold text-gray-900">
             {{ isValidHover ? 'Drop to upload' : 'Drop your file here' }}
           </p>
-          <p class="text-sm text-slate-500">
+          <p class="text-sm text-gray-600">
             {{ isUploading ? 'Uploading… hang tight.' : 'Accepted formats: .xlsx, .xls' }}
           </p>
         </div>
-        <div class="text-sm text-slate-400">or</div>
+        <div class="text-sm text-gray-500">or</div>
         <div>
           <button
             type="button"
-            class="rounded-md px-6 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+            class="rounded-full border border-gray-200 bg-white px-6 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200"
             (click)="fileInput.click()"
             [disabled]="isUploading"
           >
@@ -34,8 +34,8 @@
         </div>
       </div>
     </div>
-    <div *ngIf="isUploading" class="mt-6 flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-      <span class="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-transparent"></span>
+    <div *ngIf="isUploading" class="mt-6 flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+      <span class="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-gray-700 border-t-transparent"></span>
       Uploading {{ lastUploadedFile || 'your file' }}
     </div>
     <div
@@ -45,19 +45,19 @@
       {{ feedbackMessage }}
     </div>
     <div *ngIf="uploadSummary" class="mt-6">
-      <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Import summary</p>
-      <dl class="mt-2 grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-3">
-        <div class="rounded-lg bg-slate-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Runs</dt>
-          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.runs }}</dd>
+      <p class="text-sm font-semibold uppercase tracking-wide text-gray-600">Import summary</p>
+      <dl class="mt-2 grid grid-cols-1 gap-3 text-sm text-gray-700 sm:grid-cols-3">
+        <div class="rounded-lg bg-gray-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-gray-600">Runs</dt>
+          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.runs }}</dd>
         </div>
-        <div class="rounded-lg bg-slate-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Machines</dt>
-          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.machines }}</dd>
+        <div class="rounded-lg bg-gray-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-gray-600">Machines</dt>
+          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.machines }}</dd>
         </div>
-        <div class="rounded-lg bg-slate-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Coils</dt>
-          <dd class="text-lg font-semibold text-slate-900">{{ uploadSummary.pickEntries }}</dd>
+        <div class="rounded-lg bg-gray-50 px-3 py-2">
+          <dt class="text-xs uppercase tracking-wide text-gray-600">Coils</dt>
+          <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.pickEntries }}</dd>
         </div>
       </dl>
     </div>
@@ -68,5 +68,5 @@
 </section>
 
 <ng-template #loading>
-  <div class="text-center text-sm text-slate-600">Loading your dashboard…</div>
+  <div class="text-center text-sm text-gray-600">Loading your dashboard…</div>
 </ng-template>

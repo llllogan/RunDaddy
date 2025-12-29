@@ -1,9 +1,9 @@
 <section class="space-y-6">
-  <div class="rounded-xl border border-slate-200 bg-white p-8">
+  <div class="rounded-xl border border-gray-200 bg-white p-8">
     <div class="text-left">
-      <p class="text-xs uppercase tracking-wide text-slate-500">Subscription</p>
-      <h1 class="mt-2 text-2xl font-semibold text-slate-900">Billing</h1>
-      <p class="mt-2 text-sm text-slate-500">
+      <p class="text-xs uppercase tracking-wide text-gray-600">Subscription</p>
+      <h1 class="mt-2 text-2xl font-semibold text-gray-900">Billing</h1>
+      <p class="mt-2 text-sm text-gray-600">
         Manage your company subscription, update payment details, or cancel your plan.
       </p>
     </div>
@@ -11,7 +11,7 @@
     <div class="mt-6">
       <button
         type="button"
-        class="rounded-md px-5 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+        class="rounded-full bg-gray-900 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
         [disabled]="isLoading"
         (click)="manageBilling()"
       >

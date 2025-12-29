@@ -1,20 +1,20 @@
-<div class="min-h-screen bg-slate-100 text-slate-900">
+<div class="min-h-screen text-gray-900">
   @let session = session$ | async;
   @let isAuthRoute = isAuthRoute$ | async;
   @if (session && !isAuthRoute) {
     <div class="flex min-h-screen">
-      <aside class="flex w-64 flex-col border-r border-slate-200 bg-white px-5 py-6">
+      <aside class="flex w-64 flex-col border-r border-gray-200 bg-white px-5 py-6">
         <div class="mb-10">
-          <p class="text-sm font-semibold text-slate-900">{{ session?.company?.name ?? 'Picker Agent' }}</p>
-          <p class="text-xs uppercase tracking-wide text-slate-400">Dashboard</p>
+          <p class="text-sm font-semibold text-gray-900">{{ session?.company?.name ?? 'Picker Agent' }}</p>
+          <p class="text-xs uppercase tracking-wide text-gray-500">Dashboard</p>
         </div>
 
         <nav class="space-y-1">
           @for (tab of headerTabs; track tab.id) {
             <a
-              class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+              class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
               [routerLink]="tab.route"
-              routerLinkActive="bg-blue-50 text-blue-700"
+              routerLinkActive="bg-gray-100 text-gray-900"
               [routerLinkActiveOptions]="{ exact: true }"
             >
               {{ tab.label }}
@@ -22,14 +22,14 @@
           }
         </nav>
 
-        <div class="mt-auto space-y-3 border-t border-slate-200 pt-4 text-sm">
+        <div class="mt-auto space-y-3 border-t border-gray-200 pt-4 text-sm">
           <div>
-            <p class="font-medium text-slate-900">{{ session.user.firstName }} {{ session.user.lastName }}</p>
-            <p class="text-xs text-slate-500">{{ session.user.email }}</p>
+            <p class="font-medium text-gray-900">{{ session.user.firstName }} {{ session.user.lastName }}</p>
+            <p class="text-xs text-gray-600">{{ session.user.email }}</p>
           </div>
           <button
             type="button"
-            class="inline-flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
+            class="inline-flex w-full items-center justify-center rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50"
             (click)="onLogout()"
           >
             Log out
