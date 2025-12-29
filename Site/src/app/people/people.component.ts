@@ -21,7 +21,6 @@ export class PeopleComponent implements OnInit {
     { label: 'Owner', value: 'OWNER' },
     { label: 'Admin', value: 'ADMIN' },
     { label: 'Picker', value: 'PICKER' },
-    { label: 'God', value: 'GOD' },
   ];
 
   people: CompanyPerson[] = [];

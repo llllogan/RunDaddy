@@ -7,8 +7,6 @@ import { randomBytes } from 'crypto';
 import { createTokenPair } from '../lib/tokens.js';
 import { buildSessionPayload, respondWithSession } from './helpers/auth.js';
 import { AuthContext, UserRole } from '../types/enums.js';
-import { userHasPlatformAdminAccess } from '../lib/platform-admin.js';
-import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 import { isValidTimezone } from '../lib/timezone.js';
 import { getCompanyTierWithCounts, remainingCapacityForRole } from './helpers/company-tier.js';
 
@@ -85,9 +83,8 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
     }
 
     const normalizedRole = (role as string).toUpperCase() as UserRole;
-
-    if (normalizedRole === UserRole.GOD && companyId !== PLATFORM_ADMIN_COMPANY_ID) {
-      return res.status(403).json({ error: 'Only the platform admin workspace can create GOD invites' });
+    if (![UserRole.ADMIN, UserRole.OWNER, UserRole.PICKER].includes(normalizedRole)) {
+      return res.status(400).json({ error: 'Invalid role requested' });
     }
 
     // Verify user is admin/owner of this specific company
@@ -95,8 +92,8 @@ router.post('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'min
       where: {
         userId,
         companyId: companyId!,
-        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
-      }
+        role: { in: ['ADMIN', 'OWNER'] },
+      },
     });
 
     if (!membership && !req.auth.lighthouse) {
@@ -160,8 +157,8 @@ router.get('/:companyId/invite-codes', authenticate, setLogConfig({ level: 'mini
       where: {
         userId,
         companyId: companyId!,
-        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
-      }
+        role: { in: ['ADMIN', 'OWNER'] },
+      },
     });
 
     if (!membership && !req.auth.lighthouse) {
@@ -310,9 +307,6 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
         }
       : null;
 
-    const platformAdmin = await userHasPlatformAdminAccess(user.id);
-    const platformAdminCompanyId = platformAdmin ? PLATFORM_ADMIN_COMPANY_ID : null;
-
     return respondWithSession(
       res,
       buildSessionPayload(
@@ -323,11 +317,9 @@ router.post('/:companyId/leave', authenticate, setLogConfig({ level: 'minimal' }
           lastName: user.lastName,
           role: sessionRole,
           phone: user.phone,
-          platformAdmin,
         },
         companySummary,
         tokens,
-        platformAdminCompanyId,
       ),
       200,
       {
@@ -356,8 +348,8 @@ router.delete('/:companyId/members/:userId', authenticate, setLogConfig({ level:
       where: {
         userId: currentUserId,
         companyId: companyId!,
-        role: { in: ['GOD', 'ADMIN', 'OWNER'] }
-      }
+        role: { in: ['ADMIN', 'OWNER'] },
+      },
     });
 
     if (!adminMembership && !req.auth.lighthouse) {
@@ -446,7 +438,7 @@ router.patch('/:companyId/timezone', authenticate, setLogConfig({ level: 'minima
     where: {
       userId: req.auth!.userId,
       companyId,
-      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+      role: { in: ['ADMIN', 'OWNER'] },
     },
     include: {
       company: true,
@@ -505,7 +497,7 @@ router.patch('/:companyId/location', authenticate, setLogConfig({ level: 'minima
     where: {
       userId: req.auth!.userId,
       companyId,
-      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+      role: { in: ['ADMIN', 'OWNER'] },
     },
     include: {
       company: true,
@@ -567,7 +559,7 @@ router.patch('/:companyId/visibility', authenticate, setLogConfig({ level: 'mini
     where: {
       userId: req.auth!.userId,
       companyId,
-      role: { in: ['GOD', 'ADMIN', 'OWNER'] },
+      role: { in: ['ADMIN', 'OWNER'] },
     },
     include: {
       company: true,

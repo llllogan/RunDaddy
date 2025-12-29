@@ -50,7 +50,6 @@ export type SessionUser = {
   accountRole?: AccountRole | null;
   lighthouse?: boolean;
   phone?: string | null;
-  platformAdmin: boolean;
 };
 
 export type SessionTokens = {
@@ -68,7 +67,7 @@ export type MembershipSummary = {
   company: { id: string; name: string };
 };
 
-const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.GOD, UserRole.ADMIN, UserRole.OWNER]);
+const WEB_ALLOWED_ROLES = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
 const ALL_ALLOWED_ROLES = new Set<UserRole>(Object.values(UserRole));
 
 export const getAllowedRolesForContext = (context: AuthContext): ReadonlySet<UserRole> => {
@@ -101,7 +100,6 @@ export const respondWithSession = (
     company: SessionCompany;
     user: SessionUser;
     tokens: SessionTokens;
-    platformAdminCompanyId?: string | null;
   },
   status = 200,
   extras?: Record<string, unknown>,
@@ -122,11 +120,8 @@ export const respondWithSession = (
       accountRole: data.user.accountRole ?? null,
       lighthouse: data.user.lighthouse ?? false,
       phone: data.user.phone ?? null,
-      platformAdmin: data.user.platformAdmin,
     },
   };
-
-  responseData.platformAdminCompanyId = data.platformAdminCompanyId ?? null;
 
   if (data.tokens.context === AuthContext.APP) {
     responseData.accessToken = data.tokens.accessToken;
@@ -147,10 +142,8 @@ export const buildSessionPayload = (
   user: SessionUser,
   company: SessionCompany,
   tokens: SessionTokens,
-  platformAdminCompanyId?: string | null,
 ) => ({
   company,
   user,
   tokens,
-  platformAdminCompanyId: platformAdminCompanyId ?? null,
 });

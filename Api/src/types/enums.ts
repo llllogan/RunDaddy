@@ -8,7 +8,6 @@ export const RunStatus = {
 export type RunStatus = typeof RunStatus[keyof typeof RunStatus];
 
 export const UserRole = {
-  GOD: 'GOD',
   ADMIN: 'ADMIN',
   OWNER: 'OWNER',
   PICKER: 'PICKER',

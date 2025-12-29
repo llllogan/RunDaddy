@@ -110,7 +110,6 @@ enum UserRole: String, CaseIterable, Equatable, Codable {
     case admin = "ADMIN"
     case owner = "OWNER"
     case picker = "PICKER"
-    case god = "GOD"
     
     var displayName: String {
         switch self {
@@ -120,8 +119,6 @@ enum UserRole: String, CaseIterable, Equatable, Codable {
             return "Owner"
         case .picker:
             return "Picker"
-        case .god:
-            return "God"
         }
     }
     

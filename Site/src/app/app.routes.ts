@@ -3,8 +3,6 @@ import { LoginComponent } from './login/login.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { authGuard } from './auth/auth.guard';
 import { PeopleComponent } from './people/people.component';
-import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
-import { adminGuard } from './auth/admin.guard';
 import { SignupComponent } from './signup/signup.component';
 import { BillingComponent } from './billing/billing.component';
 
@@ -42,11 +40,6 @@ export const appRoutes: Routes = [
       {
         path: 'billing',
         component: BillingComponent,
-      },
-      {
-        path: 'admin',
-        canActivate: [adminGuard],
-        component: AdminDashboardComponent,
       },
     ],
   },

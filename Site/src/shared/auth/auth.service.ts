@@ -4,20 +4,18 @@ import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, catchError, finalize, map, of, shareReplay, take, tap, throwError } from 'rxjs';
 import { buildApiUrl } from '@shared/config/runtime-env';
 
-export type UserRole = 'GOD' | 'ADMIN' | 'OWNER' | 'PICKER';
+export type UserRole = 'ADMIN' | 'OWNER' | 'PICKER';
 export type AccountRole = 'LIGHTHOUSE';
 
 type LoginResponse = {
   user: SessionUser;
   company: SessionCompany | null;
-  platformAdminCompanyId: string | null;
 };
 
 type SessionMeResponse = {
   user: SessionUser;
   currentCompany: SessionCompany | null;
   companies: SessionCompany[];
-  platformAdminCompanyId: string | null;
 };
 
 export interface SessionUser {
@@ -29,7 +27,6 @@ export interface SessionUser {
   accountRole?: AccountRole | null;
   lighthouse?: boolean;
   phone?: string | null;
-  platformAdmin: boolean;
 }
 
 export interface SessionCompany {
@@ -42,7 +39,6 @@ export interface AuthSession {
   user: SessionUser;
   company: SessionCompany | null;
   companies?: SessionCompany[];
-  platformAdminCompanyId: string | null;
 }
 
 export interface LoginPayload {
@@ -182,7 +178,6 @@ export class AuthService {
     return {
       user: response.user,
       company: response.company ?? null,
-      platformAdminCompanyId: response.platformAdminCompanyId ?? null,
     };
   }
 
@@ -191,7 +186,6 @@ export class AuthService {
       user: response.user,
       company: response.currentCompany ?? null,
       companies: response.companies,
-      platformAdminCompanyId: response.platformAdminCompanyId ?? null,
     };
   }
 }

@@ -15,10 +15,8 @@ class AuthServiceStub {
       firstName: 'Admin',
       lastName: 'User',
       role: 'OWNER',
-      platformAdmin: false,
     },
     company: null,
-    platformAdminCompanyId: null,
   });
   isBootstrapped$ = of(true);
   ensureBootstrap = jasmine.createSpy('ensureBootstrap');

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../../types/enums.js';
 
-const COMPANY_MANAGER_ROLE_SET = new Set<UserRole>([UserRole.GOD, UserRole.ADMIN, UserRole.OWNER]);
+const COMPANY_MANAGER_ROLE_SET = new Set<UserRole>([UserRole.ADMIN, UserRole.OWNER]);
 
 export const COMPANY_MANAGER_ROLES: ReadonlySet<UserRole> = COMPANY_MANAGER_ROLE_SET;
 

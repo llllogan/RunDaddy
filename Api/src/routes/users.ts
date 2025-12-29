@@ -7,7 +7,6 @@ import { setLogConfig } from '../middleware/logging.js';
 import { hashPassword } from '../lib/password.js';
 import { isCompanyManager } from './helpers/authorization.js';
 import { createUserSchema, updateUserSchema, userLookupSchema } from './helpers/users.js';
-import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 import { getCompanyTierWithCounts, remainingCapacityForRole } from './helpers/company-tier.js';
 
 const router = Router();
@@ -203,9 +202,6 @@ router.post('/', setLogConfig({ level: 'minimal' }), async (req, res) => {
   }
 
   const { email, password, firstName, lastName, phone, role } = parsed.data;
-  if (role === UserRole.GOD && req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID) {
-    return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
-  }
 
   const tierInfo = await getCompanyTierWithCounts(req.auth.companyId);
   if (!tierInfo) {
@@ -334,13 +330,6 @@ router.patch('/:userId', setLogConfig({ level: 'minimal' }), async (req, res) =>
 
   if (parsed.data.role && !isCompanyManager(req.auth.role)) {
     return res.status(403).json({ error: 'Insufficient permissions to change roles' });
-  }
-
-  if (
-    parsed.data.role === UserRole.GOD &&
-    req.auth.companyId !== PLATFORM_ADMIN_COMPANY_ID
-  ) {
-    return res.status(403).json({ error: 'Only the platform admin workspace can assign GOD roles' });
   }
 
   if (parsed.data.role && parsed.data.role !== membership.role) {

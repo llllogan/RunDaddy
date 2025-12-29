@@ -301,7 +301,7 @@ struct ReorderLocationsSheet: View {
 
     private var canEditShopLocation: Bool {
         let role = membershipRole
-        return role == "OWNER" || role == "ADMIN" || role == "GOD"
+        return role == "OWNER" || role == "ADMIN"
     }
 
     private var companyForEditor: CompanyInfo? {

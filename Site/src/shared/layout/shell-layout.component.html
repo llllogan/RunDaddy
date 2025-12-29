@@ -9,23 +9,16 @@
           <p class="text-xs uppercase tracking-wide text-slate-400">Dashboard</p>
         </div>
 
-        @let isGodUser = session?.user?.role === 'GOD';
-        @let isPlatformAdminContext =
-          session?.user?.platformAdmin &&
-          session?.platformAdminCompanyId &&
-          session?.company?.id === session?.platformAdminCompanyId;
         <nav class="space-y-1">
           @for (tab of headerTabs; track tab.id) {
-            @if (!tab.requiresAdminContext || isGodUser || isPlatformAdminContext) {
-              <a
-                class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
-                [routerLink]="tab.route"
-                routerLinkActive="bg-blue-50 text-blue-700"
-                [routerLinkActiveOptions]="{ exact: true }"
-              >
-                {{ tab.label }}
-              </a>
-            }
+            <a
+              class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+              [routerLink]="tab.route"
+              routerLinkActive="bg-blue-50 text-blue-700"
+              [routerLinkActiveOptions]="{ exact: true }"
+            >
+              {{ tab.label }}
+            </a>
           }
         </nav>
 
@@ -54,4 +47,3 @@
     </main>
   }
 </div>
-

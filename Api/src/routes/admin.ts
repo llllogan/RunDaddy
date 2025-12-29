@@ -2,13 +2,21 @@ import { Router } from 'express';
 import { Prisma, RunStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { requirePlatformAdmin } from '../middleware/require-platform-admin.js';
 import { setLogConfig } from '../middleware/logging.js';
 import { PLATFORM_ADMIN_COMPANY_ID } from '../config/platform-admin.js';
 
 const router = Router();
 
-router.use(authenticate, requirePlatformAdmin);
+router.use(authenticate);
+router.use((req, res, next) => {
+  if (!req.auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!req.auth.lighthouse) {
+    return res.status(403).json({ error: 'Lighthouse access required' });
+  }
+  return next();
+});
 
 router.get(
   '/companies',

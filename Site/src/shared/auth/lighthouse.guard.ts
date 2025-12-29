@@ -8,14 +8,7 @@ const isLighthouseSession = (session: AuthSession | null): boolean => {
     return false;
   }
 
-  if (session.user.accountRole === 'LIGHTHOUSE' || session.user.lighthouse) {
-    return true;
-  }
-
-  const platformAdminCompanyId = session.platformAdminCompanyId ?? null;
-  const currentCompanyId = session.company?.id ?? null;
-
-  return session.user.role === 'GOD' && Boolean(platformAdminCompanyId) && platformAdminCompanyId === currentCompanyId;
+  return session.user.accountRole === 'LIGHTHOUSE' || session.user.lighthouse === true;
 };
 
 export const lighthouseGuard: CanActivateFn = () => {

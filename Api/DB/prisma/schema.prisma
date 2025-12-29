@@ -25,7 +25,6 @@ enum AccountRole {
 }
 
 enum UserRole {
-  GOD
   ADMIN
   OWNER
   PICKER
