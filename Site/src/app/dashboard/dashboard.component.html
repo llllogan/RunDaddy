@@ -24,7 +24,7 @@
         <div>
           <button
             type="button"
-            class="rounded-full border border-gray-200 bg-white px-6 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200"
+            class="rounded-full border border-gray-200 bg-white px-6 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200"
             (click)="fileInput.click()"
             [disabled]="isUploading"
           >
@@ -45,18 +45,18 @@
       {{ feedbackMessage }}
     </div>
     <div *ngIf="uploadSummary" class="mt-6">
-      <p class="text-sm font-semibold uppercase tracking-wide text-gray-600">Import summary</p>
+      <p class="text-sm font-semibold text-gray-700">Import summary</p>
       <dl class="mt-2 grid grid-cols-1 gap-3 text-sm text-gray-700 sm:grid-cols-3">
         <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-600">Runs</dt>
+          <dt class="text-xs font-medium text-gray-600">Runs</dt>
           <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.runs }}</dd>
         </div>
         <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-600">Machines</dt>
+          <dt class="text-xs font-medium text-gray-600">Machines</dt>
           <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.machines }}</dd>
         </div>
         <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <dt class="text-xs uppercase tracking-wide text-gray-600">Coils</dt>
+          <dt class="text-xs font-medium text-gray-600">Coils</dt>
           <dd class="text-lg font-semibold text-gray-900">{{ uploadSummary.pickEntries }}</dd>
         </div>
       </dl>

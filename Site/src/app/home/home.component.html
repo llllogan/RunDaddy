@@ -9,7 +9,7 @@
     <ng-container *ngIf="session$ | async; else loggedOutCtas">
       <a
         routerLink="/dashboard"
-        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
+        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-black sm:w-auto"
       >
         Go to dashboard
       </a>
@@ -17,13 +17,13 @@
     <ng-template #loggedOutCtas>
       <a
         href="mailto:hello@pickeragent.com"
-        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-black sm:w-auto"
+        class="w-full rounded-full bg-gray-900 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-black sm:w-auto"
       >
         Contact the team
       </a>
       <a
         routerLink="/login"
-        class="w-full rounded-full border border-gray-300 px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-100 sm:w-auto"
+        class="w-full rounded-full border border-gray-300 px-6 py-3 text-center text-sm font-semibold text-gray-900 transition hover:bg-gray-100 sm:w-auto"
       >
         Log in
       </a>

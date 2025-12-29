@@ -1,6 +1,6 @@
 <section class="mx-auto max-w-md">
   <div class="mb-8 text-left">
-    <p class="text-xs uppercase tracking-wide text-gray-600">Get started</p>
+    <p class="text-sm font-medium text-gray-600">Get started</p>
     <h1 class="mt-2 text-3xl font-semibold text-gray-900">Create Company</h1>
     <p class="mt-2 text-sm text-gray-600">
       We will set up your organization and owner dashboard access in one step.
@@ -91,14 +91,14 @@
               <span class="block text-sm font-semibold text-gray-900">{{ plan.name }}</span>
             </span>
             <span class="text-lg font-semibold text-gray-900">{{ plan.price }} / month</span>
-            <span class="block text-xs uppercase tracking-wide text-gray-600">{{ plan.description }}</span>
+            <span class="block text-xs text-gray-600">{{ plan.description }}</span>
           </label>
         </div>
       </div>
     }
 
     <button
-      class="w-full rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
       type="submit"
       [disabled]="form.invalid || isSubmitting || (step === 'details' && requiresPhoneCode)"
     >
