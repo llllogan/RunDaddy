@@ -17,9 +17,9 @@ struct SearchSkuToolsBentoView: View {
     private var bulkSetSkuWeightItem: BentoItem {
         BentoItem(
             id: "search-bento-bulk-set-sku-weight",
-            title: "Bulk Update Weight",
+            title: "SKU Weight",
             value: resolvedCountTextWeight(missingWeightSkuCount),
-            subtitle: "Go",
+            subtitle: "Update in Bulk",
             symbolName: "scalemass",
             symbolTint: .orange,
             titleIsProminent: false,
