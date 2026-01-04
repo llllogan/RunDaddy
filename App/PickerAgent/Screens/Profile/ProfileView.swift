@@ -41,11 +41,11 @@ struct ProfileView: View {
     }
     
     private var canEditCompanyLocation: Bool {
-        viewModel.userRole == .owner || viewModel.userRole == .admin || viewModel.userRole == .god
+        viewModel.userRole == .owner || viewModel.userRole == .admin
     }
     
     private var canEditCompanyVisibility: Bool {
-        viewModel.userRole == .owner || viewModel.userRole == .admin || viewModel.userRole == .god
+        viewModel.userRole == .owner || viewModel.userRole == .admin
     }
 
     private func roleDisplay(for company: CompanyInfo) -> String {
@@ -221,7 +221,7 @@ struct ProfileView: View {
                 // Company Actions Section
                 if viewModel.currentCompany != nil {
                     Section {
-                        let inviteActionAllowed = viewModel.userRole == .god || viewModel.userRole == .admin || viewModel.userRole == .owner
+                        let inviteActionAllowed = viewModel.userRole == .admin || viewModel.userRole == .owner
                         if inviteActionAllowed {
                             let hasCapacity = viewModel.inviteRoleCapacities.contains { $0.remaining > 0 }
 

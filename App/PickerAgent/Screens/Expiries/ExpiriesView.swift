@@ -91,7 +91,7 @@ struct ExpiriesView: View {
                 } label: {
                     FilterToolbarButton(
                         label: "Filter Expiries",
-                        systemImage: "line.3.horizontal.decrease.circle",
+                        systemImage: "line.3.horizontal.decrease",
                         isActive: isHidingIgnored
                     )
                 }

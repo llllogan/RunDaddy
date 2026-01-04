@@ -207,7 +207,7 @@ struct NotesView: View {
                     } label: {
                         FilterToolbarButton(
                             label: "Filter Notes",
-                            systemImage: "line.3.horizontal.decrease.circle",
+                            systemImage: "line.3.horizontal.decrease",
                             isActive: activeFilterTag != nil
                         )
                     }

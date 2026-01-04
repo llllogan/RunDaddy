@@ -9,8 +9,8 @@ struct FilterToolbarButton: View {
         Image(systemName: systemImage)
             .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(isActive ? Color.white : Color.primary)
-            .padding(6)
-            .background(isActive ? Color.blue : Color.clear, in: Circle())
+            .padding(8)
+            .background(isActive ? Color.blue : Color.clear, in: Capsule())
             .accessibilityLabel(Text(label))
     }
 }

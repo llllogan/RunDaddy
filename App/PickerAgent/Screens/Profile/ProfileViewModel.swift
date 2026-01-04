@@ -349,7 +349,7 @@ class ProfileViewModel: ObservableObject {
     }
 
     private func rebuildInvitePermissions() {
-        let canManage = (userRole == .god || userRole == .admin || userRole == .owner)
+        let canManage = (userRole == .admin || userRole == .owner)
         guard canManage, let features = companyFeatures else {
             canGenerateInvites = false
             inviteRoleCapacities = []

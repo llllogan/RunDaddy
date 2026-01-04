@@ -264,7 +264,7 @@ struct MachineDetailView: View {
 
     private var canViewRecentActivity: Bool {
         guard let role = resolvedRole else { return false }
-        return role == .admin || role == .owner || role == .god
+        return role == .admin || role == .owner
     }
 
     private var resolvedRole: UserRole? {
