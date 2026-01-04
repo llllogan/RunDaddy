@@ -6,11 +6,19 @@ struct FilterToolbarButton: View {
     let isActive: Bool
 
     var body: some View {
-        Image(systemName: systemImage)
+        let padding: CGFloat = isActive ? 8 : 6
+
+        return Image(systemName: systemImage)
             .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(isActive ? Color.white : Color.primary)
-            .padding(8)
-            .background(isActive ? Color.blue : Color.clear, in: Capsule())
+            .padding(padding)
+            .background {
+                if isActive {
+                    Capsule().fill(Color.blue)
+                } else {
+                    Circle().fill(Color.clear)
+                }
+            }
             .accessibilityLabel(Text(label))
     }
 }
