@@ -636,7 +636,7 @@ fileprivate struct CurrentCommandView: View {
                     FlowLayout(spacing: 6) {
                         ForEach(expiryChipItems) { chip in
                             InfoChip(
-                                title: "EXP,\(chip.quantity)",
+                                title: "EXP(\(chip.quantity))",
                                 text: formattedExpiryDateLabel(chip.expiryDate),
                                 colour: Color.orange.opacity(0.2),
                                 foregroundColour: .orange,

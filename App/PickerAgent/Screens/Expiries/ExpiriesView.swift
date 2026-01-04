@@ -240,7 +240,7 @@ struct ExpiriesView: View {
             stockingMessageColor: stockingStatus.color
         )
 
-        let row = baseRow.swipeActions(edge: .leading, allowsFullSwipe: false) {
+        let row = baseRow.swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if item.isIgnored {
                 Button {
                     undoIgnore(item: item, expiryDate: section.expiryDate)

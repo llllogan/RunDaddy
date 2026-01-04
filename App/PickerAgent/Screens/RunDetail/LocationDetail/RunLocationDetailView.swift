@@ -1076,7 +1076,7 @@ struct PickEntryRow: View {
 
                     ForEach(expiryChipItems) { chip in
                         InfoChip(
-                            title: "EXP,\(chip.quantity)",
+                            title: "EXP(\(chip.quantity))",
                             text: formattedExpiryDateLabel(chip.expiryDate),
                             colour: Color.orange.opacity(0.2),
                             foregroundColour: .orange,
