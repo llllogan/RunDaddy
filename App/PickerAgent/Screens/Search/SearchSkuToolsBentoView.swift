@@ -54,7 +54,7 @@ struct SearchSkuToolsBentoView: View {
     
     private func resolvedCountTextWeight(_ count: Int?) -> String {
         if let count {
-            return "\(count) SKUs missing weight"
+            return "\(count) with no weight saved"
         }
         return isLoading ? "…" : "—"
     }
