@@ -2,6 +2,17 @@ import Foundation
 
 protocol ExpiriesServicing {
     func fetchUpcomingExpiries(daysAhead: Int?, credentials: AuthCredentials) async throws -> UpcomingExpiringItemsResponse
+    func ignoreExpiry(
+        coilItemId: String,
+        expiryDate: String,
+        quantity: Int,
+        credentials: AuthCredentials
+    ) async throws
+    func undoIgnoreExpiry(
+        coilItemId: String,
+        expiryDate: String,
+        credentials: AuthCredentials
+    ) async throws
 }
 
 private extension KeyedDecodingContainer {
@@ -68,6 +79,79 @@ final class ExpiriesService: ExpiriesServicing {
             return try decoder.decode(UpcomingExpiringItemsResponse.self, from: data)
         } catch {
             throw ExpiriesServiceError.decodingFailed(underlying: error)
+        }
+    }
+
+    func ignoreExpiry(
+        coilItemId: String,
+        expiryDate: String,
+        quantity: Int,
+        credentials: AuthCredentials
+    ) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("expiries")
+        url.appendPathComponent("ignore")
+
+        struct IgnorePayload: Encodable {
+            let coilItemId: String
+            let expiryDate: String
+            let quantity: Int
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            IgnorePayload(coilItemId: coilItemId, expiryDate: expiryDate, quantity: quantity)
+        )
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ExpiriesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw ExpiriesServiceError.serverError(code: httpResponse.statusCode)
+        }
+    }
+
+    func undoIgnoreExpiry(
+        coilItemId: String,
+        expiryDate: String,
+        credentials: AuthCredentials
+    ) async throws {
+        var url = AppConfig.apiBaseURL
+        url.appendPathComponent("expiries")
+        url.appendPathComponent("ignore")
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "coilItemId", value: coilItemId),
+            URLQueryItem(name: "expiryDate", value: expiryDate)
+        ]
+
+        var request = URLRequest(url: components?.url ?? url)
+        request.httpMethod = "DELETE"
+        request.httpShouldHandleCookies = true
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ExpiriesServiceError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                throw AuthError.unauthorized
+            }
+            throw ExpiriesServiceError.serverError(code: httpResponse.statusCode)
         }
     }
 }
@@ -209,6 +293,8 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
             let sku: Sku
             let machine: Machine
             let coil: Coil
+            let isIgnored: Bool
+            let ignoredAt: String?
 
             private enum CodingKeys: String, CodingKey {
                 case quantity
@@ -219,6 +305,8 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
                 case sku
                 case machine
                 case coil
+                case isIgnored
+                case ignoredAt
             }
 
             init(from decoder: Decoder) throws {
@@ -231,6 +319,8 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
                 let machine = try container.decode(Machine.self, forKey: .machine)
                 let coil = try container.decode(Coil.self, forKey: .coil)
                 let coilItemId = try container.decodeIfPresent(String.self, forKey: .coilItemId) ?? "\(coil.id)-\(sku.id)"
+                let isIgnored = (try? container.decodeIfPresent(Bool.self, forKey: .isIgnored)) ?? false
+                let ignoredAt = try? container.decodeIfPresent(String.self, forKey: .ignoredAt)
 
                 self.quantity = quantity
                 self.plannedQuantity = plannedQuantity
@@ -240,6 +330,8 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
                 self.sku = sku
                 self.machine = machine
                 self.coil = coil
+                self.isIgnored = isIgnored
+                self.ignoredAt = ignoredAt
             }
         }
 
@@ -260,6 +352,12 @@ struct UpcomingExpiringItemsResponse: Equatable, Decodable {
             expiryDate = try container.decodeStringOrEmpty(forKey: .expiryDate)
             items = try container.decodeIfPresent([Item].self, forKey: .items) ?? []
             runs = try container.decodeIfPresent([RunOption].self, forKey: .runs) ?? []
+        }
+
+        init(expiryDate: String, items: [Item], runs: [RunOption]) {
+            self.expiryDate = expiryDate
+            self.items = items
+            self.runs = runs
         }
     }
 

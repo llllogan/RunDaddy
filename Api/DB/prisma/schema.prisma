@@ -64,6 +64,7 @@ model User {
   usedInvites    InviteCode[] @relation("InviteUsedBy")
   packingSessions PackingSession[]
   notes Note[] @relation("NoteAuthors")
+  expiryIgnores ExpiryIgnore[] @relation("ExpiryIgnoreAuthors")
 }
 
 model Membership {
@@ -106,6 +107,7 @@ model Company {
   inviteCodes    InviteCode[]
   skus           SKU[]
   notes          Note[]
+  expiryIgnores  ExpiryIgnore[]
   tier           TierConsts @relation(fields: [tierId], references: [id], onDelete: Restrict)
 
   @@index([tierId])
@@ -181,10 +183,31 @@ model CoilItem {
   coil        Coil       @relation(fields: [coilId], references: [id], onDelete: Cascade)
   sku         SKU        @relation(fields: [skuId], references: [id], onDelete: Cascade)
   pickEntries PickEntry[]
+  expiryIgnores ExpiryIgnore[]
 
   @@unique([coilId, skuId])
   @@index([coilId])
   @@index([skuId])
+}
+
+model ExpiryIgnore {
+  id         String   @id @default(cuid())
+  companyId  String
+  coilItemId String
+  /// YYYY-MM-DD in the owning company's timezone.
+  expiryDate String   @db.VarChar(10)
+  quantity   Int
+  ignoredAt  DateTime @default(now())
+  createdBy  String?
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  coilItem CoilItem @relation(fields: [coilItemId], references: [id], onDelete: Cascade)
+  author   User?    @relation("ExpiryIgnoreAuthors", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, coilItemId, expiryDate])
+  @@index([companyId, expiryDate])
+  @@index([coilItemId, expiryDate])
+  @@index([createdBy])
 }
 
 model SKU {

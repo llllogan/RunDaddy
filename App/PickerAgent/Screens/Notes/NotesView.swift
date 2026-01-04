@@ -205,7 +205,11 @@ struct NotesView: View {
                             }
                         }
                     } label: {
-                        Label("Filter Notes", systemImage: "line.3.horizontal.decrease.circle")
+                        FilterToolbarButton(
+                            label: "Filter Notes",
+                            systemImage: "line.3.horizontal.decrease.circle",
+                            isActive: activeFilterTag != nil
+                        )
                     }
                 }
 

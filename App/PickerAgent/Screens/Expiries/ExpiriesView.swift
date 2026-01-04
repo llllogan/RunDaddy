@@ -14,6 +14,7 @@ struct ExpiriesView: View {
     @State private var pendingRunOptions: [UpcomingExpiringItemsResponse.Section.RunOption] = []
     @State private var pendingAddToRunItem: UpcomingExpiringItemsResponse.Section.Item?
     @State private var isShowingRunPicker = false
+    @State private var isHidingIgnored = true
 
     init(session: AuthSession, service: ExpiriesServicing? = nil, runsService: RunsServicing? = nil) {
         self.session = session
@@ -37,7 +38,8 @@ struct ExpiriesView: View {
                     description: Text(errorMessage)
                 )
             } else if let response = viewModel.response {
-                if response.sections.isEmpty {
+                let sections = visibleSections
+                if sections.isEmpty {
                     ContentUnavailableView(
                         "No Expiries",
                         systemImage: "checkmark.circle",
@@ -45,7 +47,7 @@ struct ExpiriesView: View {
                     )
                 } else {
                     List {
-                        ForEach(response.sections) { section in
+                        ForEach(sections) { section in
                             Section(header: sectionHeaderView(for: section)) {
                                 ForEach(section.items) { item in
                                     expiringItemRow(item: item, section: section)
@@ -64,6 +66,37 @@ struct ExpiriesView: View {
         }
         .navigationTitle("Expiries")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        isHidingIgnored = true
+                    } label: {
+                        if isHidingIgnored {
+                            Label("Hide Ignored Items", systemImage: "checkmark")
+                        } else {
+                            Text("Hide Ignored Items")
+                        }
+                    }
+
+                    Button {
+                        isHidingIgnored = false
+                    } label: {
+                        if !isHidingIgnored {
+                            Label("Show Ignored Items", systemImage: "checkmark")
+                        } else {
+                            Text("Show Ignored Items")
+                        }
+                    }
+                } label: {
+                    FilterToolbarButton(
+                        label: "Filter Expiries",
+                        systemImage: "line.3.horizontal.decrease.circle",
+                        isActive: isHidingIgnored
+                    )
+                }
+            }
+        }
         .task {
             await viewModel.load()
         }
@@ -96,6 +129,24 @@ struct ExpiriesView: View {
             }
         } message: {
             Text(runPickerMessage())
+        }
+    }
+
+    private var visibleSections: [UpcomingExpiringItemsResponse.Section] {
+        guard let response = viewModel.response else {
+            return []
+        }
+
+        guard isHidingIgnored else {
+            return response.sections
+        }
+
+        return response.sections.compactMap { section in
+            let items = section.items.filter { !$0.isIgnored }
+            guard !items.isEmpty else {
+                return nil
+            }
+            return UpcomingExpiringItemsResponse.Section(expiryDate: section.expiryDate, items: items, runs: section.runs)
         }
     }
 
@@ -175,7 +226,7 @@ struct ExpiriesView: View {
         section: UpcomingExpiringItemsResponse.Section
     ) -> some View {
         let stockingStatus = stockingStatus(for: item, section: section)
-        let row = ExpiringItemRowView(
+        let baseRow = ExpiringItemRowView(
             skuName: item.sku.name,
             skuType: item.sku.type,
             machineCode: item.machine.description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -187,7 +238,29 @@ struct ExpiriesView: View {
             stockingMessageColor: stockingStatus.color
         )
 
-        if let stockingRun = item.stockingRun {
+        let row = baseRow.swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if item.isIgnored {
+                Button {
+                    undoIgnore(item: item, expiryDate: section.expiryDate)
+                } label: {
+                    Label("Undo Ignore", systemImage: "arrow.uturn.left")
+                }
+                .tint(.blue)
+                .disabled(isPerformingAction)
+            } else {
+                Button {
+                    ignore(item: item, expiryDate: section.expiryDate)
+                } label: {
+                    Label("Ignore", systemImage: "eye.slash")
+                }
+                .tint(.gray)
+                .disabled(isPerformingAction)
+            }
+        }
+
+        if item.isIgnored {
+            row
+        } else if let stockingRun = item.stockingRun {
             row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button {
                     addNeeded(runId: stockingRun.id, item: item)
@@ -318,6 +391,42 @@ struct ExpiriesView: View {
         return "Select a run to add this coil to. Runs are listed with their locations."
     }
 
+    private func ignore(item: UpcomingExpiringItemsResponse.Section.Item, expiryDate: String) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer { isPerformingAction = false }
+            do {
+                try await viewModel.ignoreExpiry(item: item, expiryDate: expiryDate)
+                await viewModel.load(force: true)
+            } catch {
+                actionAlertMessage = "We couldn't ignore that expiry right now. Please try again."
+                isShowingActionAlert = true
+            }
+        }
+    }
+
+    private func undoIgnore(item: UpcomingExpiringItemsResponse.Section.Item, expiryDate: String) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer { isPerformingAction = false }
+            do {
+                try await viewModel.undoIgnoreExpiry(item: item, expiryDate: expiryDate)
+                await viewModel.load(force: true)
+            } catch {
+                actionAlertMessage = "We couldn't undo that ignore right now. Please try again."
+                isShowingActionAlert = true
+            }
+        }
+    }
+
     private static let expiryFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -404,5 +513,22 @@ final class ExpiriesViewModel: ObservableObject {
             }
             response = nil
         }
+    }
+
+    func ignoreExpiry(item: UpcomingExpiringItemsResponse.Section.Item, expiryDate: String) async throws {
+        try await service.ignoreExpiry(
+            coilItemId: item.coilItemId,
+            expiryDate: expiryDate,
+            quantity: item.expiringQuantity,
+            credentials: session.credentials
+        )
+    }
+
+    func undoIgnoreExpiry(item: UpcomingExpiringItemsResponse.Section.Item, expiryDate: String) async throws {
+        try await service.undoIgnoreExpiry(
+            coilItemId: item.coilItemId,
+            expiryDate: expiryDate,
+            credentials: session.credentials
+        )
     }
 }

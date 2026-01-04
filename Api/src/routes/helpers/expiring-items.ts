@@ -47,6 +47,8 @@ type UpcomingExpiringItemsSectionItem = ExpiringItemsSectionItem & {
     id: string;
     runDate: string; // YYYY-MM-DD in company timezone
   } | null;
+  isIgnored: boolean;
+  ignoredAt: string | null;
 };
 
 type PickEntryExpiryOverrideRow = {
@@ -57,6 +59,13 @@ type PickEntryExpiryOverrideRow = {
 type PickEntryExpiryLot = {
   expiryDate: string;
   quantity: number;
+};
+
+type ExpiryIgnoreRow = {
+  coilItemId: string;
+  expiryDate: string;
+  quantity: number;
+  ignoredAt: Date;
 };
 
 export type UpcomingExpiringItemsSection = {
@@ -251,6 +260,103 @@ const applyRestockConsumption = (lots: PickEntryExpiryLot[], restockedAfter: num
   return nextLots;
 };
 
+const groupIgnoresByCoilItemId = (rows: ExpiryIgnoreRow[]): Map<string, ExpiryIgnoreRow[]> => {
+  const grouped = new Map<string, ExpiryIgnoreRow[]>();
+
+  for (const row of rows) {
+    const expiryDate = row.expiryDate?.trim() ?? '';
+    if (!row.coilItemId || !expiryDate) {
+      continue;
+    }
+    const quantity = Math.max(0, Math.floor(row.quantity ?? 0));
+    if (quantity <= 0) {
+      continue;
+    }
+    if (!grouped.has(row.coilItemId)) {
+      grouped.set(row.coilItemId, []);
+    }
+    grouped.get(row.coilItemId)!.push({ ...row, expiryDate, quantity });
+  }
+
+  for (const rows of grouped.values()) {
+    rows.sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+  }
+
+  return grouped;
+};
+
+const applyIgnoresToLots = (lots: PickEntryExpiryLot[], ignores: ExpiryIgnoreRow[]): PickEntryExpiryLot[] => {
+  if (!lots.length || !ignores.length) {
+    return lots;
+  }
+
+  const nextLots = lots
+    .map((lot) => ({ ...lot }))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+
+  for (const ignore of ignores) {
+    let remaining = Math.max(0, Math.floor(ignore.quantity ?? 0));
+    if (remaining <= 0) {
+      continue;
+    }
+
+    for (const lot of nextLots) {
+      if (lot.expiryDate < ignore.expiryDate) {
+        continue;
+      }
+      if (remaining <= 0) {
+        break;
+      }
+
+      const removed = Math.min(lot.quantity, remaining);
+      lot.quantity -= removed;
+      remaining -= removed;
+    }
+  }
+
+  return nextLots.filter((lot) => lot.quantity > 0);
+};
+
+const applyIgnoresToRemaining = (
+  expiringRemainingByCoilItemIdByDate: Map<string, number>,
+  ignoreRows: ExpiryIgnoreRow[],
+): Map<string, number> => {
+  if (!expiringRemainingByCoilItemIdByDate.size || !ignoreRows.length) {
+    return expiringRemainingByCoilItemIdByDate;
+  }
+
+  const lotsByCoilItemId = new Map<string, PickEntryExpiryLot[]>();
+
+  for (const [detailKey, quantity] of expiringRemainingByCoilItemIdByDate.entries()) {
+    const [coilItemId, expiryDate] = detailKey.split(':');
+    if (!coilItemId || !expiryDate) {
+      continue;
+    }
+    const safeQuantity = Math.max(0, Math.floor(quantity));
+    if (safeQuantity <= 0) {
+      continue;
+    }
+    if (!lotsByCoilItemId.has(coilItemId)) {
+      lotsByCoilItemId.set(coilItemId, []);
+    }
+    lotsByCoilItemId.get(coilItemId)!.push({ expiryDate, quantity: safeQuantity });
+  }
+
+  const ignoreByCoilItemId = groupIgnoresByCoilItemId(ignoreRows);
+  const adjusted = new Map<string, number>();
+
+  for (const [coilItemId, lots] of lotsByCoilItemId.entries()) {
+    const ignores = ignoreByCoilItemId.get(coilItemId) ?? [];
+    const updatedLots = ignores.length ? applyIgnoresToLots(lots, ignores) : lots;
+
+    for (const lot of updatedLots) {
+      adjusted.set(`${coilItemId}:${lot.expiryDate}`, lot.quantity);
+    }
+  }
+
+  return adjusted;
+};
+
 export async function buildExpiringItemsForRun(
   companyId: string,
   runId: string,
@@ -266,7 +372,7 @@ export async function buildExpiringItemsForRun(
   const timeZone = await resolveCompanyTimezone(companyId);
 
   const runDayRange = getTimezoneDayRange({ timeZone, reference: run.scheduledFor!, dayOffset: 0 });
-  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 }).label;
+  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: 0 }).label;
   if (runDayRange.label < windowStartLabel) {
     return { warningCount: 0, sections: [] };
   }
@@ -473,9 +579,33 @@ export async function buildExpiringItemsForRun(
     );
   }
 
-  const items: ExpiringItemsSectionItem[] = [];
+  const ignoreRows = await prisma.expiryIgnore.findMany({
+    where: {
+      companyId,
+      coilItemId: { in: coilItemIds },
+      expiryDate: {
+        lte: runDayRange.label,
+      },
+    },
+    select: {
+      coilItemId: true,
+      expiryDate: true,
+      quantity: true,
+      ignoredAt: true,
+    },
+  });
+
+  const expiringRemainingByCoilItemIdByDate = new Map<string, number>();
   for (const [coilItemId, expiringRemaining] of expiringRemainingByCoilItemId.entries()) {
-    if (expiringRemaining <= 0) {
+    expiringRemainingByCoilItemIdByDate.set(`${coilItemId}:${runDayRange.label}`, expiringRemaining);
+  }
+
+  const adjustedByKey = applyIgnoresToRemaining(expiringRemainingByCoilItemIdByDate, ignoreRows);
+
+  const items: ExpiringItemsSectionItem[] = [];
+  for (const [detailKey, expiringRemaining] of adjustedByKey.entries()) {
+    const [coilItemId] = detailKey.split(':');
+    if (!coilItemId || expiringRemaining <= 0) {
       continue;
     }
     const base = detailsByCoilItemId.get(coilItemId);
@@ -523,7 +653,7 @@ export async function buildUpcomingExpiringItems({
   const resolvedDaysAhead = Number.isFinite(daysAhead) ? Math.max(0, Math.min(28, Math.floor(daysAhead))) : 14;
 
   const timeZone = await resolveCompanyTimezone(companyId);
-  const windowStart = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 });
+  const windowStart = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: 0 });
   const windowEnd = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead });
   const windowEndExclusive = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: resolvedDaysAhead + 1 });
 
@@ -617,6 +747,33 @@ export async function buildUpcomingExpiringItems({
   }
 
   const coilItemIds = Array.from(new Set(expiringPickEntries.map((entry) => entry.coilItemId)));
+
+  const ignoreRows = await prisma.expiryIgnore.findMany({
+    where: {
+      companyId,
+      coilItemId: { in: coilItemIds },
+      expiryDate: {
+        lte: windowEnd.label,
+      },
+    },
+    select: {
+      coilItemId: true,
+      expiryDate: true,
+      quantity: true,
+      ignoredAt: true,
+    },
+  });
+
+  const ignoreRowsForDisplay = ignoreRows.filter((row) => row.expiryDate >= windowStart.label);
+  const ignoredByKey = new Map<string, ExpiryIgnoreRow>();
+
+  for (const row of ignoreRowsForDisplay) {
+    const expiryDate = row.expiryDate?.trim() ?? '';
+    if (!expiryDate) {
+      continue;
+    }
+    ignoredByKey.set(`${row.coilItemId}:${expiryDate}`, row);
+  }
 
   let earliestRunAtMs: number | null = null;
   for (const entry of expiringPickEntries) {
@@ -812,11 +969,20 @@ export async function buildUpcomingExpiringItems({
     }
   }
 
+  const adjustedRemainingByCoilItemIdByDate = applyIgnoresToRemaining(
+    expiringRemainingByCoilItemIdByDate,
+    ignoreRows,
+  );
+
   const sectionsByDate = new Map<string, UpcomingExpiringItemsSectionItem[]>();
 
-  for (const [detailKey, expiringRemaining] of expiringRemainingByCoilItemIdByDate.entries()) {
+  for (const [detailKey, expiringRemaining] of adjustedRemainingByCoilItemIdByDate.entries()) {
     const [coilItemId, expiryDate] = detailKey.split(':');
     if (!coilItemId || !expiryDate) {
+      continue;
+    }
+
+    if (ignoredByKey.has(detailKey)) {
       continue;
     }
 
@@ -843,6 +1009,43 @@ export async function buildUpcomingExpiringItems({
             runDate: expiryDate,
           }
         : null,
+      isIgnored: false,
+      ignoredAt: null,
+    };
+
+    if (!sectionsByDate.has(expiryDate)) {
+      sectionsByDate.set(expiryDate, []);
+    }
+    sectionsByDate.get(expiryDate)!.push(item);
+  }
+
+  for (const [detailKey, ignore] of ignoredByKey.entries()) {
+    const [coilItemId, expiryDate] = detailKey.split(':');
+    if (!coilItemId || !expiryDate) {
+      continue;
+    }
+
+    const base = detailsByCoilItemId.get(coilItemId);
+    if (!base) {
+      continue;
+    }
+
+    const plannedQuantity = plannedByCoilItemIdByDate.get(detailKey) ?? 0;
+    const stockingRun = stockingRunByCoilItemIdByDate.get(detailKey);
+
+    const item: UpcomingExpiringItemsSectionItem = {
+      ...base,
+      quantity: ignore.quantity,
+      plannedQuantity,
+      expiringQuantity: ignore.quantity,
+      stockingRun: stockingRun
+        ? {
+            id: stockingRun.runId,
+            runDate: expiryDate,
+          }
+        : null,
+      isIgnored: true,
+      ignoredAt: ignore.ignoredAt.toISOString(),
     };
 
     if (!sectionsByDate.has(expiryDate)) {
@@ -1001,7 +1204,7 @@ export async function addNeededForRunDayExpiry({
 
   const timeZone = await resolveCompanyTimezone(companyId);
   const runDayLabel = getTimezoneDayRange({ timeZone, reference: run.scheduledFor, dayOffset: 0 }).label;
-  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: -1 }).label;
+  const windowStartLabel = getTimezoneDayRange({ timeZone, reference: new Date(), dayOffset: 0 }).label;
   if (runDayLabel < windowStartLabel) {
     return null;
   }
@@ -1168,6 +1371,22 @@ export async function addNeededForRunDayExpiry({
       .filter((lot) => lot.expiryDate === runDayLabel)
       .reduce((sum, lot) => sum + lot.quantity, 0);
   }
+
+  const ignoreRows = await prisma.expiryIgnore.findMany({
+    where: {
+      companyId,
+      coilItemId,
+      expiryDate: {
+        lte: runDayLabel,
+      },
+    },
+    select: {
+      quantity: true,
+    },
+  });
+
+  const ignoredTotal = ignoreRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.quantity ?? 0)), 0);
+  remainingExpiringQuantity = Math.max(0, remainingExpiringQuantity - ignoredTotal);
 
   if (remainingExpiringQuantity <= 0) {
     return {
