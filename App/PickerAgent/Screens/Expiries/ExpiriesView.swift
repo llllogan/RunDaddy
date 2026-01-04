@@ -225,7 +225,9 @@ struct ExpiriesView: View {
         item: UpcomingExpiringItemsResponse.Section.Item,
         section: UpcomingExpiringItemsResponse.Section
     ) -> some View {
-        let stockingStatus = stockingStatus(for: item, section: section)
+        let stockingStatus = item.isIgnored
+            ? (message: "Ignored", color: Color.red)
+            : stockingStatus(for: item, section: section)
         let baseRow = ExpiringItemRowView(
             skuName: item.sku.name,
             skuType: item.sku.type,
