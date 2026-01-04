@@ -27,6 +27,8 @@ type ExpiringItemsSectionItem = {
     id: string;
     code: string;
   };
+  isIgnored: boolean;
+  ignoredAt: string | null;
 };
 
 export type ExpiringItemsSection = {
@@ -595,6 +597,15 @@ export async function buildExpiringItemsForRun(
     },
   });
 
+  const ignoredByKey = new Map<string, ExpiryIgnoreRow>();
+  for (const row of ignoreRows) {
+    const expiryDate = row.expiryDate?.trim() ?? '';
+    if (!expiryDate || expiryDate != runDayRange.label) {
+      continue;
+    }
+    ignoredByKey.set(`${row.coilItemId}:${expiryDate}`, row);
+  }
+
   const expiringRemainingByCoilItemIdByDate = new Map<string, number>();
   for (const [coilItemId, expiringRemaining] of expiringRemainingByCoilItemId.entries()) {
     expiringRemainingByCoilItemIdByDate.set(`${coilItemId}:${runDayRange.label}`, expiringRemaining);
@@ -612,7 +623,24 @@ export async function buildExpiringItemsForRun(
     if (!base) {
       continue;
     }
-    items.push({ ...base, quantity: expiringRemaining });
+    items.push({ ...base, quantity: expiringRemaining, isIgnored: false, ignoredAt: null });
+  }
+
+  for (const [detailKey, ignore] of ignoredByKey.entries()) {
+    const [coilItemId] = detailKey.split(':');
+    if (!coilItemId) {
+      continue;
+    }
+    const base = detailsByCoilItemId.get(coilItemId);
+    if (!base) {
+      continue;
+    }
+    items.push({
+      ...base,
+      quantity: ignore.quantity,
+      isIgnored: true,
+      ignoredAt: ignore.ignoredAt.toISOString(),
+    });
   }
 
   if (!items.length) {
@@ -632,7 +660,7 @@ export async function buildExpiringItemsForRun(
   });
 
   return {
-    warningCount: items.length,
+    warningCount: items.filter((item) => !item.isIgnored).length,
     sections: [
       {
         expiryDate: runDayRange.label,
@@ -1174,7 +1202,10 @@ export async function buildUpcomingExpiringItems({
     }))
     .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
 
-  const warningCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+  const warningCount = sections.reduce(
+    (sum, section) => sum + section.items.filter((item) => !item.isIgnored).length,
+    0,
+  );
 
   return { warningCount, sections };
 }

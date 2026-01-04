@@ -6,6 +6,7 @@ struct ExpiringItemsView: View {
     @State private var isAddingNeeded = false
     @State private var addedAlertMessage: String?
     @State private var isShowingAddedAlert = false
+    @State private var isPerformingAction = false
 
     var body: some View {
         Group {
@@ -21,24 +22,7 @@ struct ExpiringItemsView: View {
                         ForEach(response.sections) { section in
                             Section() {
                                 ForEach(section.items) { item in
-                                    ExpiringItemRowView(
-                                        skuName: item.sku.name,
-                                        skuType: item.sku.type,
-                                        machineCode: item.machine.code,
-                                        coilCode: item.coil.code,
-                                        quantity: item.quantity
-                                    )
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                            if section.dayOffset == 0 {
-                                                Button {
-                                                    addNeeded(for: item, runDate: section.expiryDate)
-                                                } label: {
-                                                    Label("Add \(item.quantity) to coil", systemImage: "plus")
-                                                }
-                                                .tint(.blue)
-                                                .disabled(isAddingNeeded)
-                                            }
-                                        }
+                                    expiringItemRow(item: item, section: section)
                                 }
                             }
                         }
@@ -54,7 +38,7 @@ struct ExpiringItemsView: View {
         }
         .navigationTitle("Expiring Items")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Added Needed", isPresented: $isShowingAddedAlert) {
+        .alert("Expiring Items", isPresented: $isShowingAddedAlert) {
             Button("OK") {
                 addedAlertMessage = nil
                 Task { @MainActor in
@@ -96,6 +80,58 @@ struct ExpiringItemsView: View {
         count == 1 ? "item" : "items"
     }
 
+    @ViewBuilder
+    private func expiringItemRow(
+        item: ExpiringItemsRunResponse.Section.Item,
+        section: ExpiringItemsRunResponse.Section
+    ) -> some View {
+        let statusMessage = item.isIgnored ? "Ignored" : nil
+
+        let baseRow = ExpiringItemRowView(
+            skuName: item.sku.name,
+            skuType: item.sku.type,
+            machineCode: machineDisplayName(for: item),
+            coilCode: item.coil.code,
+            quantity: item.quantity,
+            stockingMessage: statusMessage,
+            stockingMessageColor: .secondary
+        )
+
+        let row = baseRow.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if item.isIgnored {
+                Button {
+                    undoIgnore(item: item, expiryDate: section.expiryDate)
+                } label: {
+                    Label("Undo Ignore", systemImage: "arrow.uturn.left")
+                }
+                .tint(.blue)
+                .disabled(isPerformingAction)
+            } else {
+                Button {
+                    ignore(item: item, expiryDate: section.expiryDate)
+                } label: {
+                    Label("Ignore", systemImage: "eye.slash")
+                }
+                .tint(.gray)
+                .disabled(isPerformingAction)
+            }
+        }
+
+        if item.isIgnored || section.dayOffset != 0 {
+            row
+        } else {
+            row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button {
+                    addNeeded(for: item, runDate: section.expiryDate)
+                } label: {
+                    Label("Add \(item.quantity) to coil", systemImage: "plus")
+                }
+                .tint(.blue)
+                .disabled(isAddingNeeded)
+            }
+        }
+    }
+
     private func addNeeded(for item: ExpiringItemsRunResponse.Section.Item, runDate: String) {
         if isAddingNeeded {
             return
@@ -113,6 +149,42 @@ struct ExpiringItemsView: View {
                 isShowingAddedAlert = true
             } catch {
                 addedAlertMessage = "We couldn't add the needed items right now. Please try again."
+                isShowingAddedAlert = true
+            }
+        }
+    }
+
+    private func ignore(item: ExpiringItemsRunResponse.Section.Item, expiryDate: String) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer { isPerformingAction = false }
+            do {
+                try await viewModel.ignoreExpiry(item: item, expiryDate: expiryDate)
+                await viewModel.loadExpiringItems(force: true)
+            } catch {
+                addedAlertMessage = "We couldn't ignore that expiry right now. Please try again."
+                isShowingAddedAlert = true
+            }
+        }
+    }
+
+    private func undoIgnore(item: ExpiringItemsRunResponse.Section.Item, expiryDate: String) {
+        guard !isPerformingAction else {
+            return
+        }
+
+        isPerformingAction = true
+        Task { @MainActor in
+            defer { isPerformingAction = false }
+            do {
+                try await viewModel.undoIgnoreExpiry(item: item, expiryDate: expiryDate)
+                await viewModel.loadExpiringItems(force: true)
+            } catch {
+                addedAlertMessage = "We couldn't undo that ignore right now. Please try again."
                 isShowingAddedAlert = true
             }
         }

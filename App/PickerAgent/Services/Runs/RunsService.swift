@@ -189,6 +189,47 @@ struct ExpiringItemsRunResponse: Equatable, Decodable {
             let sku: Sku
             let machine: Machine
             let coil: Coil
+            let isIgnored: Bool
+            let ignoredAt: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case quantity
+                case coilItemId
+                case sku
+                case machine
+                case coil
+                case isIgnored
+                case ignoredAt
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                quantity = try container.decode(Int.self, forKey: .quantity)
+                coilItemId = try container.decode(String.self, forKey: .coilItemId)
+                sku = try container.decode(Sku.self, forKey: .sku)
+                machine = try container.decode(Machine.self, forKey: .machine)
+                coil = try container.decode(Coil.self, forKey: .coil)
+                isIgnored = (try? container.decodeIfPresent(Bool.self, forKey: .isIgnored)) ?? false
+                ignoredAt = try? container.decodeIfPresent(String.self, forKey: .ignoredAt)
+            }
+
+            init(
+                quantity: Int,
+                coilItemId: String,
+                sku: Sku,
+                machine: Machine,
+                coil: Coil,
+                isIgnored: Bool = false,
+                ignoredAt: String? = nil
+            ) {
+                self.quantity = quantity
+                self.coilItemId = coilItemId
+                self.sku = sku
+                self.machine = machine
+                self.coil = coil
+                self.isIgnored = isIgnored
+                self.ignoredAt = ignoredAt
+            }
         }
 
         var id: String { expiryDate }

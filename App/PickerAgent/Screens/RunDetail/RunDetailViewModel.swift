@@ -128,6 +128,7 @@ final class RunDetailViewModel: ObservableObject {
     private let authService: AuthServicing
     private let locationsService: LocationsServicing
     private let notesService: NotesServicing
+    private let expiriesService: ExpiriesServicing
     private var locationContextsByID: [String: LocationContext] = [:]
 
     var pendingUnassignedPickItems: [RunDetail.PickItem] {
@@ -142,7 +143,8 @@ final class RunDetailViewModel: ObservableObject {
         companyService: CompanyServicing? = nil,
         authService: AuthServicing? = nil,
         locationsService: LocationsServicing? = nil,
-        notesService: NotesServicing? = nil
+        notesService: NotesServicing? = nil,
+        expiriesService: ExpiriesServicing? = nil
     ) {
         self.runId = runId
         self.session = session
@@ -151,6 +153,7 @@ final class RunDetailViewModel: ObservableObject {
         self.authService = authService ?? AuthService()
         self.locationsService = locationsService ?? LocationsService()
         self.notesService = notesService ?? NotesService()
+        self.expiriesService = expiriesService ?? ExpiriesService()
     }
 
     func load(force: Bool = false) async {
@@ -666,6 +669,23 @@ final class RunDetailViewModel: ObservableObject {
 
     func addNeededForExpiringItem(coilItemId: String) async throws -> AddNeededForExpiryResponse {
         try await service.addNeededForExpiringItem(runId: runId, coilItemId: coilItemId, credentials: session.credentials)
+    }
+
+    func ignoreExpiry(item: ExpiringItemsRunResponse.Section.Item, expiryDate: String) async throws {
+        try await expiriesService.ignoreExpiry(
+            coilItemId: item.coilItemId,
+            expiryDate: expiryDate,
+            quantity: item.quantity,
+            credentials: session.credentials
+        )
+    }
+
+    func undoIgnoreExpiry(item: ExpiringItemsRunResponse.Section.Item, expiryDate: String) async throws {
+        try await expiriesService.undoIgnoreExpiry(
+            coilItemId: item.coilItemId,
+            expiryDate: expiryDate,
+            credentials: session.credentials
+        )
     }
 
     func saveLocationOrder(with orderedLocationIds: [String?]) async throws {
